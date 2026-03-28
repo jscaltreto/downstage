@@ -1,0 +1,1033 @@
+package parser
+
+import (
+	"strings"
+
+	"github.com/jscaltreto/downstage/internal/ast"
+	"github.com/jscaltreto/downstage/internal/lexer"
+	"github.com/jscaltreto/downstage/internal/token"
+)
+
+// Parse lexes input and produces an AST document along with any parse errors.
+func Parse(input []byte) (*ast.Document, []*ParseError) {
+	tokens := lexer.Lex(input)
+	p := &parser{
+		tokens: tokens,
+		pos:    0,
+		errors: make([]*ParseError, 0),
+	}
+	return p.parseDocument(), p.errors
+}
+
+type parser struct {
+	tokens []token.Token
+	pos    int
+	errors []*ParseError
+}
+
+func (p *parser) peek() token.Token {
+	if p.pos >= len(p.tokens) {
+		return token.Token{Type: token.EOF}
+	}
+	return p.tokens[p.pos]
+}
+
+func (p *parser) advance() token.Token {
+	tok := p.peek()
+	if p.pos < len(p.tokens) {
+		p.pos++
+	}
+	return tok
+}
+
+func (p *parser) at(t token.Type) bool {
+	return p.peek().Type == t
+}
+
+func (p *parser) atAny(types ...token.Type) bool {
+	cur := p.peek().Type
+	for _, t := range types {
+		if cur == t {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *parser) skipBlanks() {
+	for p.at(token.Blank) {
+		p.advance()
+	}
+}
+
+func (p *parser) skipBlanksAndComments() {
+	for {
+		switch {
+		case p.at(token.Blank):
+			p.advance()
+		case p.at(token.LineComment):
+			p.advance()
+		case p.at(token.BlockCommentStart):
+			p.parseBlockComment() // consumes start, body text, and end tokens
+		default:
+			return
+		}
+	}
+}
+
+func (p *parser) addError(msg string, r token.Range) {
+	p.errors = append(p.errors, &ParseError{Message: msg, Range: r})
+}
+
+func (p *parser) skipToNextBlank() {
+	for !p.at(token.Blank) && !p.at(token.EOF) {
+		p.advance()
+	}
+}
+
+func (p *parser) parseDocument() *ast.Document {
+	doc := &ast.Document{}
+
+	// Title page: everything before first heading or structural element
+	if p.at(token.TitleKey) || p.at(token.TitleValue) {
+		doc.TitlePage = p.parseTitlePage()
+	}
+
+	p.skipBlanksAndComments()
+
+	// Body
+	doc.Body = p.parseBody()
+
+	// Set document range
+	if len(p.tokens) > 0 {
+		doc.Range = token.Range{
+			Start: p.tokens[0].Range.Start,
+			End:   p.tokens[len(p.tokens)-1].Range.End,
+		}
+	}
+
+	return doc
+}
+
+func (p *parser) parseTitlePage() *ast.TitlePage {
+	tp := &ast.TitlePage{}
+	startRange := p.peek().Range
+
+	for p.at(token.TitleKey) || p.at(token.TitleValue) {
+		if p.at(token.TitleKey) {
+			keyTok := p.advance()
+			kv := ast.KeyValue{
+				Key:   keyTok.Literal,
+				Range: keyTok.Range,
+			}
+			if p.at(token.TitleValue) {
+				valTok := p.advance()
+				kv.Value = valTok.Literal
+				kv.Range.End = valTok.Range.End
+			}
+			tp.Entries = append(tp.Entries, kv)
+		} else {
+			// Continuation value without key; append to last entry
+			valTok := p.advance()
+			if len(tp.Entries) > 0 {
+				last := &tp.Entries[len(tp.Entries)-1]
+				if last.Value != "" {
+					last.Value += "\n"
+				}
+				last.Value += valTok.Literal
+				last.Range.End = valTok.Range.End
+			}
+		}
+	}
+
+	tp.Range = startRange
+	if len(tp.Entries) > 0 {
+		tp.Range.End = tp.Entries[len(tp.Entries)-1].Range.End
+	}
+
+	return tp
+}
+
+func (p *parser) parseBody() []ast.Node {
+	var nodes []ast.Node
+
+	for !p.at(token.EOF) {
+		p.skipBlanks()
+		if p.at(token.EOF) {
+			break
+		}
+
+		node := p.parseBodyElement()
+		if node != nil {
+			nodes = append(nodes, node)
+		}
+	}
+
+	return nodes
+}
+
+func (p *parser) parseBodyElement() ast.Node {
+	switch p.peek().Type {
+	case token.HeadingH1:
+		return p.parseSection(1)
+
+	case token.HeadingH2:
+		return p.parseSection(2)
+
+	case token.HeadingH3:
+		return p.parseSection(3)
+
+	case token.CharacterName, token.ForcedCharacter:
+		return p.parseDialogue()
+
+	case token.StageDirection:
+		return p.parseStageDirection()
+
+	case token.SongStart:
+		return p.parseSong()
+
+	case token.LineComment:
+		return p.parseLineComment()
+
+	case token.BlockCommentStart:
+		return p.parseBlockComment()
+
+	case token.PageBreak:
+		tok := p.advance()
+		return &ast.PageBreak{Range: tok.Range}
+
+	case token.ForcedHeading:
+		tok := p.advance()
+		return &ast.Section{
+			Kind:  ast.SectionGeneric,
+			Level: 0, // inline heading, no page break
+			Title: strings.TrimPrefix(tok.Literal, "."),
+			Range: tok.Range,
+		}
+
+	case token.Verse:
+		return p.parseVerseBlock()
+
+	case token.Text:
+		tok := p.advance()
+		return &ast.StageDirection{
+			Content: parseInlineContent(tok.Literal, tok.Range),
+			Range:   tok.Range,
+		}
+
+	case token.CharacterAlias:
+		tok := p.advance()
+		return &ast.StageDirection{
+			Content: parseInlineContent(tok.Literal, tok.Range),
+			Range:   tok.Range,
+		}
+
+	default:
+		// Unexpected token; emit error and skip
+		tok := p.advance()
+		p.addError("unexpected token: "+tok.Type.String(), tok.Range)
+		p.skipToNextBlank()
+		return nil
+	}
+}
+
+// headingTokenForLevel returns the token type for a given heading level.
+func headingTokenForLevel(level int) token.Type {
+	switch level {
+	case 1:
+		return token.HeadingH1
+	case 2:
+		return token.HeadingH2
+	case 3:
+		return token.HeadingH3
+	default:
+		return token.HeadingH1
+	}
+}
+
+// hasSubHeading scans ahead (without consuming) to see if there are any
+// headings below the given level before the next same-or-higher heading.
+// This determines whether a generic section contains structural content
+// (acts/scenes) or is pure prose.
+func (p *parser) hasSubHeading(level int) bool {
+	saved := p.pos
+	defer func() { p.pos = saved }()
+
+	for !p.at(token.EOF) && !p.atHeadingAtOrAboveLevel(level) {
+		if level < 3 && p.at(headingTokenForLevel(level+1)) {
+			return true
+		}
+		if level < 2 && p.at(headingTokenForLevel(level+2)) {
+			return true
+		}
+		p.advance()
+	}
+	return false
+}
+
+// atHeadingLevel returns true if the current token is a heading at or above the given level.
+func (p *parser) atHeadingAtOrAboveLevel(level int) bool {
+	switch level {
+	case 1:
+		return p.at(token.HeadingH1)
+	case 2:
+		return p.at(token.HeadingH1) || p.at(token.HeadingH2)
+	case 3:
+		return p.at(token.HeadingH1) || p.at(token.HeadingH2) || p.at(token.HeadingH3)
+	default:
+		return false
+	}
+}
+
+func inferSectionKind(title string, level int, insideAct bool) ast.SectionKind {
+	upper := strings.ToUpper(strings.TrimSpace(title))
+
+	normalized := strings.ToLower(strings.TrimSpace(title))
+	switch normalized {
+	case "dramatis personae", "cast of characters", "characters":
+		return ast.SectionDramatisPersonae
+	}
+	if isSectionKeyword(upper, "ACT") {
+		return ast.SectionAct
+	}
+	if isSectionKeyword(upper, "SCENE") {
+		return ast.SectionScene
+	}
+	if insideAct && level >= 2 {
+		return ast.SectionScene
+	}
+	return ast.SectionGeneric
+}
+
+// parseActTitle parses "ACT I: The Beginning" into number and title.
+func parseActTitle(raw string) (number, title string) {
+	upper := strings.ToUpper(raw)
+	rest := strings.TrimSpace(strings.TrimPrefix(upper, "ACT"))
+	if idx := strings.Index(rest, ":"); idx >= 0 {
+		number = strings.TrimSpace(rest[:idx])
+		// Extract original-case title after colon
+		origRest := strings.TrimSpace(raw[len("ACT"):])
+		if colonIdx := strings.Index(origRest, ":"); colonIdx >= 0 {
+			title = strings.TrimSpace(origRest[colonIdx+1:])
+		}
+	} else {
+		number = rest
+	}
+	return
+}
+
+// parseSceneTitle parses "SCENE 1: The Garden" into number and title.
+func parseSceneTitle(raw string) (number, title string) {
+	upper := strings.ToUpper(raw)
+	rest := strings.TrimSpace(strings.TrimPrefix(upper, "SCENE"))
+	if idx := strings.Index(rest, ":"); idx >= 0 {
+		number = strings.TrimSpace(rest[:idx])
+		origRest := strings.TrimSpace(raw[len("SCENE"):])
+		if colonIdx := strings.Index(origRest, ":"); colonIdx >= 0 {
+			title = strings.TrimSpace(origRest[colonIdx+1:])
+		}
+	} else {
+		number = rest
+	}
+	return
+}
+
+// parseSection parses a unified Section node from a heading token at the given level.
+// When insideAct is true, ## headings default to SectionScene.
+func (p *parser) parseSection(level int) *ast.Section {
+	return p.parseSectionInContext(level, false)
+}
+
+func (p *parser) parseSectionInContext(level int, insideAct bool) *ast.Section {
+	headingTok := p.advance()
+	kind := inferSectionKind(headingTok.Literal, level, insideAct)
+
+	section := &ast.Section{
+		Kind:  kind,
+		Level: level,
+		Range: headingTok.Range,
+	}
+
+	switch kind {
+	case ast.SectionAct:
+		section.Number, section.Title = parseActTitle(headingTok.Literal)
+	case ast.SectionScene:
+		upper := strings.ToUpper(headingTok.Literal)
+		if strings.HasPrefix(upper, "SCENE") {
+			section.Number, section.Title = parseSceneTitle(headingTok.Literal)
+		} else {
+			section.Title = headingTok.Literal
+		}
+	case ast.SectionDramatisPersonae:
+		section.Title = headingTok.Literal
+	case ast.SectionGeneric:
+		section.Title = headingTok.Literal
+	}
+
+	p.skipBlanks()
+
+	switch kind {
+	case ast.SectionDramatisPersonae:
+		p.parseDPContent(section)
+	case ast.SectionAct:
+		p.parseActContent(section)
+	case ast.SectionScene:
+		p.parseSceneContent(section, level)
+	case ast.SectionGeneric:
+		p.parseGenericContent(section, level)
+	}
+
+	// Set end range from last consumed token
+	if p.pos > 0 {
+		section.Range.End = p.tokens[p.pos-1].Range.End
+	}
+
+	return section
+}
+
+// parseDPContent fills Characters and Groups for a Dramatis Personae section.
+// Stops at the next H1 heading or EOF.
+func (p *parser) parseDPContent(section *ast.Section) {
+	var currentGroup *ast.CharacterGroup
+	var lastChar *ast.Character
+
+	for !p.at(token.HeadingH1) && !p.at(token.EOF) {
+		switch p.peek().Type {
+		case token.HeadingH2:
+			// Sub-heading becomes a character group
+			tok := p.advance()
+			if currentGroup != nil {
+				section.Groups = append(section.Groups, *currentGroup)
+			}
+			currentGroup = &ast.CharacterGroup{
+				Name:  tok.Literal,
+				Range: tok.Range,
+			}
+			lastChar = nil
+			p.skipBlanks()
+
+		case token.CharacterName:
+			// ALL-CAPS name, possibly with description on same line
+			tok := p.advance()
+			ch := parseCharacterEntry(tok)
+			if currentGroup != nil {
+				currentGroup.Characters = append(currentGroup.Characters, ch)
+				currentGroup.Range.End = tok.Range.End
+				lastChar = &currentGroup.Characters[len(currentGroup.Characters)-1]
+			} else {
+				section.Characters = append(section.Characters, ch)
+				lastChar = &section.Characters[len(section.Characters)-1]
+			}
+			section.Range.End = tok.Range.End
+
+		case token.CharacterAlias:
+			tok := p.advance()
+			name, aliases := parseAliasSpec(strings.Trim(tok.Literal, "[]"))
+			if lastChar == nil {
+				p.addError("character alias must follow a character entry", tok.Range)
+				continue
+			}
+			if name != "" && !strings.EqualFold(strings.TrimSpace(lastChar.Name), name) {
+				p.addError("character alias does not match previous character", tok.Range)
+				continue
+			}
+			lastChar.Aliases = appendUniqueAliases(lastChar.Aliases, aliases...)
+			lastChar.Range.End = tok.Range.End
+			if currentGroup != nil {
+				currentGroup.Range.End = tok.Range.End
+			}
+			section.Range.End = tok.Range.End
+
+		case token.Text:
+			// Could be "Name — Description" or other text
+			tok := p.advance()
+			ch := parseCharacterEntry(tok)
+			if currentGroup != nil {
+				currentGroup.Characters = append(currentGroup.Characters, ch)
+				currentGroup.Range.End = tok.Range.End
+				lastChar = &currentGroup.Characters[len(currentGroup.Characters)-1]
+			} else {
+				section.Characters = append(section.Characters, ch)
+				lastChar = &section.Characters[len(section.Characters)-1]
+			}
+			section.Range.End = tok.Range.End
+
+		case token.Blank:
+			p.advance()
+
+		case token.LineComment:
+			p.advance()
+
+		case token.BlockCommentStart:
+			p.parseBlockComment()
+
+		default:
+			// Consume unknown tokens inside DP
+			p.advance()
+		}
+	}
+
+	if currentGroup != nil {
+		section.Groups = append(section.Groups, *currentGroup)
+	}
+}
+
+// parseActContent fills Children for an act section with scenes and content.
+// Stops at next H1 or EOF.
+func (p *parser) parseActContent(section *ast.Section) {
+	for !p.at(token.EOF) && !p.at(token.HeadingH1) {
+		if p.at(token.HeadingH2) {
+			// Check if it's a new ACT (breaks out)
+			nextLit := strings.ToUpper(p.peek().Literal)
+			if strings.HasPrefix(nextLit, "ACT") {
+				break
+			}
+			// Sub-section inside act: parse as level 2, with insideAct=true
+			child := p.parseSectionInContext(2, true)
+			section.AppendChild(child)
+			continue
+		}
+
+		if p.at(token.HeadingH3) {
+			child := p.parseSectionInContext(3, true)
+			section.AppendChild(child)
+			continue
+		}
+
+		p.skipBlanks()
+		if p.at(token.EOF) || p.at(token.HeadingH1) {
+			break
+		}
+		if p.at(token.HeadingH2) || p.at(token.HeadingH3) {
+			continue
+		}
+
+		elem := p.parseBodyElement()
+		if elem != nil {
+			section.AppendChild(elem)
+		}
+	}
+}
+
+// parseSceneContent fills Children for a scene section.
+// Stops at a heading at or above the given level, or EOF.
+func (p *parser) parseSceneContent(section *ast.Section, level int) {
+	for !p.at(token.EOF) && !p.atHeadingAtOrAboveLevel(level) {
+		p.skipBlanks()
+		if p.at(token.EOF) || p.atHeadingAtOrAboveLevel(level) {
+			break
+		}
+
+		// Nested headings below this level become children
+		if level < 3 && p.at(headingTokenForLevel(level+1)) {
+			child := p.parseSectionInContext(level+1, true)
+			section.AppendChild(child)
+			continue
+		}
+
+		elem := p.parseBodyElement()
+		if elem != nil {
+			section.AppendChild(elem)
+		}
+	}
+}
+
+// parseGenericContent fills Children and Lines for a generic section.
+// Sub-headings become nested Children. Structural content (dialogue, stage
+// directions, songs, etc.) also becomes Children. Plain text becomes Lines.
+// Stops at a heading at or above the given level, or EOF.
+func (p *parser) parseGenericContent(section *ast.Section, level int) {
+	// Scan ahead to determine if this section contains structural sub-headings.
+	// If so, text/stage directions are structural content (Children).
+	// If not, they're prose lines (Lines) with paragraph reflow.
+	hasStructuralContent := p.hasSubHeading(level)
+
+	for !p.at(token.EOF) && !p.atHeadingAtOrAboveLevel(level) {
+		// Sub-headings become child sections
+		if level < 3 && p.at(headingTokenForLevel(level+1)) {
+			child := p.parseSectionInContext(level+1, false)
+			section.AppendChild(child)
+			continue
+		}
+		if level < 2 && p.at(headingTokenForLevel(level+2)) {
+			child := p.parseSectionInContext(level+2, false)
+			section.AppendChild(child)
+			continue
+		}
+
+		// Structural content and text go into Children by default.
+		// Only Text tokens become Lines (prose reflow) if this section has
+		// no structural sub-headings — i.e., it's a leaf generic section.
+		if p.atAny(token.Text, token.StageDirection) && !hasStructuralContent {
+			tok := p.advance()
+			line := ast.SectionLine{
+				Content: parseInlineContent(tok.Literal, tok.Range),
+				Range:   tok.Range,
+			}
+			section.AppendLine(line)
+			continue
+		}
+
+		// Structural content goes into Children
+		if p.atAny(token.CharacterName, token.ForcedCharacter, token.StageDirection,
+			token.SongStart, token.Verse, token.PageBreak, token.ForcedHeading,
+			token.Text, token.CharacterAlias) {
+			elem := p.parseBodyElement()
+			if elem != nil {
+				section.AppendChild(elem)
+			}
+			continue
+		}
+
+		// Comments go into Children
+		if p.at(token.LineComment) {
+			section.AppendChild(p.parseLineComment())
+			continue
+		}
+		if p.at(token.BlockCommentStart) {
+			section.AppendChild(p.parseBlockComment())
+			continue
+		}
+
+		if p.at(token.Blank) {
+			// Preserve blank lines as empty section lines (paragraph breaks)
+			tok := p.advance()
+			section.AppendLine(ast.SectionLine{Range: tok.Range})
+			continue
+		}
+
+		// Any other token becomes a text line with inline formatting
+		tok := p.advance()
+		line := ast.SectionLine{
+			Content: parseInlineContent(tok.Literal, tok.Range),
+			Range:   tok.Range,
+		}
+		section.AppendLine(line)
+	}
+
+	// Trim trailing blank lines
+	section.TrimTrailingBlankLines()
+}
+
+func parseCharacterEntry(tok token.Token) ast.Character {
+	ch := ast.Character{Range: tok.Range}
+	// Format: "NAME — Description" or "NAME - Description" or just "NAME"
+	// Try separators in order: em-dash, en-dash, spaced hyphen
+	namePart := tok.Literal
+	if idx := strings.Index(tok.Literal, "—"); idx >= 0 {
+		namePart = strings.TrimSpace(tok.Literal[:idx])
+		ch.Description = strings.TrimSpace(tok.Literal[idx+len("—"):])
+	} else if idx := strings.Index(tok.Literal, "–"); idx >= 0 {
+		namePart = strings.TrimSpace(tok.Literal[:idx])
+		ch.Description = strings.TrimSpace(tok.Literal[idx+len("–"):])
+	} else if idx := strings.Index(tok.Literal, " - "); idx >= 0 {
+		namePart = strings.TrimSpace(tok.Literal[:idx])
+		ch.Description = strings.TrimSpace(tok.Literal[idx+3:])
+	}
+	ch.Name, ch.Aliases = parseAliasSpec(strings.TrimSpace(namePart))
+	return ch
+}
+
+func (p *parser) parseDialogue() *ast.Dialogue {
+	nameTok := p.advance()
+	dlg := &ast.Dialogue{
+		Character: nameTok.Literal,
+		Range:     nameTok.Range,
+	}
+	dlg.SetNameRange(nameTok.Range)
+
+	// Strip @ prefix for forced characters
+	if nameTok.Type == token.ForcedCharacter {
+		dlg.Character = strings.TrimPrefix(nameTok.Literal, "@")
+		dlg.SetNameRange(shiftRangeStart(nameTok.Range, 1, 1))
+	}
+
+	// Check for parenthetical right after character name: (text)
+	if p.at(token.Text) || p.at(token.Dialogue) {
+		lit := strings.TrimSpace(p.peek().Literal)
+		if strings.HasPrefix(lit, "(") && strings.HasSuffix(lit, ")") {
+			pTok := p.advance()
+			dlg.Parenthetical = strings.TrimSpace(pTok.Literal)
+		}
+	}
+
+	// Collect dialogue lines until structural break
+	for !p.at(token.EOF) {
+		if p.at(token.Blank) {
+			// Peek ahead: if next non-blank is another character or structural, stop
+			saved := p.pos
+			p.skipBlanks()
+			if p.atAny(token.CharacterName, token.ForcedCharacter, token.HeadingH1,
+				token.HeadingH2, token.HeadingH3, token.SongStart, token.SongEnd,
+				token.PageBreak, token.EOF, token.StageDirection) {
+				p.pos = saved // restore; let caller handle the blank
+				break
+			}
+			// Also break on blank followed by blank (paragraph break)
+			if p.at(token.Blank) {
+				p.pos = saved
+				break
+			}
+			p.pos = saved
+			p.skipBlanks()
+		}
+
+		switch p.peek().Type {
+		case token.Text, token.Dialogue:
+			tok := p.advance()
+			line := ast.DialogueLine{
+				Content: parseInlineContent(tok.Literal, tok.Range),
+				Range:   tok.Range,
+			}
+			dlg.Lines = append(dlg.Lines, line)
+
+		case token.Verse:
+			tok := p.advance()
+			line := ast.DialogueLine{
+				Content: parseInlineContent(strings.TrimLeft(tok.Literal, " "), tok.Range),
+				IsVerse: true,
+				Range:   tok.Range,
+			}
+			dlg.Lines = append(dlg.Lines, line)
+
+		case token.StageDirection:
+			tok := p.advance()
+			line := ast.DialogueLine{
+				Content: []ast.Inline{
+					&ast.InlineDirectionNode{
+						Content: parseInlineContent(tok.Literal, tok.Range),
+						Range:   tok.Range,
+					},
+				},
+				Range: tok.Range,
+			}
+			dlg.Lines = append(dlg.Lines, line)
+
+		case token.LineComment:
+			// Skip comments within dialogue
+			p.advance()
+
+		default:
+			goto done
+		}
+	}
+done:
+
+	if len(dlg.Lines) > 0 {
+		dlg.Range.End = dlg.Lines[len(dlg.Lines)-1].Range.End
+	}
+	return dlg
+}
+
+func (p *parser) parseStageDirection() *ast.StageDirection {
+	tok := p.advance()
+	return &ast.StageDirection{
+		Content: parseInlineContent(tok.Literal, tok.Range),
+		Range:   tok.Range,
+	}
+}
+
+func (p *parser) parseSong() *ast.Song {
+	startTok := p.advance()
+	song := &ast.Song{Range: startTok.Range}
+
+	// Parse song number and title from formats:
+	//   SONG
+	//   SONG: Title
+	//   SONG 1: Title
+	//   SONG 1 Title
+	rest := strings.TrimPrefix(startTok.Literal, "SONG")
+	rest = strings.TrimSpace(rest)
+	if rest != "" {
+		if strings.HasPrefix(rest, ":") {
+			// "SONG: Title" — no number, just title
+			song.Title = strings.TrimSpace(rest[1:])
+		} else if idx := strings.Index(rest, ":"); idx >= 0 {
+			// "SONG 1: Title" — number before colon, title after
+			song.Number = strings.TrimSpace(rest[:idx])
+			song.Title = strings.TrimSpace(rest[idx+1:])
+		} else {
+			// "SONG 1 Title" or "SONG 1" — first word is number, rest is title
+			parts := strings.SplitN(rest, " ", 2)
+			song.Number = parts[0]
+			if len(parts) > 1 {
+				song.Title = parts[1]
+			}
+		}
+	}
+
+	p.skipBlanks()
+
+	// Collect content until SONG END
+	for !p.at(token.SongEnd) && !p.at(token.EOF) {
+		p.skipBlanks()
+		if p.at(token.SongEnd) || p.at(token.EOF) {
+			break
+		}
+
+		elem := p.parseBodyElement()
+		if elem != nil {
+			song.Content = append(song.Content, elem)
+		}
+	}
+
+	if p.at(token.SongEnd) {
+		endTok := p.advance()
+		song.Range.End = endTok.Range.End
+	} else {
+		p.addError("unterminated SONG block", startTok.Range)
+	}
+
+	return song
+}
+
+func (p *parser) parseVerseBlock() *ast.VerseBlock {
+	vb := &ast.VerseBlock{Range: p.peek().Range}
+
+	for p.at(token.Verse) {
+		tok := p.advance()
+		vb.Lines = append(vb.Lines, ast.VerseLine{
+			Content: parseInlineContent(strings.TrimLeft(tok.Literal, " "), tok.Range),
+			Range:   tok.Range,
+		})
+	}
+
+	if len(vb.Lines) > 0 {
+		vb.Range.End = vb.Lines[len(vb.Lines)-1].Range.End
+	}
+	return vb
+}
+
+func (p *parser) parseLineComment() *ast.Comment {
+	tok := p.advance()
+	text := strings.TrimPrefix(tok.Literal, "//")
+	text = strings.TrimSpace(text)
+	return &ast.Comment{
+		Text:  text,
+		Block: false,
+		Range: tok.Range,
+	}
+}
+
+func (p *parser) parseBlockComment() *ast.Comment {
+	startTok := p.advance() // BlockCommentStart
+	var textParts []string
+
+	content := strings.TrimPrefix(startTok.Literal, "/*")
+	content = strings.TrimSpace(content)
+	if strings.HasSuffix(content, "*/") {
+		content = strings.TrimSuffix(content, "*/")
+		content = strings.TrimSpace(content)
+	}
+	if content != "" {
+		textParts = append(textParts, content)
+	}
+
+	endRange := startTok.Range
+
+	for !p.at(token.BlockCommentEnd) && !p.at(token.EOF) {
+		tok := p.advance()
+		textParts = append(textParts, tok.Literal)
+	}
+
+	if p.at(token.BlockCommentEnd) {
+		endTok := p.advance()
+		endContent := strings.TrimSuffix(endTok.Literal, "*/")
+		endContent = strings.TrimSpace(endContent)
+		if endContent != "" {
+			textParts = append(textParts, endContent)
+		}
+		endRange = endTok.Range
+	} else {
+		p.addError("unterminated block comment", startTok.Range)
+	}
+
+	return &ast.Comment{
+		Text:  strings.Join(textParts, "\n"),
+		Block: true,
+		Range: token.Range{Start: startTok.Range.Start, End: endRange.End},
+	}
+}
+
+// parseInlineContent converts a string into inline AST nodes,
+// handling bold, italic, underline, strikethrough, and inline directions.
+func parseInlineContent(s string, r token.Range) []Inline {
+	return parseInlines(s, r)
+}
+
+// Inline is a convenience alias used only in the return type of parseInlineContent.
+type Inline = ast.Inline
+
+func parseInlines(s string, r token.Range) []ast.Inline {
+	var result []ast.Inline
+	i := 0
+
+	for i < len(s) {
+		switch {
+		// Bold italic: ***text***
+		case i+2 < len(s) && s[i] == '*' && s[i+1] == '*' && s[i+2] == '*':
+			end := strings.Index(s[i+3:], "***")
+			if end >= 0 {
+				inner := s[i+3 : i+3+end]
+				result = append(result, &ast.BoldItalicNode{
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
+					Range:   r,
+				})
+				i = i + 3 + end + 3
+				continue
+			}
+			result = appendText(result, "*", r)
+			i++
+
+		// Bold: **text**
+		case i+1 < len(s) && s[i] == '*' && s[i+1] == '*':
+			end := strings.Index(s[i+2:], "**")
+			if end >= 0 {
+				inner := s[i+2 : i+2+end]
+				result = append(result, &ast.BoldNode{
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
+					Range:   r,
+				})
+				i = i + 2 + end + 2
+				continue
+			}
+			result = appendText(result, "*", r)
+			i++
+
+		// Italic: *text*
+		case s[i] == '*':
+			end := strings.IndexByte(s[i+1:], '*')
+			if end >= 0 {
+				inner := s[i+1 : i+1+end]
+				result = append(result, &ast.ItalicNode{
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
+					Range:   r,
+				})
+				i = i + 1 + end + 1
+				continue
+			}
+			result = appendText(result, "*", r)
+			i++
+
+		// Underline: _text_
+		case s[i] == '_':
+			end := strings.IndexByte(s[i+1:], '_')
+			if end >= 0 {
+				inner := s[i+1 : i+1+end]
+				result = append(result, &ast.UnderlineNode{
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
+					Range:   r,
+				})
+				i = i + 1 + end + 1
+				continue
+			}
+			result = appendText(result, "_", r)
+			i++
+
+		// Strikethrough: ~text~
+		case s[i] == '~':
+			end := strings.IndexByte(s[i+1:], '~')
+			if end >= 0 {
+				inner := s[i+1 : i+1+end]
+				result = append(result, &ast.StrikethroughNode{
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
+					Range:   r,
+				})
+				i = i + 1 + end + 1
+				continue
+			}
+			result = appendText(result, "~", r)
+			i++
+
+		// Inline direction: (text)
+		case s[i] == '(':
+			end := strings.IndexByte(s[i+1:], ')')
+			if end >= 0 {
+				inner := s[i+1 : i+1+end]
+				result = append(result, &ast.InlineDirectionNode{
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
+					Range:   r,
+				})
+				i = i + 1 + end + 1
+				continue
+			}
+			result = appendText(result, "(", r)
+			i++
+
+		default:
+			// Collect plain text until next special character
+			j := i + 1
+			for j < len(s) && s[j] != '*' && s[j] != '_' && s[j] != '~' && s[j] != '(' {
+				j++
+			}
+			result = appendText(result, s[i:j], r)
+			i = j
+		}
+	}
+
+	return result
+}
+
+func isSectionKeyword(title, keyword string) bool {
+	if title == keyword {
+		return true
+	}
+	if strings.HasPrefix(title, keyword+" ") || strings.HasPrefix(title, keyword+":") {
+		return true
+	}
+	return false
+}
+
+func parseAliasSpec(raw string) (string, []string) {
+	parts := strings.Split(raw, "/")
+	if len(parts) == 0 {
+		return "", nil
+	}
+
+	name := strings.TrimSpace(parts[0])
+	var aliases []string
+	for _, part := range parts[1:] {
+		alias := strings.TrimSpace(part)
+		if alias == "" {
+			continue
+		}
+		aliases = appendUniqueAliases(aliases, alias)
+	}
+	return name, aliases
+}
+
+func appendUniqueAliases(existing []string, aliases ...string) []string {
+	seen := make(map[string]struct{}, len(existing))
+	for _, alias := range existing {
+		seen[strings.ToUpper(alias)] = struct{}{}
+	}
+	for _, alias := range aliases {
+		key := strings.ToUpper(strings.TrimSpace(alias))
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		existing = append(existing, strings.TrimSpace(alias))
+	}
+	return existing
+}
+
+func shiftRangeStart(r token.Range, columnDelta, offsetDelta int) token.Range {
+	r.Start.Column += columnDelta
+	r.Start.Offset += offsetDelta
+	return r
+}
+
+// appendText appends text to the last TextNode if possible, or creates a new one.
+func appendText(nodes []ast.Inline, text string, r token.Range) []ast.Inline {
+	if len(nodes) > 0 {
+		if tn, ok := nodes[len(nodes)-1].(*ast.TextNode); ok {
+			tn.Value += text
+			return nodes
+		}
+	}
+	return append(nodes, &ast.TextNode{Value: text, Range: r})
+}

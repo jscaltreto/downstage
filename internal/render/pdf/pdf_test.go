@@ -1,0 +1,311 @@
+package pdf
+
+import (
+	"bytes"
+	"testing"
+
+	"github.com/jscaltreto/downstage/internal/ast"
+	"github.com/jscaltreto/downstage/internal/render"
+	"github.com/jscaltreto/downstage/internal/token"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestRender_EmptyDocument(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+	doc := &ast.Document{}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0, "PDF output should not be empty")
+	assert.Equal(t, "%PDF-", string(buf.Bytes()[:5]), "output should be a valid PDF")
+}
+
+func TestRender_TitlePageOnly(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "My Play"},
+				{Key: "Author", Value: "Test Author"},
+				{Key: "Date", Value: "2025"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	assert.Equal(t, 1, r.pdf.PageNo())
+}
+
+func TestRender_DialogueWithFormatting(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:   ast.SectionAct,
+				Number: "I",
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionScene,
+						Number: "1",
+						Children: []ast.Node{
+							&ast.Dialogue{
+								Character: "HAMLET",
+								Lines: []ast.DialogueLine{
+									{
+										Content: []ast.Inline{
+											&ast.TextNode{Value: "To be, or "},
+											&ast.BoldNode{Content: []ast.Inline{
+												&ast.TextNode{Value: "not"},
+											}},
+											&ast.TextNode{Value: " to be."},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+}
+
+func TestRender_PageBreak(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.StageDirection{
+				Content: []ast.Inline{
+					&ast.TextNode{Value: "Before break"},
+				},
+			},
+			&ast.PageBreak{},
+			&ast.StageDirection{
+				Content: []ast.Inline{
+					&ast.TextNode{Value: "After break"},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+}
+
+func TestRender_DramatisPersonae(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind: ast.SectionDramatisPersonae,
+				Characters: []ast.Character{
+					{Name: "HAMLET", Description: "Prince of Denmark"},
+					{Name: "HORATIO", Description: "Friend to Hamlet"},
+				},
+				Groups: []ast.CharacterGroup{
+					{
+						Name: "Courtiers",
+						Characters: []ast.Character{
+							{Name: "ROSENCRANTZ", Description: "A courtier"},
+							{Name: "GUILDENSTERN", Description: "A courtier"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+}
+
+func TestRender_Song(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Song{
+				Number: "1",
+				Title:  "The Wanderer's Lament",
+				Content: []ast.Node{
+					&ast.Dialogue{
+						Character: "HAMLET",
+						Lines: []ast.DialogueLine{
+							{
+								Content: []ast.Inline{
+									&ast.TextNode{Value: "O wanderer, where goest thou?"},
+								},
+								IsVerse: true,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+}
+
+func TestRender_A4PageSize(t *testing.T) {
+	cfg := render.DefaultConfig()
+	cfg.PageSize = render.PageA4
+	r := NewRenderer(cfg)
+	doc := &ast.Document{}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+}
+
+func TestRender_InlineFormatting(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Dialogue{
+				Character: "TEST",
+				Lines: []ast.DialogueLine{
+					{
+						Content: []ast.Inline{
+							&ast.ItalicNode{Content: []ast.Inline{&ast.TextNode{Value: "italic"}}},
+							&ast.TextNode{Value: " "},
+							&ast.BoldItalicNode{Content: []ast.Inline{&ast.TextNode{Value: "bold italic"}}},
+							&ast.TextNode{Value: " "},
+							&ast.UnderlineNode{Content: []ast.Inline{&ast.TextNode{Value: "underline"}}},
+							&ast.TextNode{Value: " "},
+							&ast.StrikethroughNode{Content: []ast.Inline{&ast.TextNode{Value: "strike"}}},
+							&ast.TextNode{Value: " "},
+							&ast.InlineDirectionNode{Content: []ast.Inline{&ast.TextNode{Value: "aside"}}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+}
+
+func TestRender_VerseBlock(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.VerseBlock{
+				Lines: []ast.VerseLine{
+					{Content: []ast.Inline{&ast.TextNode{Value: "Line one"}}},
+					{Content: []ast.Inline{&ast.TextNode{Value: "Line two"}}},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+}
+
+func TestRender_FullIntegration(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "The Test Play"},
+				{Key: "Author", Value: "Jane Doe"},
+			},
+		},
+		Body: []ast.Node{
+			&ast.Section{
+				Kind: ast.SectionDramatisPersonae,
+				Characters: []ast.Character{
+					{Name: "ALICE", Description: "A protagonist"},
+					{Name: "BOB", Description: "An antagonist"},
+				},
+			},
+			&ast.Section{
+				Kind:   ast.SectionAct,
+				Number: "I",
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionScene,
+						Number: "1",
+						Title:  "The Beginning",
+						Children: []ast.Node{
+							&ast.StageDirection{
+								Content: []ast.Inline{
+									&ast.TextNode{Value: "(A dimly lit room.)"},
+								},
+							},
+							&ast.Dialogue{
+								Character:     "ALICE",
+								Parenthetical: "entering",
+								Lines: []ast.DialogueLine{
+									{Content: []ast.Inline{
+										&ast.TextNode{Value: "Hello, "},
+										&ast.BoldNode{Content: []ast.Inline{&ast.TextNode{Value: "world"}}},
+										&ast.TextNode{Value: "!"},
+									}},
+								},
+							},
+							&ast.Dialogue{
+								Character: "BOB",
+								Lines: []ast.DialogueLine{
+									{Content: []ast.Inline{
+										&ast.TextNode{Value: "O, what a tale:"},
+									}},
+									{Content: []ast.Inline{
+										&ast.TextNode{Value: "  Of woe and wonder,"},
+									}, IsVerse: true},
+									{Content: []ast.Inline{
+										&ast.TextNode{Value: "  Told in the night."},
+									}, IsVerse: true},
+								},
+							},
+							&ast.PageBreak{Range: token.Range{}},
+							&ast.Song{
+								Number: "1",
+								Title:  "Evening Song",
+								Content: []ast.Node{
+									&ast.Dialogue{
+										Character: "ALICE",
+										Lines: []ast.DialogueLine{
+											{Content: []ast.Inline{
+												&ast.TextNode{Value: "Sing me a song."},
+											}, IsVerse: true},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 500, "full integration PDF should have substantial content")
+	assert.Equal(t, "%PDF-", string(buf.Bytes()[:5]))
+}

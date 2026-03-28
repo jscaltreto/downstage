@@ -1,0 +1,55 @@
+Title: Comment Tests
+
+# Dramatis Personae
+
+ALICE — A speaker
+BOB — Another speaker
+
+# Comment Tests
+
+### SCENE 1
+
+// Line comment at the start of a section
+
+ALICE
+Hello, Bob.
+
+// Line comment between dialogue lines
+
+BOB
+Hello, Alice.
+
+/* Single-line block comment */
+
+ALICE
+How are you?
+
+/*
+Multi-line block comment.
+This spans several lines.
+It should all be ignored by the parser.
+*/
+
+BOB
+I am well, thank you.
+
+// Comment between scenes
+
+### SCENE 2
+
+// Comment at the start of a new scene
+
+ALICE
+Here we are in scene two.
+
+/* Block comment
+   between dialogue */
+
+BOB
+Indeed we are.
+
+/*
+A block comment
+at the very end
+of the play.
+*/

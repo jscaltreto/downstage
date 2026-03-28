@@ -1,0 +1,65 @@
+Title: Dialogue Varieties
+
+# Dramatis Personae
+
+ALICE — The main speaker
+BOB/ROBERT — Her friend [BOB/ROBERT]
+CHARLIE — A bystander
+
+# Dialogue Varieties
+
+### SCENE 1
+
+// Simple single-line dialogue
+ALICE
+Hello.
+
+// Multi-line dialogue
+BOB
+Hello there, Alice.
+It is good to see you again.
+I have been away for quite some time.
+
+// Dialogue with parenthetical after character name
+CHARLIE
+(whispering)
+Who are those people?
+
+// Dialogue with inline stage directions
+ALICE
+I can't believe (turning to BOB) you're actually here.
+
+// Dialogue with verse (indented lines)
+BOB
+Let me tell you what I saw:
+  A ship upon the morning sea,
+  its sails unfurled and running free,
+  against a sky of gold and grey.
+
+// Multiple characters in quick sequence
+ALICE
+What happened next?
+
+BOB
+It vanished.
+
+CHARLIE
+Impossible.
+
+ALICE
+Nothing is impossible.
+
+// Forced character name with @
+@CHARLIE
+I suppose you are right.
+
+// Character with alias speaking
+ROBERT
+Please, call me Robert when we are in public.
+
+// Multi-line with mixed verse and prose
+ALICE
+That reminds me of what my mother used to say:
+  The world is wide and full of woe,
+  but love will find a way.
+She was always like that. Poetic at the worst times.

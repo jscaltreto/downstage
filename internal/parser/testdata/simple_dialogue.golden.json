@@ -1,0 +1,228 @@
+{
+  "TitlePage": {
+    "Entries": [
+      {
+        "Key": "Title",
+        "Value": "Test",
+        "Range": {
+          "Start": {
+            "Line": 0,
+            "Column": 0,
+            "Offset": 0
+          },
+          "End": {
+            "Line": 0,
+            "Column": 11,
+            "Offset": 11
+          }
+        }
+      }
+    ],
+    "Range": {
+      "Start": {
+        "Line": 0,
+        "Column": 0,
+        "Offset": 0
+      },
+      "End": {
+        "Line": 0,
+        "Column": 11,
+        "Offset": 11
+      }
+    }
+  },
+  "Body": [
+    {
+      "Kind": 3,
+      "Level": 1,
+      "Title": "Dramatis Personae",
+      "Number": "",
+      "Children": null,
+      "Characters": [
+        {
+          "Name": "ALICE",
+          "Aliases": null,
+          "Description": "A test character",
+          "Range": {
+            "Start": {
+              "Line": 4,
+              "Column": 0,
+              "Offset": 34
+            },
+            "End": {
+              "Line": 4,
+              "Column": 24,
+              "Offset": 60
+            }
+          }
+        },
+        {
+          "Name": "BOB",
+          "Aliases": null,
+          "Description": "Another test character",
+          "Range": {
+            "Start": {
+              "Line": 5,
+              "Column": 0,
+              "Offset": 61
+            },
+            "End": {
+              "Line": 5,
+              "Column": 28,
+              "Offset": 91
+            }
+          }
+        }
+      ],
+      "Groups": null,
+      "Lines": null,
+      "Range": {
+        "Start": {
+          "Line": 2,
+          "Column": 0,
+          "Offset": 13
+        },
+        "End": {
+          "Line": 6,
+          "Column": 0,
+          "Offset": 92
+        }
+      }
+    },
+    {
+      "Kind": 0,
+      "Level": 1,
+      "Title": "Test Play",
+      "Number": "",
+      "Children": [
+        {
+          "Character": "ALICE",
+          "Parenthetical": "",
+          "Lines": [
+            {
+              "Content": [
+                {
+                  "Value": "Hello, Bob!",
+                  "Range": {
+                    "Start": {
+                      "Line": 10,
+                      "Column": 0,
+                      "Offset": 112
+                    },
+                    "End": {
+                      "Line": 10,
+                      "Column": 11,
+                      "Offset": 123
+                    }
+                  }
+                }
+              ],
+              "IsVerse": false,
+              "Range": {
+                "Start": {
+                  "Line": 10,
+                  "Column": 0,
+                  "Offset": 112
+                },
+                "End": {
+                  "Line": 10,
+                  "Column": 11,
+                  "Offset": 123
+                }
+              }
+            }
+          ],
+          "Range": {
+            "Start": {
+              "Line": 9,
+              "Column": 0,
+              "Offset": 106
+            },
+            "End": {
+              "Line": 10,
+              "Column": 11,
+              "Offset": 123
+            }
+          }
+        },
+        {
+          "Character": "BOB",
+          "Parenthetical": "",
+          "Lines": [
+            {
+              "Content": [
+                {
+                  "Value": "Hello, Alice!",
+                  "Range": {
+                    "Start": {
+                      "Line": 13,
+                      "Column": 0,
+                      "Offset": 129
+                    },
+                    "End": {
+                      "Line": 13,
+                      "Column": 13,
+                      "Offset": 142
+                    }
+                  }
+                }
+              ],
+              "IsVerse": false,
+              "Range": {
+                "Start": {
+                  "Line": 13,
+                  "Column": 0,
+                  "Offset": 129
+                },
+                "End": {
+                  "Line": 13,
+                  "Column": 13,
+                  "Offset": 142
+                }
+              }
+            }
+          ],
+          "Range": {
+            "Start": {
+              "Line": 12,
+              "Column": 0,
+              "Offset": 125
+            },
+            "End": {
+              "Line": 13,
+              "Column": 13,
+              "Offset": 142
+            }
+          }
+        }
+      ],
+      "Characters": null,
+      "Groups": null,
+      "Lines": [],
+      "Range": {
+        "Start": {
+          "Line": 7,
+          "Column": 0,
+          "Offset": 93
+        },
+        "End": {
+          "Line": 14,
+          "Column": 0,
+          "Offset": 143
+        }
+      }
+    }
+  ],
+  "Range": {
+    "Start": {
+      "Line": 0,
+      "Column": 0,
+      "Offset": 0
+    },
+    "End": {
+      "Line": 15,
+      "Column": 0,
+      "Offset": 143
+    }
+  }
+}

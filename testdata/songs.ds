@@ -1,0 +1,75 @@
+Title: Song Tests
+
+# Dramatis Personae
+
+ALICE — A singer
+BOB — Another singer
+CHORUS — The ensemble
+
+# Song Tests
+
+### SCENE 1
+
+ALICE
+Before the song, some dialogue.
+
+SONG 1: The Morning Light
+
+ALICE
+  Rise with the sun and greet the day,
+  let morning light show you the way.
+  The dawn is here, the night has passed,
+  a brand new day has come at last.
+
+SONG END
+
+BOB
+That was lovely.
+
+// Unnumbered song
+SONG: A Simple Tune
+
+BOB
+  La la la, a simple song,
+  nothing fancy, not too long.
+
+SONG END
+
+### SCENE 2
+
+// Song with dialogue mixed in
+SONG 2: The Duet
+
+ALICE
+  I sing the high notes, clear and bright.
+
+BOB
+  And I the low ones, through the night.
+
+ALICE
+  Together now, our voices blend.
+
+BOB
+  A harmony that will not end.
+
+SONG END
+
+// Back-to-back songs
+SONG 3: First Quick Song
+
+CHORUS
+  One, two, three, four,
+  sing a song and sing some more.
+
+SONG END
+
+SONG 4: Second Quick Song
+
+CHORUS
+  Five, six, seven, eight,
+  keep on singing, don't be late.
+
+SONG END
+
+ALICE
+And that concludes our musical programme.

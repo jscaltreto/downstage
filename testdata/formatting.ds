@@ -1,0 +1,62 @@
+Title: Formatting Test
+
+# Dramatis Personae
+
+NARRATOR — The guide through formatting
+
+# Formatting Test
+
+### SCENE 1
+
+NARRATOR
+This line has *italic* text.
+
+NARRATOR
+This line has **bold** text.
+
+NARRATOR
+This line has ***bold italic*** text.
+
+NARRATOR
+This line has _underline_ text.
+
+NARRATOR
+This line has ~strikethrough~ text.
+
+// Formatting spanning multiple words
+NARRATOR
+She said it was *absolutely incredible* and he agreed.
+
+NARRATOR
+The word was **extremely important** to remember.
+
+NARRATOR
+It was a ***truly magnificent*** display.
+
+NARRATOR
+Please _read the instructions_ carefully.
+
+NARRATOR
+The feature is ~no longer supported~ in this version.
+
+// Multiple formats in one line
+NARRATOR
+He was *nervous*, **determined**, and _resolute_.
+
+// Nested formatting
+NARRATOR
+She whispered ***the secret _code_ word*** to him.
+
+// Bold inside italic context
+NARRATOR
+In *this italic phrase with **bold** inside* we test nesting.
+
+// Unclosed formatting (edge case)
+NARRATOR
+This has an *unclosed italic that runs to end of line
+
+NARRATOR
+And this has **unclosed bold that also runs on
+
+NARRATOR
+Back to normal text with no formatting issues.

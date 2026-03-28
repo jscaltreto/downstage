@@ -1,0 +1,81 @@
+version: 2
+
+project_name: downstage
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: downstage
+    binary: downstage
+    main: ./
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/jscaltreto/downstage/cmd.version={{ .Version }}
+      - -X github.com/jscaltreto/downstage/cmd.commit={{ .Commit }}
+      - -X github.com/jscaltreto/downstage/cmd.date={{ .Date }}
+
+archives:
+  - id: default
+    ids:
+      - downstage
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - SPEC.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github-native
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^style:"
+
+brews:
+  - name: downstage
+    repository:
+      owner: jscaltreto
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/jscaltreto/downstage
+    description: Plaintext markup language and tools for stage plays
+    directory: Formula
+    commit_author:
+      name: github-actions[bot]
+      email: 41898282+github-actions[bot]@users.noreply.github.com
+    test: |
+      system "#{bin}/downstage", "version"
+    install: |
+      bin.install "downstage"

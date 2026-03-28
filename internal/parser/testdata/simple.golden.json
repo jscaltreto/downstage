@@ -1,0 +1,318 @@
+{
+  "TitlePage": {
+    "Entries": [
+      {
+        "Key": "Title",
+        "Value": "A Simple Play",
+        "Range": {
+          "Start": {
+            "Line": 0,
+            "Column": 0,
+            "Offset": 0
+          },
+          "End": {
+            "Line": 0,
+            "Column": 20,
+            "Offset": 20
+          }
+        }
+      },
+      {
+        "Key": "Author",
+        "Value": "Jane Doe",
+        "Range": {
+          "Start": {
+            "Line": 1,
+            "Column": 0,
+            "Offset": 21
+          },
+          "End": {
+            "Line": 1,
+            "Column": 16,
+            "Offset": 37
+          }
+        }
+      }
+    ],
+    "Range": {
+      "Start": {
+        "Line": 0,
+        "Column": 0,
+        "Offset": 0
+      },
+      "End": {
+        "Line": 1,
+        "Column": 16,
+        "Offset": 37
+      }
+    }
+  },
+  "Body": [
+    {
+      "Kind": 1,
+      "Level": 1,
+      "Title": "",
+      "Number": "ONE",
+      "Children": [
+        {
+          "Kind": 2,
+          "Level": 2,
+          "Title": "",
+          "Number": "1",
+          "Children": [
+            {
+              "Content": [
+                {
+                  "Value": "Lights up on an empty stage.",
+                  "Range": {
+                    "Start": {
+                      "Line": 7,
+                      "Column": 0,
+                      "Offset": 62
+                    },
+                    "End": {
+                      "Line": 7,
+                      "Column": 30,
+                      "Offset": 92
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 7,
+                  "Column": 0,
+                  "Offset": 62
+                },
+                "End": {
+                  "Line": 7,
+                  "Column": 30,
+                  "Offset": 92
+                }
+              }
+            },
+            {
+              "Character": "HAMLET",
+              "Parenthetical": "",
+              "Lines": [
+                {
+                  "Content": [
+                    {
+                      "Value": "To be or not to be,",
+                      "Range": {
+                        "Start": {
+                          "Line": 10,
+                          "Column": 0,
+                          "Offset": 101
+                        },
+                        "End": {
+                          "Line": 10,
+                          "Column": 19,
+                          "Offset": 120
+                        }
+                      }
+                    }
+                  ],
+                  "IsVerse": false,
+                  "Range": {
+                    "Start": {
+                      "Line": 10,
+                      "Column": 0,
+                      "Offset": 101
+                    },
+                    "End": {
+                      "Line": 10,
+                      "Column": 19,
+                      "Offset": 120
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "that is the question.",
+                      "Range": {
+                        "Start": {
+                          "Line": 11,
+                          "Column": 0,
+                          "Offset": 121
+                        },
+                        "End": {
+                          "Line": 11,
+                          "Column": 21,
+                          "Offset": 142
+                        }
+                      }
+                    }
+                  ],
+                  "IsVerse": false,
+                  "Range": {
+                    "Start": {
+                      "Line": 11,
+                      "Column": 0,
+                      "Offset": 121
+                    },
+                    "End": {
+                      "Line": 11,
+                      "Column": 21,
+                      "Offset": 142
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 9,
+                  "Column": 0,
+                  "Offset": 94
+                },
+                "End": {
+                  "Line": 11,
+                  "Column": 21,
+                  "Offset": 142
+                }
+              }
+            },
+            {
+              "Content": [
+                {
+                  "Value": "He pauses dramatically.",
+                  "Range": {
+                    "Start": {
+                      "Line": 13,
+                      "Column": 0,
+                      "Offset": 144
+                    },
+                    "End": {
+                      "Line": 13,
+                      "Column": 25,
+                      "Offset": 169
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 13,
+                  "Column": 0,
+                  "Offset": 144
+                },
+                "End": {
+                  "Line": 13,
+                  "Column": 25,
+                  "Offset": 169
+                }
+              }
+            },
+            {
+              "Character": "HORATIO",
+              "Parenthetical": "",
+              "Lines": [
+                {
+                  "Content": [
+                    {
+                      "Value": "My lord, are you well?",
+                      "Range": {
+                        "Start": {
+                          "Line": 16,
+                          "Column": 0,
+                          "Offset": 179
+                        },
+                        "End": {
+                          "Line": 16,
+                          "Column": 22,
+                          "Offset": 201
+                        }
+                      }
+                    }
+                  ],
+                  "IsVerse": false,
+                  "Range": {
+                    "Start": {
+                      "Line": 16,
+                      "Column": 0,
+                      "Offset": 179
+                    },
+                    "End": {
+                      "Line": 16,
+                      "Column": 22,
+                      "Offset": 201
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 15,
+                  "Column": 0,
+                  "Offset": 171
+                },
+                "End": {
+                  "Line": 16,
+                  "Column": 22,
+                  "Offset": 201
+                }
+              }
+            },
+            {
+              "Range": {
+                "Start": {
+                  "Line": 18,
+                  "Column": 0,
+                  "Offset": 203
+                },
+                "End": {
+                  "Line": 18,
+                  "Column": 3,
+                  "Offset": 206
+                }
+              }
+            }
+          ],
+          "Characters": null,
+          "Groups": null,
+          "Lines": null,
+          "Range": {
+            "Start": {
+              "Line": 5,
+              "Column": 0,
+              "Offset": 50
+            },
+            "End": {
+              "Line": 19,
+              "Column": 0,
+              "Offset": 207
+            }
+          }
+        }
+      ],
+      "Characters": null,
+      "Groups": null,
+      "Lines": null,
+      "Range": {
+        "Start": {
+          "Line": 3,
+          "Column": 0,
+          "Offset": 39
+        },
+        "End": {
+          "Line": 19,
+          "Column": 0,
+          "Offset": 207
+        }
+      }
+    }
+  ],
+  "Range": {
+    "Start": {
+      "Line": 0,
+      "Column": 0,
+      "Offset": 0
+    },
+    "End": {
+      "Line": 20,
+      "Column": 0,
+      "Offset": 207
+    }
+  }
+}

@@ -1,0 +1,376 @@
+{
+  "TitlePage": {
+    "Entries": [
+      {
+        "Key": "Title",
+        "Value": "Structured Play",
+        "Range": {
+          "Start": {
+            "Line": 0,
+            "Column": 0,
+            "Offset": 0
+          },
+          "End": {
+            "Line": 0,
+            "Column": 22,
+            "Offset": 22
+          }
+        }
+      }
+    ],
+    "Range": {
+      "Start": {
+        "Line": 0,
+        "Column": 0,
+        "Offset": 0
+      },
+      "End": {
+        "Line": 0,
+        "Column": 22,
+        "Offset": 22
+      }
+    }
+  },
+  "Body": [
+    {
+      "Kind": 3,
+      "Level": 1,
+      "Title": "Dramatis Personae",
+      "Number": "",
+      "Children": null,
+      "Characters": [
+        {
+          "Name": "ALICE",
+          "Aliases": null,
+          "Description": "The protagonist",
+          "Range": {
+            "Start": {
+              "Line": 4,
+              "Column": 0,
+              "Offset": 45
+            },
+            "End": {
+              "Line": 4,
+              "Column": 23,
+              "Offset": 70
+            }
+          }
+        }
+      ],
+      "Groups": null,
+      "Lines": null,
+      "Range": {
+        "Start": {
+          "Line": 2,
+          "Column": 0,
+          "Offset": 24
+        },
+        "End": {
+          "Line": 5,
+          "Column": 0,
+          "Offset": 71
+        }
+      }
+    },
+    {
+      "Kind": 0,
+      "Level": 1,
+      "Title": "Structured Play",
+      "Number": "",
+      "Children": [
+        {
+          "Kind": 1,
+          "Level": 2,
+          "Title": "",
+          "Number": "I",
+          "Children": [
+            {
+              "Kind": 2,
+              "Level": 3,
+              "Title": "",
+              "Number": "1",
+              "Children": [
+                {
+                  "Character": "ALICE",
+                  "Parenthetical": "",
+                  "Lines": [
+                    {
+                      "Content": [
+                        {
+                          "Value": "First act, first scene.",
+                          "Range": {
+                            "Start": {
+                              "Line": 13,
+                              "Column": 0,
+                              "Offset": 120
+                            },
+                            "End": {
+                              "Line": 13,
+                              "Column": 23,
+                              "Offset": 143
+                            }
+                          }
+                        }
+                      ],
+                      "IsVerse": false,
+                      "Range": {
+                        "Start": {
+                          "Line": 13,
+                          "Column": 0,
+                          "Offset": 120
+                        },
+                        "End": {
+                          "Line": 13,
+                          "Column": 23,
+                          "Offset": 143
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 12,
+                      "Column": 0,
+                      "Offset": 114
+                    },
+                    "End": {
+                      "Line": 13,
+                      "Column": 23,
+                      "Offset": 143
+                    }
+                  }
+                }
+              ],
+              "Characters": null,
+              "Groups": null,
+              "Lines": null,
+              "Range": {
+                "Start": {
+                  "Line": 10,
+                  "Column": 0,
+                  "Offset": 101
+                },
+                "End": {
+                  "Line": 14,
+                  "Column": 0,
+                  "Offset": 144
+                }
+              }
+            },
+            {
+              "Kind": 2,
+              "Level": 3,
+              "Title": "",
+              "Number": "2",
+              "Children": [
+                {
+                  "Character": "ALICE",
+                  "Parenthetical": "",
+                  "Lines": [
+                    {
+                      "Content": [
+                        {
+                          "Value": "First act, second scene.",
+                          "Range": {
+                            "Start": {
+                              "Line": 18,
+                              "Column": 0,
+                              "Offset": 164
+                            },
+                            "End": {
+                              "Line": 18,
+                              "Column": 24,
+                              "Offset": 188
+                            }
+                          }
+                        }
+                      ],
+                      "IsVerse": false,
+                      "Range": {
+                        "Start": {
+                          "Line": 18,
+                          "Column": 0,
+                          "Offset": 164
+                        },
+                        "End": {
+                          "Line": 18,
+                          "Column": 24,
+                          "Offset": 188
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 17,
+                      "Column": 0,
+                      "Offset": 158
+                    },
+                    "End": {
+                      "Line": 18,
+                      "Column": 24,
+                      "Offset": 188
+                    }
+                  }
+                }
+              ],
+              "Characters": null,
+              "Groups": null,
+              "Lines": null,
+              "Range": {
+                "Start": {
+                  "Line": 15,
+                  "Column": 0,
+                  "Offset": 145
+                },
+                "End": {
+                  "Line": 19,
+                  "Column": 0,
+                  "Offset": 189
+                }
+              }
+            }
+          ],
+          "Characters": null,
+          "Groups": null,
+          "Lines": null,
+          "Range": {
+            "Start": {
+              "Line": 8,
+              "Column": 0,
+              "Offset": 91
+            },
+            "End": {
+              "Line": 19,
+              "Column": 0,
+              "Offset": 189
+            }
+          }
+        },
+        {
+          "Kind": 1,
+          "Level": 2,
+          "Title": "",
+          "Number": "II",
+          "Children": [
+            {
+              "Kind": 2,
+              "Level": 3,
+              "Title": "",
+              "Number": "1",
+              "Children": [
+                {
+                  "Character": "ALICE",
+                  "Parenthetical": "",
+                  "Lines": [
+                    {
+                      "Content": [
+                        {
+                          "Value": "Second act, first scene.",
+                          "Range": {
+                            "Start": {
+                              "Line": 25,
+                              "Column": 0,
+                              "Offset": 220
+                            },
+                            "End": {
+                              "Line": 25,
+                              "Column": 24,
+                              "Offset": 244
+                            }
+                          }
+                        }
+                      ],
+                      "IsVerse": false,
+                      "Range": {
+                        "Start": {
+                          "Line": 25,
+                          "Column": 0,
+                          "Offset": 220
+                        },
+                        "End": {
+                          "Line": 25,
+                          "Column": 24,
+                          "Offset": 244
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 24,
+                      "Column": 0,
+                      "Offset": 214
+                    },
+                    "End": {
+                      "Line": 25,
+                      "Column": 24,
+                      "Offset": 244
+                    }
+                  }
+                }
+              ],
+              "Characters": null,
+              "Groups": null,
+              "Lines": null,
+              "Range": {
+                "Start": {
+                  "Line": 22,
+                  "Column": 0,
+                  "Offset": 201
+                },
+                "End": {
+                  "Line": 26,
+                  "Column": 0,
+                  "Offset": 245
+                }
+              }
+            }
+          ],
+          "Characters": null,
+          "Groups": null,
+          "Lines": null,
+          "Range": {
+            "Start": {
+              "Line": 20,
+              "Column": 0,
+              "Offset": 190
+            },
+            "End": {
+              "Line": 26,
+              "Column": 0,
+              "Offset": 245
+            }
+          }
+        }
+      ],
+      "Characters": null,
+      "Groups": null,
+      "Lines": null,
+      "Range": {
+        "Start": {
+          "Line": 6,
+          "Column": 0,
+          "Offset": 72
+        },
+        "End": {
+          "Line": 26,
+          "Column": 0,
+          "Offset": 245
+        }
+      }
+    }
+  ],
+  "Range": {
+    "Start": {
+      "Line": 0,
+      "Column": 0,
+      "Offset": 0
+    },
+    "End": {
+      "Line": 27,
+      "Column": 0,
+      "Offset": 245
+    }
+  }
+}

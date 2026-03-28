@@ -1,0 +1,208 @@
+Title: The Last Curtain Call
+Subtitle: A Drama in Two Acts
+Author: Eleanor Vance
+Date: 2025
+Draft: Third Draft
+Copyright: 2025 Eleanor Vance
+Contact: evance@example.com
+Notes: Inspired by true events
+
+// This is a full play demonstrating all Downstage features.
+
+/*
+   Block comment at the top level.
+   This should be ignored by the parser.
+*/
+
+# Dramatis Personae
+
+MARGARET — An aging actress, once famous
+JAMES/JIM — Her estranged son, a stagehand [JAMES/JIM]
+CLAIRE — The new director, ambitious and sharp
+HENRY — Stage manager, loyal to Margaret
+
+## The Crew
+STAGEHAND 1 — A quiet worker
+STAGEHAND 2 — Talkative and nervous
+
+# The Last Curtain Call
+
+## ACT I
+
+### SCENE 1
+
+> The stage is bare except for a single chair downstage center. Dim lighting. The sound of an empty theatre.
+
+MARGARET
+(sitting in the chair, staring out)
+They used to fill every seat, you know.
+Every last one.
+  And the balcony too,
+  row after row of faces,
+  all watching me.
+
+JAMES
+(entering from stage left)
+Mother, the crew is waiting.
+
+MARGARET
+Let them wait. I've earned that much.
+
+// A comment between dialogue lines.
+
+JAMES
+(sighing)
+You've earned a lot of things. Not all of them good.
+
+> MARGARET stands abruptly. She crosses downstage.
+
+CLAIRE
+(entering briskly)
+Ms. Thornton, we have exactly *three hours* before curtain.
+I need you in **costume** and ready for the _technical rehearsal_.
+
+MARGARET
+Don't lecture me, dear. I was doing tech rehearsals
+before you were ***born***.
+
+CLAIRE
+(to JAMES, aside)
+Is she always like this?
+
+JAMES
+(quietly)
+Worse, usually.
+
+===
+
+### SCENE 2
+
+> The backstage area. HENRY is checking props.
+
+HENRY
+(into headset)
+All set for Act One. Standing by.
+
+@STAGEHAND 1
+The backdrop won't hold. Rigging's shot.
+
+HENRY
+(alarmed)
+What do you mean it ~won't hold~?
+
+STAGEHAND 2
+(rushing in)
+I told you! I *told* you the cables were frayed!
+
+HENRY
+Get me new cables. Now. Both of you, move.
+
+> STAGEHAND 1 and STAGEHAND 2 exit hurriedly.
+
+JIM
+(to HENRY)
+Need a hand?
+
+HENRY
+Always. Grab the number three fly line.
+
+SONG 1: The Stagehand's Lament
+
+JIM
+  Under the lights we never stand,
+  behind the curtain, close at hand.
+  We pull the ropes and shift the scene,
+  the unseen hands, the great machine.
+
+HENRY
+  And when the crowd gives its applause,
+  we take no bow, we get no cause.
+
+SONG END
+
+/*
+   End of Act I.
+   The intermission should be approximately 15 minutes.
+*/
+
+## ACT II
+
+### SCENE 1
+
+.The Next Evening
+
+> The theatre is fully lit. The set is complete. MARGARET stands center stage in full costume.
+
+MARGARET
+(to herself)
+One more night. Just one more.
+
+CLAIRE
+(from the wings)
+Places, everyone! This is it!
+
+JAMES
+(approaching MARGARET)
+Mother, I wanted to say...
+
+MARGARET
+(cutting him off)
+Save it for after. We have a show to do.
+
+> The lights dim. A spotlight finds MARGARET.
+
+MARGARET
+  To stand upon this stage once more,
+  to feel the boards beneath my feet,
+  to hear the hush before the roar,
+  to know this moment, bittersweet.
+
+> Silence. Then, from the darkness, applause.
+
+===
+
+### SCENE 2
+
+> After the show. The stage is empty. MARGARET sits alone in the chair from Act I.
+
+SONG: Curtain Call
+
+MARGARET
+  The lights go down, the curtain falls,
+  and silence fills these empty halls.
+  But somewhere in the dark out there,
+  a memory floats upon the air.
+
+SONG END
+
+JAMES
+(entering quietly)
+That was your best performance yet.
+
+MARGARET
+(smiling)
+I know.
+
+> They share a long look. JAMES extends his hand. MARGARET takes it. They exit together. The stage lights fade to black.
+
+# Playwright's Notes
+
+*The Last Curtain Call* was written during a residency at the Ashford Theatre
+Workshop in the summer of 2024. It draws on conversations with retired actors
+and stagehands about the emotional weight of a final performance.
+
+The character of Margaret is loosely inspired by **Dame Eleanor Voss**, who
+famously refused to retire until the age of eighty-seven.
+
+# First Production
+
+The Last Curtain Call was first performed at the Ashford Theatre on
+September 15, 2025, with the following cast:
+
+MARGARET — Sarah Thornton
+JAMES — David Okafor
+CLAIRE — Priya Sharma
+HENRY — Michael Chen
+
+Directed by **Anna Kowalski**
+Set Design by *Robert Tanaka*

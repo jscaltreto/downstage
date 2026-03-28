@@ -1,0 +1,59 @@
+Title: Edge Cases
+
+# Dramatis Personae
+
+ALICE — A character
+ACT — A character whose name looks like a heading keyword
+SCENE — Another confusingly named character
+
+# Edge Cases
+
+### SCENE 1
+
+// Empty lines between elements
+
+
+ALICE
+Hello.
+
+
+// Character name that could be confused with heading
+@ACT
+I have a confusing name.
+
+@SCENE
+So do I.
+
+// Back-to-back page breaks
+===
+
+===
+
+===
+
+// Nested parentheses in stage directions
+> The crowd (mostly tourists) begins to cheer.
+
+ALICE
+(looking around (nervously))
+Is everyone here?
+
+// Single character dialogue (one word)
+ALICE
+Yes.
+
+// Dialogue immediately after heading (no blank line separator)
+### SCENE 2
+ALICE
+No blank line before me.
+
+// Very short scene
+### SCENE 3
+
+ALICE
+Done.
+
+// Trailing whitespace and empty final lines
+ALICE
+This line has text.
+

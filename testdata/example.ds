@@ -1,0 +1,84 @@
+Title: The Example Play
+Author: Test Author
+Date: 2024
+Draft: First
+
+# Dramatis Personae
+
+HAMLET — Prince of Denmark
+[HAMLET/HAM]
+HORATIO — Friend to Hamlet
+GHOST — Ghost of Hamlet's Father
+
+## Courtiers
+
+ROSENCRANTZ — Courtier
+GUILDENSTERN — Courtier
+
+# The Example Play
+
+## ACT I
+
+### SCENE 1
+
+> The battlements of Elsinore Castle. Night.
+
+HORATIO
+Who's there?
+
+HAMLET
+(aside)
+A piece of work is man, how **noble** in reason,
+how *infinite* in faculty.
+  In form and moving, how express
+  and admirable; in action, how like
+  an angel.
+
+// This is a line comment
+
+> Enter GHOST
+
+GHOST
+Mark me.
+
+HAMLET
+I will.
+
+===
+
+### SCENE 2
+
+> A room in the castle.
+
+/*
+This is a block comment
+spanning multiple lines
+*/
+
+ROSENCRANTZ
+Good my lord!
+
+GUILDENSTERN
+My honoured lord!
+
+SONG 1: The Wanderer's Lament
+
+HAMLET
+  O, that this too, too solid flesh
+  Would melt, thaw, and resolve itself
+  Into a dew.
+
+SONG END
+
+## ACT II
+
+### SCENE 1
+
+.A FORCED HEADING
+
+@horatio
+My lord, I came to see your father's funeral.
+
+HAMLET
+I pray thee, do not mock me, fellow student.
+I think it was to see my mother's ~wedding~ marriage.

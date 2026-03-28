@@ -1,0 +1,108 @@
+package cmd
+
+import (
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/jscaltreto/downstage/internal/parser"
+	"github.com/jscaltreto/downstage/internal/render"
+	"github.com/jscaltreto/downstage/internal/render/pdf"
+	"github.com/spf13/cobra"
+)
+
+var (
+	renderFormat   string
+	renderOutput   string
+	renderPageSize string
+	renderStyle    string
+	renderFont     string
+)
+
+var renderCmd = &cobra.Command{
+	Use:   "render <file.ds>",
+	Short: "Render a .ds file to PDF or other formats",
+	Long:  "Reads a Downstage (.ds) file, parses it, and renders it to the specified output format.",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runRender,
+}
+
+func init() {
+	renderCmd.Flags().StringVarP(&renderFormat, "format", "f", "pdf", "output format: pdf")
+	renderCmd.Flags().StringVarP(&renderOutput, "output", "o", "", "output file (default: input name with format extension)")
+	renderCmd.Flags().StringVar(&renderPageSize, "page-size", "letter", "page size: letter, a4")
+	renderCmd.Flags().StringVar(&renderStyle, "style", "standard", "rendering style: standard, condensed")
+	renderCmd.Flags().StringVar(&renderFont, "font", "", "path to a custom TTF font file")
+	rootCmd.AddCommand(renderCmd)
+}
+
+func runRender(cmd *cobra.Command, args []string) error {
+	filename := args[0]
+	slog.Debug("rendering file", "filename", filename)
+
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", filename, err)
+	}
+
+	doc, errs := parser.Parse(content)
+	for _, e := range errs {
+		fmt.Fprintf(os.Stderr, "%s:%d:%d: %s\n",
+			filepath.Base(filename),
+			e.Range.Start.Line+1,
+			e.Range.Start.Column+1,
+			e.Message,
+		)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("parse failed with %d error(s)", len(errs))
+	}
+
+	cfg := render.DefaultConfig()
+
+	pageSize, err := render.ParsePageSize(renderPageSize)
+	if err != nil {
+		return err
+	}
+	cfg.PageSize = pageSize
+
+	style, err := render.ParseStyle(renderStyle)
+	if err != nil {
+		return err
+	}
+	cfg.Style = style
+	cfg.FontPath = renderFont
+
+	var nr render.NodeRenderer
+	switch renderFormat {
+	case "pdf":
+		switch cfg.Style {
+		case render.StyleCondensed:
+			nr = pdf.NewCondensedRenderer(cfg)
+		default:
+			nr = pdf.NewRenderer(cfg)
+		}
+	default:
+		return fmt.Errorf("unsupported format: %q", renderFormat)
+	}
+
+	output := renderOutput
+	if output == "" {
+		output = strings.TrimSuffix(filename, filepath.Ext(filename)) + "." + renderFormat
+	}
+
+	f, err := os.Create(output)
+	if err != nil {
+		return fmt.Errorf("creating output file: %w", err)
+	}
+	defer f.Close()
+
+	if err := render.Walk(nr, doc, f); err != nil {
+		return fmt.Errorf("rendering: %w", err)
+	}
+
+	slog.Info("rendered", "output", output, "format", renderFormat)
+	return nil
+}

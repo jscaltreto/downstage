@@ -1,0 +1,663 @@
+{
+  "TitlePage": {
+    "Entries": [
+      {
+        "Key": "Title",
+        "Value": "The Complete Example",
+        "Range": {
+          "Start": {
+            "Line": 0,
+            "Column": 0,
+            "Offset": 0
+          },
+          "End": {
+            "Line": 0,
+            "Column": 27,
+            "Offset": 27
+          }
+        }
+      },
+      {
+        "Key": "Author",
+        "Value": "Test Writer",
+        "Range": {
+          "Start": {
+            "Line": 1,
+            "Column": 0,
+            "Offset": 28
+          },
+          "End": {
+            "Line": 1,
+            "Column": 19,
+            "Offset": 47
+          }
+        }
+      },
+      {
+        "Key": "Draft",
+        "Value": "Second",
+        "Range": {
+          "Start": {
+            "Line": 2,
+            "Column": 0,
+            "Offset": 48
+          },
+          "End": {
+            "Line": 2,
+            "Column": 13,
+            "Offset": 61
+          }
+        }
+      }
+    ],
+    "Range": {
+      "Start": {
+        "Line": 0,
+        "Column": 0,
+        "Offset": 0
+      },
+      "End": {
+        "Line": 2,
+        "Column": 13,
+        "Offset": 61
+      }
+    }
+  },
+  "Body": [
+    {
+      "Kind": 3,
+      "Level": 1,
+      "Title": "Dramatis Personae",
+      "Number": "",
+      "Children": null,
+      "Characters": null,
+      "Groups": [
+        {
+          "Name": "The Court",
+          "Characters": [
+            {
+              "Name": "KING LEAR",
+              "Aliases": null,
+              "Description": "King of Britain",
+              "Range": {
+                "Start": {
+                  "Line": 6,
+                  "Column": 0,
+                  "Offset": 96
+                },
+                "End": {
+                  "Line": 6,
+                  "Column": 27,
+                  "Offset": 125
+                }
+              }
+            },
+            {
+              "Name": "CORDELIA",
+              "Aliases": null,
+              "Description": "His youngest daughter",
+              "Range": {
+                "Start": {
+                  "Line": 7,
+                  "Column": 0,
+                  "Offset": 126
+                },
+                "End": {
+                  "Line": 7,
+                  "Column": 32,
+                  "Offset": 160
+                }
+              }
+            }
+          ],
+          "Range": {
+            "Start": {
+              "Line": 5,
+              "Column": 0,
+              "Offset": 83
+            },
+            "End": {
+              "Line": 7,
+              "Column": 32,
+              "Offset": 160
+            }
+          }
+        },
+        {
+          "Name": "The Earls",
+          "Characters": [
+            {
+              "Name": "KENT",
+              "Aliases": null,
+              "Description": "A loyal earl",
+              "Range": {
+                "Start": {
+                  "Line": 10,
+                  "Column": 0,
+                  "Offset": 175
+                },
+                "End": {
+                  "Line": 10,
+                  "Column": 19,
+                  "Offset": 196
+                }
+              }
+            }
+          ],
+          "Range": {
+            "Start": {
+              "Line": 9,
+              "Column": 0,
+              "Offset": 162
+            },
+            "End": {
+              "Line": 10,
+              "Column": 19,
+              "Offset": 196
+            }
+          }
+        }
+      ],
+      "Lines": null,
+      "Range": {
+        "Start": {
+          "Line": 4,
+          "Column": 0,
+          "Offset": 63
+        },
+        "End": {
+          "Line": 11,
+          "Column": 0,
+          "Offset": 197
+        }
+      }
+    },
+    {
+      "Kind": 1,
+      "Level": 1,
+      "Title": "",
+      "Number": "ONE",
+      "Children": [
+        {
+          "Kind": 2,
+          "Level": 2,
+          "Title": "",
+          "Number": "1",
+          "Children": [
+            {
+              "Content": [
+                {
+                  "Value": "A dark heath. Thunder and lightning.",
+                  "Range": {
+                    "Start": {
+                      "Line": 16,
+                      "Column": 0,
+                      "Offset": 221
+                    },
+                    "End": {
+                      "Line": 16,
+                      "Column": 38,
+                      "Offset": 259
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 16,
+                  "Column": 0,
+                  "Offset": 221
+                },
+                "End": {
+                  "Line": 16,
+                  "Column": 38,
+                  "Offset": 259
+                }
+              }
+            },
+            {
+              "Character": "KING LEAR",
+              "Parenthetical": "",
+              "Lines": [
+                {
+                  "Content": [
+                    {
+                      "Value": "Blow, winds, and crack your cheeks!",
+                      "Range": {
+                        "Start": {
+                          "Line": 19,
+                          "Column": 0,
+                          "Offset": 271
+                        },
+                        "End": {
+                          "Line": 19,
+                          "Column": 35,
+                          "Offset": 306
+                        }
+                      }
+                    }
+                  ],
+                  "IsVerse": false,
+                  "Range": {
+                    "Start": {
+                      "Line": 19,
+                      "Column": 0,
+                      "Offset": 271
+                    },
+                    "End": {
+                      "Line": 19,
+                      "Column": 35,
+                      "Offset": 306
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "Rage, blow!",
+                      "Range": {
+                        "Start": {
+                          "Line": 20,
+                          "Column": 0,
+                          "Offset": 307
+                        },
+                        "End": {
+                          "Line": 20,
+                          "Column": 13,
+                          "Offset": 320
+                        }
+                      }
+                    }
+                  ],
+                  "IsVerse": true,
+                  "Range": {
+                    "Start": {
+                      "Line": 20,
+                      "Column": 0,
+                      "Offset": 307
+                    },
+                    "End": {
+                      "Line": 20,
+                      "Column": 13,
+                      "Offset": 320
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "You cataracts and hurricanoes, spout!",
+                      "Range": {
+                        "Start": {
+                          "Line": 21,
+                          "Column": 0,
+                          "Offset": 321
+                        },
+                        "End": {
+                          "Line": 21,
+                          "Column": 39,
+                          "Offset": 360
+                        }
+                      }
+                    }
+                  ],
+                  "IsVerse": true,
+                  "Range": {
+                    "Start": {
+                      "Line": 21,
+                      "Column": 0,
+                      "Offset": 321
+                    },
+                    "End": {
+                      "Line": 21,
+                      "Column": 39,
+                      "Offset": 360
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 18,
+                  "Column": 0,
+                  "Offset": 261
+                },
+                "End": {
+                  "Line": 21,
+                  "Column": 39,
+                  "Offset": 360
+                }
+              }
+            },
+            {
+              "Content": [
+                {
+                  "Value": "He tears at his robes.",
+                  "Range": {
+                    "Start": {
+                      "Line": 23,
+                      "Column": 0,
+                      "Offset": 362
+                    },
+                    "End": {
+                      "Line": 23,
+                      "Column": 24,
+                      "Offset": 386
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 23,
+                  "Column": 0,
+                  "Offset": 362
+                },
+                "End": {
+                  "Line": 23,
+                  "Column": 24,
+                  "Offset": 386
+                }
+              }
+            },
+            {
+              "Text": "A moment of silence",
+              "Block": false,
+              "Range": {
+                "Start": {
+                  "Line": 25,
+                  "Column": 0,
+                  "Offset": 388
+                },
+                "End": {
+                  "Line": 25,
+                  "Column": 22,
+                  "Offset": 410
+                }
+              }
+            },
+            {
+              "Character": "CORDELIA",
+              "Parenthetical": "(gently)",
+              "Lines": [
+                {
+                  "Content": [
+                    {
+                      "Value": "Father, please come inside.",
+                      "Range": {
+                        "Start": {
+                          "Line": 29,
+                          "Column": 0,
+                          "Offset": 430
+                        },
+                        "End": {
+                          "Line": 29,
+                          "Column": 27,
+                          "Offset": 457
+                        }
+                      }
+                    }
+                  ],
+                  "IsVerse": false,
+                  "Range": {
+                    "Start": {
+                      "Line": 29,
+                      "Column": 0,
+                      "Offset": 430
+                    },
+                    "End": {
+                      "Line": 29,
+                      "Column": 27,
+                      "Offset": 457
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 27,
+                  "Column": 0,
+                  "Offset": 412
+                },
+                "End": {
+                  "Line": 29,
+                  "Column": 27,
+                  "Offset": 457
+                }
+              }
+            },
+            {
+              "Number": "1",
+              "Title": "The Storm",
+              "Content": [
+                {
+                  "Character": "KING LEAR",
+                  "Parenthetical": "",
+                  "Lines": [
+                    {
+                      "Content": [
+                        {
+                          "Value": "The storm rages on,",
+                          "Range": {
+                            "Start": {
+                              "Line": 33,
+                              "Column": 0,
+                              "Offset": 486
+                            },
+                            "End": {
+                              "Line": 33,
+                              "Column": 21,
+                              "Offset": 507
+                            }
+                          }
+                        }
+                      ],
+                      "IsVerse": true,
+                      "Range": {
+                        "Start": {
+                          "Line": 33,
+                          "Column": 0,
+                          "Offset": 486
+                        },
+                        "End": {
+                          "Line": 33,
+                          "Column": 21,
+                          "Offset": 507
+                        }
+                      }
+                    },
+                    {
+                      "Content": [
+                        {
+                          "Value": "The wind howls and moans.",
+                          "Range": {
+                            "Start": {
+                              "Line": 34,
+                              "Column": 0,
+                              "Offset": 508
+                            },
+                            "End": {
+                              "Line": 34,
+                              "Column": 27,
+                              "Offset": 535
+                            }
+                          }
+                        }
+                      ],
+                      "IsVerse": true,
+                      "Range": {
+                        "Start": {
+                          "Line": 34,
+                          "Column": 0,
+                          "Offset": 508
+                        },
+                        "End": {
+                          "Line": 34,
+                          "Column": 27,
+                          "Offset": 535
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 32,
+                      "Column": 0,
+                      "Offset": 476
+                    },
+                    "End": {
+                      "Line": 34,
+                      "Column": 27,
+                      "Offset": 535
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 31,
+                  "Column": 0,
+                  "Offset": 459
+                },
+                "End": {
+                  "Line": 35,
+                  "Column": 8,
+                  "Offset": 544
+                }
+              }
+            },
+            {
+              "Range": {
+                "Start": {
+                  "Line": 37,
+                  "Column": 0,
+                  "Offset": 546
+                },
+                "End": {
+                  "Line": 37,
+                  "Column": 3,
+                  "Offset": 549
+                }
+              }
+            }
+          ],
+          "Characters": null,
+          "Groups": null,
+          "Lines": null,
+          "Range": {
+            "Start": {
+              "Line": 14,
+              "Column": 0,
+              "Offset": 209
+            },
+            "End": {
+              "Line": 38,
+              "Column": 0,
+              "Offset": 550
+            }
+          }
+        },
+        {
+          "Kind": 2,
+          "Level": 2,
+          "Title": "",
+          "Number": "2",
+          "Children": [
+            {
+              "Character": "KENT",
+              "Parenthetical": "",
+              "Lines": [
+                {
+                  "Content": [
+                    {
+                      "Value": "My lord, I bring news.",
+                      "Range": {
+                        "Start": {
+                          "Line": 42,
+                          "Column": 0,
+                          "Offset": 568
+                        },
+                        "End": {
+                          "Line": 42,
+                          "Column": 22,
+                          "Offset": 590
+                        }
+                      }
+                    }
+                  ],
+                  "IsVerse": false,
+                  "Range": {
+                    "Start": {
+                      "Line": 42,
+                      "Column": 0,
+                      "Offset": 568
+                    },
+                    "End": {
+                      "Line": 42,
+                      "Column": 22,
+                      "Offset": 590
+                    }
+                  }
+                }
+              ],
+              "Range": {
+                "Start": {
+                  "Line": 41,
+                  "Column": 0,
+                  "Offset": 563
+                },
+                "End": {
+                  "Line": 42,
+                  "Column": 22,
+                  "Offset": 590
+                }
+              }
+            }
+          ],
+          "Characters": null,
+          "Groups": null,
+          "Lines": null,
+          "Range": {
+            "Start": {
+              "Line": 39,
+              "Column": 0,
+              "Offset": 551
+            },
+            "End": {
+              "Line": 43,
+              "Column": 0,
+              "Offset": 591
+            }
+          }
+        }
+      ],
+      "Characters": null,
+      "Groups": null,
+      "Lines": null,
+      "Range": {
+        "Start": {
+          "Line": 12,
+          "Column": 0,
+          "Offset": 198
+        },
+        "End": {
+          "Line": 43,
+          "Column": 0,
+          "Offset": 591
+        }
+      }
+    }
+  ],
+  "Range": {
+    "Start": {
+      "Line": 0,
+      "Column": 0,
+      "Offset": 0
+    },
+    "End": {
+      "Line": 44,
+      "Column": 0,
+      "Offset": 591
+    }
+  }
+}

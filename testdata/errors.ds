@@ -1,0 +1,43 @@
+Title: Error Recovery Tests
+
+# Dramatis Personae
+
+ALICE — The only defined character
+
+# Error Recovery Tests
+
+### SCENE 1
+
+// Unknown character (not in dramatis personae)
+UNKNOWN
+This character was never declared.
+
+// Orphaned dialogue (text without a character name)
+This text just appears without a character speaking it.
+
+ALICE
+This is valid dialogue from Alice.
+
+// Another orphan line
+More orphaned text that belongs to nobody.
+
+// Missing SONG END
+SONG 1: The Unfinished Song
+
+ALICE
+  This song never ends,
+  it goes on and on my friends.
+
+// No SONG END marker here — the song is unclosed.
+
+### SCENE 2
+
+ALICE
+Back to normal dialogue after the unclosed song.
+
+STRANGER
+Another unknown character speaks.
+
+/* This block comment is never closed.
+It runs to the end of the file.
+There is no closing marker.

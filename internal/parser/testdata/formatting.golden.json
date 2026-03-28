@@ -1,0 +1,679 @@
+{
+  "TitlePage": {
+    "Entries": [
+      {
+        "Key": "Title",
+        "Value": "Formatting",
+        "Range": {
+          "Start": {
+            "Line": 0,
+            "Column": 0,
+            "Offset": 0
+          },
+          "End": {
+            "Line": 0,
+            "Column": 17,
+            "Offset": 17
+          }
+        }
+      }
+    ],
+    "Range": {
+      "Start": {
+        "Line": 0,
+        "Column": 0,
+        "Offset": 0
+      },
+      "End": {
+        "Line": 0,
+        "Column": 17,
+        "Offset": 17
+      }
+    }
+  },
+  "Body": [
+    {
+      "Kind": 3,
+      "Level": 1,
+      "Title": "Dramatis Personae",
+      "Number": "",
+      "Children": null,
+      "Characters": [
+        {
+          "Name": "ALICE",
+          "Aliases": null,
+          "Description": "A speaker",
+          "Range": {
+            "Start": {
+              "Line": 4,
+              "Column": 0,
+              "Offset": 40
+            },
+            "End": {
+              "Line": 4,
+              "Column": 17,
+              "Offset": 59
+            }
+          }
+        }
+      ],
+      "Groups": null,
+      "Lines": null,
+      "Range": {
+        "Start": {
+          "Line": 2,
+          "Column": 0,
+          "Offset": 19
+        },
+        "End": {
+          "Line": 5,
+          "Column": 0,
+          "Offset": 60
+        }
+      }
+    },
+    {
+      "Kind": 0,
+      "Level": 1,
+      "Title": "Formatting",
+      "Number": "",
+      "Children": [
+        {
+          "Character": "ALICE",
+          "Parenthetical": "",
+          "Lines": [
+            {
+              "Content": [
+                {
+                  "Value": "This has ",
+                  "Range": {
+                    "Start": {
+                      "Line": 9,
+                      "Column": 0,
+                      "Offset": 81
+                    },
+                    "End": {
+                      "Line": 9,
+                      "Column": 37,
+                      "Offset": 118
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "italic",
+                      "Range": {
+                        "Start": {
+                          "Line": 9,
+                          "Column": 0,
+                          "Offset": 81
+                        },
+                        "End": {
+                          "Line": 9,
+                          "Column": 37,
+                          "Offset": 118
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 9,
+                      "Column": 0,
+                      "Offset": 81
+                    },
+                    "End": {
+                      "Line": 9,
+                      "Column": 37,
+                      "Offset": 118
+                    }
+                  }
+                },
+                {
+                  "Value": " and ",
+                  "Range": {
+                    "Start": {
+                      "Line": 9,
+                      "Column": 0,
+                      "Offset": 81
+                    },
+                    "End": {
+                      "Line": 9,
+                      "Column": 37,
+                      "Offset": 118
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "bold",
+                      "Range": {
+                        "Start": {
+                          "Line": 9,
+                          "Column": 0,
+                          "Offset": 81
+                        },
+                        "End": {
+                          "Line": 9,
+                          "Column": 37,
+                          "Offset": 118
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 9,
+                      "Column": 0,
+                      "Offset": 81
+                    },
+                    "End": {
+                      "Line": 9,
+                      "Column": 37,
+                      "Offset": 118
+                    }
+                  }
+                },
+                {
+                  "Value": " words.",
+                  "Range": {
+                    "Start": {
+                      "Line": 9,
+                      "Column": 0,
+                      "Offset": 81
+                    },
+                    "End": {
+                      "Line": 9,
+                      "Column": 37,
+                      "Offset": 118
+                    }
+                  }
+                }
+              ],
+              "IsVerse": false,
+              "Range": {
+                "Start": {
+                  "Line": 9,
+                  "Column": 0,
+                  "Offset": 81
+                },
+                "End": {
+                  "Line": 9,
+                  "Column": 37,
+                  "Offset": 118
+                }
+              }
+            }
+          ],
+          "Range": {
+            "Start": {
+              "Line": 8,
+              "Column": 0,
+              "Offset": 75
+            },
+            "End": {
+              "Line": 9,
+              "Column": 37,
+              "Offset": 118
+            }
+          }
+        },
+        {
+          "Character": "ALICE",
+          "Parenthetical": "",
+          "Lines": [
+            {
+              "Content": [
+                {
+                  "Value": "This has ",
+                  "Range": {
+                    "Start": {
+                      "Line": 12,
+                      "Column": 0,
+                      "Offset": 126
+                    },
+                    "End": {
+                      "Line": 12,
+                      "Column": 32,
+                      "Offset": 158
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "bold italic",
+                      "Range": {
+                        "Start": {
+                          "Line": 12,
+                          "Column": 0,
+                          "Offset": 126
+                        },
+                        "End": {
+                          "Line": 12,
+                          "Column": 32,
+                          "Offset": 158
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 12,
+                      "Column": 0,
+                      "Offset": 126
+                    },
+                    "End": {
+                      "Line": 12,
+                      "Column": 32,
+                      "Offset": 158
+                    }
+                  }
+                },
+                {
+                  "Value": " text.",
+                  "Range": {
+                    "Start": {
+                      "Line": 12,
+                      "Column": 0,
+                      "Offset": 126
+                    },
+                    "End": {
+                      "Line": 12,
+                      "Column": 32,
+                      "Offset": 158
+                    }
+                  }
+                }
+              ],
+              "IsVerse": false,
+              "Range": {
+                "Start": {
+                  "Line": 12,
+                  "Column": 0,
+                  "Offset": 126
+                },
+                "End": {
+                  "Line": 12,
+                  "Column": 32,
+                  "Offset": 158
+                }
+              }
+            }
+          ],
+          "Range": {
+            "Start": {
+              "Line": 11,
+              "Column": 0,
+              "Offset": 120
+            },
+            "End": {
+              "Line": 12,
+              "Column": 32,
+              "Offset": 158
+            }
+          }
+        },
+        {
+          "Character": "ALICE",
+          "Parenthetical": "",
+          "Lines": [
+            {
+              "Content": [
+                {
+                  "Value": "This has ",
+                  "Range": {
+                    "Start": {
+                      "Line": 15,
+                      "Column": 0,
+                      "Offset": 166
+                    },
+                    "End": {
+                      "Line": 15,
+                      "Column": 46,
+                      "Offset": 212
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "underline",
+                      "Range": {
+                        "Start": {
+                          "Line": 15,
+                          "Column": 0,
+                          "Offset": 166
+                        },
+                        "End": {
+                          "Line": 15,
+                          "Column": 46,
+                          "Offset": 212
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 15,
+                      "Column": 0,
+                      "Offset": 166
+                    },
+                    "End": {
+                      "Line": 15,
+                      "Column": 46,
+                      "Offset": 212
+                    }
+                  }
+                },
+                {
+                  "Value": " and ",
+                  "Range": {
+                    "Start": {
+                      "Line": 15,
+                      "Column": 0,
+                      "Offset": 166
+                    },
+                    "End": {
+                      "Line": 15,
+                      "Column": 46,
+                      "Offset": 212
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "strikethrough",
+                      "Range": {
+                        "Start": {
+                          "Line": 15,
+                          "Column": 0,
+                          "Offset": 166
+                        },
+                        "End": {
+                          "Line": 15,
+                          "Column": 46,
+                          "Offset": 212
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 15,
+                      "Column": 0,
+                      "Offset": 166
+                    },
+                    "End": {
+                      "Line": 15,
+                      "Column": 46,
+                      "Offset": 212
+                    }
+                  }
+                },
+                {
+                  "Value": " text.",
+                  "Range": {
+                    "Start": {
+                      "Line": 15,
+                      "Column": 0,
+                      "Offset": 166
+                    },
+                    "End": {
+                      "Line": 15,
+                      "Column": 46,
+                      "Offset": 212
+                    }
+                  }
+                }
+              ],
+              "IsVerse": false,
+              "Range": {
+                "Start": {
+                  "Line": 15,
+                  "Column": 0,
+                  "Offset": 166
+                },
+                "End": {
+                  "Line": 15,
+                  "Column": 46,
+                  "Offset": 212
+                }
+              }
+            }
+          ],
+          "Range": {
+            "Start": {
+              "Line": 14,
+              "Column": 0,
+              "Offset": 160
+            },
+            "End": {
+              "Line": 15,
+              "Column": 46,
+              "Offset": 212
+            }
+          }
+        },
+        {
+          "Character": "ALICE",
+          "Parenthetical": "",
+          "Lines": [
+            {
+              "Content": [
+                {
+                  "Value": "Multiple ",
+                  "Range": {
+                    "Start": {
+                      "Line": 18,
+                      "Column": 0,
+                      "Offset": 220
+                    },
+                    "End": {
+                      "Line": 18,
+                      "Column": 42,
+                      "Offset": 262
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "formats",
+                      "Range": {
+                        "Start": {
+                          "Line": 18,
+                          "Column": 0,
+                          "Offset": 220
+                        },
+                        "End": {
+                          "Line": 18,
+                          "Column": 42,
+                          "Offset": 262
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 18,
+                      "Column": 0,
+                      "Offset": 220
+                    },
+                    "End": {
+                      "Line": 18,
+                      "Column": 42,
+                      "Offset": 262
+                    }
+                  }
+                },
+                {
+                  "Value": " in ",
+                  "Range": {
+                    "Start": {
+                      "Line": 18,
+                      "Column": 0,
+                      "Offset": 220
+                    },
+                    "End": {
+                      "Line": 18,
+                      "Column": 42,
+                      "Offset": 262
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "one",
+                      "Range": {
+                        "Start": {
+                          "Line": 18,
+                          "Column": 0,
+                          "Offset": 220
+                        },
+                        "End": {
+                          "Line": 18,
+                          "Column": 42,
+                          "Offset": 262
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 18,
+                      "Column": 0,
+                      "Offset": 220
+                    },
+                    "End": {
+                      "Line": 18,
+                      "Column": 42,
+                      "Offset": 262
+                    }
+                  }
+                },
+                {
+                  "Value": " ",
+                  "Range": {
+                    "Start": {
+                      "Line": 18,
+                      "Column": 0,
+                      "Offset": 220
+                    },
+                    "End": {
+                      "Line": 18,
+                      "Column": 42,
+                      "Offset": 262
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "line",
+                      "Range": {
+                        "Start": {
+                          "Line": 18,
+                          "Column": 0,
+                          "Offset": 220
+                        },
+                        "End": {
+                          "Line": 18,
+                          "Column": 42,
+                          "Offset": 262
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 18,
+                      "Column": 0,
+                      "Offset": 220
+                    },
+                    "End": {
+                      "Line": 18,
+                      "Column": 42,
+                      "Offset": 262
+                    }
+                  }
+                },
+                {
+                  "Value": " here.",
+                  "Range": {
+                    "Start": {
+                      "Line": 18,
+                      "Column": 0,
+                      "Offset": 220
+                    },
+                    "End": {
+                      "Line": 18,
+                      "Column": 42,
+                      "Offset": 262
+                    }
+                  }
+                }
+              ],
+              "IsVerse": false,
+              "Range": {
+                "Start": {
+                  "Line": 18,
+                  "Column": 0,
+                  "Offset": 220
+                },
+                "End": {
+                  "Line": 18,
+                  "Column": 42,
+                  "Offset": 262
+                }
+              }
+            }
+          ],
+          "Range": {
+            "Start": {
+              "Line": 17,
+              "Column": 0,
+              "Offset": 214
+            },
+            "End": {
+              "Line": 18,
+              "Column": 42,
+              "Offset": 262
+            }
+          }
+        }
+      ],
+      "Characters": null,
+      "Groups": null,
+      "Lines": [],
+      "Range": {
+        "Start": {
+          "Line": 6,
+          "Column": 0,
+          "Offset": 61
+        },
+        "End": {
+          "Line": 19,
+          "Column": 0,
+          "Offset": 263
+        }
+      }
+    }
+  ],
+  "Range": {
+    "Start": {
+      "Line": 0,
+      "Column": 0,
+      "Offset": 0
+    },
+    "End": {
+      "Line": 20,
+      "Column": 0,
+      "Offset": 263
+    }
+  }
+}

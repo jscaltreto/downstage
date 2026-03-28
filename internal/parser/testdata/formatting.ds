@@ -1,0 +1,19 @@
+Title: Formatting
+
+# Dramatis Personae
+
+ALICE — A speaker
+
+# Formatting
+
+ALICE
+This has *italic* and **bold** words.
+
+ALICE
+This has ***bold italic*** text.
+
+ALICE
+This has _underline_ and ~strikethrough~ text.
+
+ALICE
+Multiple *formats* in **one** _line_ here.
