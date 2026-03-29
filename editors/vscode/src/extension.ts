@@ -655,11 +655,14 @@ body { overflow: hidden; }
 	let active = frameA;
 	let staging = frameB;
 	let pendingLine = null;
+	let loadGeneration = 0;
 
 	function updatePreview(html, line) {
 		if (typeof line === "number") {
 			pendingLine = line;
 		}
+		loadGeneration++;
+		staging.dataset.generation = String(loadGeneration);
 		staging.srcdoc = html;
 	}
 
@@ -688,8 +691,7 @@ body { overflow: hidden; }
 
 	function onFrameLoad(frame) {
 		if (frame !== staging) return;
-		const doc = frame.contentDocument;
-		if (!doc || !doc.body || doc.body.children.length === 0) return;
+		if (frame.dataset.generation !== String(loadGeneration)) return;
 		if (pendingLine !== null) {
 			const line = pendingLine;
 			pendingLine = null;
@@ -700,7 +702,7 @@ body { overflow: hidden; }
 		const tmp = active;
 		active = staging;
 		staging = tmp;
-		staging.srcdoc = "";
+		setTimeout(() => { staging.srcdoc = ""; }, 0);
 	}
 
 	frameA.addEventListener("load", () => onFrameLoad(frameA));
@@ -712,7 +714,6 @@ body { overflow: hidden; }
 			updatePreview(msg.html, msg.line);
 		}
 		if (msg.type === "scrollTo") {
-			pendingLine = msg.line;
 			scrollPreviewToLine(msg.line);
 		}
 	});
