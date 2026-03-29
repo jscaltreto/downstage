@@ -27,16 +27,25 @@ type htmlRenderer struct {
 	hasTitlePage   bool
 	titlePageTitle string
 	inDualDialogue bool
-	skipSection    bool
 	inParagraph    bool // tracks open <p> in section lines for prose reflow
+	sectionStack   []sectionState
+}
+
+type sectionState struct {
+	closeTag bool
 }
 
 // --- Lifecycle ---
 
 func (r *htmlRenderer) BeginDocument(doc *ast.Document, w io.Writer) error {
+	r.buf.Reset()
 	r.w = w
+	r.dirDepth = 0
 	r.hasTitlePage = doc.TitlePage != nil
 	r.titlePageTitle = titlePageTitle(doc.TitlePage)
+	r.inDualDialogue = false
+	r.inParagraph = false
+	r.sectionStack = r.sectionStack[:0]
 
 	title := r.titlePageTitle
 	if title == "" {
@@ -127,7 +136,7 @@ func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 // --- Sections ---
 
 func (r *htmlRenderer) BeginSection(s *ast.Section) error {
-	r.skipSection = false
+	r.beginBlock()
 
 	switch s.Kind {
 	case ast.SectionAct:
@@ -138,14 +147,16 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 		return r.renderDramatisPersonae(s)
 	default: // SectionGeneric
 		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
-			r.skipSection = true
+			r.pushSection(false)
 			return nil
 		}
 		if s.Level == 0 {
+			r.pushSection(false)
 			fmt.Fprintf(&r.buf, "<p class=\"downstage-forced-heading\"><strong>%s</strong></p>\n",
 				html.EscapeString(s.Title))
 			return nil
 		}
+		r.pushSection(true)
 		r.buf.WriteString("<section class=\"downstage-section\">\n")
 		if s.Title != "" {
 			tag := headingTag(s.Level)
@@ -157,10 +168,7 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 
 func (r *htmlRenderer) EndSection(s *ast.Section) error {
 	r.closeParagraph()
-	if r.skipSection {
-		r.skipSection = false
-		return nil
-	}
+	state := r.popSection()
 	if s.Level == 0 && s.Kind == ast.SectionGeneric {
 		return nil
 	}
@@ -168,15 +176,14 @@ func (r *htmlRenderer) EndSection(s *ast.Section) error {
 	case ast.SectionDramatisPersonae:
 		// already closed in renderDramatisPersonae
 	default:
-		r.buf.WriteString("</section>\n")
+		if state.closeTag {
+			r.buf.WriteString("</section>\n")
+		}
 	}
 	return nil
 }
 
 func (r *htmlRenderer) BeginSectionLine(sl *ast.SectionLine) error {
-	if r.skipSection {
-		return nil
-	}
 	if len(sl.Content) == 0 {
 		r.closeParagraph()
 		r.buf.WriteString("<div class=\"downstage-section-break\"></div>\n")
@@ -190,9 +197,6 @@ func (r *htmlRenderer) BeginSectionLine(sl *ast.SectionLine) error {
 }
 
 func (r *htmlRenderer) EndSectionLine(sl *ast.SectionLine) error {
-	if r.skipSection {
-		return nil
-	}
 	if len(sl.Content) > 0 {
 		r.buf.WriteString(" ")
 	}
@@ -201,10 +205,11 @@ func (r *htmlRenderer) EndSectionLine(sl *ast.SectionLine) error {
 
 func (r *htmlRenderer) beginAct(s *ast.Section) error {
 	if s.Number == "" && r.hasTitlePage {
-		r.skipSection = true
+		r.pushSection(false)
 		return nil
 	}
 
+	r.pushSection(true)
 	r.buf.WriteString("<section class=\"downstage-act\">\n")
 
 	var heading string
@@ -222,6 +227,7 @@ func (r *htmlRenderer) beginAct(s *ast.Section) error {
 }
 
 func (r *htmlRenderer) beginScene(s *ast.Section) error {
+	r.pushSection(true)
 	r.buf.WriteString("<section class=\"downstage-scene\">\n")
 
 	var heading string
@@ -239,6 +245,7 @@ func (r *htmlRenderer) beginScene(s *ast.Section) error {
 }
 
 func (r *htmlRenderer) renderDramatisPersonae(s *ast.Section) error {
+	r.pushSection(false)
 	r.buf.WriteString("<section class=\"downstage-dramatis-personae\">\n")
 	r.buf.WriteString("<h2>DRAMATIS PERSONAE</h2>\n")
 	r.buf.WriteString("<dl>\n")
@@ -274,6 +281,7 @@ func (r *htmlRenderer) renderCharacterEntry(ch ast.Character) {
 // --- Dual Dialogue ---
 
 func (r *htmlRenderer) BeginDualDialogue(_ *ast.DualDialogue) error {
+	r.beginBlock()
 	r.inDualDialogue = true
 	r.buf.WriteString("<div class=\"downstage-dual-dialogue\">\n")
 	return nil
@@ -288,6 +296,7 @@ func (r *htmlRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
 // --- Dialogue ---
 
 func (r *htmlRenderer) BeginDialogue(d *ast.Dialogue) error {
+	r.beginBlock()
 	r.buf.WriteString("<div class=\"downstage-dialogue\">\n")
 	fmt.Fprintf(&r.buf, "<p class=\"downstage-character\">%s", html.EscapeString(strings.ToUpper(d.Character)))
 	if d.Parenthetical != "" {
@@ -324,6 +333,7 @@ func (r *htmlRenderer) EndDialogueLine(_ *ast.DialogueLine) error {
 // --- Stage Direction ---
 
 func (r *htmlRenderer) BeginStageDirection(_ *ast.StageDirection) error {
+	r.beginBlock()
 	r.buf.WriteString("<p class=\"downstage-stage-direction\">")
 	return nil
 }
@@ -336,6 +346,7 @@ func (r *htmlRenderer) EndStageDirection(_ *ast.StageDirection) error {
 // --- Song ---
 
 func (r *htmlRenderer) BeginSong(song *ast.Song) error {
+	r.beginBlock()
 	r.buf.WriteString("<div class=\"downstage-song\">\n")
 
 	header := "SONG"
@@ -359,6 +370,7 @@ func (r *htmlRenderer) EndSong(_ *ast.Song) error {
 // --- Verse Block ---
 
 func (r *htmlRenderer) BeginVerseBlock(_ *ast.VerseBlock) error {
+	r.beginBlock()
 	r.buf.WriteString("<div class=\"downstage-verse-block\">\n")
 	return nil
 }
@@ -381,6 +393,7 @@ func (r *htmlRenderer) EndVerseLine(_ *ast.VerseLine) error {
 // --- Leaves ---
 
 func (r *htmlRenderer) RenderPageBreak(_ *ast.PageBreak) error {
+	r.beginBlock()
 	r.buf.WriteString("<hr class=\"downstage-page-break\">\n")
 	return nil
 }
@@ -481,6 +494,23 @@ func (r *htmlRenderer) closeParagraph() {
 		r.buf.WriteString("</p>\n")
 		r.inParagraph = false
 	}
+}
+
+func (r *htmlRenderer) beginBlock() {
+	r.closeParagraph()
+}
+
+func (r *htmlRenderer) pushSection(closeTag bool) {
+	r.sectionStack = append(r.sectionStack, sectionState{closeTag: closeTag})
+}
+
+func (r *htmlRenderer) popSection() sectionState {
+	if len(r.sectionStack) == 0 {
+		return sectionState{}
+	}
+	last := r.sectionStack[len(r.sectionStack)-1]
+	r.sectionStack = r.sectionStack[:len(r.sectionStack)-1]
+	return last
 }
 
 func headingTag(level int) string {

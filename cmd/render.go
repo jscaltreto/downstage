@@ -63,22 +63,21 @@ func runRender(cmd *cobra.Command, args []string) error {
 
 	cfg := render.DefaultConfig()
 
-	pageSize, err := render.ParsePageSize(renderPageSize)
-	if err != nil {
-		return err
-	}
-	cfg.PageSize = pageSize
-
 	style, err := render.ParseStyle(renderStyle)
 	if err != nil {
 		return err
 	}
 	cfg.Style = style
-	cfg.FontPath = renderFont
 
 	var nr render.NodeRenderer
 	switch renderFormat {
 	case "pdf":
+		pageSize, err := render.ParsePageSize(renderPageSize)
+		if err != nil {
+			return err
+		}
+		cfg.PageSize = pageSize
+		cfg.FontPath = renderFont
 		switch cfg.Style {
 		case render.StyleCondensed:
 			nr = pdf.NewCondensedRenderer(cfg)
@@ -86,6 +85,12 @@ func runRender(cmd *cobra.Command, args []string) error {
 			nr = pdf.NewRenderer(cfg)
 		}
 	case "html":
+		if renderPageSize != "letter" {
+			return fmt.Errorf("--page-size is only supported for pdf output")
+		}
+		if renderFont != "" {
+			return fmt.Errorf("--font is only supported for pdf output")
+		}
 		nr = htmlrender.NewRenderer(cfg)
 	default:
 		return fmt.Errorf("unsupported format: %q", renderFormat)

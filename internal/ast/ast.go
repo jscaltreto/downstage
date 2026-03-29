@@ -146,11 +146,16 @@ func (s *Section) OrderedItems() []SectionItem {
 
 func (s *Section) TrimTrailingBlankLines() {
 	for len(s.Lines) > 0 && len(s.Lines[len(s.Lines)-1].Content) == 0 {
+		lastLineIndex := len(s.Lines) - 1
 		if len(s.order) > 0 {
-			last := s.order[len(s.order)-1]
-			if last.kind == SectionItemLine && last.index == len(s.Lines)-1 {
-				s.order = s.order[:len(s.order)-1]
+			filtered := s.order[:0]
+			for _, ref := range s.order {
+				if ref.kind == SectionItemLine && ref.index == lastLineIndex {
+					continue
+				}
+				filtered = append(filtered, ref)
 			}
+			s.order = filtered
 		}
 		s.Lines = s.Lines[:len(s.Lines)-1]
 	}

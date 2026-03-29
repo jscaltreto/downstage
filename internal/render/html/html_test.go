@@ -122,10 +122,9 @@ func TestRender_DualDialogue(t *testing.T) {
 	assert.Contains(t, out, "Left side.")
 	assert.Contains(t, out, "Right side.")
 
-	// Both dialogues should be inside the dual dialogue wrapper
-	dualStart := strings.Index(out, "downstage-dual-dialogue")
-	dualEnd := strings.LastIndex(out, "</div>\n</div>")
-	assert.Greater(t, dualEnd, dualStart)
+	dualBlock := extractBlock(t, out, "<div class=\"downstage-dual-dialogue\">", "</div>")
+	assert.Equal(t, 2, strings.Count(dualBlock, "<div class=\"downstage-dialogue\">"))
+	assert.Less(t, strings.Index(dualBlock, "ALICE"), strings.Index(dualBlock, "BOB"))
 }
 
 func TestRender_StageDirection(t *testing.T) {
@@ -417,6 +416,13 @@ func TestRender_CondensedStyle(t *testing.T) {
 }
 
 func TestRender_TitlePageDedup(t *testing.T) {
+	section := &ast.Section{
+		Kind:  ast.SectionGeneric,
+		Level: 1,
+		Title: "My Play",
+	}
+	section.AppendLine(ast.SectionLine{Content: []ast.Inline{&ast.TextNode{Value: "Opening note."}}})
+
 	doc := &ast.Document{
 		TitlePage: &ast.TitlePage{
 			Entries: []ast.KeyValue{
@@ -424,11 +430,7 @@ func TestRender_TitlePageDedup(t *testing.T) {
 			},
 		},
 		Body: []ast.Node{
-			&ast.Section{
-				Kind:  ast.SectionGeneric,
-				Level: 1,
-				Title: "My Play",
-			},
+			section,
 		},
 	}
 	out := renderHTML(t, doc)
@@ -437,6 +439,7 @@ func TestRender_TitlePageDedup(t *testing.T) {
 	assert.Contains(t, out, "<h1>My Play</h1>")
 	// But there should be no generic section with the same title
 	assert.NotContains(t, out, "<section class=\"downstage-section\">")
+	assert.Contains(t, out, "<p>Opening note. </p>")
 }
 
 func TestRender_HTMLEscaping(t *testing.T) {
@@ -544,7 +547,8 @@ func TestRender_SongWithoutNumber(t *testing.T) {
 }
 
 func TestRender_ActWithoutNumber(t *testing.T) {
-	// Act without number but with title page should be skipped (title dedup)
+	// Act without number but with title page should omit the duplicate wrapper
+	// while preserving its child content.
 	doc := &ast.Document{
 		TitlePage: &ast.TitlePage{
 			Entries: []ast.KeyValue{
@@ -555,13 +559,19 @@ func TestRender_ActWithoutNumber(t *testing.T) {
 			&ast.Section{
 				Kind:  ast.SectionAct,
 				Title: "Test",
+				Children: []ast.Node{
+					&ast.StageDirection{
+						Content: []ast.Inline{&ast.TextNode{Value: "Still render me."}},
+					},
+				},
 			},
 		},
 	}
 	out := renderHTML(t, doc)
 
-	// Unnumbered act with title page should be skipped
+	// Unnumbered act wrapper should be omitted
 	assert.NotContains(t, out, "<section class=\"downstage-act\">")
+	assert.Contains(t, out, "Still render me.")
 }
 
 func TestRender_SectionLineParagraphs(t *testing.T) {
@@ -591,6 +601,54 @@ func TestRender_SectionLineParagraphs(t *testing.T) {
 	assert.NotContains(t, out, "<p>First line. <p>")
 }
 
+func TestRender_SectionLineParagraphsCloseBeforeBlocks(t *testing.T) {
+	sec := &ast.Section{
+		Kind:  ast.SectionGeneric,
+		Level: 1,
+		Title: "Notes",
+	}
+	sec.AppendLine(ast.SectionLine{Content: []ast.Inline{&ast.TextNode{Value: "First line."}}})
+	sec.AppendChild(&ast.Dialogue{
+		Character: "ALICE",
+		Lines: []ast.DialogueLine{
+			{Content: []ast.Inline{&ast.TextNode{Value: "Hello."}}},
+		},
+	})
+	sec.AppendLine(ast.SectionLine{Content: []ast.Inline{&ast.TextNode{Value: "Last line."}}})
+
+	doc := &ast.Document{Body: []ast.Node{sec}}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, "<p>First line. </p>\n<div class=\"downstage-dialogue\">")
+	assert.Contains(t, out, "</div>\n<p>Last line. </p>")
+	assert.NotContains(t, out, "<p>First line. <div class=\"downstage-dialogue\">")
+}
+
+func TestRender_ReusedRendererResetsState(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+
+	firstDoc := &ast.Document{
+		Body: []ast.Node{
+			&ast.StageDirection{Content: []ast.Inline{&ast.TextNode{Value: "__doc_one__"}}},
+		},
+	}
+	secondDoc := &ast.Document{
+		Body: []ast.Node{
+			&ast.StageDirection{Content: []ast.Inline{&ast.TextNode{Value: "__doc_two__"}}},
+		},
+	}
+
+	var first bytes.Buffer
+	require.NoError(t, render.Walk(r, firstDoc, &first))
+	assert.Contains(t, first.String(), "__doc_one__")
+
+	var second bytes.Buffer
+	require.NoError(t, render.Walk(r, secondDoc, &second))
+	assert.Contains(t, second.String(), "__doc_two__")
+	assert.NotContains(t, second.String(), "__doc_one__")
+	assert.Equal(t, 1, strings.Count(second.String(), "<!DOCTYPE html>"))
+}
+
 func TestRender_SectionLineParagraphClosedAtEndSection(t *testing.T) {
 	// A paragraph that's open when EndSection is called should be closed
 	sec := &ast.Section{
@@ -605,4 +663,29 @@ func TestRender_SectionLineParagraphClosedAtEndSection(t *testing.T) {
 
 	assert.Contains(t, out, "<p>Only line. </p>")
 	assert.Contains(t, out, "</section>")
+}
+
+func extractBlock(t *testing.T, out, prefix, suffix string) string {
+	t.Helper()
+	start := strings.Index(out, prefix)
+	require.NotEqual(t, -1, start)
+	rest := out[start:]
+	depth := 1
+	for i := len(prefix); i < len(rest); {
+		switch {
+		case strings.HasPrefix(rest[i:], "<div"):
+			depth++
+			i += len("<div")
+		case strings.HasPrefix(rest[i:], suffix):
+			depth--
+			i += len(suffix)
+			if depth == 0 {
+				return rest[:i]
+			}
+		default:
+			i++
+		}
+	}
+	t.Fatalf("unterminated block for prefix %q", prefix)
+	return ""
 }

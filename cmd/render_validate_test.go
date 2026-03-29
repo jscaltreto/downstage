@@ -47,3 +47,29 @@ func TestRunValidateReturnsError(t *testing.T) {
 		t.Fatalf("expected diagnostics, got %q", out.String())
 	}
 }
+
+func TestRunRenderRejectsHTMLOnlyPDFFlags(t *testing.T) {
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("ALICE\nHello."), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	renderFormat = "html"
+	renderOutput = t.TempDir() + "/out.html"
+	renderPageSize = "a4"
+	renderStyle = "standard"
+	renderFont = ""
+
+	err := runRender(&cobra.Command{}, []string{input})
+	if err == nil || !strings.Contains(err.Error(), "--page-size is only supported for pdf output") {
+		t.Fatalf("expected html page-size rejection, got %v", err)
+	}
+
+	renderPageSize = "letter"
+	renderFont = "/tmp/custom.ttf"
+
+	err = runRender(&cobra.Command{}, []string{input})
+	if err == nil || !strings.Contains(err.Error(), "--font is only supported for pdf output") {
+		t.Fatalf("expected html font rejection, got %v", err)
+	}
+}
