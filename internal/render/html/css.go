@@ -133,6 +133,9 @@ body {
 .downstage-line.downstage-verse {
   margin-left: calc(8% + 2em);
 }
+.downstage-dialogue-break {
+  margin-top: 1em;
+}
 
 /* Dual Dialogue */
 .downstage-dual-dialogue {
@@ -346,6 +349,7 @@ body {
   margin-left: 2em;
 }
 .downstage-line-break { display: block; }
+.downstage-dialogue-break { display: block; margin-top: 0.3em; }
 
 /* Dual Dialogue */
 .downstage-dual-dialogue {
@@ -364,6 +368,9 @@ body {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
   margin-left: 1em;
+}
+.downstage-stage-direction + .downstage-stage-direction {
+  margin-top: 0.15em;
 }
 
 /* Song */
