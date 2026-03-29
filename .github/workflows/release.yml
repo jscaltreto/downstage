@@ -5,9 +5,6 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
-
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -17,6 +14,9 @@ jobs:
     name: GoReleaser
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
 
     steps:
       - name: Check out repository
@@ -30,6 +30,9 @@ jobs:
           go-version-file: go.mod
           cache: true
           check-latest: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
@@ -51,6 +54,7 @@ jobs:
         run: python3 scripts/update_homebrew_formula.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
           FORMULA_PATH: homebrew-tap/Formula/downstage.rb
 

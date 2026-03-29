@@ -34,7 +34,19 @@ jobs:
         run: go mod download
 
       - name: Run checks
+        id: checks
         run: make check
 
       - name: Build binary
+        id: build
         run: make
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## CI Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Step | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Checks | \`${{ steps.checks.outcome }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build  | \`${{ steps.build.outcome }}\` |" >> "$GITHUB_STEP_SUMMARY"

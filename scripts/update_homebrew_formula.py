@@ -13,8 +13,8 @@ from pathlib import Path
 TAG_PATTERN = re.compile(r"^v\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$")
 
 
-REPO = "jscaltreto/downstage"
-HOMEPAGE = "https://github.com/jscaltreto/downstage"
+REPO = os.environ.get("GITHUB_REPOSITORY", "jscaltreto/downstage")
+HOMEPAGE = f"https://github.com/{REPO}"
 DESCRIPTION = "Plaintext markup language and tools for stage plays"
 LICENSE = "MIT"
 
