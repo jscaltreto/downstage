@@ -69,62 +69,49 @@ func computeCodeActions(
 				},
 			})
 		case diagnosticCodeUnnumberedAct, diagnosticCodeUnnumberedScene:
-			replacement := diagnosticReplacement(diagnostic)
-			if replacement == "" {
+			textEdit := numberingEdit(diagnostic)
+			if textEdit == nil {
 				continue
-			}
-
-			textEdit := protocol.TextEdit{
-				Range:   diagnostic.Range,
-				NewText: replacement,
 			}
 
 			switch diagnostic.Code {
 			case diagnosticCodeUnnumberedAct:
-				if registerEdit(seenActEdits, textEdit) {
-					allActEdits = append(allActEdits, textEdit)
+				if registerEdit(seenActEdits, *textEdit) {
+					allActEdits = append(allActEdits, *textEdit)
 				}
 			case diagnosticCodeUnnumberedScene:
-				if registerEdit(seenSceneEdits, textEdit) {
-					allSceneEdits = append(allSceneEdits, textEdit)
+				if registerEdit(seenSceneEdits, *textEdit) {
+					allSceneEdits = append(allSceneEdits, *textEdit)
 				}
 			}
 
 			actions = append(actions, protocol.CodeAction{
-				Title:       fmt.Sprintf("Number heading as %s", replacement),
+				Title:       fmt.Sprintf("Number heading as %s", textEdit.NewText),
 				Kind:        protocol.QuickFix,
 				Diagnostics: []protocol.Diagnostic{diagnostic},
 				IsPreferred: true,
 				Edit: &protocol.WorkspaceEdit{
 					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
-						uri: {textEdit},
+						uri: {*textEdit},
 					},
 				},
 			})
 		}
 	}
 
+	// Collect bulk edits from remaining diagnostics not in the context set.
 	for _, diagnostic := range allDiagnostics {
 		switch diagnostic.Code {
-		case diagnosticCodeUnnumberedAct, diagnosticCodeUnnumberedScene:
-			replacement := diagnosticReplacement(diagnostic)
-			if replacement == "" {
-				continue
-			}
-
-			textEdit := protocol.TextEdit{
-				Range:   diagnostic.Range,
-				NewText: replacement,
-			}
-
-			switch diagnostic.Code {
-			case diagnosticCodeUnnumberedAct:
-				if registerEdit(seenActEdits, textEdit) {
-					allActEdits = append(allActEdits, textEdit)
+		case diagnosticCodeUnnumberedAct:
+			if edit := numberingEdit(diagnostic); edit != nil {
+				if registerEdit(seenActEdits, *edit) {
+					allActEdits = append(allActEdits, *edit)
 				}
-			case diagnosticCodeUnnumberedScene:
-				if registerEdit(seenSceneEdits, textEdit) {
-					allSceneEdits = append(allSceneEdits, textEdit)
+			}
+		case diagnosticCodeUnnumberedScene:
+			if edit := numberingEdit(diagnostic); edit != nil {
+				if registerEdit(seenSceneEdits, *edit) {
+					allSceneEdits = append(allSceneEdits, *edit)
 				}
 			}
 		}
@@ -173,6 +160,17 @@ func registerEdit(seen map[string]struct{}, edit protocol.TextEdit) bool {
 	return true
 }
 
+func numberingEdit(diagnostic protocol.Diagnostic) *protocol.TextEdit {
+	replacement := diagnosticReplacement(diagnostic)
+	if replacement == "" {
+		return nil
+	}
+	return &protocol.TextEdit{
+		Range:   diagnostic.Range,
+		NewText: replacement,
+	}
+}
+
 func diagnosticCharacterName(diagnostic protocol.Diagnostic) string {
 	return diagnosticStringData(diagnostic, "character")
 }
@@ -183,7 +181,7 @@ func diagnosticReplacement(diagnostic protocol.Diagnostic) string {
 
 func diagnosticStringData(diagnostic protocol.Diagnostic, key string) string {
 	switch data := diagnostic.Data.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		raw, ok := data[key]
 		if !ok {
 			return ""

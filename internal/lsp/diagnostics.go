@@ -1,7 +1,7 @@
 package lsp
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jscaltreto/downstage/internal/ast"
@@ -94,8 +94,10 @@ func checkUnnumberedSectionsInNode(
 	case *ast.Section:
 		switch v.Kind {
 		case ast.SectionAct:
-			*actCount = *actCount + 1
-			diags = append(diags, unnumberedActDiagnostic(v, *actCount)...)
+			*actCount++
+			if d := unnumberedActDiagnostic(v, *actCount); d != nil {
+				diags = append(diags, *d)
+			}
 
 			sceneCount := 0
 			for _, child := range v.Children {
@@ -103,11 +105,15 @@ func checkUnnumberedSectionsInNode(
 			}
 		case ast.SectionScene:
 			if sceneCountInAct != nil {
-				*sceneCountInAct = *sceneCountInAct + 1
-				diags = append(diags, unnumberedSceneDiagnostic(v, *sceneCountInAct)...)
+				*sceneCountInAct++
+				if d := unnumberedSceneDiagnostic(v, *sceneCountInAct); d != nil {
+					diags = append(diags, *d)
+				}
 			} else {
-				*sceneCountOutsideActs = *sceneCountOutsideActs + 1
-				diags = append(diags, unnumberedSceneDiagnostic(v, *sceneCountOutsideActs)...)
+				*sceneCountOutsideActs++
+				if d := unnumberedSceneDiagnostic(v, *sceneCountOutsideActs); d != nil {
+					diags = append(diags, *d)
+				}
 			}
 
 			for _, child := range v.Children {
@@ -127,13 +133,13 @@ func checkUnnumberedSectionsInNode(
 	return diags
 }
 
-func unnumberedActDiagnostic(section *ast.Section, actNumber int) []protocol.Diagnostic {
+func unnumberedActDiagnostic(section *ast.Section, actNumber int) *protocol.Diagnostic {
 	if strings.TrimSpace(section.Number) != "" {
 		return nil
 	}
 
 	replacement := formatSectionHeading(section, romanNumeral(actNumber))
-	return []protocol.Diagnostic{{
+	return &protocol.Diagnostic{
 		Range:    toLSPRange(section.HeadingRange()),
 		Severity: protocol.DiagnosticSeverityWarning,
 		Code:     diagnosticCodeUnnumberedAct,
@@ -142,16 +148,16 @@ func unnumberedActDiagnostic(section *ast.Section, actNumber int) []protocol.Dia
 		Data: map[string]string{
 			"replacement": replacement,
 		},
-	}}
+	}
 }
 
-func unnumberedSceneDiagnostic(section *ast.Section, sceneNumber int) []protocol.Diagnostic {
+func unnumberedSceneDiagnostic(section *ast.Section, sceneNumber int) *protocol.Diagnostic {
 	if strings.TrimSpace(section.Number) != "" {
 		return nil
 	}
 
-	replacement := formatSectionHeading(section, fmt.Sprintf("%d", sceneNumber))
-	return []protocol.Diagnostic{{
+	replacement := formatSectionHeading(section, strconv.Itoa(sceneNumber))
+	return &protocol.Diagnostic{
 		Range:    toLSPRange(section.HeadingRange()),
 		Severity: protocol.DiagnosticSeverityWarning,
 		Code:     diagnosticCodeUnnumberedScene,
@@ -160,7 +166,7 @@ func unnumberedSceneDiagnostic(section *ast.Section, sceneNumber int) []protocol
 		Data: map[string]string{
 			"replacement": replacement,
 		},
-	}}
+	}
 }
 
 func formatSectionHeading(section *ast.Section, number string) string {
