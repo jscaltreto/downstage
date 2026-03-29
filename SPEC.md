@@ -447,7 +447,57 @@ Prefix text with `.` to force it to be treated as a heading, without needing `#`
 
 This creates a structural heading. The `.` prefix requires the next character to be uppercase. The `.` is stripped from the heading text in the AST.
 
-## 14. Divergences from TheatreScript
+## 14. Rendering
+
+The `downstage render` command converts `.ds` files to output formats.
+
+### Formats
+
+| Format | Flag | Output |
+|--------|------|--------|
+| PDF | `--format pdf` (default) | Paginated manuscript PDF |
+| HTML | `--format html` | Self-contained HTML document |
+
+### Styles
+
+Both formats support `--style standard` (default) and `--style condensed`:
+
+- **standard**: manuscript-oriented layout. Monospace font, centered character names above dialogue, indented dialogue margins.
+- **condensed**: compact reading layout. Serif font, inline character names (bold, followed by dialogue on the same line), tighter spacing.
+
+### HTML Output
+
+HTML rendering produces a single self-contained `.html` file with an embedded stylesheet. The output uses semantic HTML with stable CSS class names for all major structures:
+
+| Element | CSS Class |
+|---------|-----------|
+| Document wrapper | `.downstage-document` |
+| Title page | `.downstage-title-page` |
+| Dramatis personae | `.downstage-dramatis-personae` |
+| Act | `.downstage-act` |
+| Scene | `.downstage-scene` |
+| Dialogue block | `.downstage-dialogue` |
+| Character name | `.downstage-character` |
+| Dialogue line | `.downstage-line` |
+| Verse dialogue line | `.downstage-line.downstage-verse` |
+| Stage direction | `.downstage-stage-direction` |
+| Inline direction | `.downstage-inline-direction` |
+| Song | `.downstage-song` |
+| Verse block | `.downstage-verse-block` |
+| Verse line | `.downstage-verse-line` |
+| Page break | `.downstage-page-break` |
+| Dual dialogue | `.downstage-dual-dialogue` |
+
+### CLI Examples
+
+```bash
+downstage render play.ds                          # PDF, standard style
+downstage render --format html play.ds            # HTML, standard style
+downstage render --format html --style condensed play.ds
+downstage render --format html --output play.html play.ds
+```
+
+## 15. Divergences from TheatreScript
 
 Downstage is inspired by the archived [TheatreScript](https://github.com/contrapunctus-1/TheatreScript) specification but diverges in these ways:
 
@@ -459,7 +509,7 @@ Downstage is inspired by the archived [TheatreScript](https://github.com/contrap
 6. **Separate lines.** Character names and dialogue are always on separate lines. The original spec supported inline `NAME: dialogue` format, which Downstage does not.
 7. **Dual dialogue.** `CHARACTER ^` marks simultaneous speech for side-by-side rendering. Inspired by [Fountain's dual dialogue](https://fountain.io/syntax/#dual-dialogue). Not present in the original spec.
 
-## 15. Complete Example
+## 16. Complete Example
 
 The following is `testdata/full_play.ds`, demonstrating every Downstage feature in context.
 

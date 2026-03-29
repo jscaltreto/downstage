@@ -14,7 +14,7 @@ Downstage is a plaintext markup language for writing stage plays, inspired by
 [Fountain](https://fountain.io/) (for screenplays) and the archived
 [TheatreScript](https://github.com/contrapunctus-1/TheatreScript) spec. It
 ships with an LSP server for editor integration and CLI tools for parsing,
-validation, and PDF rendering. Files use the `.ds` extension.
+validation, and rendering to PDF and HTML. Files use the `.ds` extension.
 
 Read the syntax guide: [`docs/`](docs/)
 
@@ -120,7 +120,8 @@ brew install downstage
 ```
 downstage parse play.ds       # Output AST as JSON
 downstage validate play.ds    # Check for errors
-downstage render play.ds      # Render a PDF manuscript
+downstage render play.ds      # Render to PDF (default)
+downstage render -f html play.ds  # Render to HTML
 downstage lsp                 # Start LSP server (stdio)
 downstage version             # Print version info
 ```
@@ -131,22 +132,27 @@ Use `-v` or `--verbose` to enable debug logging on any command.
 parse errors to stderr but still emits the AST JSON. `downstage render` exits
 non-zero if parsing fails.
 
-### Render Styles
+### Render Formats and Styles
 
-`downstage render` supports two styles via the `--style` flag:
-
-- **`standard`** (default) — Traditional manuscript format. Letter-size pages
-  (8.5" × 11"), Courier 12pt, 1-inch margins. Character names appear on their
-  own line above the dialogue.
-- **`condensed`** — Acting edition format designed for rehearsal use.
-  Half-letter pages (5.5" × 8.5"), Libre Baskerville 10pt, 0.5-inch margins.
-  Character names appear inline with dialogue (e.g. `HAMLET. To be or not...`),
-  giving a denser, more book-like layout that uses less paper.
+`downstage render` supports PDF (default) and HTML output via `--format`:
 
 ```
-downstage render play.ds                       # standard manuscript
-downstage render --style condensed play.ds     # acting edition
+downstage render play.ds                              # PDF, standard
+downstage render --format html play.ds                # HTML, standard
+downstage render --format html --style condensed play.ds
+downstage render --format html -o play.html play.ds   # explicit output file
 ```
+
+Both formats support two styles via `--style`:
+
+- **`standard`** (default) — Traditional manuscript format. Character names
+  centered above dialogue, generous margins.
+- **`condensed`** — Acting edition format designed for rehearsal use. Character
+  names inline with dialogue (e.g. `HAMLET. To be or not...`), tighter spacing.
+
+PDF uses Courier 12pt on letter-size pages for standard, and Libre Baskerville
+10pt on half-letter for condensed. HTML produces a self-contained document with
+embedded CSS using semantic `.downstage-*` class names for custom styling.
 
 ## Editor Setup
 

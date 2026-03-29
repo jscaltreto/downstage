@@ -9,6 +9,7 @@ import (
 
 	"github.com/jscaltreto/downstage/internal/parser"
 	"github.com/jscaltreto/downstage/internal/render"
+	htmlrender "github.com/jscaltreto/downstage/internal/render/html"
 	"github.com/jscaltreto/downstage/internal/render/pdf"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +31,7 @@ var renderCmd = &cobra.Command{
 }
 
 func init() {
-	renderCmd.Flags().StringVarP(&renderFormat, "format", "f", "pdf", "output format: pdf")
+	renderCmd.Flags().StringVarP(&renderFormat, "format", "f", "pdf", "output format: pdf, html")
 	renderCmd.Flags().StringVarP(&renderOutput, "output", "o", "", "output file (default: input name with format extension)")
 	renderCmd.Flags().StringVar(&renderPageSize, "page-size", "letter", "page size: letter, a4")
 	renderCmd.Flags().StringVar(&renderStyle, "style", "standard", "rendering style: standard, condensed")
@@ -62,28 +63,35 @@ func runRender(cmd *cobra.Command, args []string) error {
 
 	cfg := render.DefaultConfig()
 
-	pageSize, err := render.ParsePageSize(renderPageSize)
-	if err != nil {
-		return err
-	}
-	cfg.PageSize = pageSize
-
 	style, err := render.ParseStyle(renderStyle)
 	if err != nil {
 		return err
 	}
 	cfg.Style = style
-	cfg.FontPath = renderFont
 
 	var nr render.NodeRenderer
 	switch renderFormat {
 	case "pdf":
+		pageSize, err := render.ParsePageSize(renderPageSize)
+		if err != nil {
+			return err
+		}
+		cfg.PageSize = pageSize
+		cfg.FontPath = renderFont
 		switch cfg.Style {
 		case render.StyleCondensed:
 			nr = pdf.NewCondensedRenderer(cfg)
 		default:
 			nr = pdf.NewRenderer(cfg)
 		}
+	case "html":
+		if renderPageSize != "letter" {
+			return fmt.Errorf("--page-size is only supported for pdf output")
+		}
+		if renderFont != "" {
+			return fmt.Errorf("--font is only supported for pdf output")
+		}
+		nr = htmlrender.NewRenderer(cfg)
 	default:
 		return fmt.Errorf("unsupported format: %q", renderFormat)
 	}
