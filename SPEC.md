@@ -25,7 +25,7 @@ A Downstage document has two parts:
 
 All `#` headings start a new section. The content determines the section's role:
 
-- `# Dramatis Personae` -- character list (detected by heading text)
+- `# Dramatis Personae`, `# Cast of Characters`, or `# Characters` -- character list (detected by heading text)
 - `## ACT I` -- act heading (detected by "ACT" prefix)
 - `### SCENE 1` -- scene heading (detected by "SCENE" prefix or position within an act)
 - `# Playwright's Notes` -- generic prose section (anything else)
@@ -66,7 +66,13 @@ Copyright: 2025 Eleanor Vance
 
 ## 4. Dramatis Personae
 
-The dramatis personae section begins with the heading `# Dramatis Personae` (case-insensitive match on "Dramatis Personae") and ends at the next `#` (H1) heading.
+The dramatis personae section begins with one of these headings:
+
+- `# Dramatis Personae`
+- `# Cast of Characters`
+- `# Characters`
+
+Heading matching is case-insensitive. The section ends at the next `#` (H1) heading.
 
 ### Character Entries
 
