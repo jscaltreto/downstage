@@ -11,8 +11,7 @@ import (
 	"github.com/jscaltreto/downstage/internal/render"
 )
 
-// pointsToMM converts typographic points to millimeters (1 pt = 0.3528 mm).
-const pointsToMM = 0.3528
+const pointsToMM = 0.3528 // 1 pt in mm
 
 // pdfBase holds shared state and helpers for all PDF-based renderers.
 type pdfBase struct {
@@ -49,7 +48,6 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 
 	b.pdf = fpdf.New("P", "mm", size, "")
 
-	// Convert points to mm
 	b.marginL = b.cfg.MarginLeft * pointsToMM
 	b.marginR = b.cfg.MarginRight * pointsToMM
 	b.marginT = b.cfg.MarginTop * pointsToMM

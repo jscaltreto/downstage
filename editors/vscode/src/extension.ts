@@ -8,7 +8,6 @@ import {
 	Trace,
 } from "vscode-languageclient/node";
 
-// Configuration section and setting keys
 const configSection = "downstage";
 const settingServerPath = "server.path";
 const settingServerTrace = "server.trace";

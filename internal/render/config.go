@@ -77,13 +77,11 @@ func (c Config) Validate() error {
 	}
 	switch c.PageSize {
 	case PageLetter, PageA4:
-		// valid
 	default:
 		errs = append(errs, fmt.Errorf("unsupported PageSize: %q", c.PageSize))
 	}
 	switch c.Style {
 	case StyleStandard, StyleCondensed:
-		// valid
 	default:
 		errs = append(errs, fmt.Errorf("unsupported Style: %q", c.Style))
 	}

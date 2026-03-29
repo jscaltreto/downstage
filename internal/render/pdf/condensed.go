@@ -59,7 +59,6 @@ func (r *condensedRenderer) EndDocument(_ *ast.Document) error {
 func (r *condensedRenderer) initCondensedPDF() {
 	r.pdf = newCustomSizePDF(halfLetterW, halfLetterH)
 
-	// Convert margin points to mm
 	r.marginL = r.cfg.MarginLeft * pointsToMM
 	r.marginR = r.cfg.MarginRight * pointsToMM
 	r.marginT = r.cfg.MarginTop * pointsToMM
@@ -478,7 +477,7 @@ func (r *condensedRenderer) BeginStageDirection(_ *ast.StageDirection) error {
 	r.ensureSpace(r.lineHeight * 3)
 	r.pdf.Ln(r.lineHeight)
 
-	stageIndent := halfInchPt * pointsToMM // 0.5 inch in mm
+	stageIndent := halfInchPt * pointsToMM
 	r.setStyle("I")
 	r.pdf.SetLeftMargin(r.marginL + stageIndent)
 	r.pdf.SetX(r.marginL + stageIndent)
