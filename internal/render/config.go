@@ -42,15 +42,16 @@ func ParsePageSize(s string) (PageSize, error) {
 
 // Config holds rendering configuration.
 type Config struct {
-	PageSize     PageSize
-	Style        Style
-	FontFamily   string
-	FontPath     string // path to a custom TTF font file (optional)
-	FontSize     float64
-	MarginTop    float64 // points (72 points = 1 inch)
-	MarginBottom float64
-	MarginLeft   float64
-	MarginRight  float64
+	PageSize      PageSize
+	Style         Style
+	FontFamily    string
+	FontPath      string // path to a custom TTF font file (optional)
+	FontSize      float64
+	MarginTop     float64 // points (72 points = 1 inch)
+	MarginBottom  float64
+	MarginLeft    float64
+	MarginRight   float64
+	SourceAnchors bool // emit data-source-line attributes on block elements
 }
 
 // DefaultConfig returns a Config with standard play manuscript settings.

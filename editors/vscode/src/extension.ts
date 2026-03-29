@@ -13,6 +13,14 @@ const cueSuggestTimers = new Map<string, NodeJS.Timeout>();
 let renderOutputChannel: vscode.OutputChannel | undefined;
 let renderDiagnostics: vscode.DiagnosticCollection | undefined;
 
+interface PreviewState {
+	panel: vscode.WebviewPanel;
+	pending: ReturnType<typeof setTimeout> | undefined;
+	child: ReturnType<typeof spawn> | undefined;
+	lastHtml: string;
+}
+const previewPanels = new Map<string, PreviewState>();
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	renderDiagnostics = vscode.languages.createDiagnosticCollection("downstage-render");
 
@@ -46,12 +54,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			await renderCurrentScript("condensed", "internal");
 		},
 	);
+	const livePreviewCommand = vscode.commands.registerCommand(
+		"downstage.livePreview",
+		() => {
+			openLivePreview();
+		},
+	);
+	const foldingProvider = vscode.languages.registerFoldingRangeProvider(
+		{ language: "downstage" },
+		{
+			provideFoldingRanges(document) {
+				return provideDownstageFoldingRanges(document);
+			},
+		},
+	);
 
 	context.subscriptions.push(restartCommand);
 	context.subscriptions.push(renderCommand);
 	context.subscriptions.push(renderCompactCommand);
 	context.subscriptions.push(previewCommand);
 	context.subscriptions.push(previewCompactCommand);
+	context.subscriptions.push(livePreviewCommand);
+	context.subscriptions.push(foldingProvider);
 	context.subscriptions.push(renderDiagnostics);
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(async (event) => {
@@ -66,11 +90,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeTextDocument((event) => {
 			scheduleCueSuggestForDocument(event.document);
+			schedulePreviewUpdate(event.document);
 		}),
 	);
 	context.subscriptions.push(
 		vscode.window.onDidChangeTextEditorSelection((event) => {
 			scheduleCueSuggestForEditor(event.textEditor);
+		}),
+	);
+	context.subscriptions.push(
+		vscode.window.onDidChangeTextEditorSelection((event) => {
+			if (previewPanels.has(event.textEditor.document.uri.toString())) {
+				syncPreviewScroll(event.textEditor);
+			}
+		}),
+	);
+	context.subscriptions.push(
+		vscode.workspace.onDidCloseTextDocument((document) => {
+			const key = document.uri.toString();
+			const state = previewPanels.get(key);
+			if (state) {
+				state.panel.dispose();
+			}
 		}),
 	);
 	await startLanguageServer(context);
@@ -419,6 +460,236 @@ function replaceExtension(filePath: string, extension: string): string {
 		path.dirname(filePath),
 		`${path.basename(filePath, path.extname(filePath))}${extension}`,
 	);
+}
+
+function getPreviewDebounceSetting(): number {
+	return vscode.workspace.getConfiguration("downstage").get<number>(
+		"preview.debounceMs",
+		300,
+	);
+}
+
+function openLivePreview(): void {
+	const editor = vscode.window.activeTextEditor;
+	if (!editor || editor.document.languageId !== "downstage") {
+		void vscode.window.showErrorMessage("Open a Downstage script to preview.");
+		return;
+	}
+
+	const key = editor.document.uri.toString();
+	const existing = previewPanels.get(key);
+	if (existing) {
+		existing.panel.reveal(vscode.ViewColumn.Beside);
+		return;
+	}
+
+	const panel = vscode.window.createWebviewPanel(
+		"downstagePreview",
+		`Preview: ${path.basename(editor.document.uri.fsPath)}`,
+		vscode.ViewColumn.Beside,
+		{ enableScripts: true, retainContextWhenHidden: true },
+	);
+
+	const state: PreviewState = {
+		panel,
+		pending: undefined,
+		child: undefined,
+		lastHtml: "",
+	};
+
+	panel.webview.html = getPreviewHtml("");
+	panel.onDidDispose(() => {
+		if (state.pending) {
+			clearTimeout(state.pending);
+		}
+		if (state.child) {
+			state.child.kill();
+		}
+		previewPanels.delete(key);
+	});
+
+	previewPanels.set(key, state);
+	renderToPreview(editor.document, state);
+}
+
+function getPreviewHtml(body: string): string {
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+html, body { margin: 0; padding: 0; height: 100%; }
+body { overflow: hidden; }
+#preview {
+	width: 100%;
+	height: 100%;
+	border: 0;
+	display: block;
+}
+</style>
+</head>
+<body>
+<iframe id="preview" sandbox="allow-same-origin"></iframe>
+<script>
+	const preview = document.getElementById("preview");
+	let pendingLine = null;
+
+	function updatePreview(html) {
+		preview.srcdoc = html;
+	}
+
+	function scrollPreviewToLine(line) {
+		const doc = preview.contentDocument;
+		if (!doc) {
+			pendingLine = line;
+			return;
+		}
+
+		const els = doc.querySelectorAll("[data-source-line]");
+		let target = null;
+		for (const el of els) {
+			const sourceLine = parseInt(el.getAttribute("data-source-line"), 10);
+			if (sourceLine <= line) {
+				target = el;
+			} else {
+				break;
+			}
+		}
+		if (target) {
+			target.scrollIntoView({ behavior: "smooth", block: "center" });
+		}
+	}
+
+	preview.addEventListener("load", () => {
+		if (pendingLine !== null) {
+			const line = pendingLine;
+			pendingLine = null;
+			scrollPreviewToLine(line);
+		}
+	});
+
+	window.addEventListener("message", (event) => {
+		const msg = event.data;
+		if (msg.type === "update") {
+			updatePreview(msg.html);
+		}
+		if (msg.type === "scrollTo") {
+			pendingLine = msg.line;
+			scrollPreviewToLine(msg.line);
+		}
+	});
+
+	updatePreview(${JSON.stringify(body)});
+</script>
+</body>
+</html>`;
+}
+
+function schedulePreviewUpdate(document: vscode.TextDocument): void {
+	const key = document.uri.toString();
+	const state = previewPanels.get(key);
+	if (!state) {
+		return;
+	}
+
+	if (state.pending) {
+		clearTimeout(state.pending);
+	}
+
+	state.pending = setTimeout(() => {
+		state.pending = undefined;
+		renderToPreview(document, state);
+	}, getPreviewDebounceSetting());
+}
+
+function renderToPreview(document: vscode.TextDocument, state: PreviewState): void {
+	if (state.child) {
+		state.child.kill();
+		state.child = undefined;
+	}
+
+	const serverPath = getServerPath();
+	const style = getRenderStyleSetting();
+	const sourceName = path.basename(document.uri.fsPath);
+	const child = spawn(serverPath, [
+		"render", "--stdin", "--stdout",
+		"--format", "html",
+		"--source-anchors",
+		"--style", style,
+		"--source-name", sourceName,
+	], {
+		cwd: path.dirname(document.uri.fsPath),
+	});
+
+	state.child = child;
+
+	const stdoutChunks: string[] = [];
+	const stderrChunks: string[] = [];
+
+	child.stdout.on("data", (chunk: Buffer | string) => {
+		stdoutChunks.push(chunk.toString());
+	});
+	child.stderr.on("data", (chunk: Buffer | string) => {
+		stderrChunks.push(chunk.toString());
+	});
+
+	child.on("error", (err) => {
+		if (state.child !== child) {
+			return;
+		}
+		state.child = undefined;
+		const outputChannel = getRenderOutputChannel();
+		outputChannel.appendLine(`Preview render error: ${err.message}`);
+	});
+
+	child.on("close", (code) => {
+		if (state.child !== child) {
+			return;
+		}
+		state.child = undefined;
+		const stdout = stdoutChunks.join("");
+		const stderr = stderrChunks.join("");
+		if (code === 0) {
+			state.lastHtml = stdout;
+			renderDiagnostics?.delete(document.uri);
+			void state.panel.webview.postMessage({ type: "update", html: stdout }).then(() => {
+				const editor = vscode.window.activeTextEditor;
+				if (editor && editor.document.uri.toString() === document.uri.toString()) {
+					const line = editor.selection.active.line + 1;
+					void state.panel.webview.postMessage({ type: "scrollTo", line });
+				}
+			});
+		} else {
+			if (stderr) {
+				renderDiagnostics?.set(
+					document.uri,
+					parseRenderDiagnostics(document, stderr),
+				);
+				const outputChannel = getRenderOutputChannel();
+				outputChannel.appendLine(stderr);
+			}
+			if (state.lastHtml) {
+				void state.panel.webview.postMessage({ type: "update", html: state.lastHtml });
+			}
+		}
+	});
+
+	child.stdin.on("error", () => {
+		// Process may have died before we finished writing - ignore
+	});
+	child.stdin.write(document.getText());
+	child.stdin.end();
+}
+
+function syncPreviewScroll(editor: vscode.TextEditor): void {
+	const key = editor.document.uri.toString();
+	const state = previewPanels.get(key);
+	if (!state) {
+		return;
+	}
+
+	const line = editor.selection.active.line + 1; // 1-based to match data-source-line
+	void state.panel.webview.postMessage({ type: "scrollTo", line });
 }
 
 class DownstageRenderError extends Error {

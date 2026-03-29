@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,18 +16,22 @@ import (
 )
 
 var (
-	renderFormat   string
-	renderOutput   string
-	renderPageSize string
-	renderStyle    string
-	renderFont     string
+	renderFormat        string
+	renderOutput        string
+	renderPageSize      string
+	renderStyle         string
+	renderFont          string
+	renderStdin         bool
+	renderStdout        bool
+	renderSourceName    string
+	renderSourceAnchors bool
 )
 
 var renderCmd = &cobra.Command{
 	Use:   "render <file.ds>",
 	Short: "Render a .ds file to PDF or other formats",
 	Long:  "Reads a Downstage (.ds) file, parses it, and renders it to the specified output format.",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.ArbitraryArgs,
 	RunE:  runRender,
 }
 
@@ -36,17 +41,47 @@ func init() {
 	renderCmd.Flags().StringVar(&renderPageSize, "page-size", "letter", "page size: letter, a4")
 	renderCmd.Flags().StringVar(&renderStyle, "style", "standard", "rendering style: standard, condensed")
 	renderCmd.Flags().StringVar(&renderFont, "font", "", "path to a custom TTF font file")
+	renderCmd.Flags().BoolVar(&renderStdin, "stdin", false, "read input from stdin instead of a file")
+	renderCmd.Flags().BoolVar(&renderStdout, "stdout", false, "write output to stdout instead of a file")
+	renderCmd.Flags().StringVar(&renderSourceName, "source-name", "<stdin>", "source filename for diagnostics when using --stdin")
+	renderCmd.Flags().BoolVar(&renderSourceAnchors, "source-anchors", false, "emit source line anchors in HTML output")
 	rootCmd.AddCommand(renderCmd)
 }
 
 func runRender(cmd *cobra.Command, args []string) error {
-	filename := args[0]
-	slog.Debug("rendering file", "filename", filename)
-
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", filename, err)
+	if renderStdin && len(args) > 0 {
+		return fmt.Errorf("--stdin does not accept file arguments")
 	}
+	if !renderStdin && len(args) != 1 {
+		return fmt.Errorf("accepts 1 arg(s), received %d", len(args))
+	}
+	if renderStdout && renderFormat == "pdf" {
+		return fmt.Errorf("--stdout is not supported for pdf output")
+	}
+	if renderStdin && !renderStdout && renderOutput == "" {
+		return fmt.Errorf("--stdin requires --stdout or --output")
+	}
+
+	var filename string
+	var content []byte
+
+	if renderStdin {
+		filename = renderSourceName
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("reading stdin: %w", err)
+		}
+		content = data
+	} else {
+		filename = args[0]
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", filename, err)
+		}
+		content = data
+	}
+
+	slog.Debug("rendering file", "filename", filename)
 
 	doc, errs := parser.Parse(content)
 	for _, e := range errs {
@@ -68,6 +103,7 @@ func runRender(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	cfg.Style = style
+	cfg.SourceAnchors = renderSourceAnchors
 
 	var nr render.NodeRenderer
 	switch renderFormat {
@@ -94,6 +130,13 @@ func runRender(cmd *cobra.Command, args []string) error {
 		nr = htmlrender.NewRenderer(cfg)
 	default:
 		return fmt.Errorf("unsupported format: %q", renderFormat)
+	}
+
+	if renderStdout {
+		if err := render.Walk(nr, doc, os.Stdout); err != nil {
+			return fmt.Errorf("rendering: %w", err)
+		}
+		return nil
 	}
 
 	output := renderOutput

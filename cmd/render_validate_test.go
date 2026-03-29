@@ -7,7 +7,20 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 )
+
+func resetRenderFlags() {
+	renderFormat = "pdf"
+	renderOutput = ""
+	renderPageSize = "letter"
+	renderStyle = "standard"
+	renderFont = ""
+	renderStdin = false
+	renderStdout = false
+	renderSourceName = "<stdin>"
+	renderSourceAnchors = false
+}
 
 func TestRunRenderFailsOnParseErrors(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
@@ -72,4 +85,42 @@ func TestRunRenderRejectsHTMLOnlyPDFFlags(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "--font is only supported for pdf output") {
 		t.Fatalf("expected html font rejection, got %v", err)
 	}
+}
+
+func TestRunRenderStdoutRejectsPDF(t *testing.T) {
+	resetRenderFlags()
+	renderStdout = true
+	renderFormat = "pdf"
+
+	err := runRender(&cobra.Command{}, []string{"test.ds"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "--stdout is not supported for pdf output")
+}
+
+func TestRunRenderStdinRejectsFileArgs(t *testing.T) {
+	resetRenderFlags()
+	renderStdin = true
+	renderStdout = true
+
+	err := runRender(&cobra.Command{}, []string{"test.ds"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "--stdin does not accept file arguments")
+}
+
+func TestRunRenderRequiresOneArgWithoutStdin(t *testing.T) {
+	resetRenderFlags()
+
+	err := runRender(&cobra.Command{}, []string{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "accepts 1 arg(s), received 0")
+}
+
+func TestRunRenderStdinRequiresExplicitOutputTarget(t *testing.T) {
+	resetRenderFlags()
+	renderStdin = true
+	renderFormat = "html"
+
+	err := runRender(&cobra.Command{}, nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "--stdin requires --stdout or --output")
 }
