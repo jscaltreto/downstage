@@ -14,6 +14,8 @@ Downstage is a plaintext markup language for writing stage plays, inspired by
 ships with an LSP server for editor integration and CLI tools for parsing,
 validation, and PDF rendering. Files use the `.ds` extension.
 
+Read the syntax guide: [`docs/`](docs/)
+
 ## Quick Example
 
 ```
