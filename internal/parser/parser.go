@@ -770,7 +770,7 @@ loop:
 			if len(dlg.Lines) >= maxDialogueLines {
 				p.addError("dialogue exceeds maximum line count", p.peek().Range)
 				p.skipDialogueContent()
-				goto done
+				break loop
 			}
 			dlg.Lines = append(dlg.Lines, ast.DialogueLine{Range: blankRange})
 		}
