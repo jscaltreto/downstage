@@ -243,6 +243,136 @@ func TestBuildDiagnostics_UnnumberedSceneInActResetsNumbering(t *testing.T) {
 	}
 }
 
+func testDocWithCharactersAndDialogue(knownNames []string, dialogueCharacter string) *ast.Document {
+	chars := make([]ast.Character, len(knownNames))
+	for i, name := range knownNames {
+		chars[i] = ast.Character{Name: name}
+	}
+	return &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:       ast.SectionDramatisPersonae,
+				Characters: chars,
+			},
+			&ast.Dialogue{
+				Character: dialogueCharacter,
+				Range: token.Range{
+					Start: token.Position{Line: 10, Column: 0},
+					End:   token.Position{Line: 12, Column: 0},
+				},
+			},
+		},
+	}
+}
+
+func TestBuildDiagnostics_CollectiveCueAll(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "ALL")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics for ALL, got %d", len(diags))
+	}
+}
+
+func TestBuildDiagnostics_CollectiveCueChorus(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "CHORUS")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics for CHORUS, got %d", len(diags))
+	}
+}
+
+func TestBuildDiagnostics_CollectiveCueEnsemble(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "ENSEMBLE")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics for ENSEMBLE, got %d", len(diags))
+	}
+}
+
+func TestBuildDiagnostics_CollectiveCueCaseInsensitive(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "All")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics for mixed-case All, got %d", len(diags))
+	}
+}
+
+func TestBuildDiagnostics_ConjunctionBothKnown(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"BOB", "JANE"}, "BOB AND JANE")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics for conjunction of known characters, got %d", len(diags))
+	}
+}
+
+func TestBuildDiagnostics_ConjunctionAmpersandBothKnown(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"BOB", "JANE"}, "BOB & JANE")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics for ampersand conjunction of known characters, got %d", len(diags))
+	}
+}
+
+func TestBuildDiagnostics_ConjunctionOneUnknown(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"BOB"}, "BOB AND JANE")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic for one unknown in conjunction, got %d", len(diags))
+	}
+	if diags[0].Message != "unknown character: JANE (add to Dramatis Personae)" {
+		t.Errorf("unexpected message: %s", diags[0].Message)
+	}
+}
+
+func TestBuildDiagnostics_ConjunctionBothUnknown(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "BOB & JANE")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 2 {
+		t.Fatalf("expected 2 diagnostics for both unknown in conjunction, got %d", len(diags))
+	}
+}
+
+func TestBuildDiagnostics_ConjunctionWithCollective(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "BOB AND ALL")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic (BOB only), got %d", len(diags))
+	}
+	if diags[0].Message != "unknown character: BOB (add to Dramatis Personae)" {
+		t.Errorf("unexpected message: %s", diags[0].Message)
+	}
+}
+
+func TestBuildDiagnostics_AllCollectiveConjunction(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "ALL AND CHORUS")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics for conjunction of collective cues, got %d", len(diags))
+	}
+}
+
+func TestBuildDiagnostics_MultiConjunction(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"BOB", "JANE"}, "BOB & JANE & STEVE")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic for STEVE, got %d", len(diags))
+	}
+	if diags[0].Message != "unknown character: STEVE (add to Dramatis Personae)" {
+		t.Errorf("unexpected message: %s", diags[0].Message)
+	}
+}
+
+func TestBuildDiagnostics_NameContainingAnd(t *testing.T) {
+	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "SANDY")
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic for SANDY (no split), got %d", len(diags))
+	}
+	if diags[0].Message != "unknown character: SANDY (add to Dramatis Personae)" {
+		t.Errorf("unexpected message: %s", diags[0].Message)
+	}
+}
+
 func TestBuildDiagnostics_EarnestFixtureWarnsOnUnnumberedScenes(t *testing.T) {
 	content, err := os.ReadFile("../../testdata/importance_of_being_earnest.ds")
 	if err != nil {

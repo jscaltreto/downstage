@@ -16,6 +16,60 @@ const (
 	diagnosticCodeUnnumberedScene  = "unnumbered-scene"
 )
 
+// collectiveCues are conventional ensemble cue names that should not
+// produce unknown-character warnings even if absent from Dramatis Personae.
+// Keys must be uppercase.
+var collectiveCues = map[string]bool{
+	"ALL":      true,
+	"CHORUS":   true,
+	"ENSEMBLE": true,
+}
+
+// conjunctionSeps are the delimiters used to split multi-speaker cues.
+// Surrounding spaces prevent matching substrings like "SANDY".
+var conjunctionSeps = []string{" AND ", " & "}
+
+// splitConjunctionCue splits a cue like "BOB AND JANE" or "BOB & JANE"
+// into individual names. Returns nil if no conjunction is found.
+func splitConjunctionCue(name string) []string {
+	upper := strings.ToUpper(name)
+
+	var parts []string
+	offset := 0
+	for offset < len(upper) {
+		bestIdx := -1
+		bestLen := 0
+		for _, sep := range conjunctionSeps {
+			if idx := strings.Index(upper[offset:], sep); idx >= 0 && (bestIdx < 0 || idx < bestIdx) {
+				bestIdx = idx
+				bestLen = len(sep)
+			}
+		}
+		if bestIdx < 0 {
+			parts = append(parts, strings.TrimSpace(name[offset:]))
+			break
+		}
+		parts = append(parts, strings.TrimSpace(name[offset:offset+bestIdx]))
+		offset += bestIdx + bestLen
+	}
+
+	if len(parts) <= 1 {
+		return nil
+	}
+	return parts
+}
+
+func unknownCharacterDiag(r token.Range, name string) protocol.Diagnostic {
+	return protocol.Diagnostic{
+		Range:    toLSPRange(r),
+		Severity: protocol.DiagnosticSeverityWarning,
+		Code:     diagnosticCodeUnknownCharacter,
+		Source:   "downstage",
+		Message:  "unknown character: " + name + " (add to Dramatis Personae)",
+		Data:     map[string]string{"character": name},
+	}
+}
+
 // buildDiagnostics converts parser errors and additional warnings into LSP diagnostics.
 func buildDiagnostics(doc *ast.Document, errors []*parser.ParseError) []protocol.Diagnostic {
 	return buildDiagnosticsWithIndex(doc, errors, newDocumentIndex(doc))
@@ -69,16 +123,25 @@ func checkUnknownCharacters(index *documentIndex) []protocol.Diagnostic {
 		if _, ok := index.knownCharacters[name]; ok {
 			continue
 		}
-		diags = append(diags, protocol.Diagnostic{
-			Range:    toLSPRange(ref.dialogue.NameRange()),
-			Severity: protocol.DiagnosticSeverityWarning,
-			Code:     diagnosticCodeUnknownCharacter,
-			Source:   "downstage",
-			Message:  "unknown character: " + ref.dialogue.Character + " (add to Dramatis Personae)",
-			Data: map[string]string{
-				"character": ref.dialogue.Character,
-			},
-		})
+		if collectiveCues[name] {
+			continue
+		}
+
+		if parts := splitConjunctionCue(ref.dialogue.Character); parts != nil {
+			for _, part := range parts {
+				up := strings.ToUpper(part)
+				if up == "" || collectiveCues[up] {
+					continue
+				}
+				if _, ok := index.knownCharacters[up]; ok {
+					continue
+				}
+				diags = append(diags, unknownCharacterDiag(ref.dialogue.NameRange(), part))
+			}
+			continue
+		}
+
+		diags = append(diags, unknownCharacterDiag(ref.dialogue.NameRange(), ref.dialogue.Character))
 	}
 	return diags
 }
