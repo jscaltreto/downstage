@@ -746,6 +746,7 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 	}
 
 	// Collect dialogue lines until structural break
+loop:
 	for !p.at(token.EOF) {
 		if p.at(token.Blank) {
 			// Peek ahead: if next non-blank is another character or structural, stop
@@ -771,7 +772,7 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 			if len(dlg.Lines) >= maxDialogueLines {
 				p.addError("dialogue exceeds maximum line count", p.peek().Range)
 				p.skipDialogueContent()
-				goto done
+				break loop
 			}
 			tok := p.advance()
 			line := ast.DialogueLine{
@@ -784,7 +785,7 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 			if len(dlg.Lines) >= maxDialogueLines {
 				p.addError("dialogue exceeds maximum line count", p.peek().Range)
 				p.skipDialogueContent()
-				goto done
+				break loop
 			}
 			tok := p.advance()
 			trimmed := strings.TrimLeft(tok.Literal, " ")
@@ -800,7 +801,7 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 			if len(dlg.Lines) >= maxDialogueLines {
 				p.addError("dialogue exceeds maximum line count", p.peek().Range)
 				p.skipDialogueContent()
-				goto done
+				break loop
 			}
 			tok := p.advance()
 			line := ast.DialogueLine{
@@ -819,10 +820,9 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 			p.advance()
 
 		default:
-			goto done
+			break loop
 		}
 	}
-done:
 
 	if len(dlg.Lines) > 0 {
 		dlg.Range.End = dlg.Lines[len(dlg.Lines)-1].Range.End
