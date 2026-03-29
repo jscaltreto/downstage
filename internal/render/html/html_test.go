@@ -88,8 +88,8 @@ func TestRender_DialogueWithFormatting(t *testing.T) {
 	out := renderHTML(t, doc)
 
 	assert.Contains(t, out, "<div class=\"downstage-dialogue\">")
-	assert.Contains(t, out, "<p class=\"downstage-character\">HAMLET")
-	assert.Contains(t, out, "<span class=\"downstage-parenthetical\">(aside)</span>")
+	assert.Contains(t, out, "<p class=\"downstage-character\">HAMLET</p>")
+	assert.Contains(t, out, "<p class=\"downstage-parenthetical\">(aside)</p>")
 	assert.Contains(t, out, "<p class=\"downstage-line\">")
 	assert.Contains(t, out, "To be, or <strong>not</strong> to be.")
 	assert.Contains(t, out, "</div>")

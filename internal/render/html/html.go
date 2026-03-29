@@ -306,16 +306,15 @@ func (r *htmlRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
 func (r *htmlRenderer) BeginDialogue(d *ast.Dialogue) error {
 	r.beginBlock()
 	fmt.Fprintf(&r.buf, "<div class=\"downstage-dialogue\"%s>\n", r.sourceAttr(d.NodeRange()))
-	fmt.Fprintf(&r.buf, "<p class=\"downstage-character\">%s", html.EscapeString(strings.ToUpper(d.Character)))
+	fmt.Fprintf(&r.buf, "<p class=\"downstage-character\">%s</p>\n", html.EscapeString(strings.ToUpper(d.Character)))
 	if d.Parenthetical != "" {
 		paren := d.Parenthetical
 		if len(paren) == 0 || paren[0] != '(' {
 			paren = "(" + paren + ")"
 		}
-		fmt.Fprintf(&r.buf, " <span class=\"downstage-parenthetical\">%s</span>",
+		fmt.Fprintf(&r.buf, "<p class=\"downstage-parenthetical\">%s</p>\n",
 			html.EscapeString(paren))
 	}
-	r.buf.WriteString("</p>\n")
 	return nil
 }
 
