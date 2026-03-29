@@ -151,25 +151,16 @@ downstage render --style condensed play.ds     # acting edition
 
 ### Neovim (0.11+)
 
-Copy the contents of `editors/neovim/` into your Neovim config directory
-(typically `~/.config/nvim/`). This adds three files:
-
-- `ftdetect/downstage.lua` — registers the `.ds` filetype
-- `ftplugin/downstage.lua` — buffer settings (soft wrap, spell check, comment format)
-- `plugin/downstage.lua` — LSP client configuration
-
-The LSP config:
+Install [downstage.nvim](https://github.com/jscaltreto/downstage.nvim) with
+your plugin manager:
 
 ```lua
-vim.lsp.config("downstage", {
-    cmd = { "downstage", "lsp" },
-    filetypes = { "downstage" },
-    root_markers = { ".git" },
-})
-vim.lsp.enable("downstage")
+-- lazy.nvim
+{ "jscaltreto/downstage.nvim", ft = "downstage" }
 ```
 
-The `downstage` binary must be on your `PATH`.
+This provides filetype detection, buffer settings, and LSP integration for `.ds`
+files. The `downstage` binary must be on your `PATH`.
 
 ### Other Editors
 
