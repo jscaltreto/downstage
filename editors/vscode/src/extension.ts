@@ -99,8 +99,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}),
 	);
 	context.subscriptions.push(
-		vscode.window.onDidChangeTextEditorVisibleRanges((event) => {
-			syncPreviewScroll(event.textEditor);
+		vscode.window.onDidChangeTextEditorSelection((event) => {
+			if (previewPanels.has(event.textEditor.document.uri.toString())) {
+				syncPreviewScroll(event.textEditor);
+			}
 		}),
 	);
 	context.subscriptions.push(
@@ -541,7 +543,7 @@ html, body { margin: 0; padding: 0; }
 				}
 			}
 			if (target) {
-				target.scrollIntoView({ behavior: "smooth", block: "start" });
+				target.scrollIntoView({ behavior: "smooth", block: "center" });
 			}
 		}
 	});
@@ -615,7 +617,13 @@ function renderToPreview(document: vscode.TextDocument, state: PreviewState): vo
 		if (code === 0) {
 			state.lastHtml = stdout;
 			renderDiagnostics?.delete(document.uri);
-			void state.panel.webview.postMessage({ type: "update", html: stdout });
+			void state.panel.webview.postMessage({ type: "update", html: stdout }).then(() => {
+				const editor = vscode.window.activeTextEditor;
+				if (editor && editor.document.uri.toString() === document.uri.toString()) {
+					const line = editor.selection.active.line + 1;
+					void state.panel.webview.postMessage({ type: "scrollTo", line });
+				}
+			});
 		} else {
 			if (stderr) {
 				renderDiagnostics?.set(
@@ -645,12 +653,7 @@ function syncPreviewScroll(editor: vscode.TextEditor): void {
 		return;
 	}
 
-	const ranges = editor.visibleRanges;
-	if (ranges.length === 0) {
-		return;
-	}
-
-	const line = ranges[0].start.line + 1; // 1-based to match data-source-line
+	const line = editor.selection.active.line + 1; // 1-based to match data-source-line
 	void state.panel.webview.postMessage({ type: "scrollTo", line });
 }
 
