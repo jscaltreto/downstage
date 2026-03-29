@@ -699,10 +699,11 @@ body { overflow: hidden; }
 		}
 		staging.style.visibility = "visible";
 		active.style.visibility = "hidden";
-		const tmp = active;
+		const retired = active;
 		active = staging;
-		staging = tmp;
-		setTimeout(() => { staging.srcdoc = ""; }, 0);
+		staging = retired;
+		retired.dataset.generation = "-1";
+		setTimeout(() => { retired.srcdoc = ""; }, 0);
 	}
 
 	frameA.addEventListener("load", () => onFrameLoad(frameA));
