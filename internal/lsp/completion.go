@@ -1,7 +1,7 @@
 package lsp
 
 import (
-	"slices"
+	"fmt"
 	"strings"
 	"unicode"
 
@@ -19,17 +19,14 @@ func computeCompletion(doc *ast.Document, _ []*parser.ParseError, content string
 	if !ok {
 		return emptyCompletionList()
 	}
-	if !isCharacterCueLine(doc, int(pos.Line)) {
-		return emptyCompletionList()
-	}
 
-	names := collectCharacterNames(doc)
+	names := completionCandidates(doc, content, int(pos.Line))
 	if len(names) == 0 {
 		return emptyCompletionList()
 	}
 
 	items := make([]protocol.CompletionItem, 0, len(names))
-	for _, name := range names {
+	for i, name := range names {
 		if !strings.HasPrefix(strings.ToUpper(name), ctx.filterPrefix) {
 			continue
 		}
@@ -44,6 +41,7 @@ func computeCompletion(doc *ast.Document, _ []*parser.ParseError, content string
 			Kind:       protocol.CompletionItemKindVariable,
 			Detail:     "Character cue",
 			FilterText: insertText,
+			SortText:   completionSortText(i, insertText),
 			TextEdit: &protocol.TextEdit{
 				Range: protocol.Range{
 					Start: protocol.Position{
@@ -61,6 +59,10 @@ func computeCompletion(doc *ast.Document, _ []*parser.ParseError, content string
 		IsIncomplete: false,
 		Items:        items,
 	}
+}
+
+func completionSortText(index int, label string) string {
+	return fmt.Sprintf("%04d:%s", index, strings.ToUpper(label))
 }
 
 type completionContext struct {
@@ -119,7 +121,32 @@ func completionContextAt(content string, pos protocol.Position) (completionConte
 	}, true
 }
 
-func collectCharacterNames(doc *ast.Document) []string {
+func completionCandidates(doc *ast.Document, content string, line int) []string {
+	if names, ok := sceneCompletionCandidates(doc, content, line); ok {
+		return names
+	}
+	if !isCharacterCueLine(doc, line) {
+		return nil
+	}
+	return documentCharacterNames(doc)
+}
+
+func sceneCompletionCandidates(doc *ast.Document, content string, line int) ([]string, bool) {
+	if !followsBlankLine(content, line) {
+		return nil, false
+	}
+
+	scene := findSceneForLine(doc.Body, line)
+	if scene == nil {
+		return nil, false
+	}
+
+	speakers := sceneSpeakersBeforeLine(scene, line)
+	ranked := rankRecentSpeakers(speakers)
+	return appendRemainingDPNames(doc, ranked), true
+}
+
+func documentCharacterNames(doc *ast.Document) []string {
 	seen := make(map[string]struct{})
 	names := make([]string, 0)
 
@@ -139,9 +166,6 @@ func collectCharacterNames(doc *ast.Document) []string {
 	if dp := ast.FindDramatisPersonae(doc.Body); dp != nil {
 		for _, ch := range dp.AllCharacters() {
 			add(ch.Name)
-			for _, alias := range ch.Aliases {
-				add(alias)
-			}
 		}
 	}
 
@@ -170,9 +194,145 @@ func collectCharacterNames(doc *ast.Document) []string {
 		walkNode(node)
 	}
 
-	slices.SortFunc(names, func(a, b string) int {
-		return strings.Compare(strings.ToUpper(a), strings.ToUpper(b))
-	})
+	return names
+}
+
+func followsBlankLine(content string, line int) bool {
+	if line <= 0 {
+		return false
+	}
+
+	prevLine, ok := lineAt(content, line-1)
+	if !ok {
+		return false
+	}
+
+	return strings.TrimSpace(prevLine) == ""
+}
+
+func findSceneForLine(nodes []ast.Node, line int) *ast.Section {
+	scenes := collectScenes(nodes)
+	var current *ast.Section
+	for _, scene := range scenes {
+		if scene.Range.Start.Line <= line {
+			current = scene
+			continue
+		}
+		break
+	}
+	return current
+}
+
+func collectScenes(nodes []ast.Node) []*ast.Section {
+	var scenes []*ast.Section
+	for _, node := range nodes {
+		scenes = append(scenes, collectScenesInNode(node)...)
+	}
+	return scenes
+}
+
+func collectScenesInNode(node ast.Node) []*ast.Section {
+	var scenes []*ast.Section
+
+	switch v := node.(type) {
+	case *ast.Section:
+		if v.Kind == ast.SectionScene {
+			scenes = append(scenes, v)
+		}
+		for _, child := range v.Children {
+			scenes = append(scenes, collectScenesInNode(child)...)
+		}
+	case *ast.Song:
+		for _, child := range v.Content {
+			scenes = append(scenes, collectScenesInNode(child)...)
+		}
+	}
+
+	return scenes
+}
+
+func sceneSpeakersBeforeLine(scene *ast.Section, line int) []string {
+	var speakers []string
+
+	var walkNode func(ast.Node)
+	walkNode = func(node ast.Node) {
+		switch v := node.(type) {
+		case *ast.Dialogue:
+			if len(v.Lines) > 0 && v.NameRange().Start.Line < line {
+				speakers = append(speakers, v.Character)
+			}
+		case *ast.DualDialogue:
+			walkNode(v.Left)
+			walkNode(v.Right)
+		case *ast.Section:
+			for _, child := range v.Children {
+				walkNode(child)
+			}
+		case *ast.Song:
+			for _, child := range v.Content {
+				walkNode(child)
+			}
+		}
+	}
+
+	for _, child := range scene.Children {
+		walkNode(child)
+	}
+
+	return speakers
+}
+
+func rankRecentSpeakers(speakers []string) []string {
+	if len(speakers) == 0 {
+		return nil
+	}
+
+	lastSpeaker := strings.TrimSpace(speakers[len(speakers)-1])
+	if lastSpeaker == "" {
+		return nil
+	}
+
+	seen := map[string]struct{}{
+		strings.ToUpper(lastSpeaker): {},
+	}
+	ranked := make([]string, 0, len(speakers))
+
+	for i := len(speakers) - 2; i >= 0; i-- {
+		name := strings.TrimSpace(speakers[i])
+		if name == "" {
+			continue
+		}
+		key := strings.ToUpper(name)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		ranked = append(ranked, name)
+	}
+
+	return append(ranked, lastSpeaker)
+}
+
+func appendRemainingDPNames(doc *ast.Document, names []string) []string {
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		seen[strings.ToUpper(strings.TrimSpace(name))] = struct{}{}
+	}
+
+	if dp := ast.FindDramatisPersonae(doc.Body); dp != nil {
+		for _, ch := range dp.AllCharacters() {
+			name := strings.TrimSpace(ch.Name)
+			if name == "" {
+				continue
+			}
+			key := strings.ToUpper(name)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			names = append(names, name)
+		}
+	}
 
 	return names
 }
