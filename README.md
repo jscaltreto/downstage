@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="downstage_logo.png" alt="Downstage" width="300">
+  <img src="downstage_logo.png" alt="Downstage logo, markdown for playwrights" width="380">
 </p>
-
-<p align="center"><em>Markdown for Playwrights</em></p>
 
 # Downstage
 
