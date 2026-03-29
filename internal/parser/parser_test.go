@@ -154,6 +154,9 @@ To be or not to be.`
 	findDialogue(doc.Body, &dlg)
 	require.NotNil(t, dlg)
 	assert.Equal(t, "(aside)", dlg.Parenthetical)
+	assert.Equal(t, 3, dlg.ParentheticalRange().Start.Line)
+	assert.Equal(t, 0, dlg.ParentheticalRange().Start.Column)
+	assert.Equal(t, 7, dlg.ParentheticalRange().End.Column)
 	assert.Len(t, dlg.Lines, 1)
 }
 
@@ -607,6 +610,62 @@ To be or not to be,
 	require.NotNil(t, dp, "expected Dramatis Personae in body")
 	assert.Len(t, dp.Groups, 1)
 	assert.Len(t, dp.Groups[0].Characters, 2)
+}
+
+func TestInlineRanges_ArePrecise(t *testing.T) {
+	input := `# Play
+
+HAMLET
+This is **bold** and *italic* text.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	require.NotEmpty(t, dlg.Lines)
+
+	line := dlg.Lines[0]
+
+	var bold *ast.BoldNode
+	var italic *ast.ItalicNode
+	for _, inline := range line.Content {
+		switch v := inline.(type) {
+		case *ast.BoldNode:
+			bold = v
+		case *ast.ItalicNode:
+			italic = v
+		}
+	}
+
+	require.NotNil(t, bold)
+	require.NotNil(t, italic)
+
+	assert.Equal(t, 8, bold.Range.Start.Column)
+	assert.Equal(t, 16, bold.Range.End.Column)
+	assert.Equal(t, 21, italic.Range.Start.Column)
+	assert.Equal(t, 29, italic.Range.End.Column)
+}
+
+func TestVerseInlineRanges_SkipIndentation(t *testing.T) {
+	input := `# Play
+
+HAMLET
+  *Aside*`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	require.Len(t, dlg.Lines, 1)
+
+	italic, ok := dlg.Lines[0].Content[0].(*ast.ItalicNode)
+	require.True(t, ok)
+	assert.Equal(t, 2, italic.Range.Start.Column)
+	assert.Equal(t, 9, italic.Range.End.Column)
 }
 
 // Golden file tests

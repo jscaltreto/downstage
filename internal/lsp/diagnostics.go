@@ -12,7 +12,7 @@ import (
 // buildDiagnostics converts parser errors and additional warnings into LSP diagnostics.
 func buildDiagnostics(doc *ast.Document, errors []*parser.ParseError) []protocol.Diagnostic {
 	if doc == nil && len(errors) == 0 {
-		return nil
+		return []protocol.Diagnostic{}
 	}
 
 	var diags []protocol.Diagnostic
@@ -30,6 +30,10 @@ func buildDiagnostics(doc *ast.Document, errors []*parser.ParseError) []protocol
 	// Add warnings for unknown character names.
 	if doc != nil {
 		diags = append(diags, checkUnknownCharacters(doc)...)
+	}
+
+	if diags == nil {
+		return []protocol.Diagnostic{}
 	}
 
 	return diags

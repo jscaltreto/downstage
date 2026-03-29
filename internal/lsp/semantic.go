@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"strings"
 	"unicode/utf16"
 
 	"github.com/jscaltreto/downstage/internal/ast"
@@ -65,13 +66,16 @@ func extractTokens(n ast.Node) []rawToken {
 
 	switch v := n.(type) {
 	case *ast.Section:
-		r := v.Range
-		title := v.Title
-		if title != "" {
+		header := sectionHeaderText(v)
+		if header != "" {
+			startChar := v.Range.Start.Column
+			if v.Level > 0 {
+				startChar += v.Level + 1
+			}
 			tokens = append(tokens, rawToken{
-				line:      r.Start.Line,
-				startChar: r.Start.Column,
-				length:    utf16Len(title),
+				line:      v.Range.Start.Line,
+				startChar: startChar,
+				length:    utf16Len(header),
 				tokenType: tokenTypeNamespace,
 			})
 		}
@@ -94,6 +98,15 @@ func extractTokens(n ast.Node) []rawToken {
 				tokenType: tokenTypeType,
 			})
 		}
+		if v.Parenthetical != "" {
+			r := v.ParentheticalRange()
+			tokens = append(tokens, rawToken{
+				line:      r.Start.Line,
+				startChar: r.Start.Column,
+				length:    r.End.Column - r.Start.Column,
+				tokenType: tokenTypeComment,
+			})
+		}
 		for _, line := range v.Lines {
 			tokens = append(tokens, extractInlineTokens(line.Content)...)
 		}
@@ -108,16 +121,20 @@ func extractTokens(n ast.Node) []rawToken {
 		})
 
 	case *ast.Song:
-		r := v.Range
-		title := v.Title
-		if title == "" && v.Number != "" {
-			title = "Song " + v.Number
+		header := "SONG"
+		switch {
+		case v.Number != "" && v.Title != "":
+			header = "SONG " + v.Number + ": " + v.Title
+		case v.Number != "":
+			header = "SONG " + v.Number
+		case v.Title != "":
+			header = "SONG: " + v.Title
 		}
-		if title != "" {
+		if header != "" {
 			tokens = append(tokens, rawToken{
-				line:      r.Start.Line,
-				startChar: r.Start.Column,
-				length:    utf16Len(title),
+				line:      v.Range.Start.Line,
+				startChar: v.Range.Start.Column,
+				length:    utf16Len(header),
 				tokenType: tokenTypeKeyword,
 			})
 		}
@@ -136,6 +153,39 @@ func extractTokens(n ast.Node) []rawToken {
 	}
 
 	return tokens
+}
+
+func sectionHeaderText(section *ast.Section) string {
+	switch section.Kind {
+	case ast.SectionAct:
+		return buildNumberedHeader("ACT", section.Number, section.Title)
+	case ast.SectionScene:
+		if strings.TrimSpace(section.Number) != "" {
+			return buildNumberedHeader("SCENE", section.Number, section.Title)
+		}
+		if strings.TrimSpace(section.Title) == "" {
+			return "SCENE"
+		}
+		return section.Title
+	default:
+		return section.Title
+	}
+}
+
+func buildNumberedHeader(keyword, number, title string) string {
+	number = strings.TrimSpace(number)
+	title = strings.TrimSpace(title)
+
+	switch {
+	case number != "" && title != "":
+		return keyword + " " + number + ": " + title
+	case number != "":
+		return keyword + " " + number
+	case title != "":
+		return keyword + ": " + title
+	default:
+		return keyword
+	}
 }
 
 func extractInlineTokens(inlines []ast.Inline) []rawToken {

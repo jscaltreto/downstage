@@ -2,6 +2,7 @@ package parser
 
 import (
 	"strings"
+	"unicode/utf16"
 
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/lexer"
@@ -727,6 +728,7 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 		if strings.HasPrefix(lit, "(") && strings.HasSuffix(lit, ")") {
 			pTok := p.advance()
 			dlg.Parenthetical = strings.TrimSpace(pTok.Literal)
+			dlg.SetParentheticalRange(pTok.Range)
 		}
 	}
 
@@ -762,8 +764,10 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 
 		case token.Verse:
 			tok := p.advance()
+			trimmed := strings.TrimLeft(tok.Literal, " ")
+			leadingSpaces := len(tok.Literal) - len(trimmed)
 			line := ast.DialogueLine{
-				Content: parseInlineContent(strings.TrimLeft(tok.Literal, " "), tok.Range),
+				Content: parseInlineContent(trimmed, shiftRangeStart(tok.Range, leadingSpaces, leadingSpaces)),
 				IsVerse: true,
 				Range:   tok.Range,
 			}
@@ -866,8 +870,10 @@ func (p *parser) parseVerseBlock() *ast.VerseBlock {
 
 	for p.at(token.Verse) {
 		tok := p.advance()
+		trimmed := strings.TrimLeft(tok.Literal, " ")
+		leadingSpaces := len(tok.Literal) - len(trimmed)
 		vb.Lines = append(vb.Lines, ast.VerseLine{
-			Content: parseInlineContent(strings.TrimLeft(tok.Literal, " "), tok.Range),
+			Content: parseInlineContent(trimmed, shiftRangeStart(tok.Range, leadingSpaces, leadingSpaces)),
 			Range:   tok.Range,
 		})
 	}
@@ -949,9 +955,10 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 			end := strings.Index(s[i+3:], "***")
 			if end >= 0 {
 				inner := s[i+3 : i+3+end]
+				nodeRange := sliceInlineRange(s, r, i, i+3+end+3)
 				result = append(result, &ast.BoldItalicNode{
-					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
-					Range:   r,
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: sliceInlineRange(s, r, i+3, i+3+end)}},
+					Range:   nodeRange,
 				})
 				i = i + 3 + end + 3
 				continue
@@ -964,9 +971,10 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 			end := strings.Index(s[i+2:], "**")
 			if end >= 0 {
 				inner := s[i+2 : i+2+end]
+				nodeRange := sliceInlineRange(s, r, i, i+2+end+2)
 				result = append(result, &ast.BoldNode{
-					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
-					Range:   r,
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: sliceInlineRange(s, r, i+2, i+2+end)}},
+					Range:   nodeRange,
 				})
 				i = i + 2 + end + 2
 				continue
@@ -979,9 +987,10 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 			end := strings.IndexByte(s[i+1:], '*')
 			if end >= 0 {
 				inner := s[i+1 : i+1+end]
+				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
 				result = append(result, &ast.ItalicNode{
-					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
-					Range:   r,
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: sliceInlineRange(s, r, i+1, i+1+end)}},
+					Range:   nodeRange,
 				})
 				i = i + 1 + end + 1
 				continue
@@ -994,9 +1003,10 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 			end := strings.IndexByte(s[i+1:], '_')
 			if end >= 0 {
 				inner := s[i+1 : i+1+end]
+				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
 				result = append(result, &ast.UnderlineNode{
-					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
-					Range:   r,
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: sliceInlineRange(s, r, i+1, i+1+end)}},
+					Range:   nodeRange,
 				})
 				i = i + 1 + end + 1
 				continue
@@ -1009,9 +1019,10 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 			end := strings.IndexByte(s[i+1:], '~')
 			if end >= 0 {
 				inner := s[i+1 : i+1+end]
+				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
 				result = append(result, &ast.StrikethroughNode{
-					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
-					Range:   r,
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: sliceInlineRange(s, r, i+1, i+1+end)}},
+					Range:   nodeRange,
 				})
 				i = i + 1 + end + 1
 				continue
@@ -1024,9 +1035,10 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 			end := strings.IndexByte(s[i+1:], ')')
 			if end >= 0 {
 				inner := s[i+1 : i+1+end]
+				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
 				result = append(result, &ast.InlineDirectionNode{
-					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: r}},
-					Range:   r,
+					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: sliceInlineRange(s, r, i+1, i+1+end)}},
+					Range:   nodeRange,
 				})
 				i = i + 1 + end + 1
 				continue
@@ -1101,13 +1113,36 @@ func shiftRangeStart(r token.Range, columnDelta, offsetDelta int) token.Range {
 	return r
 }
 
+func sliceInlineRange(source string, base token.Range, startByte, endByte int) token.Range {
+	startColumnDelta := utf16Len(source[:startByte])
+	endColumnDelta := utf16Len(source[:endByte])
+
+	return token.Range{
+		Start: token.Position{
+			Line:   base.Start.Line,
+			Column: base.Start.Column + startColumnDelta,
+			Offset: base.Start.Offset + startByte,
+		},
+		End: token.Position{
+			Line:   base.End.Line,
+			Column: base.Start.Column + endColumnDelta,
+			Offset: base.Start.Offset + endByte,
+		},
+	}
+}
+
 // appendText appends text to the last TextNode if possible, or creates a new one.
 func appendText(nodes []ast.Inline, text string, r token.Range) []ast.Inline {
 	if len(nodes) > 0 {
 		if tn, ok := nodes[len(nodes)-1].(*ast.TextNode); ok {
 			tn.Value += text
+			tn.Range.End = r.End
 			return nodes
 		}
 	}
 	return append(nodes, &ast.TextNode{Value: text, Range: r})
+}
+
+func utf16Len(s string) int {
+	return len(utf16.Encode([]rune(s)))
 }
