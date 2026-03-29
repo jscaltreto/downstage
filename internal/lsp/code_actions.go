@@ -18,59 +18,89 @@ func computeCodeActions(
 		return []protocol.CodeAction{}
 	}
 
-	dp := ast.FindDramatisPersonae(doc.Body)
-	if dp == nil {
-		return []protocol.CodeAction{}
-	}
-
-	edit, ok := dramatisPersonaeInsertEdit(doc, content)
-	if !ok {
-		return []protocol.CodeAction{}
-	}
-
 	actions := make([]protocol.CodeAction, 0, len(diagnostics))
-	seen := make(map[string]struct{})
+	seenCharacters := make(map[string]struct{})
+
+	var (
+		dp      = ast.FindDramatisPersonae(doc.Body)
+		edit    protocol.TextEdit
+		hasEdit bool
+	)
+	if dp != nil {
+		edit, hasEdit = dramatisPersonaeInsertEdit(doc, content)
+	}
 
 	for _, diagnostic := range diagnostics {
-		if diagnostic.Code != diagnosticCodeUnknownCharacter {
-			continue
-		}
+		switch diagnostic.Code {
+		case diagnosticCodeUnknownCharacter:
+			if !hasEdit {
+				continue
+			}
 
-		character := diagnosticCharacterName(diagnostic)
-		if character == "" {
-			continue
-		}
+			character := diagnosticCharacterName(diagnostic)
+			if character == "" {
+				continue
+			}
 
-		key := strings.ToUpper(character)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
+			key := strings.ToUpper(character)
+			if _, ok := seenCharacters[key]; ok {
+				continue
+			}
+			seenCharacters[key] = struct{}{}
 
-		textEdit := edit
-		prefix := strings.TrimSuffix(edit.NewText, "\n")
-		textEdit.NewText = prefix + character + "\n"
+			textEdit := edit
+			prefix := strings.TrimSuffix(edit.NewText, "\n")
+			textEdit.NewText = prefix + character + "\n"
 
-		actions = append(actions, protocol.CodeAction{
-			Title:       fmt.Sprintf("Add %s to Dramatis Personae", character),
-			Kind:        protocol.QuickFix,
-			Diagnostics: []protocol.Diagnostic{diagnostic},
-			IsPreferred: true,
-			Edit: &protocol.WorkspaceEdit{
-				Changes: map[protocol.DocumentURI][]protocol.TextEdit{
-					uri: {textEdit},
+			actions = append(actions, protocol.CodeAction{
+				Title:       fmt.Sprintf("Add %s to Dramatis Personae", character),
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {textEdit},
+					},
 				},
-			},
-		})
+			})
+		case diagnosticCodeUnnumberedAct, diagnosticCodeUnnumberedScene:
+			replacement := diagnosticReplacement(diagnostic)
+			if replacement == "" {
+				continue
+			}
+
+			actions = append(actions, protocol.CodeAction{
+				Title:       fmt.Sprintf("Number heading as %s", replacement),
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {{
+							Range:   diagnostic.Range,
+							NewText: replacement,
+						}},
+					},
+				},
+			})
+		}
 	}
 
 	return actions
 }
 
 func diagnosticCharacterName(diagnostic protocol.Diagnostic) string {
+	return diagnosticStringData(diagnostic, "character")
+}
+
+func diagnosticReplacement(diagnostic protocol.Diagnostic) string {
+	return diagnosticStringData(diagnostic, "replacement")
+}
+
+func diagnosticStringData(diagnostic protocol.Diagnostic, key string) string {
 	switch data := diagnostic.Data.(type) {
 	case map[string]interface{}:
-		raw, ok := data["character"]
+		raw, ok := data[key]
 		if !ok {
 			return ""
 		}
@@ -82,7 +112,7 @@ func diagnosticCharacterName(diagnostic protocol.Diagnostic) string {
 
 		return strings.TrimSpace(name)
 	case map[string]string:
-		return strings.TrimSpace(data["character"])
+		return strings.TrimSpace(data[key])
 	default:
 		return ""
 	}

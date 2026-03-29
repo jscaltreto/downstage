@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/jscaltreto/downstage/internal/ast"
@@ -9,7 +10,11 @@ import (
 	"go.lsp.dev/protocol"
 )
 
-const diagnosticCodeUnknownCharacter = "unknown-character"
+const (
+	diagnosticCodeUnknownCharacter = "unknown-character"
+	diagnosticCodeUnnumberedAct    = "unnumbered-act"
+	diagnosticCodeUnnumberedScene  = "unnumbered-scene"
+)
 
 // buildDiagnostics converts parser errors and additional warnings into LSP diagnostics.
 func buildDiagnostics(doc *ast.Document, errors []*parser.ParseError) []protocol.Diagnostic {
@@ -31,6 +36,7 @@ func buildDiagnostics(doc *ast.Document, errors []*parser.ParseError) []protocol
 
 	// Add warnings for unknown character names.
 	if doc != nil {
+		diags = append(diags, checkUnnumberedSections(doc)...)
 		diags = append(diags, checkUnknownCharacters(doc)...)
 	}
 
@@ -61,6 +67,114 @@ func checkUnknownCharacters(doc *ast.Document) []protocol.Diagnostic {
 		diags = append(diags, checkNodeCharacters(n, known)...)
 	}
 	return diags
+}
+
+func checkUnnumberedSections(doc *ast.Document) []protocol.Diagnostic {
+	var diags []protocol.Diagnostic
+
+	actCount := 0
+	sceneCountOutsideActs := 0
+
+	for _, node := range doc.Body {
+		diags = append(diags, checkUnnumberedSectionsInNode(node, nil, &actCount, &sceneCountOutsideActs)...)
+	}
+
+	return diags
+}
+
+func checkUnnumberedSectionsInNode(
+	node ast.Node,
+	sceneCountInAct *int,
+	actCount *int,
+	sceneCountOutsideActs *int,
+) []protocol.Diagnostic {
+	var diags []protocol.Diagnostic
+
+	switch v := node.(type) {
+	case *ast.Section:
+		switch v.Kind {
+		case ast.SectionAct:
+			*actCount = *actCount + 1
+			diags = append(diags, unnumberedActDiagnostic(v, *actCount)...)
+
+			sceneCount := 0
+			for _, child := range v.Children {
+				diags = append(diags, checkUnnumberedSectionsInNode(child, &sceneCount, actCount, sceneCountOutsideActs)...)
+			}
+		case ast.SectionScene:
+			if sceneCountInAct != nil {
+				*sceneCountInAct = *sceneCountInAct + 1
+				diags = append(diags, unnumberedSceneDiagnostic(v, *sceneCountInAct)...)
+			} else {
+				*sceneCountOutsideActs = *sceneCountOutsideActs + 1
+				diags = append(diags, unnumberedSceneDiagnostic(v, *sceneCountOutsideActs)...)
+			}
+
+			for _, child := range v.Children {
+				diags = append(diags, checkUnnumberedSectionsInNode(child, sceneCountInAct, actCount, sceneCountOutsideActs)...)
+			}
+		default:
+			for _, child := range v.Children {
+				diags = append(diags, checkUnnumberedSectionsInNode(child, sceneCountInAct, actCount, sceneCountOutsideActs)...)
+			}
+		}
+	case *ast.Song:
+		for _, child := range v.Content {
+			diags = append(diags, checkUnnumberedSectionsInNode(child, sceneCountInAct, actCount, sceneCountOutsideActs)...)
+		}
+	}
+
+	return diags
+}
+
+func unnumberedActDiagnostic(section *ast.Section, actNumber int) []protocol.Diagnostic {
+	if strings.TrimSpace(section.Number) != "" {
+		return nil
+	}
+
+	replacement := formatSectionHeading(section, romanNumeral(actNumber))
+	return []protocol.Diagnostic{{
+		Range:    toLSPRange(section.Range),
+		Severity: protocol.DiagnosticSeverityWarning,
+		Code:     diagnosticCodeUnnumberedAct,
+		Source:   "downstage",
+		Message:  "act headings should be numbered with Roman numerals",
+		Data: map[string]string{
+			"replacement": replacement,
+		},
+	}}
+}
+
+func unnumberedSceneDiagnostic(section *ast.Section, sceneNumber int) []protocol.Diagnostic {
+	if strings.TrimSpace(section.Number) != "" {
+		return nil
+	}
+
+	replacement := formatSectionHeading(section, fmt.Sprintf("%d", sceneNumber))
+	return []protocol.Diagnostic{{
+		Range:    toLSPRange(section.Range),
+		Severity: protocol.DiagnosticSeverityWarning,
+		Code:     diagnosticCodeUnnumberedScene,
+		Source:   "downstage",
+		Message:  "scene headings should be numbered with Arabic numerals",
+		Data: map[string]string{
+			"replacement": replacement,
+		},
+	}}
+}
+
+func formatSectionHeading(section *ast.Section, number string) string {
+	marker := strings.Repeat("#", section.Level)
+	title := strings.TrimSpace(section.Title)
+
+	switch section.Kind {
+	case ast.SectionAct:
+		return marker + " " + buildNumberedHeader("ACT", number, title)
+	case ast.SectionScene:
+		return marker + " " + buildNumberedHeader("SCENE", number, title)
+	default:
+		return marker + " " + title
+	}
 }
 
 func checkNodeCharacters(n ast.Node, known map[string]bool) []protocol.Diagnostic {

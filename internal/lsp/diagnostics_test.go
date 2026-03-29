@@ -148,3 +148,81 @@ func TestBuildDiagnostics_AliasMatch(t *testing.T) {
 		t.Errorf("expected 0 diagnostics for alias match, got %d", len(diags))
 	}
 }
+
+func TestBuildDiagnostics_UnnumberedActAndSceneWarnings(t *testing.T) {
+	content := `# Play
+
+## ACT: Prologue
+
+### The Kitchen`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+	if len(diags) != 2 {
+		t.Fatalf("expected 2 diagnostics, got %d", len(diags))
+	}
+
+	if diags[0].Code != diagnosticCodeUnnumberedAct {
+		t.Fatalf("expected first diagnostic to be unnumbered act, got %v", diags[0].Code)
+	}
+	if diags[0].Message != "act headings should be numbered with Roman numerals" {
+		t.Fatalf("unexpected act diagnostic message: %q", diags[0].Message)
+	}
+	if data, ok := diags[0].Data.(map[string]string); !ok || data["replacement"] != "## ACT I: Prologue" {
+		t.Fatalf("unexpected act diagnostic data: %#v", diags[0].Data)
+	}
+
+	if diags[1].Code != diagnosticCodeUnnumberedScene {
+		t.Fatalf("expected second diagnostic to be unnumbered scene, got %v", diags[1].Code)
+	}
+	if diags[1].Message != "scene headings should be numbered with Arabic numerals" {
+		t.Fatalf("unexpected scene diagnostic message: %q", diags[1].Message)
+	}
+	if data, ok := diags[1].Data.(map[string]string); !ok || data["replacement"] != "### SCENE 1: The Kitchen" {
+		t.Fatalf("unexpected scene diagnostic data: %#v", diags[1].Data)
+	}
+}
+
+func TestBuildDiagnostics_UnnumberedSceneInActResetsNumbering(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+### SCENE 1
+
+## First Interlude
+
+## ACT II
+
+## Second Interlude`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+	if len(diags) != 2 {
+		t.Fatalf("expected 2 diagnostics, got %d", len(diags))
+	}
+
+	firstData, ok := diags[0].Data.(map[string]string)
+	if !ok {
+		t.Fatalf("unexpected first diagnostic data: %#v", diags[0].Data)
+	}
+	if firstData["replacement"] != "## SCENE 2: First Interlude" {
+		t.Fatalf("unexpected first scene replacement: %q", firstData["replacement"])
+	}
+
+	secondData, ok := diags[1].Data.(map[string]string)
+	if !ok {
+		t.Fatalf("unexpected second diagnostic data: %#v", diags[1].Data)
+	}
+	if secondData["replacement"] != "## SCENE 1: Second Interlude" {
+		t.Fatalf("unexpected second scene replacement: %q", secondData["replacement"])
+	}
+}

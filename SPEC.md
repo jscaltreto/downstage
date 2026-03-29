@@ -136,6 +136,7 @@ Acts are defined with `##` (H2) headings where the text after `##` is `ACT`, sta
 ```
 
 The act number is the text between "ACT" and the first colon (if any). The act title is the text after the colon (if any).
+Acts SHOULD be numbered with Roman numerals (`ACT I`, `ACT II`, ...). Unnumbered acts remain valid for backward compatibility, but they are discouraged and may be flagged by tooling.
 
 ### Scenes
 
@@ -148,6 +149,7 @@ Scenes are defined with `###` (H3) headings, or `##` (H2) headings inside an act
 ```
 
 When the text is `SCENE`, starts with `SCENE `, or starts with `SCENE:` (case-insensitive), the scene number is the text between `SCENE` and the first colon, and the scene title is the text after the colon. When it does not match that form, the entire text is the scene title.
+Scenes SHOULD be numbered with Arabic numerals (`SCENE 1`, `SCENE 2`, ...). Unnumbered scenes remain valid for backward compatibility, but they are discouraged and may be flagged by tooling.
 
 ### Without Acts or Scenes
 

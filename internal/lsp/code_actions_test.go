@@ -108,3 +108,93 @@ Boo.`
 		t.Fatalf("expected 0 code actions, got %d", len(actions))
 	}
 }
+
+func TestComputeCodeActions_NumberUnnumberedActHeading(t *testing.T) {
+	content := `# Play
+
+## ACT: Prologue`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diagnostics := buildDiagnostics(doc, errs)
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), diagnostics)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action, got %d", len(actions))
+	}
+
+	action := actions[0]
+	if action.Title != "Number heading as ## ACT I: Prologue" {
+		t.Fatalf("unexpected title: %q", action.Title)
+	}
+
+	edits := action.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(edits) != 1 {
+		t.Fatalf("expected 1 text edit, got %d", len(edits))
+	}
+	if edits[0].NewText != "## ACT I: Prologue" {
+		t.Fatalf("unexpected replacement text: %q", edits[0].NewText)
+	}
+}
+
+func TestComputeCodeActions_NumberUnnumberedSceneHeading(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+## The Kitchen`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diagnostics := buildDiagnostics(doc, errs)
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), diagnostics)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action, got %d", len(actions))
+	}
+
+	action := actions[0]
+	if action.Title != "Number heading as ## SCENE 1: The Kitchen" {
+		t.Fatalf("unexpected title: %q", action.Title)
+	}
+
+	edits := action.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(edits) != 1 {
+		t.Fatalf("expected 1 text edit, got %d", len(edits))
+	}
+	if edits[0].NewText != "## SCENE 1: The Kitchen" {
+		t.Fatalf("unexpected replacement text: %q", edits[0].NewText)
+	}
+}
+
+func TestComputeCodeActions_NumberSceneHeadingWithSubtitle(t *testing.T) {
+	content := `### SCENE: The Kitchen`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diagnostics := buildDiagnostics(doc, errs)
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), diagnostics)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action, got %d", len(actions))
+	}
+
+	action := actions[0]
+	if action.Title != "Number heading as ### SCENE 1: The Kitchen" {
+		t.Fatalf("unexpected title: %q", action.Title)
+	}
+
+	edits := action.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(edits) != 1 {
+		t.Fatalf("expected 1 text edit, got %d", len(edits))
+	}
+	if edits[0].NewText != "### SCENE 1: The Kitchen" {
+		t.Fatalf("unexpected replacement text: %q", edits[0].NewText)
+	}
+}
