@@ -20,9 +20,108 @@ func computeCompletion(doc *ast.Document, _ []*parser.ParseError, content string
 		return emptyCompletionList()
 	}
 
-	names := completionCandidates(doc, content, int(pos.Line))
-	if len(names) == 0 {
+	items := completionItems(doc, content, int(pos.Line), pos, ctx)
+	if len(items) == 0 {
 		return emptyCompletionList()
+	}
+
+	return &protocol.CompletionList{
+		IsIncomplete: false,
+		Items:        items,
+	}
+}
+
+func completionSortText(index int, label string) string {
+	return fmt.Sprintf("%04d:%s", index, strings.ToUpper(label))
+}
+
+type completionContext struct {
+	kind            completionKind
+	filterPrefix    string
+	hasForcedPrefix bool
+	headingLevel    int
+}
+
+type completionKind int
+
+const (
+	completionKindCharacter completionKind = iota
+	completionKindHeading
+)
+
+func completionContextAt(content string, pos protocol.Position) (completionContext, bool) {
+	line, ok := lineAt(content, int(pos.Line))
+	if !ok {
+		return completionContext{}, false
+	}
+
+	cursor := int(pos.Character)
+	if cursor < 0 || cursor > utf16Len(line) {
+		return completionContext{}, false
+	}
+
+	if ctx, ok := headingCompletionContext(line, cursor); ok {
+		return ctx, true
+	}
+
+	if strings.TrimSpace(utf16Prefix(line, cursor)) == "" && strings.TrimSpace(line) == "" {
+		return completionContext{
+			kind:         completionKindCharacter,
+			filterPrefix: "",
+		}, true
+	}
+
+	if strings.TrimSpace(utf16Suffix(line, cursor)) != "" {
+		return completionContext{}, false
+	}
+
+	prefix := utf16Prefix(line, cursor)
+	if strings.TrimLeft(prefix, " \t") != prefix {
+		return completionContext{}, false
+	}
+
+	forced := strings.HasPrefix(prefix, "@")
+	if forced {
+		prefix = strings.TrimPrefix(prefix, "@")
+	}
+
+	if prefix == "" {
+		return completionContext{
+			kind:            completionKindCharacter,
+			filterPrefix:    "",
+			hasForcedPrefix: forced,
+		}, true
+	}
+
+	for _, r := range prefix {
+		if unicode.IsUpper(r) || unicode.IsDigit(r) || r == ' ' || r == '.' || r == ',' || r == '-' || r == '\'' || r == '/' {
+			continue
+		}
+		return completionContext{}, false
+	}
+
+	return completionContext{
+		kind:            completionKindCharacter,
+		filterPrefix:    strings.ToUpper(prefix),
+		hasForcedPrefix: forced,
+	}, true
+}
+
+func completionItems(doc *ast.Document, content string, line int, pos protocol.Position, ctx completionContext) []protocol.CompletionItem {
+	switch ctx.kind {
+	case completionKindHeading:
+		return headingCompletionItems(doc, line, pos, ctx)
+	case completionKindCharacter:
+		return characterCompletionItems(doc, content, line, pos, ctx)
+	default:
+		return nil
+	}
+}
+
+func characterCompletionItems(doc *ast.Document, content string, line int, pos protocol.Position, ctx completionContext) []protocol.CompletionItem {
+	names := characterCompletionCandidates(doc, content, line)
+	if len(names) == 0 {
+		return nil
 	}
 
 	items := make([]protocol.CompletionItem, 0, len(names))
@@ -55,73 +154,78 @@ func computeCompletion(doc *ast.Document, _ []*parser.ParseError, content string
 		})
 	}
 
-	return &protocol.CompletionList{
-		IsIncomplete: false,
-		Items:        items,
-	}
+	return items
 }
 
-func completionSortText(index int, label string) string {
-	return fmt.Sprintf("%04d:%s", index, strings.ToUpper(label))
+func headingCompletionItems(doc *ast.Document, line int, pos protocol.Position, ctx completionContext) []protocol.CompletionItem {
+	labels := headingCompletionCandidates(doc, line, ctx.headingLevel)
+	if len(labels) == 0 {
+		return nil
+	}
+
+	items := make([]protocol.CompletionItem, 0, len(labels))
+	for i, label := range labels {
+		if !strings.HasPrefix(strings.ToUpper(label), ctx.filterPrefix) {
+			continue
+		}
+
+		insertText := strings.Repeat("#", ctx.headingLevel) + " " + label
+		items = append(items, protocol.CompletionItem{
+			Label:      insertText,
+			Kind:       protocol.CompletionItemKindKeyword,
+			Detail:     "Structural heading",
+			FilterText: insertText,
+			SortText:   completionSortText(i, insertText),
+			TextEdit: &protocol.TextEdit{
+				Range: protocol.Range{
+					Start: protocol.Position{
+						Line:      pos.Line,
+						Character: 0,
+					},
+					End: pos,
+				},
+				NewText: insertText,
+			},
+		})
+	}
+
+	return items
 }
 
-type completionContext struct {
-	filterPrefix    string
-	hasForcedPrefix bool
-}
-
-func completionContextAt(content string, pos protocol.Position) (completionContext, bool) {
-	line, ok := lineAt(content, int(pos.Line))
-	if !ok {
-		return completionContext{}, false
-	}
-
-	cursor := int(pos.Character)
-	if cursor < 0 || cursor > utf16Len(line) {
-		return completionContext{}, false
-	}
-
-	if strings.TrimSpace(utf16Prefix(line, cursor)) == "" && strings.TrimSpace(line) == "" {
-		return completionContext{
-			filterPrefix: "",
-		}, true
-	}
-
+func headingCompletionContext(line string, cursor int) (completionContext, bool) {
+	prefix := utf16Prefix(line, cursor)
 	if strings.TrimSpace(utf16Suffix(line, cursor)) != "" {
 		return completionContext{}, false
 	}
-
-	prefix := utf16Prefix(line, cursor)
 	if strings.TrimLeft(prefix, " \t") != prefix {
 		return completionContext{}, false
 	}
 
-	forced := strings.HasPrefix(prefix, "@")
-	if forced {
-		prefix = strings.TrimPrefix(prefix, "@")
-	}
+	for level := 3; level >= 1; level-- {
+		marker := strings.Repeat("#", level) + " "
+		if !strings.HasPrefix(prefix, marker) {
+			continue
+		}
 
-	if prefix == "" {
+		filter := strings.TrimSpace(strings.TrimPrefix(prefix, marker))
+		for _, r := range filter {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) || r == ' ' || r == ':' || r == '-' || r == '\'' || r == ',' {
+				continue
+			}
+			return completionContext{}, false
+		}
+
 		return completionContext{
-			filterPrefix:    "",
-			hasForcedPrefix: forced,
+			kind:         completionKindHeading,
+			filterPrefix: strings.ToUpper(filter),
+			headingLevel: level,
 		}, true
 	}
 
-	for _, r := range prefix {
-		if unicode.IsUpper(r) || unicode.IsDigit(r) || r == ' ' || r == '.' || r == ',' || r == '-' || r == '\'' || r == '/' {
-			continue
-		}
-		return completionContext{}, false
-	}
-
-	return completionContext{
-		filterPrefix:    strings.ToUpper(prefix),
-		hasForcedPrefix: forced,
-	}, true
+	return completionContext{}, false
 }
 
-func completionCandidates(doc *ast.Document, content string, line int) []string {
+func characterCompletionCandidates(doc *ast.Document, content string, line int) []string {
 	if names, ok := sceneCompletionCandidates(doc, content, line); ok {
 		return names
 	}
@@ -129,6 +233,22 @@ func completionCandidates(doc *ast.Document, content string, line int) []string 
 		return nil
 	}
 	return documentCharacterNames(doc)
+}
+
+func headingCompletionCandidates(doc *ast.Document, line, level int) []string {
+	switch level {
+	case 1:
+		if ast.FindDramatisPersonae(doc.Body) != nil {
+			return nil
+		}
+		return []string{"Dramatis Personae"}
+	case 2:
+		return []string{nextActHeading(doc, line)}
+	case 3:
+		return []string{nextSceneHeading(doc, line)}
+	default:
+		return nil
+	}
 }
 
 func sceneCompletionCandidates(doc *ast.Document, content string, line int) ([]string, bool) {
@@ -335,6 +455,116 @@ func appendRemainingDPNames(doc *ast.Document, names []string) []string {
 	}
 
 	return names
+}
+
+func nextActHeading(doc *ast.Document, line int) string {
+	count := 0
+	for _, act := range collectSectionsOfKind(doc.Body, ast.SectionAct) {
+		if act.Range.Start.Line < line {
+			count++
+		}
+	}
+	return "ACT " + romanNumeral(count+1)
+}
+
+func nextSceneHeading(doc *ast.Document, line int) string {
+	if act := findActForLine(doc.Body, line); act != nil {
+		count := 0
+		for _, child := range act.Children {
+			section, ok := child.(*ast.Section)
+			if !ok || section.Kind != ast.SectionScene {
+				continue
+			}
+			if section.Range.Start.Line < line {
+				count++
+			}
+		}
+		return fmt.Sprintf("SCENE %d", count+1)
+	}
+
+	count := 0
+	for _, scene := range collectSectionsOfKind(doc.Body, ast.SectionScene) {
+		if scene.Range.Start.Line < line {
+			count++
+		}
+	}
+	return fmt.Sprintf("SCENE %d", count+1)
+}
+
+func findActForLine(nodes []ast.Node, line int) *ast.Section {
+	acts := collectSectionsOfKind(nodes, ast.SectionAct)
+	var current *ast.Section
+	for _, act := range acts {
+		if act.Range.Start.Line <= line {
+			current = act
+			continue
+		}
+		break
+	}
+	return current
+}
+
+func collectSectionsOfKind(nodes []ast.Node, kind ast.SectionKind) []*ast.Section {
+	var sections []*ast.Section
+	for _, node := range nodes {
+		sections = append(sections, collectSectionsOfKindInNode(node, kind)...)
+	}
+	return sections
+}
+
+func collectSectionsOfKindInNode(node ast.Node, kind ast.SectionKind) []*ast.Section {
+	var sections []*ast.Section
+
+	switch v := node.(type) {
+	case *ast.Section:
+		if v.Kind == kind {
+			sections = append(sections, v)
+		}
+		for _, child := range v.Children {
+			sections = append(sections, collectSectionsOfKindInNode(child, kind)...)
+		}
+	case *ast.Song:
+		for _, child := range v.Content {
+			sections = append(sections, collectSectionsOfKindInNode(child, kind)...)
+		}
+	}
+
+	return sections
+}
+
+func romanNumeral(n int) string {
+	if n <= 0 {
+		return "I"
+	}
+
+	values := []struct {
+		value   int
+		numeral string
+	}{
+		{1000, "M"},
+		{900, "CM"},
+		{500, "D"},
+		{400, "CD"},
+		{100, "C"},
+		{90, "XC"},
+		{50, "L"},
+		{40, "XL"},
+		{10, "X"},
+		{9, "IX"},
+		{5, "V"},
+		{4, "IV"},
+		{1, "I"},
+	}
+
+	var b strings.Builder
+	for _, value := range values {
+		for n >= value.value {
+			b.WriteString(value.numeral)
+			n -= value.value
+		}
+	}
+
+	return b.String()
 }
 
 func isCharacterCueLine(doc *ast.Document, line int) bool {

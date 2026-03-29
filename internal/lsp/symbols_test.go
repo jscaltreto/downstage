@@ -154,3 +154,25 @@ func TestComputeDocumentSymbols_DualDialogueInSection(t *testing.T) {
 		t.Fatalf("expected second child to be JULIET, got %q", symbols[0].Children[1].Name)
 	}
 }
+
+func TestComputeDocumentSymbols_UsesFallbackNameForUntitledScene(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind: ast.SectionScene,
+				Range: token.Range{
+					Start: token.Position{Line: 0, Column: 0},
+					End:   token.Position{Line: 2, Column: 0},
+				},
+			},
+		},
+	}
+
+	symbols := computeDocumentSymbols(doc, nil)
+	if len(symbols) != 1 {
+		t.Fatalf("expected 1 symbol, got %d", len(symbols))
+	}
+	if symbols[0].Name != "Scene" {
+		t.Fatalf("expected fallback scene name, got %q", symbols[0].Name)
+	}
+}

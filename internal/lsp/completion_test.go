@@ -184,3 +184,83 @@ What do you mean?
 		}
 	}
 }
+
+func TestComputeCompletion_H1HeadingSuggestsDramatisPersonae(t *testing.T) {
+	content := `# Dr`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	result := computeCompletion(doc, errs, content, protocol.Position{Line: 0, Character: 4})
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 heading completion, got %d", len(result.Items))
+	}
+	if result.Items[0].Label != "# Dramatis Personae" {
+		t.Fatalf("expected dramatis personae heading, got %q", result.Items[0].Label)
+	}
+}
+
+func TestComputeCompletion_H1HeadingSkipsDramatisPersonaeWhenAlreadyPresent(t *testing.T) {
+	content := `# Dramatis Personae
+HAMLET
+
+# Dr`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	result := computeCompletion(doc, errs, content, protocol.Position{Line: 3, Character: 4})
+	if len(result.Items) != 0 {
+		t.Fatalf("expected no duplicate dramatis personae completion, got %d", len(result.Items))
+	}
+}
+
+func TestComputeCompletion_H2HeadingSuggestsNextAct(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+### SCENE 1
+
+## AC`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	result := computeCompletion(doc, errs, content, protocol.Position{Line: 6, Character: 5})
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 heading completion, got %d", len(result.Items))
+	}
+	if result.Items[0].Label != "## ACT II" {
+		t.Fatalf("expected next act heading, got %q", result.Items[0].Label)
+	}
+}
+
+func TestComputeCompletion_H3HeadingSuggestsNextSceneWithinAct(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+### SCENE 1
+
+### SC`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	result := computeCompletion(doc, errs, content, protocol.Position{Line: 6, Character: 6})
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 heading completion, got %d", len(result.Items))
+	}
+	if result.Items[0].Label != "### SCENE 2" {
+		t.Fatalf("expected next scene heading, got %q", result.Items[0].Label)
+	}
+}

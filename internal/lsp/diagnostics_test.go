@@ -72,8 +72,27 @@ func TestBuildDiagnostics_UnknownCharacter(t *testing.T) {
 	if diags[0].Severity != protocol.DiagnosticSeverityWarning {
 		t.Errorf("expected warning severity, got %v", diags[0].Severity)
 	}
-	if diags[0].Message != "unknown character: GHOST" {
+	if diags[0].Message != "unknown character: GHOST (add to Dramatis Personae)" {
 		t.Errorf("unexpected message: %s", diags[0].Message)
+	}
+}
+
+func TestBuildDiagnostics_NoDramatisPersonaeSuppressesUnknownCharacter(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Dialogue{
+				Character: "GHOST",
+				Range: token.Range{
+					Start: token.Position{Line: 2, Column: 0},
+					End:   token.Position{Line: 4, Column: 0},
+				},
+			},
+		},
+	}
+
+	diags := buildDiagnostics(doc, nil)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics without dramatis personae, got %d", len(diags))
 	}
 }
 

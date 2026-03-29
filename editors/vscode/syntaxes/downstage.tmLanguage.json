@@ -1,0 +1,264 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Downstage",
+  "scopeName": "source.downstage",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#metadata"
+    },
+    {
+      "include": "#headings"
+    },
+    {
+      "include": "#forcedHeading"
+    },
+    {
+      "include": "#pagebreak"
+    },
+    {
+      "include": "#stageDirections"
+    },
+    {
+      "include": "#songs"
+    },
+    {
+      "include": "#characterAlias"
+    },
+    {
+      "include": "#characterCue"
+    },
+    {
+      "include": "#parenthetical"
+    },
+    {
+      "include": "#inlineFormatting"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.downstage",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.downstage",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "headings": {
+      "patterns": [
+        {
+          "name": "markup.heading.3.downstage",
+          "match": "^(###)(\\s+)(.*)$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.heading.downstage"
+            },
+            "3": {
+              "name": "entity.name.section.downstage"
+            }
+          }
+        },
+        {
+          "name": "markup.heading.2.downstage",
+          "match": "^(##)(\\s+)(.*)$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.heading.downstage"
+            },
+            "3": {
+              "name": "entity.name.section.downstage"
+            }
+          }
+        },
+        {
+          "name": "markup.heading.1.downstage",
+          "match": "^(#)(\\s+)(.*)$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.heading.downstage"
+            },
+            "3": {
+              "name": "entity.name.section.downstage"
+            }
+          }
+        }
+      ]
+    },
+    "forcedHeading": {
+      "patterns": [
+        {
+          "name": "markup.heading.forced.downstage",
+          "match": "^(\\.)([A-Z].*)$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.heading.downstage"
+            },
+            "2": {
+              "name": "entity.name.section.downstage"
+            }
+          }
+        }
+      ]
+    },
+    "pagebreak": {
+      "patterns": [
+        {
+          "name": "meta.separator.pagebreak.downstage",
+          "match": "^===$"
+        }
+      ]
+    },
+    "stageDirections": {
+      "patterns": [
+        {
+          "name": "markup.quote.downstage",
+          "match": "^(>)(\\s*)(.*)$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.quote.downstage"
+            },
+            "3": {
+              "name": "string.unquoted.stage-direction.downstage"
+            }
+          }
+        }
+      ]
+    },
+    "songs": {
+      "patterns": [
+        {
+          "name": "keyword.control.song.downstage",
+          "match": "^(SONG)(?:\\s+([^:]+))?(?::\\s*(.*))?$",
+          "captures": {
+            "1": {
+              "name": "keyword.control.song.downstage"
+            },
+            "2": {
+              "name": "constant.numeric.song-number.downstage"
+            },
+            "3": {
+              "name": "string.unquoted.song-title.downstage"
+            }
+          }
+        },
+        {
+          "name": "keyword.control.song.downstage",
+          "match": "^(SONG END)\\s*$"
+        }
+      ]
+    },
+    "characterAlias": {
+      "patterns": [
+        {
+          "name": "meta.character-alias.downstage",
+          "match": "^(\\[)([A-Z][A-Z0-9' .\\-]*)(/)([A-Z0-9' .\\-]+)(\\])\\s*$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.character-alias.begin.downstage"
+            },
+            "2": {
+              "name": "entity.name.function.character.downstage"
+            },
+            "3": {
+              "name": "punctuation.separator.character-alias.downstage"
+            },
+            "4": {
+              "name": "variable.other.alias.downstage"
+            },
+            "5": {
+              "name": "punctuation.definition.character-alias.end.downstage"
+            }
+          }
+        }
+      ]
+    },
+    "characterCue": {
+      "patterns": [
+        {
+          "name": "meta.character-cue.downstage",
+          "match": "^(@)?([A-Z][A-Z0-9' .\\-/]*?)(\\s*)(\\^)?\\s*$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.character.forced.downstage"
+            },
+            "2": {
+              "name": "entity.name.function.character.downstage"
+            },
+            "4": {
+              "name": "keyword.operator.dual-dialogue.downstage"
+            }
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "patterns": [
+        {
+          "name": "meta.header.metadata.downstage",
+          "match": "^([A-Za-z][A-Za-z ]*)(:)(.*)$",
+          "captures": {
+            "1": {
+              "name": "keyword.other.metadata-key.downstage"
+            },
+            "2": {
+              "name": "punctuation.separator.key-value.downstage"
+            },
+            "3": {
+              "name": "string.unquoted.metadata-value.downstage"
+            }
+          }
+        }
+      ]
+    },
+    "parenthetical": {
+      "patterns": [
+        {
+          "name": "meta.parenthetical.downstage",
+          "match": "^(\\()([^\\n]+)(\\))\\s*$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.group.begin.downstage"
+            },
+            "2": {
+              "name": "string.unquoted.parenthetical.downstage"
+            },
+            "3": {
+              "name": "punctuation.definition.group.end.downstage"
+            }
+          }
+        }
+      ]
+    },
+    "inlineFormatting": {
+      "patterns": [
+        {
+          "name": "markup.bolditalic.downstage",
+          "match": "\\*\\*\\*[^*]+\\*\\*\\*"
+        },
+        {
+          "name": "markup.bold.downstage",
+          "match": "\\*\\*[^*]+\\*\\*"
+        },
+        {
+          "name": "markup.italic.downstage",
+          "match": "\\*[^*]+\\*"
+        },
+        {
+          "name": "markup.underline.downstage",
+          "match": "_[^_]+_"
+        },
+        {
+          "name": "markup.strikethrough.downstage",
+          "match": "~[^~]+~"
+        }
+      ]
+    }
+  }
+}
