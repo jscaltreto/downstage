@@ -140,15 +140,20 @@ Acts SHOULD be numbered with Roman numerals (`ACT I`, `ACT II`, ...). Unnumbered
 
 ### Scenes
 
-Scenes are defined with `###` (H3) headings, or `##` (H2) headings inside an act that are not act headings.
+A heading is recognised as a scene when any of the following apply:
+
+- The heading text is `SCENE`, starts with `SCENE `, or starts with `SCENE:` (case-insensitive) — at any heading level.
+- The heading is a `##` (H2) or `###` (H3) inside an act and does not match the act keyword pattern.
+
+Headings that do not match the `SCENE` keyword and appear **outside** an act are treated as generic sections, not scenes.
 
 ```
 ### SCENE 1
 ### SCENE 1: The Palace
-### A Forest
+## SCENE 2: The Garden
 ```
 
-When the text is `SCENE`, starts with `SCENE `, or starts with `SCENE:` (case-insensitive), the scene number is the text between `SCENE` and the first colon, and the scene title is the text after the colon. When it does not match that form, the entire text is the scene title.
+When the text matches the `SCENE` keyword form, the scene number is the text between `SCENE` and the first colon, and the scene title is the text after the colon. When a heading is implicitly treated as a scene (inside an act, without the keyword), the entire text is the scene title and the number is empty.
 Scenes SHOULD be numbered with Arabic numerals (`SCENE 1`, `SCENE 2`, ...). Unnumbered scenes remain valid for backward compatibility, but they are discouraged and may be flagged by tooling.
 
 ### Without Acts or Scenes

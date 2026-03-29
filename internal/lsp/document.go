@@ -9,9 +9,10 @@ import (
 )
 
 type documentState struct {
-	content string
-	doc     *ast.Document
-	errors  []*parser.ParseError
+	content     string
+	doc         *ast.Document
+	errors      []*parser.ParseError
+	diagnostics []protocol.Diagnostic
 }
 
 func newDocumentManager(p Parser) *documentManager {
@@ -30,33 +31,37 @@ type documentManager struct {
 // Open stores a newly opened document, parses it, and returns diagnostics.
 func (dm *documentManager) Open(uri protocol.DocumentURI, content string) []protocol.Diagnostic {
 	doc, errs := dm.parser.Parse([]byte(content))
+	diags := buildDiagnostics(doc, errs)
 	state := &documentState{
-		content: content,
-		doc:     doc,
-		errors:  errs,
+		content:     content,
+		doc:         doc,
+		errors:      errs,
+		diagnostics: diags,
 	}
 
 	dm.mu.Lock()
 	dm.docs[uri] = state
 	dm.mu.Unlock()
 
-	return buildDiagnostics(doc, errs)
+	return diags
 }
 
 // Change updates a document's content, re-parses, and returns diagnostics.
 func (dm *documentManager) Change(uri protocol.DocumentURI, content string) []protocol.Diagnostic {
 	doc, errs := dm.parser.Parse([]byte(content))
+	diags := buildDiagnostics(doc, errs)
 	state := &documentState{
-		content: content,
-		doc:     doc,
-		errors:  errs,
+		content:     content,
+		doc:         doc,
+		errors:      errs,
+		diagnostics: diags,
 	}
 
 	dm.mu.Lock()
 	dm.docs[uri] = state
 	dm.mu.Unlock()
 
-	return buildDiagnostics(doc, errs)
+	return diags
 }
 
 // Close removes a document from the store.

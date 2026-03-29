@@ -365,23 +365,6 @@ This is not a scene.`
 	}
 }
 
-func TestHeadingLevelThreeParsesAsSceneOutsideAct(t *testing.T) {
-	input := `### The Kitchen
-
-ALICE
-Hello.`
-
-	doc, errs := Parse([]byte(input))
-	require.Empty(t, errs)
-	require.Len(t, doc.Body, 1)
-
-	section, ok := doc.Body[0].(*ast.Section)
-	require.True(t, ok, "expected top-level section")
-	assert.Equal(t, ast.SectionScene, section.Kind)
-	assert.Equal(t, "The Kitchen", section.Title)
-	assert.Empty(t, section.Number)
-}
-
 func TestStandaloneStageDirection(t *testing.T) {
 	input := `# Play
 

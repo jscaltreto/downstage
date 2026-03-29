@@ -369,9 +369,6 @@ func inferSectionKind(title string, level int, insideAct bool) ast.SectionKind {
 	if isSectionKeyword(upper, "SCENE") {
 		return ast.SectionScene
 	}
-	if level == 3 {
-		return ast.SectionScene
-	}
 	if insideAct && level >= 2 {
 		return ast.SectionScene
 	}
