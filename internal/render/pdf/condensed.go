@@ -195,6 +195,7 @@ func (r *condensedRenderer) BeginSection(s *ast.Section) error {
 }
 
 func (r *condensedRenderer) EndSection(_ *ast.Section) error {
+	r.prevWasStageDirection = false
 	return nil
 }
 
@@ -456,6 +457,7 @@ func (r *condensedRenderer) EndDialogue(_ *ast.Dialogue) error {
 
 func (r *condensedRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 	if len(line.Content) == 0 {
+		r.firstLine = false
 		return nil
 	}
 	if r.firstLine {

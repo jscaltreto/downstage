@@ -320,11 +320,7 @@ func (r *pdfRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 	return nil
 }
 
-func (r *pdfRenderer) EndDialogueLine(line *ast.DialogueLine) error {
-	if len(line.Content) == 0 {
-		r.pdf.Ln(r.lineHeight)
-		return nil
-	}
+func (r *pdfRenderer) EndDialogueLine(_ *ast.DialogueLine) error {
 	r.pdf.Ln(r.lineHeight)
 	return nil
 }

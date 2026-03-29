@@ -767,6 +767,11 @@ loop:
 			blankRange := p.tokens[saved].Range
 			p.pos = saved
 			p.skipBlanks()
+			if len(dlg.Lines) >= maxDialogueLines {
+				p.addError("dialogue exceeds maximum line count", p.peek().Range)
+				p.skipDialogueContent()
+				goto done
+			}
 			dlg.Lines = append(dlg.Lines, ast.DialogueLine{Range: blankRange})
 		}
 
