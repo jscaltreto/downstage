@@ -641,12 +641,20 @@ body { overflow: hidden; }
 <script>
 	const preview = document.getElementById("preview");
 	let pendingLine = null;
+	let revealOnLoad = false;
 
-	function updatePreview(html) {
+	function updatePreview(html, line) {
+		if (typeof line === "number") {
+			pendingLine = line;
+		}
+		revealOnLoad = pendingLine !== null;
+		if (revealOnLoad) {
+			preview.style.visibility = "hidden";
+		}
 		preview.srcdoc = html;
 	}
 
-	function scrollPreviewToLine(line) {
+	function scrollPreviewToLine(line, behavior = "smooth") {
 		const doc = preview.contentDocument;
 		if (!doc) {
 			pendingLine = line;
@@ -664,7 +672,7 @@ body { overflow: hidden; }
 			}
 		}
 		if (target) {
-			target.scrollIntoView({ behavior: "smooth", block: "center" });
+			target.scrollIntoView({ behavior, block: "center" });
 		}
 	}
 
@@ -672,14 +680,18 @@ body { overflow: hidden; }
 		if (pendingLine !== null) {
 			const line = pendingLine;
 			pendingLine = null;
-			scrollPreviewToLine(line);
+			scrollPreviewToLine(line, "auto");
+		}
+		if (revealOnLoad) {
+			preview.style.visibility = "visible";
+			revealOnLoad = false;
 		}
 	});
 
 	window.addEventListener("message", (event) => {
 		const msg = event.data;
 		if (msg.type === "update") {
-			updatePreview(msg.html);
+			updatePreview(msg.html, msg.line);
 		}
 		if (msg.type === "scrollTo") {
 			pendingLine = msg.line;
@@ -774,13 +786,11 @@ async function renderToPreview(document: vscode.TextDocument, state: PreviewStat
 		if (code === 0) {
 			state.lastHtml = stdout;
 			renderDiagnostics?.delete(document.uri);
-			void state.panel.webview.postMessage({ type: "update", html: stdout }).then(() => {
-				const editor = vscode.window.activeTextEditor;
-				if (editor && editor.document.uri.toString() === document.uri.toString()) {
-					const line = editor.selection.active.line + 1;
-					void state.panel.webview.postMessage({ type: "scrollTo", line });
-				}
-			});
+			const editor = vscode.window.activeTextEditor;
+			const line = editor && editor.document.uri.toString() === document.uri.toString()
+				? editor.selection.active.line + 1
+				: undefined;
+			void state.panel.webview.postMessage({ type: "update", html: stdout, line });
 		} else {
 			if (stderr) {
 				renderDiagnostics?.set(
