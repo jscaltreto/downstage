@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 
@@ -56,8 +57,5 @@ func (s *stdioReadWriteCloser) Write(p []byte) (int, error) {
 }
 
 func (s *stdioReadWriteCloser) Close() error {
-	if err := os.Stdin.Close(); err != nil {
-		return err
-	}
-	return os.Stdout.Close()
+	return errors.Join(os.Stdin.Close(), os.Stdout.Close())
 }

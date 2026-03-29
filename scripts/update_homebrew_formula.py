@@ -5,9 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sys
 import urllib.request
 from pathlib import Path
+
+TAG_PATTERN = re.compile(r"^v\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$")
 
 
 REPO = "jscaltreto/downstage"
@@ -123,6 +126,8 @@ def main() -> None:
     output = os.environ.get("FORMULA_PATH")
     if not tag:
         fail("RELEASE_TAG is required")
+    if not TAG_PATTERN.match(tag):
+        fail(f"RELEASE_TAG has invalid format: {tag!r} (expected vMAJOR.MINOR.PATCH)")
     if not token:
         fail("GITHUB_TOKEN is required")
     if not output:

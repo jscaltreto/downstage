@@ -1,8 +1,9 @@
 package lsp
 
 import (
+	"cmp"
+	"slices"
 	"strings"
-	"unicode/utf16"
 
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/parser"
@@ -287,19 +288,24 @@ func deltaEncode(tokens []rawToken) []uint32 {
 	return data
 }
 
-// sortTokens sorts by line then column using insertion sort (stable, simple, fast for small N).
+// sortTokens sorts by line then column.
 func sortTokens(tokens []rawToken) {
-	for i := 1; i < len(tokens); i++ {
-		key := tokens[i]
-		j := i - 1
-		for j >= 0 && (tokens[j].line > key.line || (tokens[j].line == key.line && tokens[j].startChar > key.startChar)) {
-			tokens[j+1] = tokens[j]
-			j--
+	slices.SortFunc(tokens, func(a, b rawToken) int {
+		if c := cmp.Compare(a.line, b.line); c != 0 {
+			return c
 		}
-		tokens[j+1] = key
-	}
+		return cmp.Compare(a.startChar, b.startChar)
+	})
 }
 
 func utf16Len(s string) int {
-	return len(utf16.Encode([]rune(s)))
+	n := 0
+	for _, r := range s {
+		if r > 0xFFFF {
+			n += 2
+		} else {
+			n++
+		}
+	}
+	return n
 }

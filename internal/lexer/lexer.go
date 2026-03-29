@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"strings"
 	"unicode"
-	"unicode/utf16"
 
 	"github.com/jscaltreto/downstage/internal/token"
 )
@@ -281,5 +280,13 @@ func utf16Column(s string, byteOffset int) int {
 }
 
 func utf16Len(s string) int {
-	return len(utf16.Encode([]rune(s)))
+	n := 0
+	for _, r := range s {
+		if r > 0xFFFF {
+			n += 2
+		} else {
+			n++
+		}
+	}
+	return n
 }

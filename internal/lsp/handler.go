@@ -145,6 +145,7 @@ func (h *handler) handleDidClose(ctx context.Context, reply jsonrpc2.Replier, re
 func (h *handler) handleSemanticTokensFull(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 	var params protocol.SemanticTokensParams
 	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		h.logger.Error("failed to unmarshal semanticTokensFull params", slog.String("error", err.Error()))
 		return reply(ctx, nil, nil)
 	}
 
@@ -160,6 +161,7 @@ func (h *handler) handleSemanticTokensFull(ctx context.Context, reply jsonrpc2.R
 func (h *handler) handleDocumentSymbol(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 	var params protocol.DocumentSymbolParams
 	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		h.logger.Error("failed to unmarshal documentSymbol params", slog.String("error", err.Error()))
 		return reply(ctx, nil, nil)
 	}
 
@@ -175,6 +177,7 @@ func (h *handler) handleDocumentSymbol(ctx context.Context, reply jsonrpc2.Repli
 func (h *handler) handleHover(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 	var params protocol.HoverParams
 	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		h.logger.Error("failed to unmarshal hover params", slog.String("error", err.Error()))
 		return reply(ctx, nil, nil)
 	}
 
@@ -193,6 +196,7 @@ func (h *handler) handleHover(ctx context.Context, reply jsonrpc2.Replier, req j
 func (h *handler) handleDefinition(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 	var params protocol.DefinitionParams
 	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		h.logger.Error("failed to unmarshal definition params", slog.String("error", err.Error()))
 		return reply(ctx, nil, nil)
 	}
 
@@ -211,6 +215,7 @@ func (h *handler) handleDefinition(ctx context.Context, reply jsonrpc2.Replier, 
 func (h *handler) handleCompletion(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 	var params protocol.CompletionParams
 	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		h.logger.Error("failed to unmarshal completion params", slog.String("error", err.Error()))
 		return reply(ctx, emptyCompletionList(), nil)
 	}
 
@@ -226,6 +231,7 @@ func (h *handler) handleCompletion(ctx context.Context, reply jsonrpc2.Replier, 
 func (h *handler) handleCodeAction(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 	var params protocol.CodeActionParams
 	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		h.logger.Error("failed to unmarshal codeAction params", slog.String("error", err.Error()))
 		return reply(ctx, []protocol.CodeAction{}, nil)
 	}
 

@@ -105,10 +105,14 @@ func runRender(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("creating output file: %w", err)
 	}
-	defer f.Close()
 
 	if err := render.Walk(nr, doc, f); err != nil {
+		f.Close()
 		return fmt.Errorf("rendering: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("closing output file: %w", err)
 	}
 
 	slog.Info("rendered", "output", output, "format", renderFormat)

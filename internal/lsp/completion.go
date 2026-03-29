@@ -606,11 +606,22 @@ func isCharacterCueLine(doc *ast.Document, line int) bool {
 }
 
 func lineAt(content string, lineNum int) (string, bool) {
-	lines := strings.Split(content, "\n")
-	if lineNum < 0 || lineNum >= len(lines) {
+	if lineNum < 0 {
 		return "", false
 	}
-	return lines[lineNum], true
+	start := 0
+	for i := 0; i < lineNum; i++ {
+		idx := strings.IndexByte(content[start:], '\n')
+		if idx < 0 {
+			return "", false
+		}
+		start += idx + 1
+	}
+	end := strings.IndexByte(content[start:], '\n')
+	if end < 0 {
+		return content[start:], true
+	}
+	return content[start : start+end], true
 }
 
 func utf16Prefix(s string, count int) string {
