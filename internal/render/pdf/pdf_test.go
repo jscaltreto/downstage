@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/jscaltreto/downstage/internal/ast"
@@ -308,4 +309,42 @@ func TestRender_FullIntegration(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, buf.Len() > 500, "full integration PDF should have substantial content")
 	assert.Equal(t, "%PDF-", string(buf.Bytes()[:5]))
+}
+
+func TestBeginDualDialogueFallsBackToSequentialWhenTooTall(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	line := ast.DialogueLine{Content: []ast.Inline{&ast.TextNode{Value: strings.Repeat("word ", 40)}}}
+	lines := make([]ast.DialogueLine, 80)
+	for i := range lines {
+		lines[i] = line
+	}
+
+	dual := &ast.DualDialogue{
+		Left:  &ast.Dialogue{Character: "ALICE", Lines: lines},
+		Right: &ast.Dialogue{Character: "BOB", Lines: lines},
+	}
+
+	require.NoError(t, r.BeginDualDialogue(dual))
+	assert.False(t, r.inDualDialogue, "expected oversized dual dialogue to fall back to sequential rendering")
+}
+
+func TestBeginCondensedDualDialogueFallsBackToSequentialWhenTooTall(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	line := ast.DialogueLine{Content: []ast.Inline{&ast.TextNode{Value: strings.Repeat("word ", 30)}}}
+	lines := make([]ast.DialogueLine, 80)
+	for i := range lines {
+		lines[i] = line
+	}
+
+	dual := &ast.DualDialogue{
+		Left:  &ast.Dialogue{Character: "ALICE", Lines: lines},
+		Right: &ast.Dialogue{Character: "BOB", Lines: lines},
+	}
+
+	require.NoError(t, r.BeginDualDialogue(dual))
+	assert.False(t, r.inDualDialogue, "expected oversized dual dialogue to fall back to sequential rendering")
 }

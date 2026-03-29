@@ -79,6 +79,10 @@ func extractTokens(n ast.Node) []rawToken {
 			tokens = append(tokens, extractTokens(child)...)
 		}
 
+	case *ast.DualDialogue:
+		tokens = append(tokens, extractTokens(v.Left)...)
+		tokens = append(tokens, extractTokens(v.Right)...)
+
 	case *ast.Dialogue:
 		r := v.NameRange()
 		name := v.Character

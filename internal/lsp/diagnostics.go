@@ -71,6 +71,9 @@ func checkNodeCharacters(n ast.Node, known map[string]bool) []protocol.Diagnosti
 				Message:  "unknown character: " + v.Character,
 			})
 		}
+	case *ast.DualDialogue:
+		diags = append(diags, checkNodeCharacters(v.Left, known)...)
+		diags = append(diags, checkNodeCharacters(v.Right, known)...)
 	case *ast.Song:
 		// Songs may contain dialogue as content
 		for _, child := range v.Content {

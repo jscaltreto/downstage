@@ -103,3 +103,54 @@ func TestComputeDocumentSymbols_FlatDialogue(t *testing.T) {
 		t.Errorf("expected Function kind, got %v", symbols[0].Kind)
 	}
 }
+
+func TestComputeDocumentSymbols_DualDialogueInSection(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionScene,
+				Title: "Scene 1",
+				Children: []ast.Node{
+					&ast.DualDialogue{
+						Left: &ast.Dialogue{
+							Character: "ROMEO",
+							Range: token.Range{
+								Start: token.Position{Line: 3, Column: 0},
+								End:   token.Position{Line: 4, Column: 0},
+							},
+						},
+						Right: &ast.Dialogue{
+							Character: "JULIET",
+							Range: token.Range{
+								Start: token.Position{Line: 5, Column: 0},
+								End:   token.Position{Line: 6, Column: 0},
+							},
+						},
+						Range: token.Range{
+							Start: token.Position{Line: 3, Column: 0},
+							End:   token.Position{Line: 6, Column: 0},
+						},
+					},
+				},
+				Range: token.Range{
+					Start: token.Position{Line: 1, Column: 0},
+					End:   token.Position{Line: 8, Column: 0},
+				},
+			},
+		},
+	}
+
+	symbols := computeDocumentSymbols(doc, nil)
+	if len(symbols) != 1 {
+		t.Fatalf("expected 1 top-level symbol, got %d", len(symbols))
+	}
+	if len(symbols[0].Children) != 2 {
+		t.Fatalf("expected 2 child symbols, got %d", len(symbols[0].Children))
+	}
+	if symbols[0].Children[0].Name != "ROMEO" {
+		t.Fatalf("expected first child to be ROMEO, got %q", symbols[0].Children[0].Name)
+	}
+	if symbols[0].Children[1].Name != "JULIET" {
+		t.Fatalf("expected second child to be JULIET, got %q", symbols[0].Children[1].Name)
+	}
+}

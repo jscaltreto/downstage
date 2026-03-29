@@ -19,6 +19,9 @@ func computeDocumentSymbols(doc *ast.Document, _ []*parser.ParseError) []protoco
 		switch v := n.(type) {
 		case *ast.Section:
 			symbols = append(symbols, sectionSymbol(v))
+		case *ast.DualDialogue:
+			symbols = append(symbols, dialogueSymbol(v.Left))
+			symbols = append(symbols, dialogueSymbol(v.Right))
 		case *ast.Dialogue:
 			symbols = append(symbols, dialogueSymbol(v))
 		case *ast.Song:
@@ -60,6 +63,14 @@ func sectionSymbol(s *ast.Section) protocol.DocumentSymbol {
 			sym.Children = append(sym.Children, sectionSymbol(cv))
 		case *ast.Song:
 			sym.Children = append(sym.Children, songSymbol(cv))
+		case *ast.DualDialogue:
+			for _, dialogue := range []*ast.Dialogue{cv.Left, cv.Right} {
+				if dialogue == nil || seen[dialogue.Character] {
+					continue
+				}
+				seen[dialogue.Character] = true
+				sym.Children = append(sym.Children, characterSymbol(dialogue.Character, dialogue.NodeRange()))
+			}
 		default:
 			if charName := characterNameFromNode(child); charName != "" && !seen[charName] {
 				seen[charName] = true

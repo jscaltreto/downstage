@@ -259,11 +259,51 @@ func (r *condensedRenderer) beginScene(s *ast.Section) error {
 	return nil
 }
 
+// --- Dual Dialogue ---
+
+func (r *condensedRenderer) BeginDualDialogue(d *ast.DualDialogue) error {
+	r.dualSequential = false
+	r.dualMidY = 0
+	estimatedHeight := r.estimateDualDialogueHeight(d)
+	if estimatedHeight > r.usablePageHeight() {
+		return nil
+	}
+	if estimatedHeight > r.remainingPageHeight() {
+		r.pdf.AddPage()
+	}
+	r.inDualDialogue = true
+	r.dualSide = 0
+	r.dualStartY = r.pdf.GetY()
+	return nil
+}
+
+func (r *condensedRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
+	if !r.inDualDialogue {
+		r.dualSequential = false
+		return nil
+	}
+
+	endY := r.pdf.GetY()
+	if r.dualMidY > endY {
+		endY = r.dualMidY
+	}
+	r.pdf.SetY(endY)
+	r.pdf.SetLeftMargin(r.marginL)
+	r.pdf.SetRightMargin(r.marginR)
+	r.inDualDialogue = false
+	r.dualSequential = false
+	return nil
+}
+
 // --- Dialogue ---
 // Acting edition: "HAMLET. (aside) A piece of work is man."
 // Character name bold, parenthetical italic, dialogue regular — all on one line.
 
 func (r *condensedRenderer) BeginDialogue(d *ast.Dialogue) error {
+	if r.inDualDialogue {
+		return r.beginDualDialogueSide(d)
+	}
+
 	r.ensureSpace(r.lineHeight * 2)
 	r.pdf.Ln(r.lineHeight / 2)
 
@@ -292,7 +332,115 @@ func (r *condensedRenderer) BeginDialogue(d *ast.Dialogue) error {
 	return nil
 }
 
+func (r *condensedRenderer) beginDualDialogueSide(d *ast.Dialogue) error {
+	halfW := r.bodyW / 2
+	gap := 3.0 // mm gap between columns
+	colW := halfW - gap/2
+
+	var leftM, rightM float64
+	if r.dualSide == 0 {
+		leftM = r.marginL
+		rightM = r.pageW - r.marginL - colW
+		r.pdf.Ln(r.lineHeight / 2)
+	} else {
+		r.dualMidY = r.pdf.GetY()
+		r.pdf.SetY(r.dualStartY)
+		leftM = r.marginL + halfW + gap/2
+		rightM = r.marginR
+		r.pdf.Ln(r.lineHeight / 2)
+	}
+
+	r.pdf.SetLeftMargin(leftM)
+	r.pdf.SetRightMargin(rightM)
+
+	r.inDialogue = true
+	r.firstLine = true
+
+	// Character name — bold, inline
+	r.pdf.SetX(leftM)
+	r.setStyle("B")
+	r.pdf.Write(r.lineHeight, strings.ToUpper(d.Character)+".")
+	r.setStyle("")
+	r.pdf.Write(r.lineHeight, "  ")
+
+	// Parenthetical
+	if d.Parenthetical != "" {
+		r.setStyle("I")
+		paren := d.Parenthetical
+		if len(paren) == 0 || paren[0] != '(' {
+			paren = "(" + paren + ")"
+		}
+		r.pdf.Write(r.lineHeight, paren)
+		r.setStyle("")
+		r.pdf.Write(r.lineHeight, " ")
+	}
+
+	return nil
+}
+
+func (r *condensedRenderer) estimateDualDialogueHeight(d *ast.DualDialogue) float64 {
+	halfW := r.bodyW / 2
+	gap := 3.0
+	colW := halfW - gap/2
+
+	leftHeight := r.estimateDialogueHeight(d.Left, colW)
+	rightHeight := r.estimateDialogueHeight(d.Right, colW)
+	if rightHeight > leftHeight {
+		return rightHeight
+	}
+	return leftHeight
+}
+
+func (r *condensedRenderer) estimateDialogueHeight(d *ast.Dialogue, width float64) float64 {
+	if d == nil {
+		return 0
+	}
+
+	height := r.lineHeight / 2
+	firstLineWidth := width - r.pdf.GetStringWidth(strings.ToUpper(d.Character)+".  ")
+	if d.Parenthetical != "" {
+		paren := d.Parenthetical
+		if len(paren) == 0 || paren[0] != '(' {
+			paren = "(" + paren + ")"
+		}
+		firstLineWidth -= r.pdf.GetStringWidth(paren + " ")
+	}
+	if firstLineWidth < 10 {
+		firstLineWidth = 10
+	}
+
+	if len(d.Lines) == 0 {
+		return height + r.lineHeight
+	}
+
+	for i, line := range d.Lines {
+		lineWidth := width
+		if line.IsVerse {
+			lineWidth -= 10
+		}
+		if i == 0 {
+			lineWidth = firstLineWidth
+		}
+		if lineWidth < 10 {
+			lineWidth = 10
+		}
+
+		text := render.PlainText(line.Content)
+		wrapped := r.pdf.SplitText(text, lineWidth)
+		if len(wrapped) == 0 {
+			height += r.lineHeight
+			continue
+		}
+		height += float64(len(wrapped)) * r.lineHeight
+	}
+
+	return height
+}
+
 func (r *condensedRenderer) EndDialogue(_ *ast.Dialogue) error {
+	if r.inDualDialogue {
+		r.dualSide++
+	}
 	r.inDialogue = false
 	r.firstLine = false
 	return nil
@@ -306,11 +454,12 @@ func (r *condensedRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 			// Even verse on the first line starts inline
 		}
 	} else {
+		leftM, _, _, _ := r.pdf.GetMargins()
 		// Subsequent lines start at left margin
 		if line.IsVerse {
-			r.pdf.SetX(r.marginL + 10) // verse indent
+			r.pdf.SetX(leftM + 10) // verse indent
 		} else {
-			r.pdf.SetX(r.marginL)
+			r.pdf.SetX(leftM)
 		}
 	}
 	return nil

@@ -130,6 +130,24 @@ func TestForcedCharacter(t *testing.T) {
 	assert.Equal(t, "@narrator", tokens[2].Literal)
 }
 
+func TestDualDialogueChar(t *testing.T) {
+	input := "# Play\n\nSTEEL ^"
+	tokens := Lex([]byte(input))
+
+	require.True(t, len(tokens) >= 3)
+	assert.Equal(t, token.DualDialogueChar, tokens[2].Type)
+	assert.Equal(t, "STEEL", tokens[2].Literal)
+}
+
+func TestDualDialogueForcedChar(t *testing.T) {
+	input := "# Play\n\n@narrator ^"
+	tokens := Lex([]byte(input))
+
+	require.True(t, len(tokens) >= 3)
+	assert.Equal(t, token.DualDialogueChar, tokens[2].Type)
+	assert.Equal(t, "@narrator", tokens[2].Literal)
+}
+
 func TestCharacterAlias(t *testing.T) {
 	input := "# Play\n\n[JOHN/JACK]"
 	tokens := Lex([]byte(input))

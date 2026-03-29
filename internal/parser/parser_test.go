@@ -172,6 +172,144 @@ Once upon a time.`
 	assert.Equal(t, "narrator", dlg.Character)
 }
 
+func TestDualDialogue(t *testing.T) {
+	input := `BRICK
+Screw retirement.
+
+STEEL ^
+Screw retirement.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	dual, ok := doc.Body[0].(*ast.DualDialogue)
+	require.True(t, ok, "expected DualDialogue node")
+	assert.Equal(t, "BRICK", dual.Left.Character)
+	assert.Equal(t, "STEEL", dual.Right.Character)
+	assert.Len(t, dual.Left.Lines, 1)
+	assert.Len(t, dual.Right.Lines, 1)
+}
+
+func TestDualDialogueWithParenthetical(t *testing.T) {
+	input := `BRICK
+(angry)
+Screw retirement.
+
+STEEL ^
+(calmly)
+Screw retirement.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	dual, ok := doc.Body[0].(*ast.DualDialogue)
+	require.True(t, ok, "expected DualDialogue node")
+	assert.Equal(t, "(angry)", dual.Left.Parenthetical)
+	assert.Equal(t, "(calmly)", dual.Right.Parenthetical)
+}
+
+func TestDualDialogueForcedCharacter(t *testing.T) {
+	input := `BRICK
+Hello.
+
+@narrator ^
+Hello.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	dual, ok := doc.Body[0].(*ast.DualDialogue)
+	require.True(t, ok, "expected DualDialogue node")
+	assert.Equal(t, "BRICK", dual.Left.Character)
+	assert.Equal(t, "narrator", dual.Right.Character)
+}
+
+func TestDualDialogueInScene(t *testing.T) {
+	input := `## ACT I
+
+### SCENE 1
+
+BRICK
+Hello.
+
+STEEL ^
+Hello.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	// Navigate into act > scene > children
+	act, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.NotEmpty(t, act.Children)
+
+	scene, ok := act.Children[0].(*ast.Section)
+	require.True(t, ok)
+	require.Len(t, scene.Children, 1)
+
+	dual, ok := scene.Children[0].(*ast.DualDialogue)
+	require.True(t, ok, "expected DualDialogue node in scene")
+	assert.Equal(t, "BRICK", dual.Left.Character)
+	assert.Equal(t, "STEEL", dual.Right.Character)
+}
+
+func TestDualDialogueWithoutPreviousDialogueBecomesStandalone(t *testing.T) {
+	input := `# Play
+
+## SCENE 1
+
+> Thunder.
+
+STEEL ^
+Hello.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	section, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.Len(t, section.Children, 1)
+
+	scene, ok := section.Children[0].(*ast.Section)
+	require.True(t, ok)
+	require.Len(t, scene.Children, 2)
+
+	_, ok = scene.Children[0].(*ast.StageDirection)
+	require.True(t, ok)
+
+	dialogue, ok := scene.Children[1].(*ast.Dialogue)
+	require.True(t, ok, "expected standalone dialogue when no preceding dialogue exists")
+	assert.Equal(t, "STEEL", dialogue.Character)
+}
+
+func TestDualDialogueDoesNotPairAcrossGenericSectionProse(t *testing.T) {
+	input := `# Notes
+BRICK
+Hello.
+
+This line stays prose.
+
+STEEL ^
+Hello.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	section, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.Len(t, section.Children, 2)
+
+	_, ok = section.Children[0].(*ast.Dialogue)
+	require.True(t, ok)
+	_, ok = section.Children[1].(*ast.Dialogue)
+	require.True(t, ok, "expected second dialogue to remain standalone")
+}
+
 func TestInlineCharacterAlias(t *testing.T) {
 	input := `# Dramatis Personae
 JAMES/JIM — Her estranged son

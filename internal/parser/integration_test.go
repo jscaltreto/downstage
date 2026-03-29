@@ -268,6 +268,35 @@ func TestIntegrationDialogueVarieties(t *testing.T) {
 	assert.True(t, hasVerse, "expected verse lines in dialogue varieties")
 }
 
+// --- dual_dialogue.ds ---
+
+func TestIntegrationDualDialogue(t *testing.T) {
+	doc, errs := parser.Parse(readTestdata(t, "dual_dialogue.ds"))
+	assert.Empty(t, errs)
+
+	duals := collectTyped[*ast.DualDialogue](t, doc)
+	assert.Len(t, duals, 2, "expected 2 dual dialogue blocks")
+
+	// First dual dialogue
+	assert.Equal(t, "BRICK", duals[0].Left.Character)
+	assert.Equal(t, "STEEL", duals[0].Right.Character)
+
+	// Second dual dialogue has parentheticals
+	assert.Equal(t, "(frustrated)", duals[1].Left.Parenthetical)
+	assert.Equal(t, "(calmly)", duals[1].Right.Parenthetical)
+
+	// Scene 3 has a ^ without preceding dialogue — should be a regular dialogue
+	// (CHORUS ^ has no preceding dialogue in that scene context)
+	dialogues := collectTyped[*ast.Dialogue](t, doc)
+	var chorusFound bool
+	for _, dlg := range dialogues {
+		if dlg.Character == "CHORUS" {
+			chorusFound = true
+		}
+	}
+	assert.True(t, chorusFound, "expected CHORUS as standalone dialogue (no preceding dialogue to pair)")
+}
+
 // --- formatting.ds ---
 
 func TestIntegrationFormatting(t *testing.T) {

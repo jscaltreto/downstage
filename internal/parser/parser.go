@@ -20,9 +20,10 @@ func Parse(input []byte) (*ast.Document, []*ParseError) {
 }
 
 type parser struct {
-	tokens []token.Token
-	pos    int
-	errors []*ParseError
+	tokens      []token.Token
+	pos         int
+	errors      []*ParseError
+	pendingDual bool // set when the last parsed element was a DualDialogueChar dialogue
 }
 
 func (p *parser) peek() token.Token {
@@ -160,10 +161,79 @@ func (p *parser) parseBody() []ast.Node {
 		node := p.parseBodyElement()
 		if node != nil {
 			nodes = append(nodes, node)
+			nodes = p.makeDualDialogue(nodes)
 		}
 	}
 
 	return nodes
+}
+
+// makeDualDialogue checks if the parser just produced a dual-dialogue right-side
+// dialogue. If so, it pairs the last two nodes in the slice into a DualDialogue.
+// Returns the updated slice.
+func (p *parser) makeDualDialogue(nodes []ast.Node) []ast.Node {
+	if !p.pendingDual {
+		return nodes
+	}
+	p.pendingDual = false
+
+	n := len(nodes)
+	if n < 2 {
+		return nodes
+	}
+
+	right, ok := nodes[n-1].(*ast.Dialogue)
+	if !ok {
+		return nodes
+	}
+	left, ok := nodes[n-2].(*ast.Dialogue)
+	if !ok {
+		return nodes
+	}
+
+	dual := &ast.DualDialogue{
+		Left:  left,
+		Right: right,
+		Range: token.Range{
+			Start: left.Range.Start,
+			End:   right.Range.End,
+		},
+	}
+	nodes[n-2] = dual
+	return nodes[:n-1]
+}
+
+// maybeDualDialogueSection wraps the last two children of a Section into a
+// DualDialogue if the parser just processed a DualDialogueChar token.
+func (p *parser) maybeDualDialogueSection(section *ast.Section) {
+	if !p.pendingDual {
+		return
+	}
+	p.pendingDual = false
+
+	n := len(section.Children)
+	if n < 2 {
+		return
+	}
+
+	right, ok := section.Children[n-1].(*ast.Dialogue)
+	if !ok {
+		return
+	}
+	left, ok := section.Children[n-2].(*ast.Dialogue)
+	if !ok {
+		return
+	}
+
+	dual := &ast.DualDialogue{
+		Left:  left,
+		Right: right,
+		Range: token.Range{
+			Start: left.Range.Start,
+			End:   right.Range.End,
+		},
+	}
+	section.WrapLastTwoChildren(dual)
 }
 
 func (p *parser) parseBodyElement() ast.Node {
@@ -178,6 +248,11 @@ func (p *parser) parseBodyElement() ast.Node {
 		return p.parseSection(3)
 
 	case token.CharacterName, token.ForcedCharacter:
+		p.pendingDual = false
+		return p.parseDialogue()
+
+	case token.DualDialogueChar:
+		p.pendingDual = true
 		return p.parseDialogue()
 
 	case token.StageDirection:
@@ -505,6 +580,7 @@ func (p *parser) parseActContent(section *ast.Section) {
 		elem := p.parseBodyElement()
 		if elem != nil {
 			section.AppendChild(elem)
+			p.maybeDualDialogueSection(section)
 		}
 	}
 }
@@ -528,6 +604,7 @@ func (p *parser) parseSceneContent(section *ast.Section, level int) {
 		elem := p.parseBodyElement()
 		if elem != nil {
 			section.AppendChild(elem)
+			p.maybeDualDialogueSection(section)
 		}
 	}
 }
@@ -569,12 +646,13 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 		}
 
 		// Structural content goes into Children
-		if p.atAny(token.CharacterName, token.ForcedCharacter, token.StageDirection,
-			token.SongStart, token.Verse, token.PageBreak, token.ForcedHeading,
-			token.Text, token.CharacterAlias) {
+		if p.atAny(token.CharacterName, token.ForcedCharacter, token.DualDialogueChar,
+			token.StageDirection, token.SongStart, token.Verse, token.PageBreak,
+			token.ForcedHeading, token.Text, token.CharacterAlias) {
 			elem := p.parseBodyElement()
 			if elem != nil {
 				section.AppendChild(elem)
+				p.maybeDualDialogueSection(section)
 			}
 			continue
 		}
@@ -636,8 +714,9 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 	}
 	dlg.SetNameRange(nameTok.Range)
 
-	// Strip @ prefix for forced characters
-	if nameTok.Type == token.ForcedCharacter {
+	// Strip @ prefix for forced characters (including dual dialogue forced characters)
+	if nameTok.Type == token.ForcedCharacter ||
+		(nameTok.Type == token.DualDialogueChar && strings.HasPrefix(nameTok.Literal, "@")) {
 		dlg.Character = strings.TrimPrefix(nameTok.Literal, "@")
 		dlg.SetNameRange(shiftRangeStart(nameTok.Range, 1, 1))
 	}
@@ -657,9 +736,9 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 			// Peek ahead: if next non-blank is another character or structural, stop
 			saved := p.pos
 			p.skipBlanks()
-			if p.atAny(token.CharacterName, token.ForcedCharacter, token.HeadingH1,
-				token.HeadingH2, token.HeadingH3, token.SongStart, token.SongEnd,
-				token.PageBreak, token.EOF, token.StageDirection) {
+			if p.atAny(token.CharacterName, token.ForcedCharacter, token.DualDialogueChar,
+				token.HeadingH1, token.HeadingH2, token.HeadingH3, token.SongStart,
+				token.SongEnd, token.PageBreak, token.EOF, token.StageDirection) {
 				p.pos = saved // restore; let caller handle the blank
 				break
 			}
@@ -768,6 +847,7 @@ func (p *parser) parseSong() *ast.Song {
 		elem := p.parseBodyElement()
 		if elem != nil {
 			song.Content = append(song.Content, elem)
+			song.Content = p.makeDualDialogue(song.Content)
 		}
 	}
 

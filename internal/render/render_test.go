@@ -14,6 +14,8 @@ type recordingRenderer struct {
 func (r *recordingRenderer) BeginDocument(_ *ast.Document, _ io.Writer) error { return nil }
 func (r *recordingRenderer) EndDocument(_ *ast.Document) error                { return nil }
 func (r *recordingRenderer) RenderTitlePage(_ *ast.TitlePage) error           { return nil }
+func (r *recordingRenderer) BeginDualDialogue(_ *ast.DualDialogue) error      { return nil }
+func (r *recordingRenderer) EndDualDialogue(_ *ast.DualDialogue) error        { return nil }
 func (r *recordingRenderer) BeginSong(_ *ast.Song) error                      { return nil }
 func (r *recordingRenderer) EndSong(_ *ast.Song) error                        { return nil }
 func (r *recordingRenderer) BeginDialogue(d *ast.Dialogue) error {

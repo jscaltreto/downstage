@@ -54,6 +54,12 @@ how *infinite* in faculty.
   and admirable; in action, how like
   an angel.
 
+HORATIO
+They're here.
+
+HAMLET ^
+Then let them come.
+
 // A line comment
 
 > Enter GHOST
@@ -80,6 +86,7 @@ SONG END
 - Readable plaintext format — scripts look natural without markup noise
 - Inline formatting: `*italic*`, `**bold**`, `***bold italic***`, `_underline_`, `~strikethrough~`
 - Verse support via indentation (2+ spaces)
+- Dual dialogue with trailing `^` on the second cue
 - Songs with `SONG`/`SONG END` blocks
 - Comments: `// line` and `/* block */`
 - Forced elements: `@character` and `.heading` for edge cases
@@ -185,6 +192,22 @@ A Downstage document has three sections:
 1. **Title Page** — optional `Key: Value` metadata lines at the start of the document, with indented continuation lines allowed
 2. **Dramatis Personae** — A `# Dramatis Personae`, `# Cast of Characters`, or `# Characters` heading followed by character names and descriptions, optionally organized into groups with `##` subheadings.
 3. **Body** — The play itself: acts (`## ACT`), scenes (`### SCENE`), dialogue (ALL CAPS character name followed by speech text), stage directions (`>` prefixed lines), verse (indented 2+ spaces), songs, and comments.
+
+### Dual Dialogue
+
+To mark simultaneous dialogue, put `^` at the end of the second character cue.
+
+```text
+HORATIO
+They're here.
+
+HAMLET ^
+Then let them come.
+```
+
+The renderer places the two dialogue blocks side by side when they fit on the page.
+If they do not fit cleanly, rendering falls back to sequential dialogue instead of
+producing broken columns.
 
 See [SPEC.md](SPEC.md) for the complete language specification.
 

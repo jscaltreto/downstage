@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jscaltreto/downstage/internal/ast"
+	"github.com/jscaltreto/downstage/internal/parser"
 	"github.com/jscaltreto/downstage/internal/token"
 )
 
@@ -114,5 +115,29 @@ func TestComputeSemanticTokens_UsesUTF16Columns(t *testing.T) {
 	expected := []uint32{3, 0, 3, tokenTypeType, 0}
 	if !reflect.DeepEqual(tokens, expected) {
 		t.Errorf("expected %v, got %v", expected, tokens)
+	}
+}
+
+func TestExtractTokens_DualDialogueExcludesCaret(t *testing.T) {
+	doc, errs := parser.Parse([]byte(`HAMLET
+Hello.
+
+OPHELIA ^
+Hi.`))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	dual, ok := doc.Body[0].(*ast.DualDialogue)
+	if !ok {
+		t.Fatalf("expected dual dialogue, got %T", doc.Body[0])
+	}
+
+	tokens := extractTokens(dual.Right)
+	if len(tokens) != 1 {
+		t.Fatalf("expected one semantic token, got %d", len(tokens))
+	}
+	if tokens[0].length != len("OPHELIA") {
+		t.Fatalf("expected token length %d, got %d", len("OPHELIA"), tokens[0].length)
 	}
 }
