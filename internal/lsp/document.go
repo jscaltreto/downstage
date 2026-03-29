@@ -1,12 +1,16 @@
 package lsp
 
 import (
+	"fmt"
+	"net/url"
 	"sync"
 
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/parser"
 	"go.lsp.dev/protocol"
 )
+
+const maxDocumentBytes = 1 << 20
 
 type documentState struct {
 	content     string
@@ -31,6 +35,11 @@ type documentManager struct {
 
 // Open stores a newly opened document, parses it, and returns diagnostics.
 func (dm *documentManager) Open(uri protocol.DocumentURI, content string) []protocol.Diagnostic {
+	if diags, ok := validateDocumentInput(uri, content); !ok {
+		dm.storeValidationFailure(uri, content, diags)
+		return diags
+	}
+
 	doc, errs := dm.parser.Parse([]byte(content))
 	index := newDocumentIndex(doc)
 	diags := buildDiagnosticsWithIndex(doc, errs, index)
@@ -51,6 +60,11 @@ func (dm *documentManager) Open(uri protocol.DocumentURI, content string) []prot
 
 // Change updates a document's content, re-parses, and returns diagnostics.
 func (dm *documentManager) Change(uri protocol.DocumentURI, content string) []protocol.Diagnostic {
+	if diags, ok := validateDocumentInput(uri, content); !ok {
+		dm.storeValidationFailure(uri, content, diags)
+		return diags
+	}
+
 	doc, errs := dm.parser.Parse([]byte(content))
 	index := newDocumentIndex(doc)
 	diags := buildDiagnosticsWithIndex(doc, errs, index)
@@ -81,4 +95,57 @@ func (dm *documentManager) Get(uri protocol.DocumentURI) *documentState {
 	dm.mu.RLock()
 	defer dm.mu.RUnlock()
 	return dm.docs[uri]
+}
+
+func (dm *documentManager) storeValidationFailure(
+	uri protocol.DocumentURI,
+	content string,
+	diags []protocol.Diagnostic,
+) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	if !isValidDocumentURI(uri) {
+		delete(dm.docs, uri)
+		return
+	}
+
+	dm.docs[uri] = &documentState{
+		content:     content,
+		doc:         nil,
+		errors:      nil,
+		diagnostics: diags,
+	}
+}
+
+func validateDocumentInput(uri protocol.DocumentURI, content string) ([]protocol.Diagnostic, bool) {
+	if !isValidDocumentURI(uri) {
+		return []protocol.Diagnostic{newValidationDiagnostic("document URI must use the file:// scheme")}, false
+	}
+	if len(content) > maxDocumentBytes {
+		return []protocol.Diagnostic{newValidationDiagnostic(
+			fmt.Sprintf("document exceeds maximum size of %d bytes", maxDocumentBytes),
+		)}, false
+	}
+	return nil, true
+}
+
+func isValidDocumentURI(uri protocol.DocumentURI) bool {
+	parsed, err := url.Parse(string(uri))
+	if err != nil {
+		return false
+	}
+	return parsed.Scheme == "file" && parsed.Path != ""
+}
+
+func newValidationDiagnostic(message string) protocol.Diagnostic {
+	return protocol.Diagnostic{
+		Range: protocol.Range{
+			Start: protocol.Position{Line: 0, Character: 0},
+			End:   protocol.Position{Line: 0, Character: 0},
+		},
+		Severity: protocol.DiagnosticSeverityError,
+		Source:   "downstage-lsp",
+		Message:  message,
+	}
 }

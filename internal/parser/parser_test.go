@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jscaltreto/downstage/internal/ast"
@@ -666,6 +667,58 @@ HAMLET
 	require.True(t, ok)
 	assert.Equal(t, 2, italic.Range.Start.Column)
 	assert.Equal(t, 9, italic.Range.End.Column)
+}
+
+func TestParseTitlePageEntryLimit(t *testing.T) {
+	var builder strings.Builder
+	for i := range maxTitlePageEntries + 1 {
+		builder.WriteString("Key")
+		builder.WriteString(strings.Repeat("A", i%5))
+		builder.WriteString(": Value\n")
+	}
+
+	doc, errs := Parse([]byte(builder.String()))
+
+	require.NotNil(t, doc)
+	require.NotNil(t, doc.TitlePage)
+	require.Len(t, doc.TitlePage.Entries, maxTitlePageEntries)
+	require.NotEmpty(t, errs)
+	assert.Equal(t, "title page exceeds maximum entry count", errs[0].Message)
+}
+
+func TestParseDialogueLineLimit(t *testing.T) {
+	var builder strings.Builder
+	builder.WriteString("HAMLET\n")
+	for range maxDialogueLines + 1 {
+		builder.WriteString("Line\n")
+	}
+
+	doc, errs := Parse([]byte(builder.String()))
+
+	require.NotNil(t, doc)
+	require.NotEmpty(t, errs)
+	assert.Equal(t, "dialogue exceeds maximum line count", errs[0].Message)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	assert.Len(t, dlg.Lines, maxDialogueLines)
+}
+
+func TestInlineDelimiterLookaheadLimitTreatsMarkerAsText(t *testing.T) {
+	input := "# Play\n\nHAMLET\n*" + strings.Repeat("a", maxInlineDelimiterLookahead+1) + "*"
+
+	doc, errs := Parse([]byte(input))
+
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	require.Len(t, dlg.Lines, 1)
+
+	_, ok := dlg.Lines[0].Content[0].(*ast.TextNode)
+	require.True(t, ok, "expected unmatched marker to remain plain text")
 }
 
 // Golden file tests
