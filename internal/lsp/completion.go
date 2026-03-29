@@ -11,8 +11,15 @@ import (
 )
 
 func computeCompletion(doc *ast.Document, _ []*parser.ParseError, content string, pos protocol.Position) *protocol.CompletionList {
+	return computeCompletionWithIndex(doc, newDocumentIndex(doc), content, pos)
+}
+
+func computeCompletionWithIndex(doc *ast.Document, index *documentIndex, content string, pos protocol.Position) *protocol.CompletionList {
 	if doc == nil {
 		return emptyCompletionList()
+	}
+	if index == nil {
+		index = newDocumentIndex(doc)
 	}
 
 	ctx, ok := completionContextAt(content, pos)
@@ -20,7 +27,7 @@ func computeCompletion(doc *ast.Document, _ []*parser.ParseError, content string
 		return emptyCompletionList()
 	}
 
-	items := completionItems(doc, content, int(pos.Line), pos, ctx)
+	items := completionItems(doc, index, content, int(pos.Line), pos, ctx)
 	if len(items) == 0 {
 		return emptyCompletionList()
 	}
@@ -107,19 +114,19 @@ func completionContextAt(content string, pos protocol.Position) (completionConte
 	}, true
 }
 
-func completionItems(doc *ast.Document, content string, line int, pos protocol.Position, ctx completionContext) []protocol.CompletionItem {
+func completionItems(doc *ast.Document, index *documentIndex, content string, line int, pos protocol.Position, ctx completionContext) []protocol.CompletionItem {
 	switch ctx.kind {
 	case completionKindHeading:
-		return headingCompletionItems(doc, line, pos, ctx)
+		return headingCompletionItems(doc, index, line, pos, ctx)
 	case completionKindCharacter:
-		return characterCompletionItems(doc, content, line, pos, ctx)
+		return characterCompletionItems(doc, index, content, line, pos, ctx)
 	default:
 		return nil
 	}
 }
 
-func characterCompletionItems(doc *ast.Document, content string, line int, pos protocol.Position, ctx completionContext) []protocol.CompletionItem {
-	names := characterCompletionCandidates(doc, content, line)
+func characterCompletionItems(doc *ast.Document, index *documentIndex, content string, line int, pos protocol.Position, ctx completionContext) []protocol.CompletionItem {
+	names := characterCompletionCandidates(doc, index, content, line)
 	if len(names) == 0 {
 		return nil
 	}
@@ -157,8 +164,8 @@ func characterCompletionItems(doc *ast.Document, content string, line int, pos p
 	return items
 }
 
-func headingCompletionItems(doc *ast.Document, line int, pos protocol.Position, ctx completionContext) []protocol.CompletionItem {
-	labels := headingCompletionCandidates(doc, line, ctx.headingLevel)
+func headingCompletionItems(doc *ast.Document, index *documentIndex, line int, pos protocol.Position, ctx completionContext) []protocol.CompletionItem {
+	labels := headingCompletionCandidates(doc, index, line, ctx.headingLevel)
 	if len(labels) == 0 {
 		return nil
 	}
@@ -225,43 +232,43 @@ func headingCompletionContext(line string, cursor int) (completionContext, bool)
 	return completionContext{}, false
 }
 
-func characterCompletionCandidates(doc *ast.Document, content string, line int) []string {
-	if names, ok := sceneCompletionCandidates(doc, content, line); ok {
+func characterCompletionCandidates(doc *ast.Document, index *documentIndex, content string, line int) []string {
+	if names, ok := sceneCompletionCandidates(doc, index, content, line); ok {
 		return names
 	}
-	if !isCharacterCueLine(doc, line) {
+	if !index.isCharacterCueLine(line) {
 		return nil
 	}
-	return documentCharacterNames(doc)
+	return index.documentCharacterNames
 }
 
-func headingCompletionCandidates(doc *ast.Document, line, level int) []string {
+func headingCompletionCandidates(doc *ast.Document, index *documentIndex, line, level int) []string {
 	switch level {
 	case 1:
-		if ast.FindDramatisPersonae(doc.Body) != nil {
+		if index.hasDramatisPersonae {
 			return nil
 		}
 		return []string{"Dramatis Personae"}
 	case 2:
-		return []string{nextActHeading(doc, line)}
+		return []string{nextActHeading(index, line)}
 	case 3:
-		return []string{nextSceneHeading(doc, line)}
+		return []string{nextSceneHeading(index, line)}
 	default:
 		return nil
 	}
 }
 
-func sceneCompletionCandidates(doc *ast.Document, content string, line int) ([]string, bool) {
+func sceneCompletionCandidates(doc *ast.Document, index *documentIndex, content string, line int) ([]string, bool) {
 	if !followsBlankLine(content, line) {
 		return nil, false
 	}
 
-	scene := findSceneForLine(doc.Body, line)
+	scene := index.sceneForLine(line)
 	if scene == nil {
 		return nil, false
 	}
 
-	speakers := sceneSpeakersBeforeLine(scene, line)
+	speakers := index.sceneSpeakersBeforeLine(scene, line)
 	ranked := rankRecentSpeakers(speakers)
 	return appendRemainingDPNames(doc, ranked), true
 }
@@ -330,78 +337,6 @@ func followsBlankLine(content string, line int) bool {
 	return strings.TrimSpace(prevLine) == ""
 }
 
-func findSceneForLine(nodes []ast.Node, line int) *ast.Section {
-	scenes := collectScenes(nodes)
-	var current *ast.Section
-	for _, scene := range scenes {
-		if scene.Range.Start.Line <= line {
-			current = scene
-			continue
-		}
-		break
-	}
-	return current
-}
-
-func collectScenes(nodes []ast.Node) []*ast.Section {
-	var scenes []*ast.Section
-	for _, node := range nodes {
-		scenes = append(scenes, collectScenesInNode(node)...)
-	}
-	return scenes
-}
-
-func collectScenesInNode(node ast.Node) []*ast.Section {
-	var scenes []*ast.Section
-
-	switch v := node.(type) {
-	case *ast.Section:
-		if v.Kind == ast.SectionScene {
-			scenes = append(scenes, v)
-		}
-		for _, child := range v.Children {
-			scenes = append(scenes, collectScenesInNode(child)...)
-		}
-	case *ast.Song:
-		for _, child := range v.Content {
-			scenes = append(scenes, collectScenesInNode(child)...)
-		}
-	}
-
-	return scenes
-}
-
-func sceneSpeakersBeforeLine(scene *ast.Section, line int) []string {
-	var speakers []string
-
-	var walkNode func(ast.Node)
-	walkNode = func(node ast.Node) {
-		switch v := node.(type) {
-		case *ast.Dialogue:
-			if len(v.Lines) > 0 && v.NameRange().Start.Line < line {
-				speakers = append(speakers, v.Character)
-			}
-		case *ast.DualDialogue:
-			walkNode(v.Left)
-			walkNode(v.Right)
-		case *ast.Section:
-			for _, child := range v.Children {
-				walkNode(child)
-			}
-		case *ast.Song:
-			for _, child := range v.Content {
-				walkNode(child)
-			}
-		}
-	}
-
-	for _, child := range scene.Children {
-		walkNode(child)
-	}
-
-	return speakers
-}
-
 func rankRecentSpeakers(speakers []string) []string {
 	if len(speakers) == 0 {
 		return nil
@@ -457,9 +392,9 @@ func appendRemainingDPNames(doc *ast.Document, names []string) []string {
 	return names
 }
 
-func nextActHeading(doc *ast.Document, line int) string {
+func nextActHeading(index *documentIndex, line int) string {
 	count := 0
-	for _, act := range collectSectionsOfKind(doc.Body, ast.SectionAct) {
+	for _, act := range index.acts {
 		if act.Range.Start.Line < line {
 			count++
 		}
@@ -467,8 +402,8 @@ func nextActHeading(doc *ast.Document, line int) string {
 	return "ACT " + romanNumeral(count+1)
 }
 
-func nextSceneHeading(doc *ast.Document, line int) string {
-	if act := findActForLine(doc.Body, line); act != nil {
+func nextSceneHeading(index *documentIndex, line int) string {
+	if act := index.actForLine(line); act != nil {
 		count := 0
 		for _, child := range act.Children {
 			section, ok := child.(*ast.Section)
@@ -483,53 +418,12 @@ func nextSceneHeading(doc *ast.Document, line int) string {
 	}
 
 	count := 0
-	for _, scene := range collectSectionsOfKind(doc.Body, ast.SectionScene) {
+	for _, scene := range index.scenes {
 		if scene.Range.Start.Line < line {
 			count++
 		}
 	}
 	return fmt.Sprintf("SCENE %d", count+1)
-}
-
-func findActForLine(nodes []ast.Node, line int) *ast.Section {
-	acts := collectSectionsOfKind(nodes, ast.SectionAct)
-	var current *ast.Section
-	for _, act := range acts {
-		if act.Range.Start.Line <= line {
-			current = act
-			continue
-		}
-		break
-	}
-	return current
-}
-
-func collectSectionsOfKind(nodes []ast.Node, kind ast.SectionKind) []*ast.Section {
-	var sections []*ast.Section
-	for _, node := range nodes {
-		sections = append(sections, collectSectionsOfKindInNode(node, kind)...)
-	}
-	return sections
-}
-
-func collectSectionsOfKindInNode(node ast.Node, kind ast.SectionKind) []*ast.Section {
-	var sections []*ast.Section
-
-	switch v := node.(type) {
-	case *ast.Section:
-		if v.Kind == kind {
-			sections = append(sections, v)
-		}
-		for _, child := range v.Children {
-			sections = append(sections, collectSectionsOfKindInNode(child, kind)...)
-		}
-	case *ast.Song:
-		for _, child := range v.Content {
-			sections = append(sections, collectSectionsOfKindInNode(child, kind)...)
-		}
-	}
-
-	return sections
 }
 
 func romanNumeral(n int) string {
@@ -565,44 +459,6 @@ func romanNumeral(n int) string {
 	}
 
 	return b.String()
-}
-
-func isCharacterCueLine(doc *ast.Document, line int) bool {
-	var found bool
-
-	var walkNode func(ast.Node)
-	walkNode = func(n ast.Node) {
-		if found {
-			return
-		}
-
-		switch v := n.(type) {
-		case *ast.Dialogue:
-			if v.NameRange().Start.Line == line {
-				found = true
-			}
-		case *ast.DualDialogue:
-			walkNode(v.Left)
-			walkNode(v.Right)
-		case *ast.Section:
-			for _, child := range v.Children {
-				walkNode(child)
-			}
-		case *ast.Song:
-			for _, child := range v.Content {
-				walkNode(child)
-			}
-		}
-	}
-
-	for _, node := range doc.Body {
-		walkNode(node)
-		if found {
-			return true
-		}
-	}
-
-	return false
 }
 
 func lineAt(content string, lineNum int) (string, bool) {

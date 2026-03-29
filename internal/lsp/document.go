@@ -11,6 +11,7 @@ import (
 type documentState struct {
 	content     string
 	doc         *ast.Document
+	index       *documentIndex
 	errors      []*parser.ParseError
 	diagnostics []protocol.Diagnostic
 }
@@ -31,10 +32,12 @@ type documentManager struct {
 // Open stores a newly opened document, parses it, and returns diagnostics.
 func (dm *documentManager) Open(uri protocol.DocumentURI, content string) []protocol.Diagnostic {
 	doc, errs := dm.parser.Parse([]byte(content))
-	diags := buildDiagnostics(doc, errs)
+	index := newDocumentIndex(doc)
+	diags := buildDiagnosticsWithIndex(doc, errs, index)
 	state := &documentState{
 		content:     content,
 		doc:         doc,
+		index:       index,
 		errors:      errs,
 		diagnostics: diags,
 	}
@@ -49,10 +52,12 @@ func (dm *documentManager) Open(uri protocol.DocumentURI, content string) []prot
 // Change updates a document's content, re-parses, and returns diagnostics.
 func (dm *documentManager) Change(uri protocol.DocumentURI, content string) []protocol.Diagnostic {
 	doc, errs := dm.parser.Parse([]byte(content))
-	diags := buildDiagnostics(doc, errs)
+	index := newDocumentIndex(doc)
+	diags := buildDiagnosticsWithIndex(doc, errs, index)
 	state := &documentState{
 		content:     content,
 		doc:         doc,
+		index:       index,
 		errors:      errs,
 		diagnostics: diags,
 	}
