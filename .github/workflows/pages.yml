@@ -32,7 +32,7 @@ jobs:
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@7b1f4a7081f5f2545bb1f1664e3dab232c8c7bdf # v4.0.0
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
         with:
           path: docs
 
@@ -48,4 +48,4 @@ jobs:
     steps:
       - name: Deploy Pages site
         id: deployment
-        uses: actions/deploy-pages@d6db9018a1b9c61a0d9eb6ab5d89f8c6b7b59b96 # v4.0.5
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
