@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,8 @@ const (
 	diagnosticCodeUnknownCharacter = "unknown-character"
 	diagnosticCodeUnnumberedAct    = "unnumbered-act"
 	diagnosticCodeUnnumberedScene  = "unnumbered-scene"
+	diagnosticCodeMisnumberedAct   = "misnumbered-act"
+	diagnosticCodeMisnumberedScene = "misnumbered-scene"
 )
 
 // collectiveCues are conventional ensemble cue names that should not
@@ -152,12 +155,20 @@ func checkUnnumberedSections(index *documentIndex) []protocol.Diagnostic {
 	for actNumber, act := range index.acts {
 		if d := unnumberedActDiagnostic(act, actNumber+1); d != nil {
 			diags = append(diags, *d)
+			continue
+		}
+		if d := misnumberedActDiagnostic(act, actNumber+1); d != nil {
+			diags = append(diags, *d)
 		}
 	}
 
 	for _, scene := range index.scenes {
 		number := index.sceneNumbers[scene]
 		if d := unnumberedSceneDiagnostic(scene, number); d != nil {
+			diags = append(diags, *d)
+			continue
+		}
+		if d := misnumberedSceneDiagnostic(scene, number); d != nil {
 			diags = append(diags, *d)
 		}
 	}
@@ -183,6 +194,25 @@ func unnumberedActDiagnostic(section *ast.Section, actNumber int) *protocol.Diag
 	}
 }
 
+func misnumberedActDiagnostic(section *ast.Section, expected int) *protocol.Diagnostic {
+	actual, ok := parseRomanNumeral(section.Number)
+	if ok && actual == expected {
+		return nil
+	}
+
+	replacement := formatSectionHeading(section, romanNumeral(expected))
+	return &protocol.Diagnostic{
+		Range:    toLSPRange(section.HeadingRange()),
+		Severity: protocol.DiagnosticSeverityWarning,
+		Code:     diagnosticCodeMisnumberedAct,
+		Source:   "downstage",
+		Message:  fmt.Sprintf("act heading should be ACT %s in document order", romanNumeral(expected)),
+		Data: map[string]string{
+			"replacement": replacement,
+		},
+	}
+}
+
 func unnumberedSceneDiagnostic(section *ast.Section, sceneNumber int) *protocol.Diagnostic {
 	if strings.TrimSpace(section.Number) != "" {
 		return nil
@@ -201,6 +231,25 @@ func unnumberedSceneDiagnostic(section *ast.Section, sceneNumber int) *protocol.
 	}
 }
 
+func misnumberedSceneDiagnostic(section *ast.Section, expected int) *protocol.Diagnostic {
+	actual, ok := parseSceneNumber(section.Number)
+	if ok && actual == expected {
+		return nil
+	}
+
+	replacement := formatSectionHeading(section, strconv.Itoa(expected))
+	return &protocol.Diagnostic{
+		Range:    toLSPRange(section.HeadingRange()),
+		Severity: protocol.DiagnosticSeverityWarning,
+		Code:     diagnosticCodeMisnumberedScene,
+		Source:   "downstage",
+		Message:  fmt.Sprintf("scene heading should be SCENE %d in sequence", expected),
+		Data: map[string]string{
+			"replacement": replacement,
+		},
+	}
+}
+
 func formatSectionHeading(section *ast.Section, number string) string {
 	marker := strings.Repeat("#", section.Level)
 	title := strings.TrimSpace(section.Title)
@@ -213,6 +262,59 @@ func formatSectionHeading(section *ast.Section, number string) string {
 	default:
 		return marker + " " + title
 	}
+}
+
+func parseSceneNumber(raw string) (int, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, false
+	}
+
+	number, err := strconv.Atoi(raw)
+	if err != nil || number <= 0 {
+		return 0, false
+	}
+
+	return number, true
+}
+
+func parseRomanNumeral(raw string) (int, bool) {
+	raw = strings.ToUpper(strings.TrimSpace(raw))
+	if raw == "" {
+		return 0, false
+	}
+
+	values := map[byte]int{
+		'I': 1,
+		'V': 5,
+		'X': 10,
+		'L': 50,
+		'C': 100,
+		'D': 500,
+		'M': 1000,
+	}
+
+	total := 0
+	for i := 0; i < len(raw); i++ {
+		value, ok := values[raw[i]]
+		if !ok {
+			return 0, false
+		}
+		if i+1 < len(raw) {
+			nextValue := values[raw[i+1]]
+			if value < nextValue {
+				total -= value
+				continue
+			}
+		}
+		total += value
+	}
+
+	if total <= 0 || romanNumeral(total) != raw {
+		return 0, false
+	}
+
+	return total, true
 }
 
 func toLSPRange(r token.Range) protocol.Range {

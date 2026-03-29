@@ -357,3 +357,128 @@ func TestComputeCodeActions_BareActHeadingNoTitle(t *testing.T) {
 		t.Fatalf("unexpected replacement text: %q", edits[0].NewText)
 	}
 }
+
+func TestComputeCodeActions_RenumberMisnumberedActHeading(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+## ACT I: Duplicate
+
+## ACT V: Finale`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diagnostics := buildDiagnostics(doc, errs)
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), diagnostics, diagnostics)
+
+	var singleAction, bulkAction *protocol.CodeAction
+	for i := range actions {
+		switch actions[i].Title {
+		case "Renumber heading as ## ACT II: Duplicate":
+			singleAction = &actions[i]
+		case "Normalize all acts in document":
+			bulkAction = &actions[i]
+		}
+	}
+	if singleAction == nil {
+		t.Fatal("expected single act renumber action")
+	}
+	if bulkAction == nil {
+		t.Fatal("expected bulk act normalization action")
+	}
+
+	edits := singleAction.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if edits[0].NewText != "## ACT II: Duplicate" {
+		t.Fatalf("unexpected replacement text: %q", edits[0].NewText)
+	}
+
+	bulkEdits := bulkAction.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(bulkEdits) != 2 {
+		t.Fatalf("expected 2 bulk act edits, got %d", len(bulkEdits))
+	}
+}
+
+func TestComputeCodeActions_RenumberMisnumberedSceneHeading(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+### SCENE 1
+
+### SCENE 4: Garden
+
+### SCENE 7: Finale`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diagnostics := buildDiagnostics(doc, errs)
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), diagnostics, diagnostics)
+
+	var singleAction, bulkAction *protocol.CodeAction
+	for i := range actions {
+		switch actions[i].Title {
+		case "Renumber heading as ### SCENE 2: Garden":
+			singleAction = &actions[i]
+		case "Normalize all scenes in document":
+			bulkAction = &actions[i]
+		}
+	}
+	if singleAction == nil {
+		t.Fatal("expected single scene renumber action")
+	}
+	if bulkAction == nil {
+		t.Fatal("expected bulk scene normalization action")
+	}
+
+	edits := singleAction.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if edits[0].NewText != "### SCENE 2: Garden" {
+		t.Fatalf("unexpected replacement text: %q", edits[0].NewText)
+	}
+
+	bulkEdits := bulkAction.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(bulkEdits) != 2 {
+		t.Fatalf("expected 2 bulk scene edits, got %d", len(bulkEdits))
+	}
+}
+
+func TestComputeCodeActions_RenumberMisnumberedSceneOutsideActs(t *testing.T) {
+	content := `# Play
+
+## SCENE 1
+
+## SCENE 3: Out of Order`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diagnostics := buildDiagnostics(doc, errs)
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), diagnostics, diagnostics)
+
+	var singleAction *protocol.CodeAction
+	for i := range actions {
+		if actions[i].Title == "Renumber heading as ## SCENE 2: Out of Order" {
+			singleAction = &actions[i]
+			break
+		}
+	}
+	if singleAction == nil {
+		t.Fatal("expected scene renumber action outside acts")
+	}
+
+	edits := singleAction.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(edits) != 1 {
+		t.Fatalf("expected 1 text edit, got %d", len(edits))
+	}
+	if edits[0].NewText != "## SCENE 2: Out of Order" {
+		t.Fatalf("unexpected replacement text: %q", edits[0].NewText)
+	}
+}

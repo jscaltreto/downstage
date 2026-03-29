@@ -25,6 +25,7 @@ func computeCodeActions(
 	allSceneEdits := make([]protocol.TextEdit, 0)
 	seenActEdits := make(map[string]struct{})
 	seenSceneEdits := make(map[string]struct{})
+	var hasMisnumberedAct, hasMisnumberedScene bool
 
 	var (
 		dp      = ast.FindDramatisPersonae(doc.Body)
@@ -68,25 +69,32 @@ func computeCodeActions(
 					},
 				},
 			})
-		case diagnosticCodeUnnumberedAct, diagnosticCodeUnnumberedScene:
+		case diagnosticCodeUnnumberedAct, diagnosticCodeUnnumberedScene,
+			diagnosticCodeMisnumberedAct, diagnosticCodeMisnumberedScene:
 			textEdit := numberingEdit(diagnostic)
 			if textEdit == nil {
 				continue
 			}
 
 			switch diagnostic.Code {
-			case diagnosticCodeUnnumberedAct:
+			case diagnosticCodeUnnumberedAct, diagnosticCodeMisnumberedAct:
+				if diagnostic.Code == diagnosticCodeMisnumberedAct {
+					hasMisnumberedAct = true
+				}
 				if registerEdit(seenActEdits, *textEdit) {
 					allActEdits = append(allActEdits, *textEdit)
 				}
-			case diagnosticCodeUnnumberedScene:
+			case diagnosticCodeUnnumberedScene, diagnosticCodeMisnumberedScene:
+				if diagnostic.Code == diagnosticCodeMisnumberedScene {
+					hasMisnumberedScene = true
+				}
 				if registerEdit(seenSceneEdits, *textEdit) {
 					allSceneEdits = append(allSceneEdits, *textEdit)
 				}
 			}
 
 			actions = append(actions, protocol.CodeAction{
-				Title:       fmt.Sprintf("Number heading as %s", textEdit.NewText),
+				Title:       numberingActionTitle(diagnostic.Code, textEdit.NewText),
 				Kind:        protocol.QuickFix,
 				Diagnostics: []protocol.Diagnostic{diagnostic},
 				IsPreferred: true,
@@ -102,13 +110,19 @@ func computeCodeActions(
 	// Collect bulk edits from remaining diagnostics not in the context set.
 	for _, diagnostic := range allDiagnostics {
 		switch diagnostic.Code {
-		case diagnosticCodeUnnumberedAct:
+		case diagnosticCodeUnnumberedAct, diagnosticCodeMisnumberedAct:
+			if diagnostic.Code == diagnosticCodeMisnumberedAct {
+				hasMisnumberedAct = true
+			}
 			if edit := numberingEdit(diagnostic); edit != nil {
 				if registerEdit(seenActEdits, *edit) {
 					allActEdits = append(allActEdits, *edit)
 				}
 			}
-		case diagnosticCodeUnnumberedScene:
+		case diagnosticCodeUnnumberedScene, diagnosticCodeMisnumberedScene:
+			if diagnostic.Code == diagnosticCodeMisnumberedScene {
+				hasMisnumberedScene = true
+			}
 			if edit := numberingEdit(diagnostic); edit != nil {
 				if registerEdit(seenSceneEdits, *edit) {
 					allSceneEdits = append(allSceneEdits, *edit)
@@ -118,8 +132,12 @@ func computeCodeActions(
 	}
 
 	if len(allActEdits) > 1 {
+		title := "Number all acts in document"
+		if hasMisnumberedAct {
+			title = "Normalize all acts in document"
+		}
 		actions = append(actions, protocol.CodeAction{
-			Title: "Number all acts in document",
+			Title: title,
 			Kind:  protocol.QuickFix,
 			Edit: &protocol.WorkspaceEdit{
 				Changes: map[protocol.DocumentURI][]protocol.TextEdit{
@@ -130,8 +148,12 @@ func computeCodeActions(
 	}
 
 	if len(allSceneEdits) > 1 {
+		title := "Number all scenes in document"
+		if hasMisnumberedScene {
+			title = "Normalize all scenes in document"
+		}
 		actions = append(actions, protocol.CodeAction{
-			Title: "Number all scenes in document",
+			Title: title,
 			Kind:  protocol.QuickFix,
 			Edit: &protocol.WorkspaceEdit{
 				Changes: map[protocol.DocumentURI][]protocol.TextEdit{
@@ -142,6 +164,15 @@ func computeCodeActions(
 	}
 
 	return actions
+}
+
+func numberingActionTitle(code interface{}, replacement string) string {
+	switch code {
+	case diagnosticCodeMisnumberedAct, diagnosticCodeMisnumberedScene:
+		return fmt.Sprintf("Renumber heading as %s", replacement)
+	default:
+		return fmt.Sprintf("Number heading as %s", replacement)
+	}
 }
 
 func registerEdit(seen map[string]struct{}, edit protocol.TextEdit) bool {

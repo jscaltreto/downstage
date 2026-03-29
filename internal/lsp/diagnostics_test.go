@@ -398,3 +398,166 @@ func TestBuildDiagnostics_EarnestFixtureWarnsOnUnnumberedScenes(t *testing.T) {
 		t.Fatalf("expected 3 unnumbered scene warnings, got %d", sceneWarnings)
 	}
 }
+
+func TestBuildDiagnostics_MisnumberedActsWarn(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+## ACT I: Duplicate
+
+## ACT IV: Finale`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+
+	var replacements []string
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeMisnumberedAct {
+			continue
+		}
+		if diag.Severity != protocol.DiagnosticSeverityWarning {
+			t.Fatalf("expected warning severity, got %v", diag.Severity)
+		}
+		if diag.Range.Start.Line != diag.Range.End.Line {
+			t.Fatalf("expected heading-only diagnostic range, got %+v", diag.Range)
+		}
+		data, ok := diag.Data.(map[string]string)
+		if !ok {
+			t.Fatalf("unexpected diagnostic data: %#v", diag.Data)
+		}
+		replacements = append(replacements, data["replacement"])
+	}
+
+	if len(replacements) != 2 {
+		t.Fatalf("expected 2 misnumbered act diagnostics, got %d", len(replacements))
+	}
+	if replacements[0] != "## ACT II: Duplicate" {
+		t.Fatalf("unexpected duplicate-act replacement: %q", replacements[0])
+	}
+	if replacements[1] != "## ACT III: Finale" {
+		t.Fatalf("unexpected skipped-act replacement: %q", replacements[1])
+	}
+}
+
+func TestBuildDiagnostics_MisnumberedScenesWarnAndResetByAct(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+### SCENE 1
+
+### SCENE 1: Duplicate
+
+### SCENE 4: Skipped
+
+## ACT II
+
+### SCENE 4: Should Reset`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+
+	var replacements []string
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeMisnumberedScene {
+			continue
+		}
+		data, ok := diag.Data.(map[string]string)
+		if !ok {
+			t.Fatalf("unexpected diagnostic data: %#v", diag.Data)
+		}
+		replacements = append(replacements, data["replacement"])
+	}
+
+	if len(replacements) != 3 {
+		t.Fatalf("expected 3 misnumbered scene diagnostics, got %d", len(replacements))
+	}
+	if replacements[0] != "### SCENE 2: Duplicate" {
+		t.Fatalf("unexpected duplicate-scene replacement: %q", replacements[0])
+	}
+	if replacements[1] != "### SCENE 3: Skipped" {
+		t.Fatalf("unexpected skipped-scene replacement: %q", replacements[1])
+	}
+	if replacements[2] != "### SCENE 1: Should Reset" {
+		t.Fatalf("unexpected reset-scene replacement: %q", replacements[2])
+	}
+}
+
+func TestBuildDiagnostics_MisnumberedScenesOutsideActsUseDocumentOrder(t *testing.T) {
+	content := `# Play
+
+## SCENE 1
+
+## SCENE 3: Out of Order`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+	}
+	if diags[0].Code != diagnosticCodeMisnumberedScene {
+		t.Fatalf("expected misnumbered scene diagnostic, got %#v", diags[0].Code)
+	}
+	data, ok := diags[0].Data.(map[string]string)
+	if !ok {
+		t.Fatalf("unexpected diagnostic data: %#v", diags[0].Data)
+	}
+	if data["replacement"] != "## SCENE 2: Out of Order" {
+		t.Fatalf("unexpected scene replacement: %q", data["replacement"])
+	}
+}
+
+func TestBuildDiagnostics_MisnumberedScenesWarnOnBackwardOrderWithinAct(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+### SCENE 1
+
+### SCENE 3
+
+### SCENE 2: Backward`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+
+	var replacements []string
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeMisnumberedScene {
+			continue
+		}
+		data, ok := diag.Data.(map[string]string)
+		if !ok {
+			t.Fatalf("unexpected diagnostic data: %#v", diag.Data)
+		}
+		replacements = append(replacements, data["replacement"])
+	}
+
+	if len(replacements) != 2 {
+		t.Fatalf("expected 2 misnumbered scene diagnostics, got %d", len(replacements))
+	}
+	if replacements[0] != "### SCENE 2" {
+		t.Fatalf("unexpected forward-gap replacement: %q", replacements[0])
+	}
+	if replacements[1] != "### SCENE 3: Backward" {
+		t.Fatalf("unexpected backward-order replacement: %q", replacements[1])
+	}
+}
