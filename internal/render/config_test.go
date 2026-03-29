@@ -172,9 +172,12 @@ func TestValidateCollectsMultipleErrors(t *testing.T) {
 	err := cfg.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "FontSize")
+	assert.Contains(t, err.Error(), "MarginTop")
+	assert.Contains(t, err.Error(), "MarginBottom")
+	assert.Contains(t, err.Error(), "MarginLeft")
+	assert.Contains(t, err.Error(), "MarginRight")
 	assert.Contains(t, err.Error(), "PageSize")
 	assert.Contains(t, err.Error(), "Style")
-	assert.Contains(t, err.Error(), "MarginTop")
 }
 
 func TestValidateAcceptsZeroMargins(t *testing.T) {
