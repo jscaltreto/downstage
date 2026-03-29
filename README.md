@@ -16,7 +16,7 @@ Downstage is a plaintext markup language for writing stage plays, inspired by
 ships with an LSP server for editor integration and CLI tools for parsing,
 validation, and rendering to PDF and HTML. Files use the `.ds` extension.
 
-Read the syntax guide: [`docs/`](docs/)
+Read the [Syntax Guide](https://jscaltreto.github.io/downstage/).
 
 ## Quick Example
 
@@ -201,7 +201,7 @@ client at the server:
 
 An in-progress VS Code extension lives in [`editors/vscode/`](editors/vscode/).
 It registers `.ds` files, starts `downstage lsp`, and includes baseline syntax
-highlighting. Design notes live in [`docs/vscode-extension-design.md`](docs/vscode-extension-design.md).
+highlighting.
 For local development:
 
 ```bash
