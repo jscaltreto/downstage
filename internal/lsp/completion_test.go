@@ -1,8 +1,10 @@
 package lsp
 
 import (
+	"sort"
 	"testing"
 
+	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/parser"
 	"go.lsp.dev/protocol"
 )
@@ -329,5 +331,31 @@ func TestComputeCompletionWithIndex_SuggestsNextActFromCache(t *testing.T) {
 	}
 	if result.Items[0].Label != "## ACT II" {
 		t.Fatalf("expected next act heading from cached acts, got %q", result.Items[0].Label)
+	}
+}
+
+func TestDocumentIndex_SortsSceneSpeakerCuesByLine(t *testing.T) {
+	index := &documentIndex{
+		sceneSpeakers: map[*ast.Section][]sceneSpeakerCue{},
+	}
+	scene := &ast.Section{}
+	index.sceneSpeakers[scene] = []sceneSpeakerCue{
+		{line: 9, name: "SECOND"},
+		{line: 3, name: "FIRST"},
+	}
+
+	sort.Slice(index.sceneSpeakers[scene], func(i, j int) bool {
+		return index.sceneSpeakers[scene][i].line < index.sceneSpeakers[scene][j].line
+	})
+
+	speakers := index.sceneSpeakersBeforeLine(scene, 10)
+	expected := []string{"FIRST", "SECOND"}
+	if len(speakers) != len(expected) {
+		t.Fatalf("expected %d speakers, got %d", len(expected), len(speakers))
+	}
+	for i := range expected {
+		if speakers[i] != expected[i] {
+			t.Fatalf("expected speakers %v, got %v", expected, speakers)
+		}
 	}
 }

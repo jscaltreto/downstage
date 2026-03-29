@@ -92,13 +92,8 @@ func checkUnnumberedSections(index *documentIndex) []protocol.Diagnostic {
 		}
 	}
 
-	sceneCountOutsideActs := 0
 	for _, scene := range index.scenes {
-		number, ok := index.sceneNumbers[scene]
-		if !ok {
-			sceneCountOutsideActs++
-			number = sceneCountOutsideActs
-		}
+		number := index.sceneNumbers[scene]
 		if d := unnumberedSceneDiagnostic(scene, number); d != nil {
 			diags = append(diags, *d)
 		}

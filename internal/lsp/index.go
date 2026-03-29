@@ -124,6 +124,19 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		walkNode(node, nil, nil)
 	}
 
+	sort.Slice(index.acts, func(i, j int) bool {
+		return index.acts[i].Range.Start.Line < index.acts[j].Range.Start.Line
+	})
+	sort.Slice(index.scenes, func(i, j int) bool {
+		return index.scenes[i].Range.Start.Line < index.scenes[j].Range.Start.Line
+	})
+	for scene, cues := range index.sceneSpeakers {
+		sort.Slice(cues, func(i, j int) bool {
+			return cues[i].line < cues[j].line
+		})
+		index.sceneSpeakers[scene] = cues
+	}
+
 	return index
 }
 
