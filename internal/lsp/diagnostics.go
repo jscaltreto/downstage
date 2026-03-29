@@ -134,7 +134,7 @@ func unnumberedActDiagnostic(section *ast.Section, actNumber int) []protocol.Dia
 
 	replacement := formatSectionHeading(section, romanNumeral(actNumber))
 	return []protocol.Diagnostic{{
-		Range:    toLSPRange(section.Range),
+		Range:    toLSPRange(section.HeadingRange()),
 		Severity: protocol.DiagnosticSeverityWarning,
 		Code:     diagnosticCodeUnnumberedAct,
 		Source:   "downstage",
@@ -152,7 +152,7 @@ func unnumberedSceneDiagnostic(section *ast.Section, sceneNumber int) []protocol
 
 	replacement := formatSectionHeading(section, fmt.Sprintf("%d", sceneNumber))
 	return []protocol.Diagnostic{{
-		Range:    toLSPRange(section.Range),
+		Range:    toLSPRange(section.HeadingRange()),
 		Severity: protocol.DiagnosticSeverityWarning,
 		Code:     diagnosticCodeUnnumberedScene,
 		Source:   "downstage",

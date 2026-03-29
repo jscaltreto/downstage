@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"os"
 	"testing"
 
 	"github.com/jscaltreto/downstage/internal/ast"
@@ -166,24 +167,39 @@ func TestBuildDiagnostics_UnnumberedActAndSceneWarnings(t *testing.T) {
 		t.Fatalf("expected 2 diagnostics, got %d", len(diags))
 	}
 
-	if diags[0].Code != diagnosticCodeUnnumberedAct {
-		t.Fatalf("expected first diagnostic to be unnumbered act, got %v", diags[0].Code)
+	var actDiag, sceneDiag *protocol.Diagnostic
+	for i := range diags {
+		switch diags[i].Code {
+		case diagnosticCodeUnnumberedAct:
+			actDiag = &diags[i]
+		case diagnosticCodeUnnumberedScene:
+			sceneDiag = &diags[i]
+		}
 	}
-	if diags[0].Message != "act headings should be numbered with Roman numerals" {
-		t.Fatalf("unexpected act diagnostic message: %q", diags[0].Message)
+	if actDiag == nil {
+		t.Fatal("expected unnumbered act diagnostic")
 	}
-	if data, ok := diags[0].Data.(map[string]string); !ok || data["replacement"] != "## ACT I: Prologue" {
-		t.Fatalf("unexpected act diagnostic data: %#v", diags[0].Data)
+	if actDiag.Range.Start.Line != 2 || actDiag.Range.End.Line != 2 {
+		t.Fatalf("expected act diagnostic to stay on heading line, got %+v", actDiag.Range)
+	}
+	if actDiag.Message != "act headings should be numbered with Roman numerals" {
+		t.Fatalf("unexpected act diagnostic message: %q", actDiag.Message)
+	}
+	if data, ok := actDiag.Data.(map[string]string); !ok || data["replacement"] != "## ACT I: Prologue" {
+		t.Fatalf("unexpected act diagnostic data: %#v", actDiag.Data)
 	}
 
-	if diags[1].Code != diagnosticCodeUnnumberedScene {
-		t.Fatalf("expected second diagnostic to be unnumbered scene, got %v", diags[1].Code)
+	if sceneDiag == nil {
+		t.Fatal("expected unnumbered scene diagnostic")
 	}
-	if diags[1].Message != "scene headings should be numbered with Arabic numerals" {
-		t.Fatalf("unexpected scene diagnostic message: %q", diags[1].Message)
+	if sceneDiag.Range.Start.Line != 4 || sceneDiag.Range.End.Line != 4 {
+		t.Fatalf("expected scene diagnostic to stay on heading line, got %+v", sceneDiag.Range)
 	}
-	if data, ok := diags[1].Data.(map[string]string); !ok || data["replacement"] != "### SCENE 1: The Kitchen" {
-		t.Fatalf("unexpected scene diagnostic data: %#v", diags[1].Data)
+	if sceneDiag.Message != "scene headings should be numbered with Arabic numerals" {
+		t.Fatalf("unexpected scene diagnostic message: %q", sceneDiag.Message)
+	}
+	if data, ok := sceneDiag.Data.(map[string]string); !ok || data["replacement"] != "### SCENE 1: The Kitchen" {
+		t.Fatalf("unexpected scene diagnostic data: %#v", sceneDiag.Data)
 	}
 }
 
@@ -224,5 +240,31 @@ func TestBuildDiagnostics_UnnumberedSceneInActResetsNumbering(t *testing.T) {
 	}
 	if secondData["replacement"] != "## SCENE 1: Second Interlude" {
 		t.Fatalf("unexpected second scene replacement: %q", secondData["replacement"])
+	}
+}
+
+func TestBuildDiagnostics_EarnestFixtureWarnsOnUnnumberedScenes(t *testing.T) {
+	content, err := os.ReadFile("../../testdata/importance_of_being_earnest.ds")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+
+	doc, errs := parser.Parse(content)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+
+	sceneWarnings := 0
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeUnnumberedScene {
+			continue
+		}
+		sceneWarnings++
+	}
+
+	if sceneWarnings != 3 {
+		t.Fatalf("expected 3 unnumbered scene warnings, got %d", sceneWarnings)
 	}
 }

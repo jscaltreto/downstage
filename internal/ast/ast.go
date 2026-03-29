@@ -69,20 +69,28 @@ var _ Node = (*Section)(nil)
 // Section represents a headed content block. All # / ## / ### headings
 // produce Section nodes; the Kind field carries semantic meaning.
 type Section struct {
-	Kind       SectionKind
-	Level      int              // 1 (#), 2 (##), 3 (###)
-	Title      string           // heading text (e.g. "ACT I", "Playwright's Notes")
-	Number     string           // act/scene number (e.g. "I", "1") — empty for generic
-	Children   []Node           // nested sections + content (dialogue, directions, songs, etc.)
-	Characters []Character      // populated only for SectionDramatisPersonae
-	Groups     []CharacterGroup // populated only for SectionDramatisPersonae
-	Lines      []SectionLine    // populated only for SectionGeneric (prose content)
-	Range      token.Range
-	order      []sectionItemRef
+	Kind         SectionKind
+	Level        int              // 1 (#), 2 (##), 3 (###)
+	Title        string           // heading text (e.g. "ACT I", "Playwright's Notes")
+	Number       string           // act/scene number (e.g. "I", "1") — empty for generic
+	Children     []Node           // nested sections + content (dialogue, directions, songs, etc.)
+	Characters   []Character      // populated only for SectionDramatisPersonae
+	Groups       []CharacterGroup // populated only for SectionDramatisPersonae
+	Lines        []SectionLine    // populated only for SectionGeneric (prose content)
+	Range        token.Range
+	headingRange token.Range
+	order        []sectionItemRef
 }
 
 func (s *Section) NodeRange() token.Range { return s.Range }
 func (s *Section) nodeType() string       { return "Section" }
+func (s *Section) HeadingRange() token.Range {
+	if s.headingRange.Start == (token.Position{}) && s.headingRange.End == (token.Position{}) {
+		return s.Range
+	}
+	return s.headingRange
+}
+func (s *Section) SetHeadingRange(r token.Range) { s.headingRange = r }
 
 func (s *Section) AppendChild(child Node) {
 	s.Children = append(s.Children, child)

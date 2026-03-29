@@ -234,7 +234,8 @@ func (h *handler) handleCodeAction(ctx context.Context, reply jsonrpc2.Replier, 
 		return reply(ctx, []protocol.CodeAction{}, nil)
 	}
 
-	result := computeCodeActions(doc.doc, doc.content, params.TextDocument.URI, params.Context.Diagnostics)
+	allDiagnostics := buildDiagnostics(doc.doc, doc.errors)
+	result := computeCodeActions(doc.doc, doc.content, params.TextDocument.URI, params.Context.Diagnostics, allDiagnostics)
 	return reply(ctx, result, nil)
 }
 
