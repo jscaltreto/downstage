@@ -46,21 +46,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			await renderCurrentScript("condensed", "internal");
 		},
 	);
-	const foldingProvider = vscode.languages.registerFoldingRangeProvider(
-		{ language: "downstage" },
-		{
-			provideFoldingRanges(document) {
-				return provideDownstageFoldingRanges(document);
-			},
-		},
-	);
 
 	context.subscriptions.push(restartCommand);
 	context.subscriptions.push(renderCommand);
 	context.subscriptions.push(renderCompactCommand);
 	context.subscriptions.push(previewCommand);
 	context.subscriptions.push(previewCompactCommand);
-	context.subscriptions.push(foldingProvider);
 	context.subscriptions.push(renderDiagnostics);
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(async (event) => {
@@ -260,141 +251,6 @@ function isCueSuggestionLine(document: vscode.TextDocument, line: number): boole
 
 	const previousLine = document.lineAt(line - 1).text;
 	return previousLine.trim() === "";
-}
-
-function provideDownstageFoldingRanges(document: vscode.TextDocument): vscode.FoldingRange[] {
-	const ranges: vscode.FoldingRange[] = [];
-
-	addTitlePageFoldingRanges(document, ranges);
-	addHeadingFoldingRanges(document, ranges);
-	addSongFoldingRanges(document, ranges);
-	addBlockCommentFoldingRanges(document, ranges);
-
-	return ranges;
-}
-
-function addTitlePageFoldingRanges(
-	document: vscode.TextDocument,
-	ranges: vscode.FoldingRange[],
-): void {
-	let lastTitleLine = -1;
-
-	for (let line = 0; line < document.lineCount; line++) {
-		const text = document.lineAt(line).text;
-		if (text.trim() === "") {
-			if (lastTitleLine >= 0) {
-				lastTitleLine = line;
-			}
-			continue;
-		}
-
-		if (isTitlePageLine(text)) {
-			lastTitleLine = line;
-			continue;
-		}
-		break;
-	}
-
-	if (lastTitleLine > 0) {
-		ranges.push(new vscode.FoldingRange(0, lastTitleLine, vscode.FoldingRangeKind.Region));
-	}
-}
-
-function addHeadingFoldingRanges(
-	document: vscode.TextDocument,
-	ranges: vscode.FoldingRange[],
-): void {
-	const stack: Array<{ line: number; level: number }> = [];
-
-	for (let line = 0; line < document.lineCount; line++) {
-		const level = headingLevel(document.lineAt(line).text);
-		if (level === 0) {
-			continue;
-		}
-
-		while (stack.length > 0 && stack[stack.length - 1].level >= level) {
-			const current = stack.pop();
-			if (!current) {
-				continue;
-			}
-			const endLine = line - 1;
-			if (endLine > current.line) {
-				ranges.push(new vscode.FoldingRange(current.line, endLine, vscode.FoldingRangeKind.Region));
-			}
-		}
-
-		stack.push({ line, level });
-	}
-
-	while (stack.length > 0) {
-		const current = stack.pop();
-		if (!current) {
-			continue;
-		}
-		const endLine = document.lineCount - 1;
-		if (endLine > current.line) {
-			ranges.push(new vscode.FoldingRange(current.line, endLine, vscode.FoldingRangeKind.Region));
-		}
-	}
-}
-
-function addSongFoldingRanges(
-	document: vscode.TextDocument,
-	ranges: vscode.FoldingRange[],
-): void {
-	let songStart = -1;
-
-	for (let line = 0; line < document.lineCount; line++) {
-		const text = document.lineAt(line).text.trim();
-		if (songStart < 0 && isSongStartLine(text)) {
-			songStart = line;
-			continue;
-		}
-
-		if (songStart >= 0 && text === "SONG END") {
-			if (line > songStart) {
-				ranges.push(new vscode.FoldingRange(songStart, line, vscode.FoldingRangeKind.Region));
-			}
-			songStart = -1;
-		}
-	}
-}
-
-function addBlockCommentFoldingRanges(
-	document: vscode.TextDocument,
-	ranges: vscode.FoldingRange[],
-): void {
-	let commentStart = -1;
-
-	for (let line = 0; line < document.lineCount; line++) {
-		const text = document.lineAt(line).text;
-		if (commentStart < 0 && text.includes("/*")) {
-			if (!text.includes("*/") || text.indexOf("/*") < text.indexOf("*/")) {
-				commentStart = line;
-			}
-			continue;
-		}
-
-		if (commentStart >= 0 && text.includes("*/")) {
-			if (line > commentStart) {
-				ranges.push(new vscode.FoldingRange(commentStart, line, vscode.FoldingRangeKind.Comment));
-			}
-			commentStart = -1;
-		}
-	}
-}
-
-function isTitlePageLine(text: string): boolean {
-	return /^[A-Za-z][A-Za-z ]*:\s*.*$/.test(text) || /^[ \t].+$/.test(text);
-}
-
-function headingLevel(text: string): number {
-	const match = /^(#{1,3})\s+/.exec(text);
-	return match ? match[1].length : 0;
-}
-
-function isSongStartLine(text: string): boolean {
-	return text === "SONG" || text.startsWith("SONG ") || text.startsWith("SONG:");
 }
 
 type RenderOpenMode = "config" | "internal";

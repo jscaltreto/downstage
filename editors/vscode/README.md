@@ -11,7 +11,7 @@ This extension provides basic VS Code support for Downstage scripts.
 - Context-aware character cue completions from the Go LSP
 - Structural heading completions from the Go LSP
 - Snippets for play skeletons, acts, scenes, cues, stage directions, and songs
-- Improved folding for title pages, headed sections, songs, and block comments
+- Folding for title pages, sections, songs, and block comments via the Go LSP
 - Automatic cue suggestion on a fresh line after a blank separator
 - Commands to render the current script in standard or compact PDF styles
 - Commands to preview the generated PDF inside VS Code
