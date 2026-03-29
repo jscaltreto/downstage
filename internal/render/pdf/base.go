@@ -11,6 +11,8 @@ import (
 	"github.com/jscaltreto/downstage/internal/render"
 )
 
+const pointsToMM = 0.3528 // 1 pt in mm
+
 // pdfBase holds shared state and helpers for all PDF-based renderers.
 type pdfBase struct {
 	cfg            render.Config
@@ -46,11 +48,10 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 
 	b.pdf = fpdf.New("P", "mm", size, "")
 
-	// Convert points to mm (1 point = 0.3528 mm)
-	b.marginL = b.cfg.MarginLeft * 0.3528
-	b.marginR = b.cfg.MarginRight * 0.3528
-	b.marginT = b.cfg.MarginTop * 0.3528
-	b.marginB = b.cfg.MarginBottom * 0.3528
+	b.marginL = b.cfg.MarginLeft * pointsToMM
+	b.marginR = b.cfg.MarginRight * pointsToMM
+	b.marginT = b.cfg.MarginTop * pointsToMM
+	b.marginB = b.cfg.MarginBottom * pointsToMM
 
 	b.pdf.SetMargins(b.marginL, b.marginT, b.marginR)
 	b.pdf.SetAutoPageBreak(true, b.marginB)

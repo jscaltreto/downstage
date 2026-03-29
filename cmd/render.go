@@ -132,6 +132,10 @@ func runRender(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unsupported format: %q", renderFormat)
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid render config: %w", err)
+	}
+
 	if renderStdout {
 		if err := render.Walk(nr, doc, os.Stdout); err != nil {
 			return fmt.Errorf("rendering: %w", err)

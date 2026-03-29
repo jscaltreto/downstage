@@ -8,6 +8,14 @@ import {
 	Trace,
 } from "vscode-languageclient/node";
 
+const configSection = "downstage";
+const settingServerPath = "server.path";
+const settingServerTrace = "server.trace";
+const settingAutoSuggestCues = "editor.autoSuggestCharacterCues";
+const settingRenderStyle = "render.style";
+const settingOpenAfterRender = "render.openAfterRender";
+const settingPreviewDebounce = "preview.debounceMs";
+
 let client: LanguageClient | undefined;
 const cueSuggestTimers = new Map<string, NodeJS.Timeout>();
 let renderOutputChannel: vscode.OutputChannel | undefined;
@@ -85,8 +93,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(renderDiagnostics);
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(async (event) => {
-			if (!event.affectsConfiguration("downstage.server.path") &&
-				!event.affectsConfiguration("downstage.server.trace")) {
+			if (!event.affectsConfiguration(`${configSection}.${settingServerPath}`) &&
+				!event.affectsConfiguration(`${configSection}.${settingServerTrace}`)) {
 				return;
 			}
 
@@ -182,7 +190,7 @@ async function startLanguageServer(context: vscode.ExtensionContext): Promise<vo
 			if (selection === "Open Settings") {
 				void vscode.commands.executeCommand(
 					"workbench.action.openSettings",
-					"downstage.server.path",
+					`${configSection}.${settingServerPath}`,
 				);
 			}
 		});
@@ -190,7 +198,7 @@ async function startLanguageServer(context: vscode.ExtensionContext): Promise<vo
 }
 
 function getServerPath(): string {
-	return vscode.workspace.getConfiguration("downstage").get<string>("server.path", defaultServerPath);
+	return vscode.workspace.getConfiguration(configSection).get<string>(settingServerPath, defaultServerPath);
 }
 
 function getValidatedServerPath(): string {
@@ -246,26 +254,26 @@ async function rememberTrustedServerPath(serverPath: string): Promise<void> {
 }
 
 function getTraceSetting(): string {
-	return vscode.workspace.getConfiguration("downstage").get<string>("server.trace", "off");
+	return vscode.workspace.getConfiguration(configSection).get<string>(settingServerTrace, "off");
 }
 
 function getAutoSuggestSetting(): boolean {
-	return vscode.workspace.getConfiguration("downstage").get<boolean>(
-		"editor.autoSuggestCharacterCues",
+	return vscode.workspace.getConfiguration(configSection).get<boolean>(
+		settingAutoSuggestCues,
 		true,
 	);
 }
 
 function getRenderStyleSetting(): string {
-	return vscode.workspace.getConfiguration("downstage").get<string>(
-		"render.style",
+	return vscode.workspace.getConfiguration(configSection).get<string>(
+		settingRenderStyle,
 		"standard",
 	);
 }
 
 function getOpenAfterRenderSetting(): boolean {
-	return vscode.workspace.getConfiguration("downstage").get<boolean>(
-		"render.openAfterRender",
+	return vscode.workspace.getConfiguration(configSection).get<boolean>(
+		settingOpenAfterRender,
 		true,
 	);
 }
@@ -570,8 +578,8 @@ function replaceExtension(filePath: string, extension: string): string {
 }
 
 function getPreviewDebounceSetting(): number {
-	return vscode.workspace.getConfiguration("downstage").get<number>(
-		"preview.debounceMs",
+	return vscode.workspace.getConfiguration(configSection).get<number>(
+		settingPreviewDebounce,
 		300,
 	);
 }
