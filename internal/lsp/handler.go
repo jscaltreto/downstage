@@ -53,6 +53,8 @@ func (h *handler) Handle(ctx context.Context, reply jsonrpc2.Replier, req jsonrp
 		return h.handleDefinition(ctx, reply, req)
 	case protocol.MethodTextDocumentCompletion:
 		return h.handleCompletion(ctx, reply, req)
+	case protocol.MethodTextDocumentCodeAction:
+		return h.handleCodeAction(ctx, reply, req)
 	default:
 		return reply(ctx, nil, jsonrpc2.NewError(jsonrpc2.MethodNotFound, "method not found: "+method))
 	}
@@ -82,6 +84,7 @@ func (h *handler) handleInitialize(ctx context.Context, reply jsonrpc2.Replier, 
 			DocumentSymbolProvider: true,
 			HoverProvider:          true,
 			DefinitionProvider:     true,
+			CodeActionProvider:     true,
 			CompletionProvider: &protocol.CompletionOptions{
 				TriggerCharacters: []string{"@", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"},
 			},
@@ -217,6 +220,21 @@ func (h *handler) handleCompletion(ctx context.Context, reply jsonrpc2.Replier, 
 	}
 
 	result := computeCompletion(doc.doc, doc.errors, doc.content, params.Position)
+	return reply(ctx, result, nil)
+}
+
+func (h *handler) handleCodeAction(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
+	var params protocol.CodeActionParams
+	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		return reply(ctx, []protocol.CodeAction{}, nil)
+	}
+
+	doc := h.dm.Get(params.TextDocument.URI)
+	if doc == nil {
+		return reply(ctx, []protocol.CodeAction{}, nil)
+	}
+
+	result := computeCodeActions(doc.doc, doc.content, params.TextDocument.URI, params.Context.Diagnostics)
 	return reply(ctx, result, nil)
 }
 

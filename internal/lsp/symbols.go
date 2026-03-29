@@ -34,19 +34,8 @@ func computeDocumentSymbols(doc *ast.Document, _ []*parser.ParseError) []protoco
 
 func sectionSymbol(s *ast.Section) protocol.DocumentSymbol {
 	r := toLSPRange(s.Range)
-	name := s.Title
+	name := sectionSymbolName(s)
 	kind := sectionSymbolKind(s.Kind)
-
-	if name == "" && s.Number != "" {
-		switch s.Kind {
-		case ast.SectionAct:
-			name = "Act " + s.Number
-		case ast.SectionScene:
-			name = "Scene " + s.Number
-		default:
-			name = s.Number
-		}
-	}
 
 	sym := protocol.DocumentSymbol{
 		Name:           name,
@@ -107,12 +96,9 @@ func dialogueSymbol(d *ast.Dialogue) protocol.DocumentSymbol {
 
 func songSymbol(s *ast.Song) protocol.DocumentSymbol {
 	r := toLSPRange(s.Range)
-	name := s.Title
-	if name == "" && s.Number != "" {
-		name = "Song " + s.Number
-	}
+	name := songSymbolName(s)
 	return protocol.DocumentSymbol{
-		Name:           name + " (song)",
+		Name:           name,
 		Kind:           protocol.SymbolKindFunction,
 		Range:          r,
 		SelectionRange: r,
@@ -136,4 +122,52 @@ func characterNameFromNode(n ast.Node) string {
 	default:
 		return ""
 	}
+}
+
+func sectionSymbolName(s *ast.Section) string {
+	if s == nil {
+		return "Section"
+	}
+
+	if s.Title != "" {
+		return s.Title
+	}
+
+	if s.Number != "" {
+		switch s.Kind {
+		case ast.SectionAct:
+			return "Act " + s.Number
+		case ast.SectionScene:
+			return "Scene " + s.Number
+		default:
+			return s.Number
+		}
+	}
+
+	switch s.Kind {
+	case ast.SectionAct:
+		return "Act"
+	case ast.SectionScene:
+		return "Scene"
+	case ast.SectionDramatisPersonae:
+		return "Dramatis Personae"
+	default:
+		return "Section"
+	}
+}
+
+func songSymbolName(s *ast.Song) string {
+	if s == nil {
+		return "Song"
+	}
+
+	if s.Title != "" {
+		return s.Title + " (song)"
+	}
+
+	if s.Number != "" {
+		return "Song " + s.Number + " (song)"
+	}
+
+	return "Song"
 }

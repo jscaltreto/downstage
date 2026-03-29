@@ -1,0 +1,67 @@
+{
+  "Play Skeleton": {
+    "prefix": "play",
+    "description": "Insert a basic Downstage play skeleton with title page, cast, act, and scene",
+    "body": [
+      "Title: ${1:Title}",
+      "Author: ${2:Author}",
+      "Date: ${3:${CURRENT_YEAR}}",
+      "",
+      "# Dramatis Personae",
+      "",
+      "${4:PROTAGONIST} — ${5:Description}",
+      "",
+      "# ${1:Title}",
+      "",
+      "## ACT I",
+      "",
+      "### SCENE 1",
+      "",
+      "> ${6:Setting.}",
+      "",
+      "${7:PROTAGONIST}",
+      "${8:Opening line.}"
+    ]
+  },
+  "Act Heading": {
+    "prefix": "act",
+    "description": "Insert an act heading",
+    "body": [
+      "## ACT ${1:I}${2:: ${3:Title}}"
+    ]
+  },
+  "Scene Heading": {
+    "prefix": "scene",
+    "description": "Insert a scene heading",
+    "body": [
+      "### SCENE ${1:1}${2:: ${3:Title}}"
+    ]
+  },
+  "Character Cue": {
+    "prefix": "cue",
+    "description": "Insert a character cue with dialogue",
+    "body": [
+      "${1:CHARACTER}",
+      "${2:Line.}"
+    ]
+  },
+  "Stage Direction": {
+    "prefix": "stage",
+    "description": "Insert a stage direction",
+    "body": [
+      "> ${1:Stage direction.}"
+    ]
+  },
+  "Song Block": {
+    "prefix": "song",
+    "description": "Insert a song block",
+    "body": [
+      "SONG ${1:Number}: ${2:Title}",
+      "",
+      "${3:CHARACTER}",
+      "  ${4:Lyric line}",
+      "",
+      "SONG END"
+    ]
+  }
+}

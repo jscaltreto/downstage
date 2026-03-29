@@ -191,6 +191,22 @@ client at the server:
 }
 ```
 
+### VS Code
+
+An in-progress VS Code extension lives in [`editors/vscode/`](editors/vscode/).
+It registers `.ds` files, starts `downstage lsp`, and includes baseline syntax
+highlighting. Design notes live in [`docs/vscode-extension-design.md`](docs/vscode-extension-design.md).
+For local development:
+
+```bash
+cd editors/vscode
+npm install
+npm run compile
+```
+
+Then open the `editors/vscode` folder in VS Code and press `F5` to launch an
+Extension Development Host.
+
 ## Language Overview
 
 A Downstage document has three sections:

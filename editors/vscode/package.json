@@ -1,0 +1,139 @@
+{
+  "name": "downstage-vscode",
+  "displayName": "Downstage",
+  "description": "VS Code support for Downstage scripts.",
+  "version": "0.0.1",
+  "publisher": "jscaltreto",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jscaltreto/downstage.git",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "downstage",
+    "theatre",
+    "playwriting",
+    "lsp"
+  ],
+  "activationEvents": [
+    "onLanguage:downstage",
+    "onCommand:downstage.restartLanguageServer",
+    "onCommand:downstage.renderCurrentScript",
+    "onCommand:downstage.renderCompactScript",
+    "onCommand:downstage.previewCurrentScript",
+    "onCommand:downstage.previewCompactScript"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "downstage.restartLanguageServer",
+        "title": "Downstage: Restart Language Server"
+      },
+      {
+        "command": "downstage.renderCurrentScript",
+        "title": "Downstage: Render Current Script"
+      },
+      {
+        "command": "downstage.renderCompactScript",
+        "title": "Downstage: Render Compact Script"
+      },
+      {
+        "command": "downstage.previewCurrentScript",
+        "title": "Downstage: Preview Current Script PDF"
+      },
+      {
+        "command": "downstage.previewCompactScript",
+        "title": "Downstage: Preview Compact Script PDF"
+      }
+    ],
+    "configuration": {
+      "title": "Downstage",
+      "properties": {
+        "downstage.server.path": {
+          "type": "string",
+          "default": "downstage",
+          "markdownDescription": "Path to the `downstage` executable used to launch the language server."
+        },
+        "downstage.server.trace": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "markdownDescription": "Trace communication between VS Code and the Downstage language server."
+        },
+        "downstage.editor.autoSuggestCharacterCues": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically trigger character cue suggestions on an empty line after a blank separator in scene context."
+        },
+        "downstage.render.style": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "condensed"
+          ],
+          "default": "standard",
+          "markdownDescription": "Rendering style used by the VS Code render command."
+        },
+        "downstage.render.openAfterRender": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Open the generated PDF after a successful render."
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "downstage",
+        "aliases": [
+          "Downstage",
+          "downstage"
+        ],
+        "extensions": [
+          ".ds"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "downstage",
+        "path": "./snippets/downstage.code-snippets"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "downstage",
+        "scopeName": "source.downstage",
+        "path": "./syntaxes/downstage.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "node ./scripts/build.mjs",
+    "watch": "node ./scripts/build.mjs --watch",
+    "package": "node ./scripts/package.mjs",
+    "lint": "tsc --noEmit -p ./"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.2",
+    "esbuild": "^0.25.3",
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.100.0",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

@@ -9,6 +9,8 @@ import (
 	"go.lsp.dev/protocol"
 )
 
+const diagnosticCodeUnknownCharacter = "unknown-character"
+
 // buildDiagnostics converts parser errors and additional warnings into LSP diagnostics.
 func buildDiagnostics(doc *ast.Document, errors []*parser.ParseError) []protocol.Diagnostic {
 	if doc == nil && len(errors) == 0 {
@@ -71,8 +73,12 @@ func checkNodeCharacters(n ast.Node, known map[string]bool) []protocol.Diagnosti
 			diags = append(diags, protocol.Diagnostic{
 				Range:    toLSPRange(v.NameRange()),
 				Severity: protocol.DiagnosticSeverityWarning,
+				Code:     diagnosticCodeUnknownCharacter,
 				Source:   "downstage",
-				Message:  "unknown character: " + v.Character,
+				Message:  "unknown character: " + v.Character + " (add to Dramatis Personae)",
+				Data: map[string]string{
+					"character": v.Character,
+				},
 			})
 		}
 	case *ast.DualDialogue:

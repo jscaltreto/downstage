@@ -1,0 +1,16 @@
+../../**
+../**
+.vscode/**
+src/**
+tsconfig.json
+.gitignore
+node_modules/.bin/**
+**/*.map
+
+!package.json
+!package-lock.json
+!README.md
+!language-configuration.json
+!out/**
+!syntaxes/**
+!node_modules/**
