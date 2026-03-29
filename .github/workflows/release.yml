@@ -39,4 +39,30 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - name: Check out Homebrew tap
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: jscaltreto/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Homebrew formula
+        run: python3 scripts/update_homebrew_formula.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          FORMULA_PATH: homebrew-tap/Formula/downstage.rb
+
+      - name: Commit Homebrew formula update
+        run: |
+          cd homebrew-tap
+          if git diff --quiet; then
+            echo "No Homebrew formula changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/downstage.rb
+          git commit -m "chore(formula): update downstage to ${GITHUB_REF_NAME}"
+          git push origin HEAD:main
