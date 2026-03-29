@@ -122,7 +122,10 @@ body {
   margin-bottom: 0;
 }
 .downstage-parenthetical {
+  text-align: center;
   font-style: italic;
+  font-weight: normal;
+  margin-bottom: 0;
 }
 .downstage-line {
   margin: 0 8%;
@@ -332,6 +335,7 @@ body {
 .downstage-character::after { content: ". "; }
 .downstage-parenthetical {
   font-style: italic;
+  display: inline;
 }
 .downstage-line {
   display: inline;
