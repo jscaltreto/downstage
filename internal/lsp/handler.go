@@ -55,6 +55,8 @@ func (h *handler) Handle(ctx context.Context, reply jsonrpc2.Replier, req jsonrp
 		return h.handleCompletion(ctx, reply, req)
 	case protocol.MethodTextDocumentCodeAction:
 		return h.handleCodeAction(ctx, reply, req)
+	case protocol.MethodTextDocumentFoldingRange:
+		return h.handleFoldingRange(ctx, reply, req)
 	default:
 		return reply(ctx, nil, jsonrpc2.NewError(jsonrpc2.MethodNotFound, "method not found: "+method))
 	}
@@ -85,6 +87,7 @@ func (h *handler) handleInitialize(ctx context.Context, reply jsonrpc2.Replier, 
 			HoverProvider:          true,
 			DefinitionProvider:     true,
 			CodeActionProvider:     true,
+			FoldingRangeProvider:   true,
 			CompletionProvider: &protocol.CompletionOptions{
 				TriggerCharacters: []string{"@", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"},
 			},
@@ -241,6 +244,24 @@ func (h *handler) handleCodeAction(ctx context.Context, reply jsonrpc2.Replier, 
 	}
 
 	result := computeCodeActions(doc.doc, doc.content, params.TextDocument.URI, params.Context.Diagnostics, doc.diagnostics)
+	return reply(ctx, result, nil)
+}
+
+func (h *handler) handleFoldingRange(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
+	var params protocol.FoldingRangeParams
+	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		return reply(ctx, []protocol.FoldingRange{}, nil)
+	}
+
+	doc := h.dm.Get(params.TextDocument.URI)
+	if doc == nil {
+		return reply(ctx, []protocol.FoldingRange{}, nil)
+	}
+
+	result := computeFoldingRanges(doc.doc, doc.errors, doc.content)
+	if result == nil {
+		result = []protocol.FoldingRange{}
+	}
 	return reply(ctx, result, nil)
 }
 
