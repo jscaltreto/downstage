@@ -121,6 +121,23 @@ Use `-v` or `--verbose` to enable debug logging on any command.
 parse errors to stderr but still emits the AST JSON. `downstage render` exits
 non-zero if parsing fails.
 
+### Render Styles
+
+`downstage render` supports two styles via the `--style` flag:
+
+- **`standard`** (default) — Traditional manuscript format. Letter-size pages
+  (8.5" × 11"), Courier 12pt, 1-inch margins. Character names appear on their
+  own line above the dialogue.
+- **`condensed`** — Acting edition format designed for rehearsal use.
+  Half-letter pages (5.5" × 8.5"), Libre Baskerville 10pt, 0.5-inch margins.
+  Character names appear inline with dialogue (e.g. `HAMLET. To be or not...`),
+  giving a denser, more book-like layout that uses less paper.
+
+```
+downstage render play.ds                       # standard manuscript
+downstage render --style condensed play.ds     # acting edition
+```
+
 ## Editor Setup
 
 ### Neovim (0.11+)
@@ -164,7 +181,7 @@ client at the server:
 A Downstage document has three sections:
 
 1. **Title Page** — optional `Key: Value` metadata lines at the start of the document, with indented continuation lines allowed
-2. **Dramatis Personae** — A `# Dramatis Personae` heading followed by character names and descriptions, optionally organized into groups with `##` subheadings.
+2. **Dramatis Personae** — A `# Dramatis Personae`, `# Cast of Characters`, or `# Characters` heading followed by character names and descriptions, optionally organized into groups with `##` subheadings.
 3. **Body** — The play itself: acts (`## ACT`), scenes (`### SCENE`), dialogue (ALL CAPS character name followed by speech text), stage directions (`>` prefixed lines), verse (indented 2+ spaces), songs, and comments.
 
 See [SPEC.md](SPEC.md) for the complete language specification.
