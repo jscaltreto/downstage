@@ -779,6 +779,33 @@ Whether 'tis nobler in the mind.`
 	assert.NotEmpty(t, dlg.Lines[3].Content, "line 3 should have content")
 }
 
+func TestStageDirectionContinuation(t *testing.T) {
+	input := `# Play
+
+## Scene 1
+
+> First direction.
+> Second direction.
+
+> Third direction.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	// Find the scene's children
+	act := doc.Body[0].(*ast.Section)
+	scene := act.Children[0].(*ast.Section)
+	require.Len(t, scene.Children, 3)
+
+	sd1 := scene.Children[0].(*ast.StageDirection)
+	sd2 := scene.Children[1].(*ast.StageDirection)
+	sd3 := scene.Children[2].(*ast.StageDirection)
+
+	assert.False(t, sd1.Continuation, "first direction is not a continuation")
+	assert.True(t, sd2.Continuation, "second direction is adjacent — should be continuation")
+	assert.False(t, sd3.Continuation, "third direction has blank line before — not a continuation")
+}
+
 // Golden file tests
 func TestGoldenFiles(t *testing.T) {
 	matches, err := filepath.Glob("testdata/*.ds")

@@ -11,6 +11,7 @@ import (
 // --- Section ---
 
 func (r *pdfRenderer) BeginSection(s *ast.Section) error {
+	r.prevWasStageDirection = false
 	switch s.Kind {
 	case ast.SectionAct:
 		return r.beginAct(s)
@@ -46,6 +47,7 @@ func (r *pdfRenderer) BeginSection(s *ast.Section) error {
 }
 
 func (r *pdfRenderer) EndSection(_ *ast.Section) error {
+	r.prevWasStageDirection = false
 	return nil
 }
 
@@ -120,6 +122,7 @@ func (r *pdfRenderer) beginScene(s *ast.Section) error {
 // --- Dual Dialogue ---
 
 func (r *pdfRenderer) BeginDualDialogue(d *ast.DualDialogue) error {
+	r.prevWasStageDirection = false
 	r.dualSequential = false
 	r.dualMidY = 0
 	estimatedHeight := r.estimateDualDialogueHeight(d)
@@ -157,6 +160,7 @@ func (r *pdfRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
 // --- Dialogue ---
 
 func (r *pdfRenderer) BeginDialogue(d *ast.Dialogue) error {
+	r.prevWasStageDirection = false
 	if r.inDualDialogue {
 		return r.beginDualDialogueSide(d)
 	}
@@ -327,9 +331,18 @@ func (r *pdfRenderer) EndDialogueLine(_ *ast.DialogueLine) error {
 
 // --- Stage Direction ---
 
-func (r *pdfRenderer) BeginStageDirection(_ *ast.StageDirection) error {
-	r.ensureSpace(r.lineHeight * 2)
-	r.pdf.Ln(r.lineHeight / 2)
+func (r *pdfRenderer) BeginStageDirection(sd *ast.StageDirection) error {
+	switch {
+	case sd.Continuation:
+		// Adjacent line — regular line break, no extra gap
+	case r.prevWasStageDirection:
+		// Separated by blank lines — single blank line gap
+		r.ensureSpace(r.lineHeight * 2)
+		r.pdf.Ln(r.lineHeight)
+	default:
+		r.ensureSpace(r.lineHeight * 2)
+		r.pdf.Ln(r.lineHeight / 2)
+	}
 	r.setStyle("I")
 	r.pdf.SetX(r.marginL)
 	return nil
@@ -338,13 +351,14 @@ func (r *pdfRenderer) BeginStageDirection(_ *ast.StageDirection) error {
 func (r *pdfRenderer) EndStageDirection(_ *ast.StageDirection) error {
 	r.pdf.Ln(r.lineHeight)
 	r.setStyle("")
-	r.pdf.Ln(r.lineHeight / 2)
+	r.prevWasStageDirection = true
 	return nil
 }
 
 // --- Song ---
 
 func (r *pdfRenderer) BeginSong(song *ast.Song) error {
+	r.prevWasStageDirection = false
 	r.ensureSpace(r.lineHeight * 3)
 	r.pdf.Ln(r.lineHeight)
 

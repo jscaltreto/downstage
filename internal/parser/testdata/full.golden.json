@@ -202,6 +202,7 @@
                   }
                 }
               ],
+              "Continuation": false,
               "Range": {
                 "Start": {
                   "Line": 16,
@@ -347,6 +348,7 @@
                   }
                 }
               ],
+              "Continuation": false,
               "Range": {
                 "Start": {
                   "Line": 23,

@@ -755,22 +755,29 @@ func TestRender_DialogueParagraphBreak(t *testing.T) {
 	assert.Contains(t, out, "That is the question.")
 }
 
-func TestRender_CondensedAdjacentStageDirectionCSS(t *testing.T) {
+func TestRender_StageDirectionContinuation(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{
 			&ast.StageDirection{
 				Content: []ast.Inline{&ast.TextNode{Value: "First direction."}},
 			},
 			&ast.StageDirection{
-				Content: []ast.Inline{&ast.TextNode{Value: "Second direction."}},
+				Content:      []ast.Inline{&ast.TextNode{Value: "Adjacent direction."}},
+				Continuation: true,
+			},
+			&ast.StageDirection{
+				Content: []ast.Inline{&ast.TextNode{Value: "Separated direction."}},
 			},
 		},
 	}
-	out := renderHTML(t, doc, render.StyleCondensed)
+	out := renderHTML(t, doc)
 
-	assert.Contains(t, out, ".downstage-stage-direction + .downstage-stage-direction")
-	assert.Contains(t, out, "First direction.")
-	assert.Contains(t, out, "Second direction.")
+	assert.Contains(t, out, `class="downstage-stage-direction downstage-continuation"`)
+	assert.Contains(t, out, "Adjacent direction.")
+	// Non-continuation directions should not have the continuation class
+	assert.Contains(t, out, "Separated direction.")
+	// CSS rules present
+	assert.Contains(t, out, ".downstage-stage-direction.downstage-continuation")
 }
 
 func extractBlock(t *testing.T, out, prefix, suffix string) string {
