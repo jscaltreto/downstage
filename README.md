@@ -4,6 +4,8 @@
 
 # Downstage
 
+[![Docs](https://img.shields.io/badge/docs-pages-firebrick)](https://jscaltreto.github.io/downstage/)
+
 A plaintext markup language for stage plays.
 
 ## What is Downstage?
