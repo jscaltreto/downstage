@@ -227,7 +227,7 @@ func (h *handler) handleCompletion(ctx context.Context, reply jsonrpc2.Replier, 
 		return reply(ctx, emptyCompletionList(), nil)
 	}
 
-	result := computeCompletion(doc.doc, doc.errors, doc.content, params.Position)
+	result := computeCompletionWithIndex(doc.doc, doc.index, doc.content, params.Position)
 	return reply(ctx, result, nil)
 }
 
