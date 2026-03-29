@@ -1,6 +1,9 @@
 package render
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // Style represents a rendering style variant.
 type Style string
@@ -52,6 +55,39 @@ type Config struct {
 	MarginLeft    float64
 	MarginRight   float64
 	SourceAnchors bool // emit data-source-line attributes on block elements
+}
+
+// Validate checks that Config values are within acceptable ranges.
+func (c Config) Validate() error {
+	var errs []error
+	if c.FontSize <= 0 {
+		errs = append(errs, fmt.Errorf("FontSize must be > 0, got %g", c.FontSize))
+	}
+	if c.MarginTop < 0 {
+		errs = append(errs, fmt.Errorf("MarginTop must be >= 0, got %g", c.MarginTop))
+	}
+	if c.MarginBottom < 0 {
+		errs = append(errs, fmt.Errorf("MarginBottom must be >= 0, got %g", c.MarginBottom))
+	}
+	if c.MarginLeft < 0 {
+		errs = append(errs, fmt.Errorf("MarginLeft must be >= 0, got %g", c.MarginLeft))
+	}
+	if c.MarginRight < 0 {
+		errs = append(errs, fmt.Errorf("MarginRight must be >= 0, got %g", c.MarginRight))
+	}
+	switch c.PageSize {
+	case PageLetter, PageA4:
+		// valid
+	default:
+		errs = append(errs, fmt.Errorf("unsupported PageSize: %q", c.PageSize))
+	}
+	switch c.Style {
+	case StyleStandard, StyleCondensed:
+		// valid
+	default:
+		errs = append(errs, fmt.Errorf("unsupported Style: %q", c.Style))
+	}
+	return errors.Join(errs...)
 }
 
 // DefaultConfig returns a Config with standard play manuscript settings.

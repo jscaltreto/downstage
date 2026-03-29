@@ -1,6 +1,11 @@
 package render
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestParseStyle(t *testing.T) {
 	tests := []struct {
@@ -87,4 +92,99 @@ func TestDefaultConfig(t *testing.T) {
 	if got.SourceAnchors {
 		t.Fatal("expected source anchors to be disabled by default")
 	}
+}
+
+func TestDefaultConfigValidates(t *testing.T) {
+	cfg := DefaultConfig()
+	require.NoError(t, cfg.Validate())
+}
+
+func TestCondensedMarginsValidate(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Style = StyleCondensed
+	cfg.MarginTop = 36
+	cfg.MarginBottom = 36
+	cfg.MarginLeft = 36
+	cfg.MarginRight = 36
+	require.NoError(t, cfg.Validate())
+}
+
+func TestValidateRejectsZeroFontSize(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.FontSize = 0
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FontSize")
+}
+
+func TestValidateRejectsNegativeFontSize(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.FontSize = -1
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FontSize")
+}
+
+func TestValidateRejectsNegativeMargins(t *testing.T) {
+	for _, field := range []string{"Top", "Bottom", "Left", "Right"} {
+		t.Run("Margin"+field, func(t *testing.T) {
+			cfg := DefaultConfig()
+			switch field {
+			case "Top":
+				cfg.MarginTop = -1
+			case "Bottom":
+				cfg.MarginBottom = -1
+			case "Left":
+				cfg.MarginLeft = -1
+			case "Right":
+				cfg.MarginRight = -1
+			}
+			err := cfg.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "Margin"+field)
+		})
+	}
+}
+
+func TestValidateRejectsUnknownPageSize(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.PageSize = "tabloid"
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PageSize")
+}
+
+func TestValidateRejectsUnknownStyle(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Style = "fancy"
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Style")
+}
+
+func TestValidateCollectsMultipleErrors(t *testing.T) {
+	cfg := Config{
+		FontSize:     -1,
+		MarginTop:    -1,
+		MarginBottom: -1,
+		MarginLeft:   -1,
+		MarginRight:  -1,
+		PageSize:     "bad",
+		Style:        "bad",
+	}
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FontSize")
+	assert.Contains(t, err.Error(), "PageSize")
+	assert.Contains(t, err.Error(), "Style")
+	assert.Contains(t, err.Error(), "MarginTop")
+}
+
+func TestValidateAcceptsZeroMargins(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MarginTop = 0
+	cfg.MarginBottom = 0
+	cfg.MarginLeft = 0
+	cfg.MarginRight = 0
+	require.NoError(t, cfg.Validate())
 }
