@@ -423,6 +423,7 @@ func (p *parser) parseSectionInContext(level int, insideAct bool) *ast.Section {
 		Level: level,
 		Range: headingTok.Range,
 	}
+	section.SetHeadingRange(headingTok.Range)
 
 	switch kind {
 	case ast.SectionAct:
