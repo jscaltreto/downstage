@@ -19,6 +19,7 @@ func resetRenderFlags() {
 	renderStdin = false
 	renderStdout = false
 	renderSourceName = "<stdin>"
+	renderSourceAnchors = false
 }
 
 func TestRunRenderFailsOnParseErrors(t *testing.T) {

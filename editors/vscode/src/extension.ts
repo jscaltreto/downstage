@@ -90,16 +90,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeTextDocument((event) => {
 			scheduleCueSuggestForDocument(event.document);
+			schedulePreviewUpdate(event.document);
 		}),
 	);
 	context.subscriptions.push(
 		vscode.window.onDidChangeTextEditorSelection((event) => {
 			scheduleCueSuggestForEditor(event.textEditor);
-		}),
-	);
-	context.subscriptions.push(
-		vscode.workspace.onDidChangeTextDocument((event) => {
-			schedulePreviewUpdate(event.document);
 		}),
 	);
 	context.subscriptions.push(
@@ -592,24 +588,30 @@ function renderToPreview(document: vscode.TextDocument, state: PreviewState): vo
 
 	state.child = child;
 
-	let stdout = "";
-	let stderr = "";
+	const stdoutChunks: string[] = [];
+	const stderrChunks: string[] = [];
 
 	child.stdout.on("data", (chunk: Buffer | string) => {
-		stdout += chunk.toString();
+		stdoutChunks.push(chunk.toString());
 	});
 	child.stderr.on("data", (chunk: Buffer | string) => {
-		stderr += chunk.toString();
+		stderrChunks.push(chunk.toString());
 	});
 
 	child.on("error", (err) => {
-		state.child = undefined;
+		if (state.child === child) {
+			state.child = undefined;
+		}
 		const outputChannel = getRenderOutputChannel();
 		outputChannel.appendLine(`Preview render error: ${err.message}`);
 	});
 
 	child.on("close", (code) => {
-		state.child = undefined;
+		if (state.child === child) {
+			state.child = undefined;
+		}
+		const stdout = stdoutChunks.join("");
+		const stderr = stderrChunks.join("");
 		if (code === 0) {
 			state.lastHtml = stdout;
 			renderDiagnostics?.delete(document.uri);
