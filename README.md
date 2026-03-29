@@ -203,9 +203,10 @@ make release-snapshot
 These targets require [`goreleaser`](https://goreleaser.com/install/) to be
 installed locally.
 
-Publishing the Homebrew formula requires a repository secret named
-`HOMEBREW_TAP_GITHUB_TOKEN` with push access to
-`jscaltreto/homebrew-tap`.
+Publishing the Homebrew formula is handled by the release workflow, which
+updates `jscaltreto/homebrew-tap` after GoReleaser publishes release assets.
+This requires a repository secret named `HOMEBREW_TAP_GITHUB_TOKEN` with push
+access to `jscaltreto/homebrew-tap`.
 
 Release Please requires a repository secret named `RELEASE_PLEASE_TOKEN` with
 enough access to create release PRs, tags, and releases in
