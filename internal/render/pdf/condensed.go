@@ -10,6 +10,7 @@ import (
 )
 
 const condensedLineHeight = 4.5 // mm
+const halfInchPt = 36.0         // 0.5 inch in points
 
 // Half-letter page size: 5.5" x 8.5"
 const (
@@ -25,10 +26,10 @@ var _ render.NodeRenderer = (*condensedRenderer)(nil)
 func NewCondensedRenderer(cfg render.Config) render.NodeRenderer {
 	// Override config for acting edition defaults
 	cfg.FontSize = 10
-	cfg.MarginTop = 36 // 0.5 inch
-	cfg.MarginBottom = 36
-	cfg.MarginLeft = 36
-	cfg.MarginRight = 36
+	cfg.MarginTop = halfInchPt
+	cfg.MarginBottom = halfInchPt
+	cfg.MarginLeft = halfInchPt
+	cfg.MarginRight = halfInchPt
 	return &condensedRenderer{
 		pdfBase: pdfBase{cfg: cfg, lineHeight: condensedLineHeight},
 	}
@@ -58,11 +59,11 @@ func (r *condensedRenderer) EndDocument(_ *ast.Document) error {
 func (r *condensedRenderer) initCondensedPDF() {
 	r.pdf = newCustomSizePDF(halfLetterW, halfLetterH)
 
-	// Convert points to mm
-	r.marginL = r.cfg.MarginLeft * 0.3528
-	r.marginR = r.cfg.MarginRight * 0.3528
-	r.marginT = r.cfg.MarginTop * 0.3528
-	r.marginB = r.cfg.MarginBottom * 0.3528
+	// Convert margin points to mm
+	r.marginL = r.cfg.MarginLeft * pointsToMM
+	r.marginR = r.cfg.MarginRight * pointsToMM
+	r.marginT = r.cfg.MarginTop * pointsToMM
+	r.marginB = r.cfg.MarginBottom * pointsToMM
 
 	r.pdf.SetMargins(r.marginL, r.marginT, r.marginR)
 	r.pdf.SetAutoPageBreak(true, r.marginB)
@@ -477,7 +478,7 @@ func (r *condensedRenderer) BeginStageDirection(_ *ast.StageDirection) error {
 	r.ensureSpace(r.lineHeight * 3)
 	r.pdf.Ln(r.lineHeight)
 
-	stageIndent := 0.5 * 72 * 0.3528 // 0.5 inch in mm
+	stageIndent := 0.5 * 72 * pointsToMM // 0.5 inch in mm
 	r.setStyle("I")
 	r.pdf.SetLeftMargin(r.marginL + stageIndent)
 	r.pdf.SetX(r.marginL + stageIndent)
