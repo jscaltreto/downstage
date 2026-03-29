@@ -8,6 +8,7 @@ import (
 
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/render"
+	"github.com/jscaltreto/downstage/internal/token"
 )
 
 var _ render.NodeRenderer = (*htmlRenderer)(nil)
@@ -33,6 +34,13 @@ type htmlRenderer struct {
 
 type sectionState struct {
 	closeTag bool
+}
+
+func (r *htmlRenderer) sourceAttr(rng token.Range) string {
+	if !r.cfg.SourceAnchors {
+		return ""
+	}
+	return fmt.Sprintf(` data-source-line="%d"`, rng.Start.Line+1)
 }
 
 // --- Lifecycle ---
@@ -105,7 +113,7 @@ func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		}
 	}
 
-	r.buf.WriteString("<header class=\"downstage-title-page\">\n")
+	fmt.Fprintf(&r.buf, "<header class=\"downstage-title-page\"%s>\n", r.sourceAttr(tp.NodeRange()))
 
 	if title != "" {
 		fmt.Fprintf(&r.buf, "<h1>%s</h1>\n", html.EscapeString(title))
@@ -157,7 +165,7 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 			return nil
 		}
 		r.pushSection(true)
-		r.buf.WriteString("<section class=\"downstage-section\">\n")
+		fmt.Fprintf(&r.buf, "<section class=\"downstage-section\"%s>\n", r.sourceAttr(s.NodeRange()))
 		if s.Title != "" {
 			tag := headingTag(s.Level)
 			fmt.Fprintf(&r.buf, "<%s>%s</%s>\n", tag, html.EscapeString(strings.ToUpper(s.Title)), tag)
@@ -210,7 +218,7 @@ func (r *htmlRenderer) beginAct(s *ast.Section) error {
 	}
 
 	r.pushSection(true)
-	r.buf.WriteString("<section class=\"downstage-act\">\n")
+	fmt.Fprintf(&r.buf, "<section class=\"downstage-act\"%s>\n", r.sourceAttr(s.NodeRange()))
 
 	var heading string
 	switch {
@@ -228,7 +236,7 @@ func (r *htmlRenderer) beginAct(s *ast.Section) error {
 
 func (r *htmlRenderer) beginScene(s *ast.Section) error {
 	r.pushSection(true)
-	r.buf.WriteString("<section class=\"downstage-scene\">\n")
+	fmt.Fprintf(&r.buf, "<section class=\"downstage-scene\"%s>\n", r.sourceAttr(s.NodeRange()))
 
 	var heading string
 	switch {
@@ -246,7 +254,7 @@ func (r *htmlRenderer) beginScene(s *ast.Section) error {
 
 func (r *htmlRenderer) renderDramatisPersonae(s *ast.Section) error {
 	r.pushSection(false)
-	r.buf.WriteString("<section class=\"downstage-dramatis-personae\">\n")
+	fmt.Fprintf(&r.buf, "<section class=\"downstage-dramatis-personae\"%s>\n", r.sourceAttr(s.NodeRange()))
 	r.buf.WriteString("<h2>DRAMATIS PERSONAE</h2>\n")
 	r.buf.WriteString("<dl>\n")
 
@@ -280,10 +288,10 @@ func (r *htmlRenderer) renderCharacterEntry(ch ast.Character) {
 
 // --- Dual Dialogue ---
 
-func (r *htmlRenderer) BeginDualDialogue(_ *ast.DualDialogue) error {
+func (r *htmlRenderer) BeginDualDialogue(dd *ast.DualDialogue) error {
 	r.beginBlock()
 	r.inDualDialogue = true
-	r.buf.WriteString("<div class=\"downstage-dual-dialogue\">\n")
+	fmt.Fprintf(&r.buf, "<div class=\"downstage-dual-dialogue\"%s>\n", r.sourceAttr(dd.NodeRange()))
 	return nil
 }
 
@@ -297,7 +305,7 @@ func (r *htmlRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
 
 func (r *htmlRenderer) BeginDialogue(d *ast.Dialogue) error {
 	r.beginBlock()
-	r.buf.WriteString("<div class=\"downstage-dialogue\">\n")
+	fmt.Fprintf(&r.buf, "<div class=\"downstage-dialogue\"%s>\n", r.sourceAttr(d.NodeRange()))
 	fmt.Fprintf(&r.buf, "<p class=\"downstage-character\">%s", html.EscapeString(strings.ToUpper(d.Character)))
 	if d.Parenthetical != "" {
 		paren := d.Parenthetical
@@ -332,9 +340,9 @@ func (r *htmlRenderer) EndDialogueLine(_ *ast.DialogueLine) error {
 
 // --- Stage Direction ---
 
-func (r *htmlRenderer) BeginStageDirection(_ *ast.StageDirection) error {
+func (r *htmlRenderer) BeginStageDirection(sd *ast.StageDirection) error {
 	r.beginBlock()
-	r.buf.WriteString("<p class=\"downstage-stage-direction\">")
+	fmt.Fprintf(&r.buf, "<p class=\"downstage-stage-direction\"%s>", r.sourceAttr(sd.NodeRange()))
 	return nil
 }
 
@@ -347,7 +355,7 @@ func (r *htmlRenderer) EndStageDirection(_ *ast.StageDirection) error {
 
 func (r *htmlRenderer) BeginSong(song *ast.Song) error {
 	r.beginBlock()
-	r.buf.WriteString("<div class=\"downstage-song\">\n")
+	fmt.Fprintf(&r.buf, "<div class=\"downstage-song\"%s>\n", r.sourceAttr(song.NodeRange()))
 
 	header := "SONG"
 	if song.Number != "" {
@@ -369,9 +377,9 @@ func (r *htmlRenderer) EndSong(_ *ast.Song) error {
 
 // --- Verse Block ---
 
-func (r *htmlRenderer) BeginVerseBlock(_ *ast.VerseBlock) error {
+func (r *htmlRenderer) BeginVerseBlock(vb *ast.VerseBlock) error {
 	r.beginBlock()
-	r.buf.WriteString("<div class=\"downstage-verse-block\">\n")
+	fmt.Fprintf(&r.buf, "<div class=\"downstage-verse-block\"%s>\n", r.sourceAttr(vb.NodeRange()))
 	return nil
 }
 
@@ -392,9 +400,9 @@ func (r *htmlRenderer) EndVerseLine(_ *ast.VerseLine) error {
 
 // --- Leaves ---
 
-func (r *htmlRenderer) RenderPageBreak(_ *ast.PageBreak) error {
+func (r *htmlRenderer) RenderPageBreak(pb *ast.PageBreak) error {
 	r.beginBlock()
-	r.buf.WriteString("<hr class=\"downstage-page-break\">\n")
+	fmt.Fprintf(&r.buf, "<hr class=\"downstage-page-break\"%s>\n", r.sourceAttr(pb.NodeRange()))
 	return nil
 }
 

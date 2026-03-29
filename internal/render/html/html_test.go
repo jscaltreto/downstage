@@ -665,6 +665,76 @@ func TestRender_SectionLineParagraphClosedAtEndSection(t *testing.T) {
 	assert.Contains(t, out, "</section>")
 }
 
+func renderHTMLWithAnchors(t *testing.T, doc *ast.Document) string {
+	t.Helper()
+	cfg := render.DefaultConfig()
+	cfg.SourceAnchors = true
+	r := NewRenderer(cfg)
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	return buf.String()
+}
+
+func TestRender_SourceAnchors(t *testing.T) {
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Range:   token.Range{Start: token.Position{Line: 0}},
+			Entries: []ast.KeyValue{{Key: "Title", Value: "Test"}},
+		},
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:   ast.SectionAct,
+				Number: "I",
+				Range:  token.Range{Start: token.Position{Line: 5}},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionScene,
+						Number: "1",
+						Range:  token.Range{Start: token.Position{Line: 7}},
+						Children: []ast.Node{
+							&ast.StageDirection{
+								Range:   token.Range{Start: token.Position{Line: 9}},
+								Content: []ast.Inline{&ast.TextNode{Value: "Lights up."}},
+							},
+							&ast.Dialogue{
+								Character: "ALICE",
+								Range:     token.Range{Start: token.Position{Line: 11}},
+								Lines: []ast.DialogueLine{
+									{Content: []ast.Inline{&ast.TextNode{Value: "Hello."}}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	out := renderHTMLWithAnchors(t, doc)
+
+	assert.Contains(t, out, `data-source-line="1"`)  // title page (line 0 -> 1)
+	assert.Contains(t, out, `data-source-line="6"`)  // act (line 5 -> 6)
+	assert.Contains(t, out, `data-source-line="8"`)  // scene (line 7 -> 8)
+	assert.Contains(t, out, `data-source-line="10"`) // stage direction (line 9 -> 10)
+	assert.Contains(t, out, `data-source-line="12"`) // dialogue (line 11 -> 12)
+}
+
+func TestRender_SourceAnchorsOff(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Dialogue{
+				Character: "ALICE",
+				Range:     token.Range{Start: token.Position{Line: 5}},
+				Lines: []ast.DialogueLine{
+					{Content: []ast.Inline{&ast.TextNode{Value: "Hello."}}},
+				},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+	assert.NotContains(t, out, "data-source-line")
+}
+
 func extractBlock(t *testing.T, out, prefix, suffix string) string {
 	t.Helper()
 	start := strings.Index(out, prefix)

@@ -16,14 +16,15 @@ import (
 )
 
 var (
-	renderFormat     string
-	renderOutput     string
-	renderPageSize   string
-	renderStyle      string
-	renderFont       string
-	renderStdin      bool
-	renderStdout     bool
-	renderSourceName string
+	renderFormat        string
+	renderOutput        string
+	renderPageSize      string
+	renderStyle         string
+	renderFont          string
+	renderStdin         bool
+	renderStdout        bool
+	renderSourceName    string
+	renderSourceAnchors bool
 )
 
 var renderCmd = &cobra.Command{
@@ -43,6 +44,7 @@ func init() {
 	renderCmd.Flags().BoolVar(&renderStdin, "stdin", false, "read input from stdin instead of a file")
 	renderCmd.Flags().BoolVar(&renderStdout, "stdout", false, "write output to stdout instead of a file")
 	renderCmd.Flags().StringVar(&renderSourceName, "source-name", "<stdin>", "source filename for diagnostics when using --stdin")
+	renderCmd.Flags().BoolVar(&renderSourceAnchors, "source-anchors", false, "emit source line anchors in HTML output")
 	rootCmd.AddCommand(renderCmd)
 }
 
@@ -98,6 +100,7 @@ func runRender(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	cfg.Style = style
+	cfg.SourceAnchors = renderSourceAnchors
 
 	var nr render.NodeRenderer
 	switch renderFormat {
