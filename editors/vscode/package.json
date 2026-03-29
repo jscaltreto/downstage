@@ -28,7 +28,8 @@
     "onCommand:downstage.renderCurrentScript",
     "onCommand:downstage.renderCompactScript",
     "onCommand:downstage.previewCurrentScript",
-    "onCommand:downstage.previewCompactScript"
+    "onCommand:downstage.previewCompactScript",
+    "onCommand:downstage.livePreview"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -52,6 +53,10 @@
       {
         "command": "downstage.previewCompactScript",
         "title": "Downstage: Preview Compact Script PDF"
+      },
+      {
+        "command": "downstage.livePreview",
+        "title": "Downstage: Live Preview"
       }
     ],
     "configuration": {
@@ -90,6 +95,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Open the generated PDF after a successful render."
+        },
+        "downstage.preview.debounceMs": {
+          "type": "number",
+          "default": 300,
+          "markdownDescription": "Delay in milliseconds before re-rendering the live preview after edits."
         }
       }
     },
