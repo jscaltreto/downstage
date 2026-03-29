@@ -29,7 +29,6 @@ type htmlRenderer struct {
 	titlePageTitle string
 	inDualDialogue bool
 	inParagraph    bool // tracks open <p> in section lines for prose reflow
-	dialogueBreak  bool // tracks paragraph break marker in dialogue
 	sectionStack   []sectionState
 }
 
@@ -327,7 +326,6 @@ func (r *htmlRenderer) EndDialogue(_ *ast.Dialogue) error {
 func (r *htmlRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 	if len(line.Content) == 0 {
 		r.buf.WriteString("<div class=\"downstage-dialogue-break\"></div>\n")
-		r.dialogueBreak = true
 		return nil
 	}
 	cls := "downstage-line"
@@ -338,9 +336,8 @@ func (r *htmlRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 	return nil
 }
 
-func (r *htmlRenderer) EndDialogueLine(_ *ast.DialogueLine) error {
-	if r.dialogueBreak {
-		r.dialogueBreak = false
+func (r *htmlRenderer) EndDialogueLine(line *ast.DialogueLine) error {
+	if len(line.Content) == 0 {
 		return nil
 	}
 	r.buf.WriteString("</p>\n")
