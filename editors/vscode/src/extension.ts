@@ -656,10 +656,15 @@ body { overflow: hidden; }
 	let staging = frameB;
 	let pendingLine = null;
 	let loadGeneration = 0;
+	let clearTimer = null;
 
 	function updatePreview(html, line) {
 		if (typeof line === "number") {
 			pendingLine = line;
+		}
+		if (clearTimer !== null) {
+			clearTimeout(clearTimer);
+			clearTimer = null;
 		}
 		loadGeneration++;
 		staging.dataset.generation = String(loadGeneration);
@@ -703,7 +708,10 @@ body { overflow: hidden; }
 		active = staging;
 		staging = retired;
 		retired.dataset.generation = "-1";
-		setTimeout(() => { retired.srcdoc = ""; }, 0);
+		clearTimer = setTimeout(() => {
+			clearTimer = null;
+			retired.srcdoc = "";
+		}, 0);
 	}
 
 	frameA.addEventListener("load", () => onFrameLoad(frameA));
