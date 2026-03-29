@@ -656,17 +656,20 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 	// If so, text/stage directions are structural content (Children).
 	// If not, they're prose lines (Lines) with paragraph reflow.
 	hasStructuralContent := p.hasSubHeading(level)
+	var prevSD bool
 
 	for !p.at(token.EOF) && !p.atHeadingAtOrAboveLevel(level) {
 		// Sub-headings become child sections
 		if level < 3 && p.at(headingTokenForLevel(level+1)) {
 			child := p.parseSectionInContext(level+1, false)
 			section.AppendChild(child)
+			prevSD = false
 			continue
 		}
 		if level < 2 && p.at(headingTokenForLevel(level+2)) {
 			child := p.parseSectionInContext(level+2, false)
 			section.AppendChild(child)
+			prevSD = false
 			continue
 		}
 
@@ -680,6 +683,7 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 				Range:   tok.Range,
 			}
 			section.AppendLine(line)
+			prevSD = false
 			continue
 		}
 
@@ -687,8 +691,11 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 		if p.atAny(token.CharacterName, token.ForcedCharacter, token.DualDialogueChar,
 			token.StageDirection, token.SongStart, token.Verse, token.PageBreak,
 			token.ForcedHeading, token.Text, token.CharacterAlias) {
+			hadBlanks := false // blanks already consumed by the Blank handler below
 			elem := p.parseBodyElement()
 			if elem != nil {
+				markStageDirectionContinuation(elem, prevSD, hadBlanks)
+				_, prevSD = elem.(*ast.StageDirection)
 				section.AppendChild(elem)
 				p.maybeDualDialogueSection(section)
 			}
@@ -709,6 +716,7 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 			// Preserve blank lines as empty section lines (paragraph breaks)
 			tok := p.advance()
 			section.AppendLine(ast.SectionLine{Range: tok.Range})
+			prevSD = false
 			continue
 		}
 
@@ -719,6 +727,7 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 			Range:   tok.Range,
 		}
 		section.AppendLine(line)
+		prevSD = false
 	}
 
 	// Trim trailing blank lines
@@ -902,7 +911,9 @@ func (p *parser) parseSong() *ast.Song {
 	p.skipBlanks()
 
 	// Collect content until SONG END
+	var prevSD bool
 	for !p.at(token.SongEnd) && !p.at(token.EOF) {
+		hadBlanks := p.at(token.Blank)
 		p.skipBlanks()
 		if p.at(token.SongEnd) || p.at(token.EOF) {
 			break
@@ -910,6 +921,8 @@ func (p *parser) parseSong() *ast.Song {
 
 		elem := p.parseBodyElement()
 		if elem != nil {
+			markStageDirectionContinuation(elem, prevSD, hadBlanks)
+			_, prevSD = elem.(*ast.StageDirection)
 			song.Content = append(song.Content, elem)
 			song.Content = p.makeDualDialogue(song.Content)
 		}

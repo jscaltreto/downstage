@@ -167,6 +167,7 @@ func (b *pdfBase) EndInlineDirection(_ *ast.InlineDirectionNode) error {
 
 func (b *pdfBase) RenderPageBreak(_ *ast.PageBreak) error {
 	b.pdf.AddPage()
+	b.prevWasStageDirection = false
 	return nil
 }
 

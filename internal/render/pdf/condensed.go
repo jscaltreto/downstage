@@ -551,6 +551,7 @@ func (r *condensedRenderer) EndSong(_ *ast.Song) error {
 // --- Verse Block ---
 
 func (r *condensedRenderer) BeginVerseBlock(_ *ast.VerseBlock) error {
+	r.prevWasStageDirection = false
 	r.ensureSpace(r.lineHeight * 2)
 	return nil
 }

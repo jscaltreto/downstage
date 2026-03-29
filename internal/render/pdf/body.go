@@ -389,6 +389,7 @@ func (r *pdfRenderer) EndSong(_ *ast.Song) error {
 // --- Verse Block ---
 
 func (r *pdfRenderer) BeginVerseBlock(_ *ast.VerseBlock) error {
+	r.prevWasStageDirection = false
 	r.ensureSpace(r.lineHeight * 2)
 	return nil
 }
