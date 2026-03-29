@@ -126,12 +126,13 @@ func validateCustomFontPath(path string) (string, error) {
 		return "", fmt.Errorf("font path cannot be empty")
 	}
 
-	sanitized := filepath.Clean(path)
-	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
+	normalized := strings.ReplaceAll(path, "\\", "/")
+	for _, part := range strings.Split(normalized, "/") {
 		if part == ".." {
 			return "", fmt.Errorf("font path cannot contain parent traversal")
 		}
 	}
 
+	sanitized := filepath.Clean(path)
 	return sanitized, nil
 }

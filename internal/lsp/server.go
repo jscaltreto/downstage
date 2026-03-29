@@ -72,6 +72,7 @@ func newLimitedStream(conn io.ReadWriteCloser, maxContentLength int64) jsonrpc2.
 		conn:             conn,
 		in:               bufio.NewReader(conn),
 		maxContentLength: maxContentLength,
+		out:              jsonrpc2.NewStream(conn),
 	}
 }
 
@@ -79,6 +80,7 @@ type limitedStream struct {
 	conn             io.ReadWriteCloser
 	in               *bufio.Reader
 	maxContentLength int64
+	out              jsonrpc2.Stream
 }
 
 func (s *limitedStream) Read(ctx context.Context) (jsonrpc2.Message, int64, error) {
@@ -137,7 +139,7 @@ func (s *limitedStream) Read(ctx context.Context) (jsonrpc2.Message, int64, erro
 }
 
 func (s *limitedStream) Write(ctx context.Context, msg jsonrpc2.Message) (int64, error) {
-	return jsonrpc2.NewStream(s.conn).Write(ctx, msg)
+	return s.out.Write(ctx, msg)
 }
 
 func (s *limitedStream) Close() error {

@@ -22,6 +22,7 @@ interface PreviewState {
 	pending: ReturnType<typeof setTimeout> | undefined;
 	child: ReturnType<typeof spawn> | undefined;
 	lastHtml: string;
+	requestId: number;
 }
 const previewPanels = new Map<string, PreviewState>();
 
@@ -601,6 +602,7 @@ function openLivePreview(): void {
 		pending: undefined,
 		child: undefined,
 		lastHtml: "",
+		requestId: 0,
 	};
 
 	panel.webview.html = getPreviewHtml("");
@@ -714,6 +716,9 @@ async function renderToPreview(document: vscode.TextDocument, state: PreviewStat
 		state.child = undefined;
 	}
 
+	state.requestId++
+	const requestId = state.requestId
+
 	let serverPath: string;
 	let style: string;
 	try {
@@ -722,6 +727,9 @@ async function renderToPreview(document: vscode.TextDocument, state: PreviewStat
 	} catch (error) {
 		const outputChannel = getRenderOutputChannel();
 		outputChannel.appendLine(`Preview render error: ${String(error)}`);
+		return;
+	}
+	if (requestId !== state.requestId) {
 		return;
 	}
 	const sourceName = path.basename(document.uri.fsPath);

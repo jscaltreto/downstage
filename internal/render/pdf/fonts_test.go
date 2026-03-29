@@ -8,6 +8,12 @@ func TestValidateCustomFontPathRejectsTraversal(t *testing.T) {
 	}
 }
 
+func TestValidateCustomFontPathRejectsWindowsTraversal(t *testing.T) {
+	if _, err := validateCustomFontPath("..\\fonts\\custom.ttf"); err == nil {
+		t.Fatal("expected windows parent traversal path to be rejected")
+	}
+}
+
 func TestValidateCustomFontPathCleansValidPath(t *testing.T) {
 	got, err := validateCustomFontPath("./fonts/Custom.ttf")
 	if err != nil {
