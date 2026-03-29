@@ -348,3 +348,65 @@ func TestBeginCondensedDualDialogueFallsBackToSequentialWhenTooTall(t *testing.T
 	require.NoError(t, r.BeginDualDialogue(dual))
 	assert.False(t, r.inDualDialogue, "expected oversized dual dialogue to fall back to sequential rendering")
 }
+
+func TestRender_DialogueParagraphBreak(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionAct,
+				Title: "One",
+				Children: []ast.Node{
+					&ast.Dialogue{
+						Character: "HAMLET",
+						Lines: []ast.DialogueLine{
+							{Content: []ast.Inline{&ast.TextNode{Value: "First line."}}},
+							{}, // paragraph break marker
+							{Content: []ast.Inline{&ast.TextNode{Value: "Second line."}}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	t.Run("standard", func(t *testing.T) {
+		r := NewRenderer(render.DefaultConfig())
+		var buf bytes.Buffer
+		err := render.Walk(r, doc, &buf)
+		require.NoError(t, err)
+		assert.True(t, buf.Len() > 0, "PDF output should not be empty")
+	})
+
+	t.Run("condensed", func(t *testing.T) {
+		r := NewCondensedRenderer(render.DefaultConfig())
+		var buf bytes.Buffer
+		err := render.Walk(r, doc, &buf)
+		require.NoError(t, err)
+		assert.True(t, buf.Len() > 0, "PDF output should not be empty")
+	})
+}
+
+func TestRender_SuccessiveStageDirectionsCondensed(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionAct,
+				Title: "One",
+				Children: []ast.Node{
+					&ast.StageDirection{
+						Content: []ast.Inline{&ast.TextNode{Value: "First direction."}},
+					},
+					&ast.StageDirection{
+						Content: []ast.Inline{&ast.TextNode{Value: "Second direction."}},
+					},
+				},
+			},
+		},
+	}
+
+	r := NewCondensedRenderer(render.DefaultConfig())
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0, "PDF output should not be empty")
+}

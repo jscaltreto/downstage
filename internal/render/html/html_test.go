@@ -735,6 +735,44 @@ func TestRender_SourceAnchorsOff(t *testing.T) {
 	assert.NotContains(t, out, "data-source-line")
 }
 
+func TestRender_DialogueParagraphBreak(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Dialogue{
+				Character: "HAMLET",
+				Lines: []ast.DialogueLine{
+					{Content: []ast.Inline{&ast.TextNode{Value: "To be or not to be."}}},
+					{}, // paragraph break marker
+					{Content: []ast.Inline{&ast.TextNode{Value: "That is the question."}}},
+				},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, `<div class="downstage-dialogue-break"></div>`)
+	assert.Contains(t, out, "To be or not to be.")
+	assert.Contains(t, out, "That is the question.")
+}
+
+func TestRender_CondensedAdjacentStageDirectionCSS(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.StageDirection{
+				Content: []ast.Inline{&ast.TextNode{Value: "First direction."}},
+			},
+			&ast.StageDirection{
+				Content: []ast.Inline{&ast.TextNode{Value: "Second direction."}},
+			},
+		},
+	}
+	out := renderHTML(t, doc, render.StyleCondensed)
+
+	assert.Contains(t, out, ".downstage-stage-direction + .downstage-stage-direction")
+	assert.Contains(t, out, "First direction.")
+	assert.Contains(t, out, "Second direction.")
+}
+
 func extractBlock(t *testing.T, out, prefix, suffix string) string {
 	t.Helper()
 	start := strings.Index(out, prefix)
