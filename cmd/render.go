@@ -9,6 +9,7 @@ import (
 
 	"github.com/jscaltreto/downstage/internal/parser"
 	"github.com/jscaltreto/downstage/internal/render"
+	htmlrender "github.com/jscaltreto/downstage/internal/render/html"
 	"github.com/jscaltreto/downstage/internal/render/pdf"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +31,7 @@ var renderCmd = &cobra.Command{
 }
 
 func init() {
-	renderCmd.Flags().StringVarP(&renderFormat, "format", "f", "pdf", "output format: pdf")
+	renderCmd.Flags().StringVarP(&renderFormat, "format", "f", "pdf", "output format: pdf, html")
 	renderCmd.Flags().StringVarP(&renderOutput, "output", "o", "", "output file (default: input name with format extension)")
 	renderCmd.Flags().StringVar(&renderPageSize, "page-size", "letter", "page size: letter, a4")
 	renderCmd.Flags().StringVar(&renderStyle, "style", "standard", "rendering style: standard, condensed")
@@ -84,6 +85,8 @@ func runRender(cmd *cobra.Command, args []string) error {
 		default:
 			nr = pdf.NewRenderer(cfg)
 		}
+	case "html":
+		nr = htmlrender.NewRenderer(cfg)
 	default:
 		return fmt.Errorf("unsupported format: %q", renderFormat)
 	}
