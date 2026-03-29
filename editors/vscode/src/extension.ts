@@ -628,6 +628,11 @@ function getPreviewHtml(body: string): string {
 <style>
 html, body { margin: 0; padding: 0; height: 100%; }
 body { overflow: hidden; }
+.preview-container {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
 .preview-frame {
 	position: absolute;
 	top: 0;
@@ -635,13 +640,14 @@ body { overflow: hidden; }
 	width: 100%;
 	height: 100%;
 	border: 0;
+	visibility: hidden;
 }
 </style>
 </head>
 <body>
-<div style="position:relative;width:100%;height:100%;">
+<div class="preview-container">
 	<iframe id="preview-a" class="preview-frame" sandbox="allow-same-origin"></iframe>
-	<iframe id="preview-b" class="preview-frame" sandbox="allow-same-origin" style="visibility:hidden;"></iframe>
+	<iframe id="preview-b" class="preview-frame" sandbox="allow-same-origin"></iframe>
 </div>
 <script>
 	const frameA = document.getElementById("preview-a");
@@ -658,8 +664,8 @@ body { overflow: hidden; }
 	}
 
 	function scrollPreviewToLine(line, behavior = "smooth", frame) {
-		const target_frame = frame || active;
-		const doc = target_frame.contentDocument;
+		const targetFrame = frame || active;
+		const doc = targetFrame.contentDocument;
 		if (!doc) {
 			pendingLine = line;
 			return;
@@ -682,6 +688,8 @@ body { overflow: hidden; }
 
 	function onFrameLoad(frame) {
 		if (frame !== staging) return;
+		const doc = frame.contentDocument;
+		if (!doc || !doc.body || doc.body.children.length === 0) return;
 		if (pendingLine !== null) {
 			const line = pendingLine;
 			pendingLine = null;
@@ -692,6 +700,7 @@ body { overflow: hidden; }
 		const tmp = active;
 		active = staging;
 		staging = tmp;
+		staging.srcdoc = "";
 	}
 
 	frameA.addEventListener("load", () => onFrameLoad(frameA));
