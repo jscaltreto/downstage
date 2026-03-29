@@ -22,6 +22,7 @@
           <a href="#dramatis-personae">Dramatis Personae</a>
           <a href="#acts-scenes">Acts and Scenes</a>
           <a href="#dialogue">Dialogue</a>
+          <a href="#dual-dialogue">Dual Dialogue</a>
           <a href="#stage-directions">Stage Directions</a>
           <a href="#verse">Verse</a>
           <a href="#songs">Songs</a>
@@ -216,9 +217,33 @@ Every last one.</code></pre>
           </div>
         </section>
 
-        <section class="section-grid" id="stage-directions">
+        <section class="section-grid" id="dual-dialogue">
           <div class="section-heading">
             <p class="section-kicker">6</p>
+            <h2>Dual Dialogue</h2>
+          </div>
+          <div class="section-body">
+            <p>
+              To mark simultaneous speech, add <code>^</code> to the end of the
+              second character cue. The first cue stays normal.
+            </p>
+            <pre><code>HORATIO
+They're here.
+
+HAMLET ^
+Then let them come.</code></pre>
+            <ul class="inline-list">
+              <li>The <code>^</code> must be the last character on the line, preceded by a space.</li>
+              <li>Only the second cue gets the marker.</li>
+              <li>Forced character cues also work: <code>@narrator ^</code>.</li>
+              <li>If there is no previous dialogue block to pair with, the cue is treated as normal dialogue.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="section-grid" id="stage-directions">
+          <div class="section-heading">
+            <p class="section-kicker">7</p>
             <h2>Stage Directions</h2>
           </div>
           <div class="section-body">
@@ -237,7 +262,7 @@ To be (pause) or not to be.</code></pre>
 
         <section class="section-grid" id="verse">
           <div class="section-heading">
-            <p class="section-kicker">7</p>
+            <p class="section-kicker">8</p>
             <h2>Verse</h2>
           </div>
           <div class="section-body">
@@ -257,7 +282,7 @@ To be (pause) or not to be.</code></pre>
 
         <section class="section-grid" id="songs">
           <div class="section-heading">
-            <p class="section-kicker">8</p>
+            <p class="section-kicker">9</p>
             <h2>Songs</h2>
           </div>
           <div class="section-body">
@@ -281,7 +306,7 @@ SONG END</code></pre>
 
         <section class="section-grid" id="formatting">
           <div class="section-heading">
-            <p class="section-kicker">9</p>
+            <p class="section-kicker">10</p>
             <h2>Inline Formatting</h2>
           </div>
           <div class="section-body">
@@ -319,7 +344,7 @@ SONG END</code></pre>
 
         <section class="section-grid" id="comments-breaks">
           <div class="section-heading">
-            <p class="section-kicker">10</p>
+            <p class="section-kicker">11</p>
             <h2>Comments and Page Breaks</h2>
           </div>
           <div class="section-body">
@@ -341,7 +366,7 @@ SONG END</code></pre>
 
         <section class="section-grid" id="forced-elements">
           <div class="section-heading">
-            <p class="section-kicker">11</p>
+            <p class="section-kicker">12</p>
             <h2>Forced Elements</h2>
           </div>
           <div class="section-body">
@@ -362,7 +387,7 @@ My lord, I came to see your father's funeral.</code></pre>
 
         <section class="section-grid" id="example">
           <div class="section-heading">
-            <p class="section-kicker">12</p>
+            <p class="section-kicker">13</p>
             <h2>Complete Example</h2>
           </div>
           <div class="section-body">
@@ -401,7 +426,7 @@ Mother, the crew is waiting.</code></pre>
 
         <section class="section-grid" id="tooling">
           <div class="section-heading">
-            <p class="section-kicker">13</p>
+            <p class="section-kicker">14</p>
             <h2>Tooling</h2>
           </div>
           <div class="section-body">

@@ -89,6 +89,32 @@ func (s *Section) AppendChild(child Node) {
 	s.order = append(s.order, sectionItemRef{kind: SectionItemNode, index: len(s.Children) - 1})
 }
 
+// WrapLastTwoChildren replaces the last two adjacent child items in the section
+// ordering with a single node. It returns false when the last two children are
+// not consecutive rendered items, such as when prose lines appear between them.
+func (s *Section) WrapLastTwoChildren(replacement Node) bool {
+	n := len(s.Children)
+	if n < 2 {
+		return false
+	}
+	if len(s.order) < 2 {
+		return false
+	}
+
+	prev := s.order[len(s.order)-2]
+	last := s.order[len(s.order)-1]
+	if prev.kind != SectionItemNode || last.kind != SectionItemNode {
+		return false
+	}
+	if prev.index != n-2 || last.index != n-1 {
+		return false
+	}
+	s.Children[n-2] = replacement
+	s.Children = s.Children[:n-1]
+	s.order = s.order[:len(s.order)-1]
+	return true
+}
+
 func (s *Section) AppendLine(line SectionLine) {
 	s.Lines = append(s.Lines, line)
 	s.order = append(s.order, sectionItemRef{kind: SectionItemLine, index: len(s.Lines) - 1})
@@ -221,6 +247,20 @@ func (d *Dialogue) NameRange() token.Range {
 func (d *Dialogue) SetNameRange(r token.Range) {
 	d.nameRange = r
 }
+
+// --- Dual Dialogue ---
+
+var _ Node = (*DualDialogue)(nil)
+
+// DualDialogue represents two dialogue blocks spoken simultaneously, rendered side-by-side.
+type DualDialogue struct {
+	Left  *Dialogue
+	Right *Dialogue
+	Range token.Range
+}
+
+func (d *DualDialogue) NodeRange() token.Range { return d.Range }
+func (d *DualDialogue) nodeType() string       { return "DualDialogue" }
 
 // DialogueLine is a single line of dialogue.
 type DialogueLine struct {

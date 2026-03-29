@@ -1,0 +1,131 @@
+{
+  "TitlePage": null,
+  "Body": [
+    {
+      "Left": {
+        "Character": "BRICK",
+        "Parenthetical": "",
+        "Lines": [
+          {
+            "Content": [
+              {
+                "Value": "Screw retirement.",
+                "Range": {
+                  "Start": {
+                    "Line": 1,
+                    "Column": 0,
+                    "Offset": 6
+                  },
+                  "End": {
+                    "Line": 1,
+                    "Column": 17,
+                    "Offset": 23
+                  }
+                }
+              }
+            ],
+            "IsVerse": false,
+            "Range": {
+              "Start": {
+                "Line": 1,
+                "Column": 0,
+                "Offset": 6
+              },
+              "End": {
+                "Line": 1,
+                "Column": 17,
+                "Offset": 23
+              }
+            }
+          }
+        ],
+        "Range": {
+          "Start": {
+            "Line": 0,
+            "Column": 0,
+            "Offset": 0
+          },
+          "End": {
+            "Line": 1,
+            "Column": 17,
+            "Offset": 23
+          }
+        }
+      },
+      "Right": {
+        "Character": "STEEL",
+        "Parenthetical": "",
+        "Lines": [
+          {
+            "Content": [
+              {
+                "Value": "Screw retirement.",
+                "Range": {
+                  "Start": {
+                    "Line": 4,
+                    "Column": 0,
+                    "Offset": 33
+                  },
+                  "End": {
+                    "Line": 4,
+                    "Column": 17,
+                    "Offset": 50
+                  }
+                }
+              }
+            ],
+            "IsVerse": false,
+            "Range": {
+              "Start": {
+                "Line": 4,
+                "Column": 0,
+                "Offset": 33
+              },
+              "End": {
+                "Line": 4,
+                "Column": 17,
+                "Offset": 50
+              }
+            }
+          }
+        ],
+        "Range": {
+          "Start": {
+            "Line": 3,
+            "Column": 0,
+            "Offset": 25
+          },
+          "End": {
+            "Line": 4,
+            "Column": 17,
+            "Offset": 50
+          }
+        }
+      },
+      "Range": {
+        "Start": {
+          "Line": 0,
+          "Column": 0,
+          "Offset": 0
+        },
+        "End": {
+          "Line": 4,
+          "Column": 17,
+          "Offset": 50
+        }
+      }
+    }
+  ],
+  "Range": {
+    "Start": {
+      "Line": 0,
+      "Column": 0,
+      "Offset": 0
+    },
+    "End": {
+      "Line": 6,
+      "Column": 0,
+      "Offset": 51
+    }
+  }
+}

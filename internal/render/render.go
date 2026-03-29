@@ -22,6 +22,8 @@ type NodeRenderer interface {
 	RenderTitlePage(tp *ast.TitlePage) error
 
 	// Structural
+	BeginDualDialogue(d *ast.DualDialogue) error
+	EndDualDialogue(d *ast.DualDialogue) error
 	BeginSong(song *ast.Song) error
 	EndSong(song *ast.Song) error
 
@@ -85,6 +87,18 @@ func Walk(nr NodeRenderer, doc *ast.Document, w io.Writer) error {
 
 func walkNode(nr NodeRenderer, node ast.Node) error {
 	switch n := node.(type) {
+	case *ast.DualDialogue:
+		if err := nr.BeginDualDialogue(n); err != nil {
+			return err
+		}
+		if err := walkNode(nr, n.Left); err != nil {
+			return err
+		}
+		if err := walkNode(nr, n.Right); err != nil {
+			return err
+		}
+		return nr.EndDualDialogue(n)
+
 	case *ast.Dialogue:
 		if err := nr.BeginDialogue(n); err != nil {
 			return err

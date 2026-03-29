@@ -42,6 +42,10 @@ func Walk(v Visitor, node Node) {
 			}
 		}
 
+	case *DualDialogue:
+		Walk(v, n.Left)
+		Walk(v, n.Right)
+
 	case *Dialogue:
 		for _, line := range n.Lines {
 			walkInlines(v, line.Content)

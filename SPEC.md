@@ -223,6 +223,37 @@ Every last one.
 
 Dialogue ends when a blank line is followed by another structural element (another character name, heading, song, etc.) or when a double blank line is encountered.
 
+### Dual Dialogue
+
+Dual dialogue marks two dialogue blocks for side-by-side rendering, representing simultaneous speech. Append ` ^` (space + caret) to the second character's name:
+
+```
+BRICK
+Screw retirement.
+
+STEEL ^
+Screw retirement.
+```
+
+Rules:
+
+- The `^` must be the last character on the character name line, preceded by a space.
+- Only the **second** character gets the `^`. The first character's block is normal dialogue.
+- The two blocks are rendered side-by-side (left and right columns).
+- Parentheticals, verse, and inline formatting work normally within dual dialogue.
+- Forced characters work with dual dialogue: `@narrator ^`
+- If a `^`-marked character has no preceding dialogue block to pair with, it is treated as regular dialogue.
+
+Multi-character names like `JOE AND JANE` or `ALL` are valid character names and work in dual dialogue:
+
+```
+JOE
+We should go.
+
+JOE AND JANE ^
+We should go.
+```
+
 ### Character Name Rules
 
 Character names in dialogue must satisfy all of the following:
@@ -426,6 +457,7 @@ Downstage is inspired by the archived [TheatreScript](https://github.com/contrap
 4. **Character aliases.** `[HAMLET/HAM]` in the dramatis personae defines short-form character names. The original spec had no alias mechanism.
 5. **Arbitrary metadata.** The title page accepts any `Key: Value` pairs. The original spec had a fixed set of metadata keys.
 6. **Separate lines.** Character names and dialogue are always on separate lines. The original spec supported inline `NAME: dialogue` format, which Downstage does not.
+7. **Dual dialogue.** `CHARACTER ^` marks simultaneous speech for side-by-side rendering. Inspired by [Fountain's dual dialogue](https://fountain.io/syntax/#dual-dialogue). Not present in the original spec.
 
 ## 15. Complete Example
 
@@ -506,6 +538,16 @@ Is she always like this?
 JAMES
 (quietly)
 Worse, usually.
+
+> MARGARET turns and catches them whispering.
+
+CLAIRE
+(covering)
+I was just saying how wonderful you look tonight.
+
+JAMES ^
+(quickly)
+I was just saying how wonderful you look tonight.
 
 ===
 

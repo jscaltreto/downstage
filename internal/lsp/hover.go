@@ -55,6 +55,11 @@ func findCharNameInNode(n ast.Node, pos protocol.Position) string {
 	line := int(pos.Line)
 
 	switch v := n.(type) {
+	case *ast.DualDialogue:
+		if name := findCharNameInNode(v.Left, pos); name != "" {
+			return name
+		}
+		return findCharNameInNode(v.Right, pos)
 	case *ast.Dialogue:
 		r := v.NameRange()
 		if r.Start.Line == line && int(pos.Character) >= r.Start.Column && int(pos.Character) < r.End.Column {

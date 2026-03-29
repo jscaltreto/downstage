@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/jscaltreto/downstage/internal/ast"
+	"github.com/jscaltreto/downstage/internal/render"
 )
 
 // --- Section ---
@@ -116,9 +117,50 @@ func (r *pdfRenderer) beginScene(s *ast.Section) error {
 	return nil
 }
 
+// --- Dual Dialogue ---
+
+func (r *pdfRenderer) BeginDualDialogue(d *ast.DualDialogue) error {
+	r.dualSequential = false
+	r.dualMidY = 0
+	estimatedHeight := r.estimateDualDialogueHeight(d)
+	if estimatedHeight > r.usablePageHeight() {
+		return nil
+	}
+	if estimatedHeight > r.remainingPageHeight() {
+		r.pdf.AddPage()
+	}
+	r.inDualDialogue = true
+	r.dualSide = 0
+	r.dualStartY = r.pdf.GetY()
+	return nil
+}
+
+func (r *pdfRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
+	if !r.inDualDialogue {
+		r.dualSequential = false
+		return nil
+	}
+
+	// Set Y to the bottom of the taller column
+	endY := r.pdf.GetY()
+	if r.dualMidY > endY {
+		endY = r.dualMidY
+	}
+	r.pdf.SetY(endY)
+	r.pdf.SetLeftMargin(r.marginL)
+	r.pdf.SetRightMargin(r.marginR)
+	r.inDualDialogue = false
+	r.dualSequential = false
+	return nil
+}
+
 // --- Dialogue ---
 
 func (r *pdfRenderer) BeginDialogue(d *ast.Dialogue) error {
+	if r.inDualDialogue {
+		return r.beginDualDialogueSide(d)
+	}
+
 	r.ensureSpace(r.lineHeight * 3)
 	r.pdf.Ln(r.lineHeight)
 
@@ -146,13 +188,121 @@ func (r *pdfRenderer) BeginDialogue(d *ast.Dialogue) error {
 	return nil
 }
 
+func (r *pdfRenderer) beginDualDialogueSide(d *ast.Dialogue) error {
+	halfW := r.bodyW / 2
+	gap := 4.0 // mm gap between columns
+	colW := halfW - gap/2
+
+	var leftM, rightM float64
+	if r.dualSide == 0 {
+		// Left column
+		leftM = r.marginL
+		rightM = r.pageW - r.marginL - colW
+	} else {
+		// Right column: restore Y to start, shift to right half
+		r.dualMidY = r.pdf.GetY()
+		r.pdf.SetY(r.dualStartY)
+		leftM = r.marginL + halfW + gap/2
+		rightM = r.marginR
+	}
+
+	// Set margins before Ln so X resets to the correct column
+	r.pdf.SetLeftMargin(leftM)
+	r.pdf.SetRightMargin(rightM)
+	r.pdf.Ln(r.lineHeight)
+
+	// Character name — centered in column, bold
+	r.setStyle("B")
+	name := strings.ToUpper(d.Character)
+	nameW := r.pdf.GetStringWidth(name)
+	r.pdf.SetX(leftM + (colW-nameW)/2)
+	r.pdf.Write(r.lineHeight, name)
+	r.pdf.Ln(r.lineHeight)
+	r.setStyle("")
+
+	// Parenthetical — centered in column, italic
+	if d.Parenthetical != "" {
+		r.setStyle("I")
+		paren := d.Parenthetical
+		if len(paren) == 0 || paren[0] != '(' {
+			paren = "(" + paren + ")"
+		}
+		parenW := r.pdf.GetStringWidth(paren)
+		r.pdf.SetX(leftM + (colW-parenW)/2)
+		r.pdf.Write(r.lineHeight, paren)
+		r.pdf.Ln(r.lineHeight)
+		r.setStyle("")
+	}
+
+	return nil
+}
+
+func (r *pdfRenderer) estimateDualDialogueHeight(d *ast.DualDialogue) float64 {
+	halfW := r.bodyW / 2
+	gap := 4.0
+	colW := halfW - gap/2
+
+	leftHeight := r.estimateDialogueHeight(d.Left, colW)
+	rightHeight := r.estimateDialogueHeight(d.Right, colW)
+	if rightHeight > leftHeight {
+		return rightHeight
+	}
+	return leftHeight
+}
+
+func (r *pdfRenderer) estimateDialogueHeight(d *ast.Dialogue, width float64) float64 {
+	if d == nil {
+		return 0
+	}
+
+	height := r.lineHeight * 2 // leading blank line + character name
+	if d.Parenthetical != "" {
+		height += r.lineHeight
+	}
+
+	for _, line := range d.Lines {
+		lineWidth := width
+		if line.IsVerse {
+			lineWidth -= 10
+		}
+		if lineWidth < 10 {
+			lineWidth = 10
+		}
+
+		text := render.PlainText(line.Content)
+		wrapped := r.pdf.SplitText(text, lineWidth)
+		if len(wrapped) == 0 {
+			height += r.lineHeight
+			continue
+		}
+		height += float64(len(wrapped)) * r.lineHeight
+	}
+
+	return height
+}
+
 func (r *pdfRenderer) EndDialogue(_ *ast.Dialogue) error {
+	if r.inDualDialogue {
+		r.dualSide++
+		return nil
+	}
 	r.pdf.SetLeftMargin(r.marginL)
 	r.pdf.SetRightMargin(r.marginR)
 	return nil
 }
 
 func (r *pdfRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
+	if r.inDualDialogue {
+		// In dual dialogue, lines flow within the current column margins
+		leftM, _, _, _ := r.pdf.GetMargins()
+		if line.IsVerse {
+			r.pdf.SetX(leftM + 10)
+		} else {
+			r.pdf.SetX(leftM)
+		}
+		return nil
+	}
+
 	dialogueMargin := r.bodyW * 0.15
 	dialogueX := r.marginL + dialogueMargin
 	if line.IsVerse {

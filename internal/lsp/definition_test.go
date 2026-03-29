@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/jscaltreto/downstage/internal/ast"
+	"github.com/jscaltreto/downstage/internal/parser"
 	"github.com/jscaltreto/downstage/internal/token"
 	"go.lsp.dev/protocol"
 )
@@ -63,5 +64,29 @@ func TestComputeDefinition_NotOnCharacter(t *testing.T) {
 	loc := computeDefinition(doc, nil, "file:///test.ds", protocol.Position{Line: 0, Character: 0})
 	if loc != nil {
 		t.Error("expected nil when not on character")
+	}
+}
+
+func TestComputeDefinition_DualDialogueRangeExcludesCaret(t *testing.T) {
+	doc, errs := parser.Parse([]byte(`# Dramatis Personae
+HAMLET
+
+# Play
+
+HAMLET ^
+Hello.`))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	uri := protocol.DocumentURI("file:///test.ds")
+	assertNil := computeDefinition(doc, nil, uri, protocol.Position{Line: 5, Character: 7})
+	if assertNil != nil {
+		t.Fatal("expected no definition when cursor is on the trailing caret")
+	}
+
+	loc := computeDefinition(doc, nil, uri, protocol.Position{Line: 5, Character: 5})
+	if loc == nil {
+		t.Fatal("expected definition on the character name")
 	}
 }

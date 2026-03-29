@@ -163,6 +163,19 @@ func (l *lexer) lex() {
 }
 
 func (l *lexer) classifyBodyLine(line, trimmed string, lineNum, lineLen int) {
+	// Dual dialogue: character name or forced character ending with ^
+	if strings.HasSuffix(trimmed, " ^") || strings.HasSuffix(trimmed, "\t^") {
+		name := strings.TrimSpace(trimmed[:len(trimmed)-2])
+		if strings.HasPrefix(name, "@") && len(name) > 1 {
+			l.emit(token.DualDialogueChar, name, line, lineNum, 0, len(name))
+			return
+		}
+		if isCharacterName(name) {
+			l.emit(token.DualDialogueChar, name, line, lineNum, 0, len(name))
+			return
+		}
+	}
+
 	// Forced character: @TEXT
 	if strings.HasPrefix(trimmed, "@") && len(trimmed) > 1 {
 		l.emit(token.ForcedCharacter, trimmed, line, lineNum, 0, lineLen)

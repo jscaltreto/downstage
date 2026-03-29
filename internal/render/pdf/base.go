@@ -29,6 +29,13 @@ type pdfBase struct {
 	hasBody        bool    // whether the document has body content after front matter
 	lineHeight     float64 // vertical line spacing in mm
 	titlePageTitle string
+
+	// Dual dialogue state
+	inDualDialogue bool    // true when rendering inside a DualDialogue node
+	dualSequential bool    // true when a DualDialogue falls back to normal sequential rendering
+	dualSide       int     // 0 = left, 1 = right
+	dualStartY     float64 // Y position at start of dual dialogue
+	dualMidY       float64 // Y after left column, to compute max height
 }
 
 func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
@@ -190,6 +197,14 @@ func (b *pdfBase) ensureSpace(mm float64) {
 
 func (b *pdfBase) centeredText(text string) {
 	b.pdf.CellFormat(b.bodyW, b.lineHeight, text, "", 1, "C", false, 0, "")
+}
+
+func (b *pdfBase) remainingPageHeight() float64 {
+	return b.pageH - b.marginB - b.pdf.GetY()
+}
+
+func (b *pdfBase) usablePageHeight() float64 {
+	return b.pageH - b.marginT - b.marginB
 }
 
 // newCustomSizePDF creates an fpdf instance with a custom page size in mm.

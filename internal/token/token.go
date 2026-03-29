@@ -60,6 +60,7 @@ const (
 	PageBreak
 	ForcedHeading
 	ForcedCharacter
+	DualDialogueChar
 )
 
 var typeNames = map[Type]string{
@@ -89,6 +90,7 @@ var typeNames = map[Type]string{
 	PageBreak:         "PageBreak",
 	ForcedHeading:     "ForcedHeading",
 	ForcedCharacter:   "ForcedCharacter",
+	DualDialogueChar:  "DualDialogueChar",
 }
 
 // String returns a human-readable name for the token type.
