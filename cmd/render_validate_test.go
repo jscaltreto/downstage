@@ -100,6 +100,7 @@ func TestRunRenderStdoutRejectsPDF(t *testing.T) {
 func TestRunRenderStdinRejectsFileArgs(t *testing.T) {
 	resetRenderFlags()
 	renderStdin = true
+	renderStdout = true
 
 	err := runRender(&cobra.Command{}, []string{"test.ds"})
 	assert.Error(t, err)
@@ -112,4 +113,14 @@ func TestRunRenderRequiresOneArgWithoutStdin(t *testing.T) {
 	err := runRender(&cobra.Command{}, []string{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "accepts 1 arg(s), received 0")
+}
+
+func TestRunRenderStdinRequiresExplicitOutputTarget(t *testing.T) {
+	resetRenderFlags()
+	renderStdin = true
+	renderFormat = "html"
+
+	err := runRender(&cobra.Command{}, nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "--stdin requires --stdout or --output")
 }

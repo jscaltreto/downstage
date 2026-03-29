@@ -518,35 +518,68 @@ function getPreviewHtml(body: string): string {
 <head>
 <meta charset="utf-8">
 <style>
-html, body { margin: 0; padding: 0; }
-#content { padding: 1em; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body { overflow: hidden; }
+#preview {
+	width: 100%;
+	height: 100%;
+	border: 0;
+	display: block;
+}
 </style>
 </head>
 <body>
-<div id="content">${body}</div>
+<iframe id="preview" sandbox="allow-same-origin"></iframe>
 <script>
-	const vscode = acquireVsCodeApi();
+	const preview = document.getElementById("preview");
+	let pendingLine = null;
+
+	function updatePreview(html) {
+		preview.srcdoc = html;
+	}
+
+	function scrollPreviewToLine(line) {
+		const doc = preview.contentDocument;
+		if (!doc) {
+			pendingLine = line;
+			return;
+		}
+
+		const els = doc.querySelectorAll("[data-source-line]");
+		let target = null;
+		for (const el of els) {
+			const sourceLine = parseInt(el.getAttribute("data-source-line"), 10);
+			if (sourceLine <= line) {
+				target = el;
+			} else {
+				break;
+			}
+		}
+		if (target) {
+			target.scrollIntoView({ behavior: "smooth", block: "center" });
+		}
+	}
+
+	preview.addEventListener("load", () => {
+		if (pendingLine !== null) {
+			const line = pendingLine;
+			pendingLine = null;
+			scrollPreviewToLine(line);
+		}
+	});
+
 	window.addEventListener("message", (event) => {
 		const msg = event.data;
 		if (msg.type === "update") {
-			document.getElementById("content").innerHTML = msg.html;
+			updatePreview(msg.html);
 		}
 		if (msg.type === "scrollTo") {
-			const els = document.querySelectorAll("[data-source-line]");
-			let target = null;
-			for (const el of els) {
-				const line = parseInt(el.getAttribute("data-source-line"), 10);
-				if (line <= msg.line) {
-					target = el;
-				} else {
-					break;
-				}
-			}
-			if (target) {
-				target.scrollIntoView({ behavior: "smooth", block: "center" });
-			}
+			pendingLine = msg.line;
+			scrollPreviewToLine(msg.line);
 		}
 	});
+
+	updatePreview(${JSON.stringify(body)});
 </script>
 </body>
 </html>`;
@@ -601,17 +634,19 @@ function renderToPreview(document: vscode.TextDocument, state: PreviewState): vo
 	});
 
 	child.on("error", (err) => {
-		if (state.child === child) {
-			state.child = undefined;
+		if (state.child !== child) {
+			return;
 		}
+		state.child = undefined;
 		const outputChannel = getRenderOutputChannel();
 		outputChannel.appendLine(`Preview render error: ${err.message}`);
 	});
 
 	child.on("close", (code) => {
-		if (state.child === child) {
-			state.child = undefined;
+		if (state.child !== child) {
+			return;
 		}
+		state.child = undefined;
 		const stdout = stdoutChunks.join("");
 		const stderr = stderrChunks.join("");
 		if (code === 0) {

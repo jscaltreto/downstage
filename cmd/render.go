@@ -58,6 +58,9 @@ func runRender(cmd *cobra.Command, args []string) error {
 	if renderStdout && renderFormat == "pdf" {
 		return fmt.Errorf("--stdout is not supported for pdf output")
 	}
+	if renderStdin && !renderStdout && renderOutput == "" {
+		return fmt.Errorf("--stdin requires --stdout or --output")
+	}
 
 	var filename string
 	var content []byte
