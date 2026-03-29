@@ -32,6 +32,9 @@ func TestDocumentManager_OpenAndGet(t *testing.T) {
 	if doc.doc == nil {
 		t.Error("expected parsed document to be set")
 	}
+	if doc.index == nil {
+		t.Error("expected document index to be built")
+	}
 }
 
 func TestDocumentManager_Change(t *testing.T) {

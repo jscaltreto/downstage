@@ -15,6 +15,7 @@ const maxDocumentBytes = 1 << 20
 type documentState struct {
 	content     string
 	doc         *ast.Document
+	index       *documentIndex
 	errors      []*parser.ParseError
 	diagnostics []protocol.Diagnostic
 }
@@ -40,10 +41,12 @@ func (dm *documentManager) Open(uri protocol.DocumentURI, content string) []prot
 	}
 
 	doc, errs := dm.parser.Parse([]byte(content))
-	diags := buildDiagnostics(doc, errs)
+	index := newDocumentIndex(doc)
+	diags := buildDiagnosticsWithIndex(doc, errs, index)
 	state := &documentState{
 		content:     content,
 		doc:         doc,
+		index:       index,
 		errors:      errs,
 		diagnostics: diags,
 	}
@@ -63,10 +66,12 @@ func (dm *documentManager) Change(uri protocol.DocumentURI, content string) []pr
 	}
 
 	doc, errs := dm.parser.Parse([]byte(content))
-	diags := buildDiagnostics(doc, errs)
+	index := newDocumentIndex(doc)
+	diags := buildDiagnosticsWithIndex(doc, errs, index)
 	state := &documentState{
 		content:     content,
 		doc:         doc,
+		index:       index,
 		errors:      errs,
 		diagnostics: diags,
 	}

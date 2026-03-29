@@ -1,8 +1,10 @@
 package lsp
 
 import (
+	"sort"
 	"testing"
 
+	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/parser"
 	"go.lsp.dev/protocol"
 )
@@ -127,7 +129,8 @@ S`
 		t.Fatalf("unexpected parse errors: %v", errs)
 	}
 
-	labels, ok := sceneCompletionCandidates(doc, content, 16)
+	index := newDocumentIndex(doc)
+	labels, ok := sceneCompletionCandidates(doc, index, content, 16)
 	if !ok {
 		t.Fatal("expected scene completion candidates")
 	}
@@ -262,5 +265,97 @@ func TestComputeCompletion_H3HeadingSuggestsNextSceneWithinAct(t *testing.T) {
 	}
 	if result.Items[0].Label != "### SCENE 2" {
 		t.Fatalf("expected next scene heading, got %q", result.Items[0].Label)
+	}
+}
+
+func TestDocumentIndex_CachesActsScenesAndCueLines(t *testing.T) {
+	content := `# Dramatis Personae
+HAMLET
+
+# Play
+
+## ACT I
+
+### SCENE 1
+
+HAMLET
+To be.
+
+## ACT II
+
+### SCENE 1
+
+OPHELIA
+To listen.`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	index := newDocumentIndex(doc)
+	if len(index.acts) != 2 {
+		t.Fatalf("expected 2 acts, got %d", len(index.acts))
+	}
+	if len(index.scenes) != 2 {
+		t.Fatalf("expected 2 scenes, got %d", len(index.scenes))
+	}
+	if !index.isCharacterCueLine(9) {
+		t.Fatal("expected HAMLET line to be indexed as a cue line")
+	}
+	if !index.isCharacterCueLine(16) {
+		t.Fatal("expected OPHELIA line to be indexed as a cue line")
+	}
+	if got := index.sceneForLine(16); got == nil || got.Range.Start.Line != 14 {
+		t.Fatalf("expected scene lookup to return the second scene, got %#v", got)
+	}
+}
+
+func TestComputeCompletionWithIndex_SuggestsNextActFromCache(t *testing.T) {
+	content := `# Play
+
+## ACT I
+
+### SCENE 1
+
+## AC`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	result := computeCompletionWithIndex(doc, newDocumentIndex(doc), content, protocol.Position{Line: 6, Character: 5})
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 heading completion, got %d", len(result.Items))
+	}
+	if result.Items[0].Label != "## ACT II" {
+		t.Fatalf("expected next act heading from cached acts, got %q", result.Items[0].Label)
+	}
+}
+
+func TestDocumentIndex_SortsSceneSpeakerCuesByLine(t *testing.T) {
+	index := &documentIndex{
+		sceneSpeakers: map[*ast.Section][]sceneSpeakerCue{},
+	}
+	scene := &ast.Section{}
+	index.sceneSpeakers[scene] = []sceneSpeakerCue{
+		{line: 9, name: "SECOND"},
+		{line: 3, name: "FIRST"},
+	}
+
+	sort.Slice(index.sceneSpeakers[scene], func(i, j int) bool {
+		return index.sceneSpeakers[scene][i].line < index.sceneSpeakers[scene][j].line
+	})
+
+	speakers := index.sceneSpeakersBeforeLine(scene, 10)
+	expected := []string{"FIRST", "SECOND"}
+	if len(speakers) != len(expected) {
+		t.Fatalf("expected %d speakers, got %d", len(expected), len(speakers))
+	}
+	for i := range expected {
+		if speakers[i] != expected[i] {
+			t.Fatalf("expected speakers %v, got %v", expected, speakers)
+		}
 	}
 }
