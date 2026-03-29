@@ -9,6 +9,12 @@ import (
 	"github.com/jscaltreto/downstage/internal/token"
 )
 
+const (
+	maxTitlePageEntries         = 256
+	maxDialogueLines            = 2048
+	maxInlineDelimiterLookahead = 8192
+)
+
 // Parse lexes input and produces an AST document along with any parse errors.
 func Parse(input []byte) (*ast.Document, []*ParseError) {
 	tokens := lexer.Lex(input)
@@ -117,6 +123,12 @@ func (p *parser) parseTitlePage() *ast.TitlePage {
 
 	for p.at(token.TitleKey) || p.at(token.TitleValue) {
 		if p.at(token.TitleKey) {
+			if len(tp.Entries) >= maxTitlePageEntries {
+				p.addError("title page exceeds maximum entry count", p.peek().Range)
+				p.skipTitlePageOverflow()
+				break
+			}
+
 			keyTok := p.advance()
 			kv := ast.KeyValue{
 				Key:   keyTok.Literal,
@@ -756,6 +768,11 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 
 		switch p.peek().Type {
 		case token.Text, token.Dialogue:
+			if len(dlg.Lines) >= maxDialogueLines {
+				p.addError("dialogue exceeds maximum line count", p.peek().Range)
+				p.skipDialogueContent()
+				goto done
+			}
 			tok := p.advance()
 			line := ast.DialogueLine{
 				Content: parseInlineContent(tok.Literal, tok.Range),
@@ -764,6 +781,11 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 			dlg.Lines = append(dlg.Lines, line)
 
 		case token.Verse:
+			if len(dlg.Lines) >= maxDialogueLines {
+				p.addError("dialogue exceeds maximum line count", p.peek().Range)
+				p.skipDialogueContent()
+				goto done
+			}
 			tok := p.advance()
 			trimmed := strings.TrimLeft(tok.Literal, " ")
 			leadingSpaces := len(tok.Literal) - len(trimmed)
@@ -775,6 +797,11 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 			dlg.Lines = append(dlg.Lines, line)
 
 		case token.StageDirection:
+			if len(dlg.Lines) >= maxDialogueLines {
+				p.addError("dialogue exceeds maximum line count", p.peek().Range)
+				p.skipDialogueContent()
+				goto done
+			}
 			tok := p.advance()
 			line := ast.DialogueLine{
 				Content: []ast.Inline{
@@ -953,7 +980,7 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 		switch {
 		// Bold italic: ***text***
 		case i+2 < len(s) && s[i] == '*' && s[i+1] == '*' && s[i+2] == '*':
-			end := strings.Index(s[i+3:], "***")
+			end := findInlineDelimiter(s, i+3, "***")
 			if end >= 0 {
 				inner := s[i+3 : i+3+end]
 				nodeRange := sliceInlineRange(s, r, i, i+3+end+3)
@@ -969,7 +996,7 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 
 		// Bold: **text**
 		case i+1 < len(s) && s[i] == '*' && s[i+1] == '*':
-			end := strings.Index(s[i+2:], "**")
+			end := findInlineDelimiter(s, i+2, "**")
 			if end >= 0 {
 				inner := s[i+2 : i+2+end]
 				nodeRange := sliceInlineRange(s, r, i, i+2+end+2)
@@ -985,7 +1012,7 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 
 		// Italic: *text*
 		case s[i] == '*':
-			end := strings.IndexByte(s[i+1:], '*')
+			end := findInlineDelimiter(s, i+1, "*")
 			if end >= 0 {
 				inner := s[i+1 : i+1+end]
 				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
@@ -1001,7 +1028,7 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 
 		// Underline: _text_
 		case s[i] == '_':
-			end := strings.IndexByte(s[i+1:], '_')
+			end := findInlineDelimiter(s, i+1, "_")
 			if end >= 0 {
 				inner := s[i+1 : i+1+end]
 				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
@@ -1017,7 +1044,7 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 
 		// Strikethrough: ~text~
 		case s[i] == '~':
-			end := strings.IndexByte(s[i+1:], '~')
+			end := findInlineDelimiter(s, i+1, "~")
 			if end >= 0 {
 				inner := s[i+1 : i+1+end]
 				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
@@ -1033,7 +1060,7 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 
 		// Inline direction: (text)
 		case s[i] == '(':
-			end := strings.IndexByte(s[i+1:], ')')
+			end := findInlineDelimiter(s, i+1, ")")
 			if end >= 0 {
 				inner := s[i+1 : i+1+end]
 				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
@@ -1087,6 +1114,49 @@ func parseAliasSpec(raw string) (string, []string) {
 		aliases = appendUniqueAliases(aliases, alias)
 	}
 	return name, aliases
+}
+
+func (p *parser) skipTitlePageOverflow() {
+	for p.at(token.TitleKey) || p.at(token.TitleValue) {
+		p.advance()
+	}
+}
+
+func (p *parser) skipDialogueContent() {
+	for !p.at(token.EOF) {
+		if p.at(token.Blank) {
+			saved := p.pos
+			p.skipBlanks()
+			if p.atAny(token.CharacterName, token.ForcedCharacter, token.DualDialogueChar,
+				token.HeadingH1, token.HeadingH2, token.HeadingH3, token.SongStart,
+				token.SongEnd, token.PageBreak, token.EOF, token.StageDirection) || p.at(token.Blank) {
+				p.pos = saved
+				return
+			}
+			p.pos = saved
+			p.skipBlanks()
+		}
+
+		switch p.peek().Type {
+		case token.Text, token.Dialogue, token.Verse, token.StageDirection, token.LineComment:
+			p.advance()
+		default:
+			return
+		}
+	}
+}
+
+func findInlineDelimiter(s string, start int, delimiter string) int {
+	if start >= len(s) {
+		return -1
+	}
+
+	end := start + maxInlineDelimiterLookahead
+	if end > len(s) {
+		end = len(s)
+	}
+
+	return strings.Index(s[start:end], delimiter)
 }
 
 func appendUniqueAliases(existing []string, aliases ...string) []string {

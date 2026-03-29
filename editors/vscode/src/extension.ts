@@ -12,6 +12,10 @@ let client: LanguageClient | undefined;
 const cueSuggestTimers = new Map<string, NodeJS.Timeout>();
 let renderOutputChannel: vscode.OutputChannel | undefined;
 let renderDiagnostics: vscode.DiagnosticCollection | undefined;
+let extensionContext: vscode.ExtensionContext | undefined;
+const allowedRenderStyles = new Set(["standard", "condensed"]);
+const defaultServerPath = "downstage";
+const trustedServerPathsKey = "downstage.trustedServerPaths";
 
 interface PreviewState {
 	panel: vscode.WebviewPanel;
@@ -22,6 +26,7 @@ interface PreviewState {
 const previewPanels = new Map<string, PreviewState>();
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	extensionContext = context;
 	renderDiagnostics = vscode.languages.createDiagnosticCollection("downstage-render");
 
 	const restartCommand = vscode.commands.registerCommand(
@@ -136,39 +141,39 @@ async function restartLanguageServer(context: vscode.ExtensionContext): Promise<
 }
 
 async function startLanguageServer(context: vscode.ExtensionContext): Promise<void> {
-	const serverPath = getServerPath();
 	const outputChannel = vscode.window.createOutputChannel("Downstage Language Server");
 	context.subscriptions.push(outputChannel);
-
-	const serverOptions: ServerOptions = {
-		command: serverPath,
-		args: ["lsp"],
-		options: {
-			cwd: getWorkspaceRoot(),
-		},
-	};
-
-	const clientOptions: LanguageClientOptions = {
-		documentSelector: [{ scheme: "file", language: "downstage" }],
-		outputChannel,
-	};
-
-	client = new LanguageClient(
-		"downstageLanguageServer",
-		"Downstage Language Server",
-		serverOptions,
-		clientOptions,
-	);
-
-	client.setTrace(toTrace(getTraceSetting()));
+	const configuredServerPath = getServerPath();
 
 	try {
+		const serverPath = await getTrustedServerPath(configuredServerPath);
+		const serverOptions: ServerOptions = {
+			command: serverPath,
+			args: ["lsp"],
+			options: {
+				cwd: getWorkspaceRoot(),
+			},
+		};
+
+		const clientOptions: LanguageClientOptions = {
+			documentSelector: [{ scheme: "file", language: "downstage" }],
+			outputChannel,
+		};
+
+		client = new LanguageClient(
+			"downstageLanguageServer",
+			"Downstage Language Server",
+			serverOptions,
+			clientOptions,
+		);
+
+		client.setTrace(toTrace(getTraceSetting()));
 		await client.start();
 	} catch (error) {
 		client = undefined;
 		const message = [
 			"Failed to start the Downstage language server.",
-			`Expected executable: ${serverPath}`,
+			`Expected executable: ${configuredServerPath}`,
 			"Install the `downstage` binary or set `downstage.server.path`.",
 		].join(" ");
 		outputChannel.appendLine(String(error));
@@ -184,7 +189,59 @@ async function startLanguageServer(context: vscode.ExtensionContext): Promise<vo
 }
 
 function getServerPath(): string {
-	return vscode.workspace.getConfiguration("downstage").get<string>("server.path", "downstage");
+	return vscode.workspace.getConfiguration("downstage").get<string>("server.path", defaultServerPath);
+}
+
+function getValidatedServerPath(): string {
+	return validateServerPath(getServerPath());
+}
+
+function validateServerPath(serverPath: string): string {
+	serverPath = serverPath.trim();
+	if (!serverPath) {
+		throw new Error("downstage.server.path must not be empty");
+	}
+	if (/[\u0000-\u001f]/u.test(serverPath)) {
+		throw new Error("downstage.server.path contains control characters");
+	}
+	return serverPath;
+}
+
+async function getTrustedServerPath(configuredPath?: string): Promise<string> {
+	const serverPath = validateServerPath(configuredPath ?? getServerPath());
+	if (serverPath === defaultServerPath || isTrustedServerPath(serverPath)) {
+		return serverPath;
+	}
+
+	const selection = await vscode.window.showWarningMessage(
+		`Downstage is configured to launch a custom executable: ${serverPath}`,
+		{ modal: true },
+		"Trust and Launch",
+	);
+	if (selection !== "Trust and Launch") {
+		throw new Error("custom downstage.server.path was not trusted");
+	}
+
+	await rememberTrustedServerPath(serverPath);
+	return serverPath;
+}
+
+function isTrustedServerPath(serverPath: string): boolean {
+	return getTrustedServerPaths().includes(serverPath);
+}
+
+function getTrustedServerPaths(): string[] {
+	return extensionContext?.workspaceState.get<string[]>(trustedServerPathsKey, []) ?? [];
+}
+
+async function rememberTrustedServerPath(serverPath: string): Promise<void> {
+	if (!extensionContext) {
+		return;
+	}
+
+	const trustedPaths = new Set(getTrustedServerPaths());
+	trustedPaths.add(serverPath);
+	await extensionContext.workspaceState.update(trustedServerPathsKey, Array.from(trustedPaths));
 }
 
 function getTraceSetting(): string {
@@ -230,6 +287,47 @@ function getWorkspaceRoot(): string | undefined {
 	}
 
 	return workspaceFolder.uri.fsPath;
+}
+
+function provideDownstageFoldingRanges(document: vscode.TextDocument): vscode.FoldingRange[] {
+	const ranges: vscode.FoldingRange[] = [];
+	const sectionStack: Array<{ level: number; line: number }> = [];
+	let songStartLine: number | undefined;
+
+	for (let line = 0; line < document.lineCount; line++) {
+		const text = document.lineAt(line).text.trim();
+		const heading = /^(#{1,3})\s+/.exec(text);
+		if (heading) {
+			const level = heading[1].length;
+			while (sectionStack.length > 0 && sectionStack[sectionStack.length - 1].level >= level) {
+				const section = sectionStack.pop();
+				if (section && line-section.line > 1) {
+					ranges.push(new vscode.FoldingRange(section.line, line - 1));
+				}
+			}
+			sectionStack.push({ level, line });
+			continue;
+		}
+
+		if (text === "SONG END" && songStartLine !== undefined && line > songStartLine) {
+			ranges.push(new vscode.FoldingRange(songStartLine, line));
+			songStartLine = undefined;
+			continue;
+		}
+
+		if (text.startsWith("SONG")) {
+			songStartLine = line;
+		}
+	}
+
+	while (sectionStack.length > 0) {
+		const section = sectionStack.pop();
+		if (section && document.lineCount-section.line > 1) {
+			ranges.push(new vscode.FoldingRange(section.line, document.lineCount - 1));
+		}
+	}
+
+	return ranges;
 }
 
 function scheduleCueSuggestForDocument(document: vscode.TextDocument): void {
@@ -313,18 +411,19 @@ async function renderCurrentScript(
 
 	await editor.document.save();
 
-	const serverPath = getServerPath();
-	const style = styleOverride ?? getRenderStyleSetting();
 	const inputPath = editor.document.uri.fsPath;
 	const outputPath = replaceExtension(inputPath, ".pdf");
 	const outputChannel = getRenderOutputChannel();
 
 	outputChannel.clear();
-	outputChannel.appendLine(`Running: ${serverPath} render --style ${style} ${inputPath}`);
-	outputChannel.show(true);
-	renderDiagnostics?.delete(editor.document.uri);
 
 	try {
+		const serverPath = await getTrustedServerPath();
+		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
+		outputChannel.appendLine(`Running: ${serverPath} render --style ${style} ${inputPath}`);
+		outputChannel.show(true);
+		renderDiagnostics?.delete(editor.document.uri);
+
 		await runDownstageRender(serverPath, style, inputPath, outputChannel);
 		renderDiagnostics?.delete(editor.document.uri);
 		const message = `Rendered PDF: ${path.basename(outputPath)}`;
@@ -363,6 +462,13 @@ function getRenderOutputChannel(): vscode.OutputChannel {
 		renderOutputChannel = vscode.window.createOutputChannel("Downstage Render");
 	}
 	return renderOutputChannel;
+}
+
+function getValidatedRenderStyle(style: string): string {
+	if (!allowedRenderStyles.has(style)) {
+		throw new Error(`Unsupported render style: ${style}`);
+	}
+	return style;
 }
 
 async function runDownstageRender(
@@ -509,7 +615,7 @@ function openLivePreview(): void {
 	});
 
 	previewPanels.set(key, state);
-	renderToPreview(editor.document, state);
+	void renderToPreview(editor.document, state);
 }
 
 function getPreviewHtml(body: string): string {
@@ -598,18 +704,26 @@ function schedulePreviewUpdate(document: vscode.TextDocument): void {
 
 	state.pending = setTimeout(() => {
 		state.pending = undefined;
-		renderToPreview(document, state);
+		void renderToPreview(document, state);
 	}, getPreviewDebounceSetting());
 }
 
-function renderToPreview(document: vscode.TextDocument, state: PreviewState): void {
+async function renderToPreview(document: vscode.TextDocument, state: PreviewState): Promise<void> {
 	if (state.child) {
 		state.child.kill();
 		state.child = undefined;
 	}
 
-	const serverPath = getServerPath();
-	const style = getRenderStyleSetting();
+	let serverPath: string;
+	let style: string;
+	try {
+		serverPath = await getTrustedServerPath();
+		style = getValidatedRenderStyle(getRenderStyleSetting());
+	} catch (error) {
+		const outputChannel = getRenderOutputChannel();
+		outputChannel.appendLine(`Preview render error: ${String(error)}`);
+		return;
+	}
 	const sourceName = path.basename(document.uri.fsPath);
 	const child = spawn(serverPath, [
 		"render", "--stdin", "--stdout",

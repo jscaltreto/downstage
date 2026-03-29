@@ -2,8 +2,11 @@ package pdf
 
 import (
 	_ "embed"
+	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-pdf/fpdf"
 )
@@ -55,22 +58,28 @@ func loadSerifFont(pdf *fpdf.Fpdf) {
 // available variants. It looks for Bold/Italic/BoldItalic variants using
 // common naming conventions alongside the specified file.
 func loadCustomFont(pdf *fpdf.Fpdf, family, path string) bool {
-	data, err := os.ReadFile(path)
+	cleanPath, err := validateCustomFontPath(path)
 	if err != nil {
-		slog.Error("failed to read custom font", "path", path, "error", err)
+		slog.Error("invalid custom font path", "path", path, "error", err)
+		return false
+	}
+
+	data, err := os.ReadFile(cleanPath)
+	if err != nil {
+		slog.Error("failed to read custom font", "path", cleanPath, "error", err)
 		return false
 	}
 	pdf.AddUTF8FontFromBytes(family, "", data)
 	if pdf.Err() {
-		slog.Error("failed to register custom font", "path", path, "error", pdf.Error())
+		slog.Error("failed to register custom font", "path", cleanPath, "error", pdf.Error())
 		pdf.ClearError()
 		return false
 	}
 
 	// Try to find style variants by common naming patterns
-	tryVariant(pdf, family, path, "B", []string{"-Bold", "bd", "-bold", "B"})
-	tryVariant(pdf, family, path, "I", []string{"-Italic", "i", "-italic", "I", "-Oblique", "-oblique"})
-	tryVariant(pdf, family, path, "BI", []string{"-BoldItalic", "bi", "-bolditalic", "BI", "-BoldOblique", "-boldoblique"})
+	tryVariant(pdf, family, cleanPath, "B", []string{"-Bold", "bd", "-bold", "B"})
+	tryVariant(pdf, family, cleanPath, "I", []string{"-Italic", "i", "-italic", "I", "-Oblique", "-oblique"})
+	tryVariant(pdf, family, cleanPath, "BI", []string{"-BoldItalic", "bi", "-bolditalic", "BI", "-BoldOblique", "-boldoblique"})
 
 	return true
 }
@@ -110,4 +119,19 @@ func tryVariant(pdf *fpdf.Fpdf, family, basePath, style string, suffixes []strin
 		slog.Debug("loaded font variant", "style", style, "path", path)
 		return
 	}
+}
+
+func validateCustomFontPath(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", fmt.Errorf("font path cannot be empty")
+	}
+
+	sanitized := filepath.Clean(path)
+	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
+		if part == ".." {
+			return "", fmt.Errorf("font path cannot contain parent traversal")
+		}
+	}
+
+	return sanitized, nil
 }
