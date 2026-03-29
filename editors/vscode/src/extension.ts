@@ -480,6 +480,11 @@ async function runDownstageRender(
 			cwd: path.dirname(inputPath),
 		});
 
+		const timeout = setTimeout(() => {
+			child.kill();
+			reject(new Error("downstage render timed out after 60 seconds"));
+		}, 60_000);
+
 		child.stdout.on("data", (chunk: Buffer | string) => {
 			outputChannel.append(chunk.toString());
 		});
@@ -489,9 +494,11 @@ async function runDownstageRender(
 			outputChannel.append(text);
 		});
 		child.on("error", (error) => {
+			clearTimeout(timeout);
 			reject(error);
 		});
 		child.on("close", (code) => {
+			clearTimeout(timeout);
 			if (code === 0) {
 				resolve();
 				return;
