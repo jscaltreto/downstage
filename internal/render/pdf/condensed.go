@@ -37,8 +37,9 @@ func NewCondensedRenderer(cfg render.Config) render.NodeRenderer {
 
 type condensedRenderer struct {
 	pdfBase
-	inDialogue bool // tracks whether we're inside a dialogue block
-	firstLine  bool // tracks first line of a dialogue (continues after character name)
+	inDialogue            bool // tracks whether we're inside a dialogue block
+	firstLine             bool // tracks first line of a dialogue (continues after character name)
+	prevWasStageDirection bool // tracks consecutive stage directions for reduced spacing
 }
 
 // --- Lifecycle ---
@@ -160,6 +161,7 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 // --- Structural ---
 
 func (r *condensedRenderer) BeginSection(s *ast.Section) error {
+	r.prevWasStageDirection = false
 	switch s.Kind {
 	case ast.SectionAct:
 		return r.beginAct(s)
@@ -262,6 +264,7 @@ func (r *condensedRenderer) beginScene(s *ast.Section) error {
 // --- Dual Dialogue ---
 
 func (r *condensedRenderer) BeginDualDialogue(d *ast.DualDialogue) error {
+	r.prevWasStageDirection = false
 	r.dualSequential = false
 	r.dualMidY = 0
 	estimatedHeight := r.estimateDualDialogueHeight(d)
@@ -300,6 +303,7 @@ func (r *condensedRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
 // Character name bold, parenthetical italic, dialogue regular — all on one line.
 
 func (r *condensedRenderer) BeginDialogue(d *ast.Dialogue) error {
+	r.prevWasStageDirection = false
 	if r.inDualDialogue {
 		return r.beginDualDialogueSide(d)
 	}
@@ -414,6 +418,10 @@ func (r *condensedRenderer) estimateDialogueHeight(d *ast.Dialogue, width float6
 	}
 
 	for i, line := range d.Lines {
+		if len(line.Content) == 0 {
+			height += r.lineHeight / 2
+			continue
+		}
 		lineWidth := width
 		if line.IsVerse {
 			lineWidth -= 10
@@ -447,6 +455,9 @@ func (r *condensedRenderer) EndDialogue(_ *ast.Dialogue) error {
 }
 
 func (r *condensedRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
+	if len(line.Content) == 0 {
+		return nil
+	}
 	if r.firstLine {
 		// First line continues after character name on the same line
 		r.firstLine = false
@@ -465,7 +476,11 @@ func (r *condensedRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 	return nil
 }
 
-func (r *condensedRenderer) EndDialogueLine(_ *ast.DialogueLine) error {
+func (r *condensedRenderer) EndDialogueLine(line *ast.DialogueLine) error {
+	if len(line.Content) == 0 {
+		r.pdf.Ln(r.lineHeight / 2)
+		return nil
+	}
 	r.pdf.Ln(r.lineHeight)
 	return nil
 }
@@ -474,8 +489,13 @@ func (r *condensedRenderer) EndDialogueLine(_ *ast.DialogueLine) error {
 // Italic, indented 0.5" further, one blank line above and below.
 
 func (r *condensedRenderer) BeginStageDirection(_ *ast.StageDirection) error {
-	r.ensureSpace(r.lineHeight * 3)
-	r.pdf.Ln(r.lineHeight)
+	if r.prevWasStageDirection {
+		r.ensureSpace(r.lineHeight * 2)
+		r.pdf.Ln(r.lineHeight / 2)
+	} else {
+		r.ensureSpace(r.lineHeight * 3)
+		r.pdf.Ln(r.lineHeight)
+	}
 
 	stageIndent := halfInchPt * pointsToMM
 	r.setStyle("I")
@@ -489,12 +509,14 @@ func (r *condensedRenderer) EndStageDirection(_ *ast.StageDirection) error {
 	r.setStyle("")
 	r.pdf.SetLeftMargin(r.marginL)
 	r.pdf.Ln(r.lineHeight)
+	r.prevWasStageDirection = true
 	return nil
 }
 
 // --- Song ---
 
 func (r *condensedRenderer) BeginSong(song *ast.Song) error {
+	r.prevWasStageDirection = false
 	r.ensureSpace(r.lineHeight * 3)
 	r.pdf.Ln(r.lineHeight)
 
