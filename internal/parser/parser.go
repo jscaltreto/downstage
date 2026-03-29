@@ -763,8 +763,11 @@ loop:
 				p.pos = saved
 				break
 			}
+			// Single blank line continues dialogue — insert paragraph break marker
+			blankRange := p.tokens[saved].Range
 			p.pos = saved
 			p.skipBlanks()
+			dlg.Lines = append(dlg.Lines, ast.DialogueLine{Range: blankRange})
 		}
 
 		switch p.peek().Type {

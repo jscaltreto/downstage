@@ -107,6 +107,13 @@ func walkNode(nr NodeRenderer, node ast.Node) error {
 			if err := nr.BeginDialogueLine(&n.Lines[i]); err != nil {
 				return err
 			}
+			if len(n.Lines[i].Content) == 0 {
+				// Paragraph break marker — still call End so renderer can add spacing
+				if err := nr.EndDialogueLine(&n.Lines[i]); err != nil {
+					return err
+				}
+				continue
+			}
 			if err := walkInlines(nr, n.Lines[i].Content); err != nil {
 				return err
 			}
