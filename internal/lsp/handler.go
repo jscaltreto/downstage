@@ -250,6 +250,7 @@ func (h *handler) handleCodeAction(ctx context.Context, reply jsonrpc2.Replier, 
 func (h *handler) handleFoldingRange(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 	var params protocol.FoldingRangeParams
 	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		h.logger.Error("failed to unmarshal foldingRange params", slog.String("error", err.Error()))
 		return reply(ctx, []protocol.FoldingRange{}, nil)
 	}
 
