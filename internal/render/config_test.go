@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -109,20 +110,16 @@ func TestCondensedMarginsValidate(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
-func TestValidateRejectsZeroFontSize(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.FontSize = 0
-	err := cfg.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "FontSize")
-}
-
-func TestValidateRejectsNegativeFontSize(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.FontSize = -1
-	err := cfg.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "FontSize")
+func TestValidateRejectsInvalidFontSize(t *testing.T) {
+	for _, size := range []float64{0, -1} {
+		t.Run(fmt.Sprintf("%.0f", size), func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.FontSize = size
+			err := cfg.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "FontSize")
+		})
+	}
 }
 
 func TestValidateRejectsNegativeMargins(t *testing.T) {

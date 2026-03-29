@@ -191,7 +191,7 @@ async function startLanguageServer(context: vscode.ExtensionContext): Promise<vo
 			if (selection === "Open Settings") {
 				void vscode.commands.executeCommand(
 					"workbench.action.openSettings",
-					"downstage.server.path",
+					`${configSection}.${settingServerPath}`,
 				);
 			}
 		});

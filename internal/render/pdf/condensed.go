@@ -478,7 +478,7 @@ func (r *condensedRenderer) BeginStageDirection(_ *ast.StageDirection) error {
 	r.ensureSpace(r.lineHeight * 3)
 	r.pdf.Ln(r.lineHeight)
 
-	stageIndent := 0.5 * 72 * pointsToMM // 0.5 inch in mm
+	stageIndent := halfInchPt * pointsToMM // 0.5 inch in mm
 	r.setStyle("I")
 	r.pdf.SetLeftMargin(r.marginL + stageIndent)
 	r.pdf.SetX(r.marginL + stageIndent)
