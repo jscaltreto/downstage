@@ -21,6 +21,10 @@ coverage.html
 
 # Build output
 build/
+editors/vscode/node_modules/
+editors/vscode/out/
+editors/vscode/*.vsix
+editors/vscode/.vsix-stage/
 
 # Claude Code local settings
 .claude/settings.local.json
