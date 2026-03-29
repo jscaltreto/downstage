@@ -628,34 +628,52 @@ function getPreviewHtml(body: string): string {
 <style>
 html, body { margin: 0; padding: 0; height: 100%; }
 body { overflow: hidden; }
-#preview {
+.preview-container {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+.preview-frame {
+	position: absolute;
+	top: 0;
+	left: 0;
 	width: 100%;
 	height: 100%;
 	border: 0;
-	display: block;
+	visibility: hidden;
 }
 </style>
 </head>
 <body>
-<iframe id="preview" sandbox="allow-same-origin"></iframe>
+<div class="preview-container">
+	<iframe id="preview-a" class="preview-frame" sandbox="allow-same-origin"></iframe>
+	<iframe id="preview-b" class="preview-frame" sandbox="allow-same-origin"></iframe>
+</div>
 <script>
-	const preview = document.getElementById("preview");
+	const frameA = document.getElementById("preview-a");
+	const frameB = document.getElementById("preview-b");
+	let active = frameA;
+	let staging = frameB;
 	let pendingLine = null;
-	let revealOnLoad = false;
+	let loadGeneration = 0;
+	let clearTimer = null;
 
 	function updatePreview(html, line) {
 		if (typeof line === "number") {
 			pendingLine = line;
 		}
-		revealOnLoad = pendingLine !== null;
-		if (revealOnLoad) {
-			preview.style.visibility = "hidden";
+		if (clearTimer !== null) {
+			clearTimeout(clearTimer);
+			clearTimer = null;
 		}
-		preview.srcdoc = html;
+		loadGeneration++;
+		staging.dataset.generation = String(loadGeneration);
+		staging.srcdoc = html;
 	}
 
-	function scrollPreviewToLine(line, behavior = "smooth") {
-		const doc = preview.contentDocument;
+	function scrollPreviewToLine(line, behavior = "smooth", frame) {
+		const targetFrame = frame || active;
+		const doc = targetFrame.contentDocument;
 		if (!doc) {
 			pendingLine = line;
 			return;
@@ -676,17 +694,28 @@ body { overflow: hidden; }
 		}
 	}
 
-	preview.addEventListener("load", () => {
+	function onFrameLoad(frame) {
+		if (frame !== staging) return;
+		if (frame.dataset.generation !== String(loadGeneration)) return;
 		if (pendingLine !== null) {
 			const line = pendingLine;
 			pendingLine = null;
-			scrollPreviewToLine(line, "auto");
+			scrollPreviewToLine(line, "auto", frame);
 		}
-		if (revealOnLoad) {
-			preview.style.visibility = "visible";
-			revealOnLoad = false;
-		}
-	});
+		staging.style.visibility = "visible";
+		active.style.visibility = "hidden";
+		const retired = active;
+		active = staging;
+		staging = retired;
+		retired.dataset.generation = "-1";
+		clearTimer = setTimeout(() => {
+			clearTimer = null;
+			retired.srcdoc = "";
+		}, 0);
+	}
+
+	frameA.addEventListener("load", () => onFrameLoad(frameA));
+	frameB.addEventListener("load", () => onFrameLoad(frameB));
 
 	window.addEventListener("message", (event) => {
 		const msg = event.data;
@@ -694,7 +723,6 @@ body { overflow: hidden; }
 			updatePreview(msg.html, msg.line);
 		}
 		if (msg.type === "scrollTo") {
-			pendingLine = msg.line;
 			scrollPreviewToLine(msg.line);
 		}
 	});
