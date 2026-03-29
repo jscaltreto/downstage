@@ -258,8 +258,8 @@
                       "Range": {
                         "Start": {
                           "Line": 20,
-                          "Column": 0,
-                          "Offset": 307
+                          "Column": 2,
+                          "Offset": 309
                         },
                         "End": {
                           "Line": 20,
@@ -290,8 +290,8 @@
                       "Range": {
                         "Start": {
                           "Line": 21,
-                          "Column": 0,
-                          "Offset": 321
+                          "Column": 2,
+                          "Offset": 323
                         },
                         "End": {
                           "Line": 21,
@@ -441,8 +441,8 @@
                           "Range": {
                             "Start": {
                               "Line": 33,
-                              "Column": 0,
-                              "Offset": 486
+                              "Column": 2,
+                              "Offset": 488
                             },
                             "End": {
                               "Line": 33,
@@ -473,8 +473,8 @@
                           "Range": {
                             "Start": {
                               "Line": 34,
-                              "Column": 0,
-                              "Offset": 508
+                              "Column": 2,
+                              "Offset": 510
                             },
                             "End": {
                               "Line": 34,

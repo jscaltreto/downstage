@@ -51,6 +51,8 @@ func (h *handler) Handle(ctx context.Context, reply jsonrpc2.Replier, req jsonrp
 		return h.handleHover(ctx, reply, req)
 	case protocol.MethodTextDocumentDefinition:
 		return h.handleDefinition(ctx, reply, req)
+	case protocol.MethodTextDocumentCompletion:
+		return h.handleCompletion(ctx, reply, req)
 	default:
 		return reply(ctx, nil, jsonrpc2.NewError(jsonrpc2.MethodNotFound, "method not found: "+method))
 	}
@@ -80,6 +82,9 @@ func (h *handler) handleInitialize(ctx context.Context, reply jsonrpc2.Replier, 
 			DocumentSymbolProvider: true,
 			HoverProvider:          true,
 			DefinitionProvider:     true,
+			CompletionProvider: &protocol.CompletionOptions{
+				TriggerCharacters: []string{"@", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"},
+			},
 		},
 		ServerInfo: &protocol.ServerInfo{
 			Name:    "downstage-lsp",
@@ -200,7 +205,26 @@ func (h *handler) handleDefinition(ctx context.Context, reply jsonrpc2.Replier, 
 	return reply(ctx, loc, nil)
 }
 
+func (h *handler) handleCompletion(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
+	var params protocol.CompletionParams
+	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		return reply(ctx, emptyCompletionList(), nil)
+	}
+
+	doc := h.dm.Get(params.TextDocument.URI)
+	if doc == nil {
+		return reply(ctx, emptyCompletionList(), nil)
+	}
+
+	result := computeCompletion(doc.doc, doc.errors, doc.content, params.Position)
+	return reply(ctx, result, nil)
+}
+
 func (h *handler) publishDiagnostics(ctx context.Context, docURI protocol.DocumentURI, diags []protocol.Diagnostic) error {
+	if diags == nil {
+		diags = []protocol.Diagnostic{}
+	}
+
 	params := protocol.PublishDiagnosticsParams{
 		URI:         docURI,
 		Diagnostics: diags,

@@ -11,8 +11,11 @@ import (
 
 func TestBuildDiagnostics_Nil(t *testing.T) {
 	diags := buildDiagnostics(nil, nil)
-	if diags != nil {
-		t.Errorf("expected nil diagnostics for nil doc and no errors, got %d", len(diags))
+	if diags == nil {
+		t.Fatal("expected empty diagnostics slice for nil doc and no errors")
+	}
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics for nil doc and no errors, got %d", len(diags))
 	}
 }
 

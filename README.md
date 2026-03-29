@@ -97,6 +97,7 @@ SONG END
   - Document outline (acts/scenes/characters)
   - Hover info on character names (shows description from dramatis personae)
   - Go-to-definition (jump to character's dramatis personae entry)
+  - Context-aware completion for character cues
   - Diagnostics (parse errors, unknown character warnings)
 - Neovim integration out of the box (0.11+)
 - CLI tools for parsing and validation
@@ -161,6 +162,20 @@ your plugin manager:
 
 This provides filetype detection, buffer settings, and LSP integration for `.ds`
 files. The `downstage` binary must be on your `PATH`.
+
+If you use `nvim-cmp`, enable the plugin's optional completion integration to
+limit Downstage buffers to LSP-driven cue completions:
+
+```lua
+-- lazy.nvim
+{
+  "jscaltreto/downstage.nvim",
+  ft = "downstage",
+  opts = {
+    cmp = true,
+  },
+}
+```
 
 ### Other Editors
 

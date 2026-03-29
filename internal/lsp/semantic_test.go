@@ -97,6 +97,35 @@ func TestComputeSemanticTokens_WithDialogue(t *testing.T) {
 	}
 }
 
+func TestComputeSemanticTokens_IncludesDialogueParenthetical(t *testing.T) {
+	dialogue := &ast.Dialogue{
+		Character:     "HAMLET",
+		Parenthetical: "(aside)",
+		Range: token.Range{
+			Start: token.Position{Line: 5, Column: 0},
+			End:   token.Position{Line: 7, Column: 0},
+		},
+	}
+	dialogue.SetNameRange(token.Range{
+		Start: token.Position{Line: 5, Column: 0},
+		End:   token.Position{Line: 5, Column: 6},
+	})
+	dialogue.SetParentheticalRange(token.Range{
+		Start: token.Position{Line: 6, Column: 0},
+		End:   token.Position{Line: 6, Column: 7},
+	})
+
+	doc := &ast.Document{Body: []ast.Node{dialogue}}
+	tokens := computeSemanticTokens(doc, nil)
+	expected := []uint32{
+		5, 0, 6, tokenTypeType, 0,
+		1, 0, 7, tokenTypeComment, 0,
+	}
+	if !reflect.DeepEqual(tokens, expected) {
+		t.Errorf("expected %v, got %v", expected, tokens)
+	}
+}
+
 func TestComputeSemanticTokens_UsesUTF16Columns(t *testing.T) {
 	dialogue := &ast.Dialogue{
 		Character: "A🙂",
@@ -113,6 +142,120 @@ func TestComputeSemanticTokens_UsesUTF16Columns(t *testing.T) {
 	doc := &ast.Document{Body: []ast.Node{dialogue}}
 	tokens := computeSemanticTokens(doc, nil)
 	expected := []uint32{3, 0, 3, tokenTypeType, 0}
+	if !reflect.DeepEqual(tokens, expected) {
+		t.Errorf("expected %v, got %v", expected, tokens)
+	}
+}
+
+func TestComputeSemanticTokens_SectionStartsAfterHeadingMarker(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Level: 1,
+				Title: "Dramatis Personae",
+				Range: token.Range{
+					Start: token.Position{Line: 2, Column: 0},
+					End:   token.Position{Line: 2, Column: 19},
+				},
+			},
+		},
+	}
+
+	tokens := computeSemanticTokens(doc, nil)
+	expected := []uint32{2, 2, uint32(len("Dramatis Personae")), tokenTypeNamespace, 0}
+	if !reflect.DeepEqual(tokens, expected) {
+		t.Errorf("expected %v, got %v", expected, tokens)
+	}
+}
+
+func TestComputeSemanticTokens_ActHeadingUsesFullHeader(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:   ast.SectionAct,
+				Level:  2,
+				Number: "I",
+				Range: token.Range{
+					Start: token.Position{Line: 4, Column: 0},
+					End:   token.Position{Line: 4, Column: 8},
+				},
+			},
+		},
+	}
+
+	tokens := computeSemanticTokens(doc, nil)
+	expected := []uint32{4, 3, uint32(len("ACT I")), tokenTypeNamespace, 0}
+	if !reflect.DeepEqual(tokens, expected) {
+		t.Errorf("expected %v, got %v", expected, tokens)
+	}
+}
+
+func TestComputeSemanticTokens_SceneHeadingIncludesSubtitle(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:   ast.SectionScene,
+				Level:  3,
+				Number: "2",
+				Title:  "The Garden",
+				Range: token.Range{
+					Start: token.Position{Line: 7, Column: 0},
+					End:   token.Position{Line: 7, Column: 23},
+				},
+			},
+		},
+	}
+
+	tokens := computeSemanticTokens(doc, nil)
+	expected := []uint32{7, 4, uint32(len("SCENE 2: The Garden")), tokenTypeNamespace, 0}
+	if !reflect.DeepEqual(tokens, expected) {
+		t.Errorf("expected %v, got %v", expected, tokens)
+	}
+}
+
+func TestComputeSemanticTokens_SceneHeadingWithoutNumberUsesKeyword(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionScene,
+				Level: 2,
+				Range: token.Range{
+					Start: token.Position{Line: 9, Column: 0},
+					End:   token.Position{Line: 9, Column: 8},
+				},
+			},
+		},
+	}
+
+	tokens := computeSemanticTokens(doc, nil)
+	expected := []uint32{9, 3, uint32(len("SCENE")), tokenTypeNamespace, 0}
+	if !reflect.DeepEqual(tokens, expected) {
+		t.Errorf("expected %v, got %v", expected, tokens)
+	}
+}
+
+func TestComputeSemanticTokens_InlineFormattingUsesNodeRange(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Dialogue{
+				Lines: []ast.DialogueLine{
+					{
+						Content: []ast.Inline{
+							&ast.BoldNode{
+								Range: token.Range{
+									Start: token.Position{Line: 4, Column: 8},
+									End:   token.Position{Line: 4, Column: 16},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tokens := computeSemanticTokens(doc, nil)
+	expected := []uint32{4, 8, 8, tokenTypeString, 0}
 	if !reflect.DeepEqual(tokens, expected) {
 		t.Errorf("expected %v, got %v", expected, tokens)
 	}
