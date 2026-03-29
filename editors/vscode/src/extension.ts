@@ -628,34 +628,38 @@ function getPreviewHtml(body: string): string {
 <style>
 html, body { margin: 0; padding: 0; height: 100%; }
 body { overflow: hidden; }
-#preview {
+.preview-frame {
+	position: absolute;
+	top: 0;
+	left: 0;
 	width: 100%;
 	height: 100%;
 	border: 0;
-	display: block;
 }
 </style>
 </head>
 <body>
-<iframe id="preview" sandbox="allow-same-origin"></iframe>
+<div style="position:relative;width:100%;height:100%;">
+	<iframe id="preview-a" class="preview-frame" sandbox="allow-same-origin"></iframe>
+	<iframe id="preview-b" class="preview-frame" sandbox="allow-same-origin" style="visibility:hidden;"></iframe>
+</div>
 <script>
-	const preview = document.getElementById("preview");
+	const frameA = document.getElementById("preview-a");
+	const frameB = document.getElementById("preview-b");
+	let active = frameA;
+	let staging = frameB;
 	let pendingLine = null;
-	let revealOnLoad = false;
 
 	function updatePreview(html, line) {
 		if (typeof line === "number") {
 			pendingLine = line;
 		}
-		revealOnLoad = pendingLine !== null;
-		if (revealOnLoad) {
-			preview.style.visibility = "hidden";
-		}
-		preview.srcdoc = html;
+		staging.srcdoc = html;
 	}
 
-	function scrollPreviewToLine(line, behavior = "smooth") {
-		const doc = preview.contentDocument;
+	function scrollPreviewToLine(line, behavior = "smooth", frame) {
+		const target_frame = frame || active;
+		const doc = target_frame.contentDocument;
 		if (!doc) {
 			pendingLine = line;
 			return;
@@ -676,17 +680,22 @@ body { overflow: hidden; }
 		}
 	}
 
-	preview.addEventListener("load", () => {
+	function onFrameLoad(frame) {
+		if (frame !== staging) return;
 		if (pendingLine !== null) {
 			const line = pendingLine;
 			pendingLine = null;
-			scrollPreviewToLine(line, "auto");
+			scrollPreviewToLine(line, "auto", frame);
 		}
-		if (revealOnLoad) {
-			preview.style.visibility = "visible";
-			revealOnLoad = false;
-		}
-	});
+		staging.style.visibility = "visible";
+		active.style.visibility = "hidden";
+		const tmp = active;
+		active = staging;
+		staging = tmp;
+	}
+
+	frameA.addEventListener("load", () => onFrameLoad(frameA));
+	frameB.addEventListener("load", () => onFrameLoad(frameB));
 
 	window.addEventListener("message", (event) => {
 		const msg = event.data;
