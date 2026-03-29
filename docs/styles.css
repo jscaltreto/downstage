@@ -148,7 +148,7 @@ pre {
 
 .hero h1 {
   max-width: 11ch;
-  font-size: clamp(3rem, 8vw, 5.8rem);
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
 }
 
 .hero-copy {
@@ -212,7 +212,10 @@ pre {
 }
 
 .section-heading h2 {
-  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-size: clamp(1.45rem, 2.2vw, 2.05rem);
+  line-height: 1.1;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .section-body {

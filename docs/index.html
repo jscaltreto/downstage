@@ -14,7 +14,7 @@
     <div class="site-shell">
       <aside class="site-nav">
         <a class="brand" href="#top">Downstage</a>
-        <p class="brand-note">Markdown for playwrights, without screenplay baggage.</p>
+        <p class="brand-note">A plaintext markup language for stage plays.</p>
         <nav aria-label="Section navigation">
           <a href="#overview">Overview</a>
           <a href="#structure">Document Structure</a>
@@ -104,11 +104,6 @@ To be, or not to be.</code></pre>
               The body can contain a character list, acts, scenes, prose sections,
               dialogue, songs, comments, and page breaks.
             </p>
-            <div class="rule-callout">
-              <strong>Character list headings:</strong> <code># Dramatis Personae</code>,
-              <code># Cast of Characters</code>, and <code># Characters</code> all
-              start the same section type.
-            </div>
             <pre><code>ALICE
 Hello, world!</code></pre>
             <p class="caption">That minimal file is valid. No title page or headings required.</p>
@@ -148,6 +143,11 @@ Notes: Inspired by true events
               The character list is a dedicated section. Entries can include descriptions,
               aliases, and optional subgroup headings.
             </p>
+            <div class="rule-callout">
+              <strong>Accepted headings:</strong> <code># Dramatis Personae</code>,
+              <code># Cast of Characters</code>, and <code># Characters</code> all
+              start the same section type.
+            </div>
             <pre><code># Dramatis Personae
 
 MARGARET — An aging actress
@@ -333,7 +333,7 @@ SONG END</code></pre>
 ### SCENE 2</code></pre>
             </div>
             <p>
-              Comments stay in the AST but do not render as play content.
+              Comments are ignored when rendering, so they will not appear in the PDF.
               <code>===</code> inserts a page break in rendered output.
             </p>
           </div>
