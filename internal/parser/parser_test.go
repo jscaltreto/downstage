@@ -508,6 +508,33 @@ La la la.`
 	assert.NotEmpty(t, errs, "expected at least one error for unterminated SONG")
 }
 
+func TestErrorRecovery_UnclosedBlockComment(t *testing.T) {
+	input := `# Play
+
+/*
+comment that never ends
+
+HAMLET
+Still here.`
+
+	doc, errs := Parse([]byte(input))
+	assert.NotNil(t, doc, "document should not be nil even with errors")
+	assert.NotEmpty(t, errs, "expected parse errors for unclosed block comment")
+}
+
+func TestErrorRecovery_CharacterAliasWithoutCharacterEntry(t *testing.T) {
+	input := `# Dramatis Personae
+[HAMLET/PRINCE]
+HAMLET — Prince of Denmark`
+
+	doc, errs := Parse([]byte(input))
+	assert.NotNil(t, doc, "document should not be nil even with errors")
+	assert.NotEmpty(t, errs, "expected parse errors for orphaned character alias")
+	dp := ast.FindDramatisPersonae(doc.Body)
+	require.NotNil(t, dp, "expected dramatis personae section to survive recovery")
+	assert.Len(t, dp.Characters, 1, "expected parser to recover and keep subsequent character entries")
+}
+
 func TestNoTitlePage(t *testing.T) {
 	input := `# Act One
 
