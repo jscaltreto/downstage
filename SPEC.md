@@ -228,6 +228,8 @@ They used to fill every seat, you know.
 Every last one.
 ```
 
+A single blank line within dialogue creates a paragraph break — additional vertical space between lines of the same speech. In standard layout this renders as a full blank line; in condensed layout the gap is smaller.
+
 Dialogue ends when a blank line is followed by another structural element (another character name, heading, song, etc.) or when a double blank line is encountered.
 
 ### Dual Dialogue

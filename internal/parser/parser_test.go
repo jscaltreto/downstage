@@ -748,6 +748,37 @@ func TestInlineDelimiterLookaheadLimitTreatsMarkerAsText(t *testing.T) {
 	require.True(t, ok, "expected unmatched marker to remain plain text")
 }
 
+func TestDialogueParagraphBreak(t *testing.T) {
+	input := `# Play
+
+HAMLET
+To be or not to be,
+that is the question.
+
+Whether 'tis nobler in the mind.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg, "expected to find Dialogue node")
+	assert.Equal(t, "HAMLET", dlg.Character)
+
+	// Three content lines plus one paragraph break marker
+	require.Len(t, dlg.Lines, 4)
+
+	// First two lines have content
+	assert.NotEmpty(t, dlg.Lines[0].Content, "line 0 should have content")
+	assert.NotEmpty(t, dlg.Lines[1].Content, "line 1 should have content")
+
+	// Third entry is the paragraph break marker (nil Content)
+	assert.Empty(t, dlg.Lines[2].Content, "line 2 should be a paragraph break marker")
+
+	// Fourth line has content
+	assert.NotEmpty(t, dlg.Lines[3].Content, "line 3 should have content")
+}
+
 // Golden file tests
 func TestGoldenFiles(t *testing.T) {
 	matches, err := filepath.Glob("testdata/*.ds")

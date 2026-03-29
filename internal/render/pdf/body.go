@@ -261,6 +261,10 @@ func (r *pdfRenderer) estimateDialogueHeight(d *ast.Dialogue, width float64) flo
 	}
 
 	for _, line := range d.Lines {
+		if len(line.Content) == 0 {
+			height += r.lineHeight
+			continue
+		}
 		lineWidth := width
 		if line.IsVerse {
 			lineWidth -= 10
@@ -292,6 +296,9 @@ func (r *pdfRenderer) EndDialogue(_ *ast.Dialogue) error {
 }
 
 func (r *pdfRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
+	if len(line.Content) == 0 {
+		return nil
+	}
 	if r.inDualDialogue {
 		// In dual dialogue, lines flow within the current column margins
 		leftM, _, _, _ := r.pdf.GetMargins()
