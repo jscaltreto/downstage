@@ -498,8 +498,8 @@ func (r *condensedRenderer) BeginStageDirection(sd *ast.StageDirection) error {
 		r.ensureSpace(r.lineHeight * 2)
 		r.pdf.Ln(r.lineHeight / 2)
 	default:
-		r.ensureSpace(r.lineHeight * 3)
-		r.pdf.Ln(r.lineHeight)
+		r.ensureSpace(r.lineHeight * 2)
+		r.pdf.Ln(r.lineHeight / 2)
 	}
 
 	stageIndent := halfInchPt * pointsToMM
