@@ -1,36 +1,95 @@
+![Downstage](images/icon.png)
+
 # Downstage for VS Code
 
-This extension provides basic VS Code support for Downstage scripts.
+Downstage is a VS Code extension for writing stage plays in
+[Downstage](https://jscaltreto.github.io/downstage/) markup. It provides full
+LSP support, live PDF preview, render commands, snippets, diagnostics, and
+TextMate syntax highlighting.
 
-## Current features
+## Quick Start
 
-- `.ds` language registration
-- TextMate highlighting for metadata, headings, stage directions, songs,
-  parentheticals, character cues, and aliases
-- Language Server Protocol integration via `downstage lsp`
-- Context-aware character cue completions from the Go LSP
-- Structural heading completions from the Go LSP
-- Snippets for play skeletons, acts, scenes, cues, stage directions, and songs
-- Folding for title pages, sections, songs, and block comments via the Go LSP
-- Automatic cue suggestion on a fresh line after a blank separator
-- Commands to render the current script in standard or compact PDF styles
-- Commands to preview the generated PDF inside VS Code
-- Render parse failures surfaced in the Problems panel for the current file
-- Command to restart the language server
+1. Install this extension from the VS Code Marketplace.
+2. Install the [`downstage`](https://github.com/jscaltreto/downstage) binary
+   and ensure it is on your `PATH`.
+3. Open a `.ds` file and start writing.
 
-## Requirements
+## Features
 
-The `downstage` binary must be installed and available on your `PATH`, or you
-must set `downstage.server.path` to an explicit executable path.
+### Language Server
+
+The extension communicates with the Downstage language server (`downstage lsp`)
+to provide:
+
+- Context-aware character cue completions
+- Structural heading completions
+- Diagnostics surfaced in the Problems panel
+- Folding for title pages, sections, songs, and block comments
+
+### Live Preview
+
+Open a real-time PDF preview inside VS Code that updates as you type.
+The debounce delay is configurable.
+
+### PDF Rendering
+
+Render the current script to a standard or compact PDF directly from the
+command palette. The generated file opens automatically (configurable).
+
+### Snippets
+
+Pre-built snippets for common Downstage constructs let you scaffold a play
+skeleton, add acts, scenes, cues, stage directions, and songs with a few
+keystrokes.
+
+### Syntax Highlighting
+
+A TextMate grammar provides highlighting for all Downstage constructs:
+metadata, headings, stage directions, songs, parentheticals, character cues,
+aliases, verse, and comments.
+
+## Commands
+
+| Command | Description |
+| --- | --- |
+| Downstage: Restart Language Server | Restart the LSP connection |
+| Downstage: Render Current Script | Render to standard PDF |
+| Downstage: Render Compact Script | Render to compact PDF |
+| Downstage: Preview Current Script PDF | Preview standard PDF in VS Code |
+| Downstage: Preview Compact Script PDF | Preview compact PDF in VS Code |
+| Downstage: Live Preview | Live-updating PDF preview |
+
+## Snippets
+
+| Prefix | Description |
+| --- | --- |
+| `play` | Full play skeleton with title page, cast, act, and scene |
+| `act` | Act heading |
+| `scene` | Scene heading |
+| `cue` | Character cue with dialogue |
+| `stage` | Stage direction |
+| `song` | Song block |
 
 ## Settings
 
-- `downstage.server.path`: executable path for `downstage`
-- `downstage.server.trace`: LSP trace verbosity
-- `downstage.editor.autoSuggestCharacterCues`: auto-open cue suggestions on a
-  new empty line after a blank separator
-- `downstage.render.style`: render style for the VS Code render command
-- `downstage.render.openAfterRender`: open the generated PDF after rendering
+| Setting | Type | Default | Description |
+| --- | --- | --- | --- |
+| `downstage.server.path` | string | `"downstage"` | Path to the `downstage` executable |
+| `downstage.server.trace` | string | `"off"` | LSP trace verbosity (`off` / `messages` / `verbose`) |
+| `downstage.editor.autoSuggestCharacterCues` | boolean | `true` | Auto-trigger cue suggestions on empty lines |
+| `downstage.render.style` | string | `"standard"` | Render style (`standard` / `condensed`) |
+| `downstage.render.openAfterRender` | boolean | `true` | Open PDF after rendering |
+| `downstage.preview.debounceMs` | number | `300` | Delay before re-rendering live preview (ms) |
+
+## Requirements
+
+The `downstage` binary must be installed and available on your `PATH`, or
+configured via the `downstage.server.path` setting.
+
+## Related
+
+- [Downstage documentation](https://jscaltreto.github.io/downstage/)
+- [GitHub repository](https://github.com/jscaltreto/downstage)
 
 ## Development
 
