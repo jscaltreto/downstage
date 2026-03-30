@@ -5,13 +5,25 @@
   "version": "0.0.1",
   "publisher": "jscaltreto",
   "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "homepage": "https://jscaltreto.github.io/downstage/",
   "repository": {
     "type": "git",
     "url": "https://github.com/jscaltreto/downstage.git",
     "directory": "editors/vscode"
   },
+  "bugs": {
+    "url": "https://github.com/jscaltreto/downstage/issues"
+  },
+  "markdown": "github",
+  "pricing": "Free",
+  "qna": false,
   "engines": {
-    "vscode": "^1.100.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Programming Languages"
@@ -20,16 +32,8 @@
     "downstage",
     "theatre",
     "playwriting",
+    "screenplay",
     "lsp"
-  ],
-  "activationEvents": [
-    "onLanguage:downstage",
-    "onCommand:downstage.restartLanguageServer",
-    "onCommand:downstage.renderCurrentScript",
-    "onCommand:downstage.renderCompactScript",
-    "onCommand:downstage.previewCurrentScript",
-    "onCommand:downstage.previewCompactScript",
-    "onCommand:downstage.livePreview"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -43,16 +47,16 @@
         "title": "Downstage: Render Current Script"
       },
       {
-        "command": "downstage.renderCompactScript",
-        "title": "Downstage: Render Compact Script"
+        "command": "downstage.renderCondensedScript",
+        "title": "Downstage: Render Condensed Script"
       },
       {
         "command": "downstage.previewCurrentScript",
         "title": "Downstage: Preview Current Script PDF"
       },
       {
-        "command": "downstage.previewCompactScript",
-        "title": "Downstage: Preview Compact Script PDF"
+        "command": "downstage.previewCondensedScript",
+        "title": "Downstage: Preview Condensed Script PDF"
       },
       {
         "command": "downstage.livePreview",
@@ -140,7 +144,7 @@
     "@vscode/vsce": "^3.6.2",
     "esbuild": "^0.25.3",
     "@types/node": "^24.0.0",
-    "@types/vscode": "^1.100.0",
+    "@types/vscode": "^1.82.0",
     "typescript": "^5.8.3"
   },
   "dependencies": {

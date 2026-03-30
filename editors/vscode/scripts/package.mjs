@@ -21,7 +21,7 @@ const stagedManifest = {
 	dependencies: undefined,
 	scripts: undefined,
 	devDependencies: undefined,
-	files: ["out", "syntaxes", "language-configuration.json", "README.md", "LICENSE"],
+	files: ["out", "syntaxes", "snippets", "images", "language-configuration.json", "README.md", "CHANGELOG.md", "LICENSE", "SUPPORT.md"],
 };
 
 writeFileSync(join(packageDir, "package.json"), JSON.stringify(stagedManifest, null, 2) + "\n");
@@ -31,6 +31,10 @@ copyFromRepo("LICENSE");
 copy("language-configuration.json");
 copyBundledOutput();
 copy("syntaxes");
+copy("snippets");
+copy("images");
+copy("SUPPORT.md");
+copyFromRepo("CHANGELOG.md");
 
 const vsceBin = join(extensionDir, "node_modules", ".bin", "vsce");
 const packageName = `downstage-vscode-${manifest.version}.vsix`;
@@ -68,6 +72,11 @@ function run(command, args, cwd) {
 		cwd,
 		stdio: "inherit",
 	});
+
+	if (result.error) {
+		console.error(`Failed to run ${command}: ${result.error.message}`);
+		process.exit(1);
+	}
 
 	if (result.status !== 0) {
 		process.exit(result.status ?? 1);

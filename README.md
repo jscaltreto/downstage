@@ -199,9 +199,12 @@ client at the server:
 
 ### VS Code
 
-An in-progress VS Code extension lives in [`editors/vscode/`](editors/vscode/).
-It registers `.ds` files, starts `downstage lsp`, and includes baseline syntax
-highlighting.
+The [`editors/vscode/`](editors/vscode/) extension provides full Downstage
+support: LSP-powered completions, diagnostics, and folding; live PDF preview;
+render-to-PDF commands; snippets; and TextMate syntax highlighting.
+
+See the [extension README](editors/vscode/README.md) for details.
+
 For local development:
 
 ```bash
