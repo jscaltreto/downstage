@@ -73,6 +73,11 @@ function run(command, args, cwd) {
 		stdio: "inherit",
 	});
 
+	if (result.error) {
+		console.error(`Failed to run ${command}: ${result.error.message}`);
+		process.exit(1);
+	}
+
 	if (result.status !== 0) {
 		process.exit(result.status ?? 1);
 	}
