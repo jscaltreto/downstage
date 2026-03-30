@@ -17,10 +17,25 @@ mkdirSync(packageDir, { recursive: true });
 const manifestPath = join(extensionDir, "package.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const stagedManifest = {
-	...manifest,
-	dependencies: undefined,
-	scripts: undefined,
-	devDependencies: undefined,
+	name: manifest.name,
+	displayName: manifest.displayName,
+	description: manifest.description,
+	version: manifest.version,
+	publisher: manifest.publisher,
+	license: manifest.license,
+	icon: manifest.icon,
+	galleryBanner: manifest.galleryBanner,
+	homepage: manifest.homepage,
+	repository: manifest.repository,
+	bugs: manifest.bugs,
+	markdown: manifest.markdown,
+	pricing: manifest.pricing,
+	qna: manifest.qna,
+	engines: manifest.engines,
+	categories: manifest.categories,
+	keywords: manifest.keywords,
+	main: manifest.main,
+	contributes: manifest.contributes,
 	files: ["out", "syntaxes", "snippets", "images", "language-configuration.json", "README.md", "CHANGELOG.md", "LICENSE", "SUPPORT.md"],
 };
 
