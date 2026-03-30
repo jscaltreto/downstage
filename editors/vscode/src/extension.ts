@@ -50,8 +50,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			await renderCurrentScript("standard");
 		},
 	);
-	const renderCompactCommand = vscode.commands.registerCommand(
-		"downstage.renderCompactScript",
+	const renderCondensedCommand = vscode.commands.registerCommand(
+		"downstage.renderCondensedScript",
 		async () => {
 			await renderCurrentScript("condensed");
 		},
@@ -62,8 +62,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			await renderCurrentScript("standard", "internal");
 		},
 	);
-	const previewCompactCommand = vscode.commands.registerCommand(
-		"downstage.previewCompactScript",
+	const previewCondensedCommand = vscode.commands.registerCommand(
+		"downstage.previewCondensedScript",
 		async () => {
 			await renderCurrentScript("condensed", "internal");
 		},
@@ -85,9 +85,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	context.subscriptions.push(restartCommand);
 	context.subscriptions.push(renderCommand);
-	context.subscriptions.push(renderCompactCommand);
+	context.subscriptions.push(renderCondensedCommand);
 	context.subscriptions.push(previewCommand);
-	context.subscriptions.push(previewCompactCommand);
+	context.subscriptions.push(previewCondensedCommand);
 	context.subscriptions.push(livePreviewCommand);
 	context.subscriptions.push(foldingProvider);
 	context.subscriptions.push(renderDiagnostics);

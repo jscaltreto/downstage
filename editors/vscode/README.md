@@ -54,9 +54,9 @@ aliases, verse, and comments.
 | --- | --- |
 | Downstage: Restart Language Server | Restart the LSP connection |
 | Downstage: Render Current Script | Render to standard PDF |
-| Downstage: Render Compact Script | Render to compact PDF |
+| Downstage: Render Condensed Script | Render to condensed PDF |
 | Downstage: Preview Current Script PDF | Preview standard PDF in VS Code |
-| Downstage: Preview Compact Script PDF | Preview compact PDF in VS Code |
+| Downstage: Preview Condensed Script PDF | Preview condensed PDF in VS Code |
 | Downstage: Live Preview | Live-updating PDF preview |
 
 ## Snippets

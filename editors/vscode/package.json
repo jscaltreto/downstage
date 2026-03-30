@@ -23,7 +23,7 @@
   "pricing": "Free",
   "qna": false,
   "engines": {
-    "vscode": "^1.100.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Programming Languages"
@@ -47,16 +47,16 @@
         "title": "Downstage: Render Current Script"
       },
       {
-        "command": "downstage.renderCompactScript",
-        "title": "Downstage: Render Compact Script"
+        "command": "downstage.renderCondensedScript",
+        "title": "Downstage: Render Condensed Script"
       },
       {
         "command": "downstage.previewCurrentScript",
         "title": "Downstage: Preview Current Script PDF"
       },
       {
-        "command": "downstage.previewCompactScript",
-        "title": "Downstage: Preview Compact Script PDF"
+        "command": "downstage.previewCondensedScript",
+        "title": "Downstage: Preview Condensed Script PDF"
       },
       {
         "command": "downstage.livePreview",
@@ -144,7 +144,7 @@
     "@vscode/vsce": "^3.6.2",
     "esbuild": "^0.25.3",
     "@types/node": "^24.0.0",
-    "@types/vscode": "^1.100.0",
+    "@types/vscode": "^1.82.0",
     "typescript": "^5.8.3"
   },
   "dependencies": {
