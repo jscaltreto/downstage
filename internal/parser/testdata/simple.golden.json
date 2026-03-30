@@ -78,6 +78,7 @@
                   }
                 }
               ],
+              "Continuation": false,
               "Range": {
                 "Start": {
                   "Line": 7,
@@ -191,6 +192,7 @@
                   }
                 }
               ],
+              "Continuation": false,
               "Range": {
                 "Start": {
                   "Line": 13,

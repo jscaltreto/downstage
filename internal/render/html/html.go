@@ -348,7 +348,11 @@ func (r *htmlRenderer) EndDialogueLine(line *ast.DialogueLine) error {
 
 func (r *htmlRenderer) BeginStageDirection(sd *ast.StageDirection) error {
 	r.beginBlock()
-	fmt.Fprintf(&r.buf, "<p class=\"downstage-stage-direction\"%s>", r.sourceAttr(sd.NodeRange()))
+	cls := "downstage-stage-direction"
+	if sd.Continuation {
+		cls += " downstage-continuation"
+	}
+	fmt.Fprintf(&r.buf, "<p class=\"%s\"%s>", cls, r.sourceAttr(sd.NodeRange()))
 	return nil
 }
 

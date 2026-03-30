@@ -294,9 +294,12 @@ type DialogueLine struct {
 var _ Node = (*StageDirection)(nil)
 
 // StageDirection is a standalone stage direction.
+// Continuation is true when this direction immediately follows another
+// with no blank lines between them (adjacent lines in source).
 type StageDirection struct {
-	Content []Inline
-	Range   token.Range
+	Content      []Inline
+	Continuation bool
+	Range        token.Range
 }
 
 func (sd *StageDirection) NodeRange() token.Range { return sd.Range }

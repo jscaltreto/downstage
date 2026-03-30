@@ -386,7 +386,7 @@ func TestRender_DialogueParagraphBreak(t *testing.T) {
 	})
 }
 
-func TestRender_SuccessiveStageDirectionsCondensed(t *testing.T) {
+func TestRender_StageDirectionContinuation(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{
 			&ast.Section{
@@ -397,16 +397,29 @@ func TestRender_SuccessiveStageDirectionsCondensed(t *testing.T) {
 						Content: []ast.Inline{&ast.TextNode{Value: "First direction."}},
 					},
 					&ast.StageDirection{
-						Content: []ast.Inline{&ast.TextNode{Value: "Second direction."}},
+						Content:      []ast.Inline{&ast.TextNode{Value: "Adjacent direction."}},
+						Continuation: true,
+					},
+					&ast.StageDirection{
+						Content: []ast.Inline{&ast.TextNode{Value: "Separated direction."}},
 					},
 				},
 			},
 		},
 	}
 
-	r := NewCondensedRenderer(render.DefaultConfig())
-	var buf bytes.Buffer
-	err := render.Walk(r, doc, &buf)
-	require.NoError(t, err)
-	assert.True(t, buf.Len() > 0, "PDF output should not be empty")
+	for _, tc := range []struct {
+		name string
+		r    render.NodeRenderer
+	}{
+		{"standard", NewRenderer(render.DefaultConfig())},
+		{"condensed", NewCondensedRenderer(render.DefaultConfig())},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := render.Walk(tc.r, doc, &buf)
+			require.NoError(t, err)
+			assert.True(t, buf.Len() > 0, "PDF output should not be empty")
+		})
+	}
 }

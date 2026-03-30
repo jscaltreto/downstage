@@ -290,6 +290,8 @@ A line prefixed with `>`:
 
 Standalone stage directions can appear anywhere in the body -- between dialogue blocks, within scenes, at the top of the document. They are rendered as italic text without the `>` prefix.
 
+Consecutive `>` lines with no blank lines between them are treated as a continuation — rendered with regular line spacing (no extra gap). Consecutive `>` lines separated by blank lines are treated as separate blocks with a paragraph break between them.
+
 ### Inline Stage Directions
 
 Parenthetical text within a dialogue line is treated as an inline stage direction:

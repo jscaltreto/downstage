@@ -161,6 +161,16 @@ body {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
+.downstage-stage-direction:has(+ .downstage-continuation) {
+  margin-bottom: 0;
+}
+.downstage-stage-direction.downstage-continuation {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.downstage-stage-direction + .downstage-stage-direction:not(.downstage-continuation) {
+  margin-top: 1em;
+}
 
 /* Song */
 .downstage-song {
@@ -369,8 +379,15 @@ body {
   margin-bottom: 0.5em;
   margin-left: 1em;
 }
-.downstage-stage-direction + .downstage-stage-direction {
-  margin-top: 0.15em;
+.downstage-stage-direction:has(+ .downstage-continuation) {
+  margin-bottom: 0;
+}
+.downstage-stage-direction.downstage-continuation {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.downstage-stage-direction + .downstage-stage-direction:not(.downstage-continuation) {
+  margin-top: 0.3em;
 }
 
 /* Song */

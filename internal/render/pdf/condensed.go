@@ -37,9 +37,8 @@ func NewCondensedRenderer(cfg render.Config) render.NodeRenderer {
 
 type condensedRenderer struct {
 	pdfBase
-	inDialogue            bool // tracks whether we're inside a dialogue block
-	firstLine             bool // tracks first line of a dialogue (continues after character name)
-	prevWasStageDirection bool // tracks consecutive stage directions for reduced spacing
+	inDialogue bool // tracks whether we're inside a dialogue block
+	firstLine  bool // tracks first line of a dialogue (continues after character name)
 }
 
 // --- Lifecycle ---
@@ -488,13 +487,17 @@ func (r *condensedRenderer) EndDialogueLine(line *ast.DialogueLine) error {
 }
 
 // --- Stage Direction ---
-// Italic, indented 0.5" further, one blank line above and below.
+// Italic, indented 0.5" further.
 
-func (r *condensedRenderer) BeginStageDirection(_ *ast.StageDirection) error {
-	if r.prevWasStageDirection {
+func (r *condensedRenderer) BeginStageDirection(sd *ast.StageDirection) error {
+	switch {
+	case sd.Continuation:
+		// Adjacent line — regular line break, no extra gap
+	case r.prevWasStageDirection:
+		// Separated by blank lines — small paragraph break
 		r.ensureSpace(r.lineHeight * 2)
 		r.pdf.Ln(r.lineHeight / 2)
-	} else {
+	default:
 		r.ensureSpace(r.lineHeight * 3)
 		r.pdf.Ln(r.lineHeight)
 	}
@@ -510,7 +513,6 @@ func (r *condensedRenderer) EndStageDirection(_ *ast.StageDirection) error {
 	r.pdf.Ln(r.lineHeight)
 	r.setStyle("")
 	r.pdf.SetLeftMargin(r.marginL)
-	r.pdf.Ln(r.lineHeight)
 	r.prevWasStageDirection = true
 	return nil
 }
@@ -549,6 +551,7 @@ func (r *condensedRenderer) EndSong(_ *ast.Song) error {
 // --- Verse Block ---
 
 func (r *condensedRenderer) BeginVerseBlock(_ *ast.VerseBlock) error {
+	r.prevWasStageDirection = false
 	r.ensureSpace(r.lineHeight * 2)
 	return nil
 }
