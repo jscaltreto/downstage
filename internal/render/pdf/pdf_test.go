@@ -423,3 +423,22 @@ func TestRender_StageDirectionContinuation(t *testing.T) {
 		})
 	}
 }
+
+func TestCondensedStageDirectionUsesTightLeadInSpacing(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	line := &ast.SectionLine{
+		Content: []ast.Inline{&ast.TextNode{Value: "A line of text."}},
+	}
+	require.NoError(t, r.BeginSectionLine(line))
+	require.NoError(t, r.RenderText(line.Content[0].(*ast.TextNode)))
+	require.NoError(t, r.EndSectionLine(line))
+
+	yBefore := r.pdf.GetY()
+	require.NoError(t, r.BeginStageDirection(&ast.StageDirection{
+		Content: []ast.Inline{&ast.TextNode{Value: "He crosses to the window."}},
+	}))
+
+	assert.InDelta(t, r.lineHeight/2, r.pdf.GetY()-yBefore, 0.01)
+}
