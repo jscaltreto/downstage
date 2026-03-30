@@ -12,5 +12,5 @@ The Downstage language reference and user guide are available at:
 
 ## Extension Configuration
 
-See the extension page on the VS Code Marketplace for available settings and
-commands.
+Available settings are listed under **Settings** in the extension README.
+All commands are accessible from the VS Code command palette (search "Downstage").
