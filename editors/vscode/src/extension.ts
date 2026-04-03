@@ -441,7 +441,6 @@ async function renderCurrentScript(styleOverride?: string): Promise<void> {
 		renderDiagnostics?.delete(editor.document.uri);
 
 		await runDownstageRender(serverPath, style, inputPath, outputChannel);
-		renderDiagnostics?.delete(editor.document.uri);
 		const message = `Rendered PDF: ${path.basename(outputPath)}`;
 
 		if (!getOpenAfterRenderSetting()) {
@@ -479,8 +478,6 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 		void vscode.window.showErrorMessage("Save the script before previewing.");
 		return;
 	}
-
-	await editor.document.save();
 
 	const inputPath = editor.document.uri.fsPath;
 	const outputChannel = getRenderOutputChannel();
@@ -520,7 +517,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 			}, 60_000);
 
 			child.stdout.on("data", (chunk: Buffer) => {
-				chunks.push(Buffer.from(chunk));
+				chunks.push(chunk);
 			});
 			child.stderr.on("data", (chunk: Buffer | string) => {
 				const text = chunk.toString();
@@ -553,7 +550,6 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 			child.stdin.end();
 		});
 
-		renderDiagnostics?.delete(editor.document.uri);
 		await openRenderedPdf(vscode.Uri.file(tempPath));
 		void vscode.window.showInformationMessage(
 			`Preview: ${path.basename(inputPath)}`,
