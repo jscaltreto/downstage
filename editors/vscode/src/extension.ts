@@ -413,12 +413,7 @@ function isCueSuggestionLine(document: vscode.TextDocument, line: number): boole
 	return previousLine.trim() === "";
 }
 
-type RenderOpenMode = "config" | "internal";
-
-async function renderCurrentScript(
-	styleOverride?: string,
-	openMode: RenderOpenMode = "config",
-): Promise<void> {
+async function renderCurrentScript(styleOverride?: string): Promise<void> {
 	const editor = vscode.window.activeTextEditor;
 	if (!editor || editor.document.languageId !== "downstage") {
 		void vscode.window.showErrorMessage("Open a Downstage script before rendering.");
@@ -448,11 +443,6 @@ async function renderCurrentScript(
 		await runDownstageRender(serverPath, style, inputPath, outputChannel);
 		renderDiagnostics?.delete(editor.document.uri);
 		const message = `Rendered PDF: ${path.basename(outputPath)}`;
-		if (openMode === "internal") {
-			await openRenderedPdf(vscode.Uri.file(outputPath));
-			void vscode.window.showInformationMessage(message);
-			return;
-		}
 
 		if (!getOpenAfterRenderSetting()) {
 			void vscode.window.showInformationMessage(message);
