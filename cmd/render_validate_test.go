@@ -87,6 +87,43 @@ func TestRunRenderRejectsHTMLOnlyPDFFlags(t *testing.T) {
 	}
 }
 
+func TestRunRenderStdoutAcceptsPDF(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("Title: Test\n\nALICE\nHello.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	renderStdout = true
+	renderFormat = "pdf"
+
+	// Capture stdout
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	renderErr := runRender(&cobra.Command{}, []string{input})
+
+	w.Close()
+	os.Stdout = origStdout
+
+	if renderErr != nil {
+		t.Fatalf("expected PDF stdout to succeed, got: %v", renderErr)
+	}
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(buf.String(), "%PDF-") {
+		t.Fatalf("expected PDF magic bytes, got %q", buf.String()[:20])
+	}
+}
+
 func TestRunRenderStdinRejectsFileArgs(t *testing.T) {
 	resetRenderFlags()
 	renderStdin = true
