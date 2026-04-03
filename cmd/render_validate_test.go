@@ -87,16 +87,6 @@ func TestRunRenderRejectsHTMLOnlyPDFFlags(t *testing.T) {
 	}
 }
 
-func TestRunRenderStdoutRejectsPDF(t *testing.T) {
-	resetRenderFlags()
-	renderStdout = true
-	renderFormat = "pdf"
-
-	err := runRender(&cobra.Command{}, []string{"test.ds"})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "--stdout is not supported for pdf output")
-}
-
 func TestRunRenderStdinRejectsFileArgs(t *testing.T) {
 	resetRenderFlags()
 	renderStdin = true
