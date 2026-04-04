@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build:
-    name: Lint, Compile, and Package
+    name: Lint, Test, Compile, and Package
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -46,6 +46,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Test
+        run: npm test
 
       - name: Compile
         run: npm run compile

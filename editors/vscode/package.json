@@ -138,9 +138,11 @@
     "compile": "node ./scripts/build.mjs",
     "watch": "node ./scripts/build.mjs --watch",
     "package": "node ./scripts/package.mjs",
+    "test": "vitest run",
     "lint": "tsc --noEmit -p ./"
   },
   "devDependencies": {
+    "vitest": "^3.1.1",
     "@vscode/vsce": "^3.6.2",
     "esbuild": "^0.25.3",
     "@types/node": "^24.0.0",
