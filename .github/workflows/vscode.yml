@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/vscode.yml"
+      - "CHANGELOG.md"
       - "editors/vscode/**"
       - "LICENSE"
   push:
@@ -11,6 +12,7 @@ on:
       - main
     paths:
       - ".github/workflows/vscode.yml"
+      - "CHANGELOG.md"
       - "editors/vscode/**"
       - "LICENSE"
 
@@ -23,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: Lint, Compile, and Package
+    name: Lint, Compile, and Package Smoke Test
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -50,12 +52,9 @@ jobs:
       - name: Compile
         run: npm run compile
 
-      - name: Package
-        run: npm run package
-
-      - name: Upload VSIX artifact
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
-        with:
-          name: downstage-vscode-vsix
-          path: editors/vscode/downstage-vscode-*.vsix
-          if-no-files-found: error
+      - name: Package smoke tests
+        run: |
+          npm run package -- --skip-compile --target linux-x64 --binary CHANGELOG.md
+          npm run package -- --skip-compile --target darwin-x64 --binary CHANGELOG.md --version 0.0.1-ci1
+          npm run package -- --skip-compile --target darwin-arm64 --binary CHANGELOG.md --version 0.0.1-ci2
+          npm run package -- --skip-compile --target win32-x64 --binary CHANGELOG.md --version 0.0.1-ci3

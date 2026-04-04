@@ -24,8 +24,19 @@ let renderOutputChannel: vscode.OutputChannel | undefined;
 let renderDiagnostics: vscode.DiagnosticCollection | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 const allowedRenderStyles = new Set(["standard", "condensed"]);
-const defaultServerPath = "downstage";
+const pathServerCommand = "downstage";
 const trustedServerPathsKey = "downstage.trustedServerPaths";
+const bundledServerTargets = new Map<string, string>([
+	["linux:x64", "linux-x64"],
+	["darwin:x64", "darwin-x64"],
+	["darwin:arm64", "darwin-arm64"],
+	["win32:x64", "win32-x64"],
+]);
+
+interface ResolvedServerCommand {
+	command: string;
+	expectedLocation: string;
+}
 
 interface PreviewState {
 	panel: vscode.WebviewPanel;
@@ -164,12 +175,11 @@ async function restartLanguageServer(context: vscode.ExtensionContext): Promise<
 async function startLanguageServer(context: vscode.ExtensionContext): Promise<void> {
 	const outputChannel = vscode.window.createOutputChannel("Downstage Language Server");
 	context.subscriptions.push(outputChannel);
-	const configuredServerPath = getServerPath();
 
 	try {
-		const serverPath = await getTrustedServerPath(configuredServerPath);
+		const serverPath = await resolveServerCommand();
 		const serverOptions: ServerOptions = {
-			command: serverPath,
+			command: serverPath.command,
 			args: ["lsp"],
 			options: {
 				cwd: getWorkspaceRoot(),
@@ -194,8 +204,7 @@ async function startLanguageServer(context: vscode.ExtensionContext): Promise<vo
 		client = undefined;
 		const message = [
 			"Failed to start the Downstage language server.",
-			`Expected executable: ${configuredServerPath}`,
-			"Install the `downstage` binary or set `downstage.server.path`.",
+			"Set `downstage.server.path`, use a release build with a bundled binary, or install `downstage` on your PATH.",
 		].join(" ");
 		outputChannel.appendLine(String(error));
 		void vscode.window.showErrorMessage(message, "Open Settings").then((selection) => {
@@ -209,12 +218,44 @@ async function startLanguageServer(context: vscode.ExtensionContext): Promise<vo
 	}
 }
 
-function getServerPath(): string {
-	return vscode.workspace.getConfiguration(configSection).get<string>(settingServerPath, defaultServerPath);
+function getExplicitServerPath(): string | undefined {
+	const inspection = vscode.workspace.getConfiguration(configSection).inspect<string>(settingServerPath);
+	const configuredServerPath = inspection?.workspaceFolderLanguageValue ??
+		inspection?.workspaceFolderValue ??
+		inspection?.workspaceLanguageValue ??
+		inspection?.workspaceValue ??
+		inspection?.globalLanguageValue ??
+		inspection?.globalValue;
+	if (typeof configuredServerPath !== "string") {
+		return undefined;
+	}
+
+	const trimmedPath = configuredServerPath.trim();
+	return trimmedPath === "" ? undefined : trimmedPath;
 }
 
-function getValidatedServerPath(): string {
-	return validateServerPath(getServerPath());
+async function resolveServerCommand(): Promise<ResolvedServerCommand> {
+	const configuredServerPath = getExplicitServerPath();
+	if (configuredServerPath) {
+		const trustedCommand = await getTrustedServerPath(configuredServerPath);
+		return {
+			command: trustedCommand,
+			expectedLocation: configuredServerPath,
+		};
+	}
+
+	const bundledServerPath = getBundledServerPath();
+	if (bundledServerPath) {
+		return {
+			command: bundledServerPath,
+			expectedLocation: bundledServerPath,
+		};
+	}
+
+	return {
+		command: pathServerCommand,
+		expectedLocation: pathServerCommand,
+	};
 }
 
 function validateServerPath(serverPath: string): string {
@@ -229,8 +270,8 @@ function validateServerPath(serverPath: string): string {
 }
 
 async function getTrustedServerPath(configuredPath?: string): Promise<string> {
-	const serverPath = validateServerPath(configuredPath ?? getServerPath());
-	if (serverPath === defaultServerPath || isTrustedServerPath(serverPath)) {
+	const serverPath = validateServerPath(configuredPath ?? pathServerCommand);
+	if (serverPath === pathServerCommand || isTrustedServerPath(serverPath)) {
 		return serverPath;
 	}
 
@@ -245,6 +286,25 @@ async function getTrustedServerPath(configuredPath?: string): Promise<string> {
 
 	await rememberTrustedServerPath(serverPath);
 	return serverPath;
+}
+
+function getBundledServerPath(): string | undefined {
+	if (!extensionContext) {
+		return undefined;
+	}
+
+	const target = bundledServerTargets.get(`${process.platform}:${process.arch}`);
+	if (!target) {
+		return undefined;
+	}
+
+	const binaryName = process.platform === "win32" ? "downstage.exe" : "downstage";
+	const bundledPath = extensionContext.asAbsolutePath(path.join("bin", target, binaryName));
+	if (!fs.existsSync(bundledPath)) {
+		return undefined;
+	}
+
+	return bundledPath;
 }
 
 function isTrustedServerPath(serverPath: string): boolean {
@@ -434,13 +494,13 @@ async function renderCurrentScript(styleOverride?: string): Promise<void> {
 	outputChannel.clear();
 
 	try {
-		const serverPath = await getTrustedServerPath();
+		const serverPath = await resolveServerCommand();
 		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
-		outputChannel.appendLine(`Running: ${serverPath} render --style ${style} ${inputPath}`);
+		outputChannel.appendLine(`Running: ${serverPath.expectedLocation} render --style ${style} ${inputPath}`);
 		outputChannel.show(true);
 		renderDiagnostics?.delete(editor.document.uri);
 
-		await runDownstageRender(serverPath, style, inputPath, outputChannel);
+		await runDownstageRender(serverPath.command, style, inputPath, outputChannel);
 		const message = `Rendered PDF: ${path.basename(outputPath)}`;
 
 		if (!getOpenAfterRenderSetting()) {
@@ -484,7 +544,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 	outputChannel.clear();
 
 	try {
-		const serverPath = await getTrustedServerPath();
+		const serverPath = await resolveServerCommand();
 		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
 		const sourceName = path.basename(inputPath);
 		const tempPath = path.join(
@@ -493,7 +553,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 		);
 
 		outputChannel.appendLine(
-			`Running: ${serverPath} render --stdin --stdout --format pdf --style ${style} --source-name ${sourceName}`,
+			`Running: ${serverPath.expectedLocation} render --stdin --stdout --format pdf --style ${style} --source-name ${sourceName}`,
 		);
 		outputChannel.show(true);
 		renderDiagnostics?.delete(editor.document.uri);
@@ -502,7 +562,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 			let stderr = "";
 			const chunks: Buffer[] = [];
 
-			const child = spawn(serverPath, [
+			const child = spawn(serverPath.command, [
 				"render", "--stdin", "--stdout",
 				"--format", "pdf",
 				"--style", style,
@@ -871,9 +931,12 @@ async function renderToPreview(document: vscode.TextDocument, state: PreviewStat
 	const requestId = state.requestId
 
 	let serverPath: string;
+	let serverPathLabel: string;
 	let style: string;
 	try {
-		serverPath = await getTrustedServerPath();
+		const resolvedServer = await resolveServerCommand();
+		serverPath = resolvedServer.command;
+		serverPathLabel = resolvedServer.expectedLocation;
 		style = getValidatedRenderStyle(getRenderStyleSetting());
 	} catch (error) {
 		const outputChannel = getRenderOutputChannel();
@@ -884,6 +947,9 @@ async function renderToPreview(document: vscode.TextDocument, state: PreviewStat
 		return;
 	}
 	const sourceName = path.basename(document.uri.fsPath);
+	getRenderOutputChannel().appendLine(
+		`Running preview render: ${serverPathLabel} render --stdin --stdout --format html --source-anchors --style ${style} --source-name ${sourceName}`,
+	);
 	const child = spawn(serverPath, [
 		"render", "--stdin", "--stdout",
 		"--format", "html",
