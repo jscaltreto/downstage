@@ -1,0 +1,33 @@
+---
+layout: layouts/base.njk
+title: Downstage Docs
+description: Reference documentation for Downstage, including product overview, quick start, and the full syntax guide.
+bodyClass: docs-page
+permalink: /docs/
+---
+<div class="docs-shell">
+  <aside class="docs-nav">
+    <a class="brand-lockup" href="/">
+      <img class="brand-mark" src="/downstage_logo.png" alt="Downstage logo">
+      <span class="brand-text">Downstage</span>
+    </a>
+    <p class="brand-note">Docs and reference for the playwright-first plaintext workflow.</p>
+    <nav aria-label="Section navigation">
+      {% for section in collections.docsSections %}
+        <a href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+      {% endfor %}
+    </nav>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="https://github.com/jscaltreto/downstage#readme">README</a>
+      <a href="https://github.com/jscaltreto/downstage/blob/main/SPEC.md">Full Spec</a>
+      <a href="https://github.com/jscaltreto/downstage">GitHub</a>
+    </div>
+  </aside>
+
+  <main class="site-main" id="top">
+    {% for section in collections.docsSections %}
+      {% include "partials/section.njk" %}
+    {% endfor %}
+  </main>
+</div>

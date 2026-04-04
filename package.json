@@ -1,0 +1,11 @@
+{
+  "name": "downstage-site",
+  "private": true,
+  "scripts": {
+    "build:site": "eleventy",
+    "serve:site": "eleventy --serve"
+  },
+  "devDependencies": {
+    "@11ty/eleventy": "^3.1.2"
+  }
+}

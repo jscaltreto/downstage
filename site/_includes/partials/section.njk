@@ -1,0 +1,107 @@
+<section class="section-grid" id="{{ section.data.id }}">
+  <div class="section-heading">
+    <p class="section-kicker">{{ section.data.kicker }}</p>
+    <h2>{{ section.data.title }}</h2>
+  </div>
+  <div class="section-body">
+    {{ section.templateContent | safe }}
+
+    {% if section.data.cards %}
+      <div class="card-grid {{ section.data.cardsClass | default('') }}">
+        {% for card in section.data.cards %}
+          <article class="card">
+            <h3>{{ card.title }}</h3>
+            <p>{{ card.text }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if section.data.steps %}
+      <div class="steps">
+        {% for step in section.data.steps %}
+          <article class="step">
+            <span class="step-number">{{ loop.index }}</span>
+            <div>
+              <h3>{{ step.title }}</h3>
+              {% if step.text %}<p>{{ step.text }}</p>{% endif %}
+              {% if step.code %}<pre><code>{{ step.code }}</code></pre>{% endif %}
+              {% if step.after %}<p>{{ step.after }}</p>{% endif %}
+              {% if step.extraCode %}<pre><code>{{ step.extraCode }}</code></pre>{% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if section.data.workflow %}
+      <div class="workflow-strip">
+        {% for item in section.data.workflow %}
+          <div class="workflow-card">
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.text }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if section.data.examples %}
+      <div class="two-up">
+        {% for example in section.data.examples %}
+          <pre><code>{{ example }}</code></pre>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if section.data.code %}
+      <pre><code>{{ section.data.code }}</code></pre>
+    {% endif %}
+
+    {% if section.data.caption %}
+      <p class="caption">{{ section.data.caption }}</p>
+    {% endif %}
+
+    {% if section.data.list %}
+      <ul class="inline-list">
+        {% for item in section.data.list %}
+          <li>{{ item | safe }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if section.data.callout %}
+      <div class="rule-callout">
+        <strong>{{ section.data.callout.title }}</strong> {{ section.data.callout.text | safe }}
+      </div>
+    {% endif %}
+
+    {% if section.data.tableRows %}
+      <div class="syntax-table" role="table" aria-label="{{ section.data.tableLabel }}">
+        <div class="syntax-row syntax-header" role="row">
+          <span role="columnheader">{{ section.data.tableHeaders[0] }}</span>
+          <span role="columnheader">{{ section.data.tableHeaders[1] }}</span>
+        </div>
+        {% for row in section.data.tableRows %}
+          <div class="syntax-row" role="row">
+            <code role="cell">{{ row[0] }}</code>
+            <span role="cell">{{ row[1] }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if section.data.actions %}
+      <div class="hero-actions">
+        {% for action in section.data.actions %}
+          <a class="button {{ action.kind }}" href="{{ action.href }}">{{ action.label }}</a>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if bodyClass == "docs-page" %}
+      <p class="section-top-link">
+        <a href="#top">Back to top</a>
+      </p>
+    {% endif %}
+  </div>
+</section>

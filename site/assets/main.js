@@ -1,4 +1,7 @@
-const navLinks = Array.from(document.querySelectorAll(".site-nav nav a"));
+const navLinks = Array.from(
+  document.querySelectorAll(".section-links a[href^='#'], .docs-nav nav a[href^='#']"),
+);
+
 const sections = navLinks
   .map((link) => {
     const id = link.getAttribute("href");
@@ -22,5 +25,7 @@ const setActive = () => {
   }
 };
 
-setActive();
-window.addEventListener("scroll", setActive, { passive: true });
+if (navLinks.length > 0) {
+  setActive();
+  window.addEventListener("scroll", setActive, { passive: true });
+}
