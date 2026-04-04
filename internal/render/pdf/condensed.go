@@ -525,7 +525,7 @@ func (r *condensedRenderer) BeginCallout(c *ast.Callout) error {
 	case c.Continuation:
 	case r.prevWasCallout:
 		r.ensureSpace(r.lineHeight * 2)
-		r.pdf.Ln(r.lineHeight / 2)
+		r.pdf.Ln(r.lineHeight)
 	default:
 		r.ensureSpace(r.lineHeight * 2)
 		r.pdf.Ln(r.lineHeight / 2)

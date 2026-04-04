@@ -476,3 +476,20 @@ func TestStandardCalloutSetsIndentedLeftMargin(t *testing.T) {
 	left, _, _, _ = r.pdf.GetMargins()
 	assert.InDelta(t, r.marginL, left, 0.01)
 }
+
+func TestCondensedCalloutUsesParagraphGapAfterPreviousCallout(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	require.NoError(t, r.BeginCallout(&ast.Callout{
+		Content: []ast.Inline{&ast.TextNode{Value: "First callout."}},
+	}))
+	require.NoError(t, r.EndCallout(&ast.Callout{}))
+
+	yBefore := r.pdf.GetY()
+	require.NoError(t, r.BeginCallout(&ast.Callout{
+		Content: []ast.Inline{&ast.TextNode{Value: "Second callout."}},
+	}))
+
+	assert.InDelta(t, r.lineHeight, r.pdf.GetY()-yBefore, 0.01)
+}
