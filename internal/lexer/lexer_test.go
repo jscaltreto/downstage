@@ -166,6 +166,15 @@ func TestStageDirection(t *testing.T) {
 	assert.Equal(t, "He exits stage left.", tokens[2].Literal)
 }
 
+func TestCallout(t *testing.T) {
+	input := "# Play\n\n>> Midwinter. The room has not been heated for days."
+	tokens := Lex([]byte(input))
+
+	require.True(t, len(tokens) >= 3)
+	assert.Equal(t, token.Callout, tokens[2].Type)
+	assert.Equal(t, "Midwinter. The room has not been heated for days.", tokens[2].Literal)
+}
+
 func TestLineComment(t *testing.T) {
 	input := "# Play\n// this is a comment"
 	tokens := Lex([]byte(input))

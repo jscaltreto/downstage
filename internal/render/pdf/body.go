@@ -11,7 +11,7 @@ import (
 // --- Section ---
 
 func (r *pdfRenderer) BeginSection(s *ast.Section) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	switch s.Kind {
 	case ast.SectionAct:
 		return r.beginAct(s)
@@ -47,7 +47,7 @@ func (r *pdfRenderer) BeginSection(s *ast.Section) error {
 }
 
 func (r *pdfRenderer) EndSection(_ *ast.Section) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	return nil
 }
 
@@ -122,7 +122,7 @@ func (r *pdfRenderer) beginScene(s *ast.Section) error {
 // --- Dual Dialogue ---
 
 func (r *pdfRenderer) BeginDualDialogue(d *ast.DualDialogue) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	r.dualSequential = false
 	r.dualMidY = 0
 	estimatedHeight := r.estimateDualDialogueHeight(d)
@@ -160,7 +160,7 @@ func (r *pdfRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
 // --- Dialogue ---
 
 func (r *pdfRenderer) BeginDialogue(d *ast.Dialogue) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	if r.inDualDialogue {
 		return r.beginDualDialogueSide(d)
 	}
@@ -352,13 +352,42 @@ func (r *pdfRenderer) EndStageDirection(_ *ast.StageDirection) error {
 	r.pdf.Ln(r.lineHeight)
 	r.setStyle("")
 	r.prevWasStageDirection = true
+	r.prevWasCallout = false
+	return nil
+}
+
+// --- Callout ---
+
+func (r *pdfRenderer) BeginCallout(c *ast.Callout) error {
+	switch {
+	case c.Continuation:
+	case r.prevWasCallout:
+		r.ensureSpace(r.lineHeight * 2)
+		r.pdf.Ln(r.lineHeight)
+	default:
+		r.ensureSpace(r.lineHeight * 2)
+		r.pdf.Ln(r.lineHeight / 2)
+	}
+	calloutIndent := halfInchPt * pointsToMM
+	r.setStyle("B")
+	r.pdf.SetLeftMargin(r.marginL + calloutIndent)
+	r.pdf.SetX(r.marginL + calloutIndent)
+	return nil
+}
+
+func (r *pdfRenderer) EndCallout(_ *ast.Callout) error {
+	r.pdf.Ln(r.lineHeight)
+	r.setStyle("")
+	r.pdf.SetLeftMargin(r.marginL)
+	r.prevWasStageDirection = false
+	r.prevWasCallout = true
 	return nil
 }
 
 // --- Song ---
 
 func (r *pdfRenderer) BeginSong(song *ast.Song) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	r.ensureSpace(r.lineHeight * 3)
 	r.pdf.Ln(r.lineHeight)
 
@@ -378,6 +407,7 @@ func (r *pdfRenderer) BeginSong(song *ast.Song) error {
 }
 
 func (r *pdfRenderer) EndSong(_ *ast.Song) error {
+	r.resetBodyBlockState()
 	r.pdf.Ln(r.lineHeight / 2)
 	r.setStyle("B")
 	r.centeredText("SONG END")
@@ -389,7 +419,7 @@ func (r *pdfRenderer) EndSong(_ *ast.Song) error {
 // --- Verse Block ---
 
 func (r *pdfRenderer) BeginVerseBlock(_ *ast.VerseBlock) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	r.ensureSpace(r.lineHeight * 2)
 	return nil
 }

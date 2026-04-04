@@ -34,6 +34,8 @@ type NodeRenderer interface {
 	EndDialogueLine(line *ast.DialogueLine) error
 	BeginStageDirection(sd *ast.StageDirection) error
 	EndStageDirection(sd *ast.StageDirection) error
+	BeginCallout(c *ast.Callout) error
+	EndCallout(c *ast.Callout) error
 	BeginVerseBlock(vb *ast.VerseBlock) error
 	EndVerseBlock(vb *ast.VerseBlock) error
 	BeginVerseLine(vl *ast.VerseLine) error
@@ -131,6 +133,15 @@ func walkNode(nr NodeRenderer, node ast.Node) error {
 			return err
 		}
 		return nr.EndStageDirection(n)
+
+	case *ast.Callout:
+		if err := nr.BeginCallout(n); err != nil {
+			return err
+		}
+		if err := walkInlines(nr, n.Content); err != nil {
+			return err
+		}
+		return nr.EndCallout(n)
 
 	case *ast.Song:
 		if err := nr.BeginSong(n); err != nil {

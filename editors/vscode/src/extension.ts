@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import {
 	LanguageClient,
@@ -33,6 +35,7 @@ interface PreviewState {
 	requestId: number;
 }
 const previewPanels = new Map<string, PreviewState>();
+const previewTempFiles = new Set<string>();
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	extensionContext = context;
@@ -59,13 +62,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const previewCommand = vscode.commands.registerCommand(
 		"downstage.previewCurrentScript",
 		async () => {
-			await renderCurrentScript("standard", "internal");
+			await previewCurrentScriptPdf("standard");
 		},
 	);
 	const previewCondensedCommand = vscode.commands.registerCommand(
 		"downstage.previewCondensedScript",
 		async () => {
-			await renderCurrentScript("condensed", "internal");
+			await previewCurrentScriptPdf("condensed");
 		},
 	);
 	const livePreviewCommand = vscode.commands.registerCommand(
@@ -132,6 +135,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export async function deactivate(): Promise<void> {
+	for (const tempFile of previewTempFiles) {
+		try {
+			fs.unlinkSync(tempFile);
+		} catch {
+			// File may already be gone
+		}
+	}
+	previewTempFiles.clear();
+
 	if (!client) {
 		return;
 	}
@@ -401,12 +413,7 @@ function isCueSuggestionLine(document: vscode.TextDocument, line: number): boole
 	return previousLine.trim() === "";
 }
 
-type RenderOpenMode = "config" | "internal";
-
-async function renderCurrentScript(
-	styleOverride?: string,
-	openMode: RenderOpenMode = "config",
-): Promise<void> {
+async function renderCurrentScript(styleOverride?: string): Promise<void> {
 	const editor = vscode.window.activeTextEditor;
 	if (!editor || editor.document.languageId !== "downstage") {
 		void vscode.window.showErrorMessage("Open a Downstage script before rendering.");
@@ -434,13 +441,7 @@ async function renderCurrentScript(
 		renderDiagnostics?.delete(editor.document.uri);
 
 		await runDownstageRender(serverPath, style, inputPath, outputChannel);
-		renderDiagnostics?.delete(editor.document.uri);
 		const message = `Rendered PDF: ${path.basename(outputPath)}`;
-		if (openMode === "internal") {
-			await openRenderedPdf(vscode.Uri.file(outputPath));
-			void vscode.window.showInformationMessage(message);
-			return;
-		}
 
 		if (!getOpenAfterRenderSetting()) {
 			void vscode.window.showInformationMessage(message);
@@ -462,6 +463,108 @@ async function renderCurrentScript(
 		outputChannel.show(true);
 		void vscode.window.showErrorMessage(
 			"Downstage render failed. See 'Downstage Render' output for details.",
+		);
+	}
+}
+
+async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
+	const editor = vscode.window.activeTextEditor;
+	if (!editor || editor.document.languageId !== "downstage") {
+		void vscode.window.showErrorMessage("Open a Downstage script before previewing.");
+		return;
+	}
+
+	if (editor.document.isUntitled) {
+		void vscode.window.showErrorMessage("Save the script before previewing.");
+		return;
+	}
+
+	const inputPath = editor.document.uri.fsPath;
+	const outputChannel = getRenderOutputChannel();
+	outputChannel.clear();
+
+	try {
+		const serverPath = await getTrustedServerPath();
+		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
+		const sourceName = path.basename(inputPath);
+		const tempPath = path.join(
+			os.tmpdir(),
+			`downstage-preview-${path.basename(inputPath, ".ds")}.pdf`,
+		);
+
+		outputChannel.appendLine(
+			`Running: ${serverPath} render --stdin --stdout --format pdf --style ${style} --source-name ${sourceName}`,
+		);
+		outputChannel.show(true);
+		renderDiagnostics?.delete(editor.document.uri);
+
+		await new Promise<void>((resolve, reject) => {
+			let stderr = "";
+			const chunks: Buffer[] = [];
+
+			const child = spawn(serverPath, [
+				"render", "--stdin", "--stdout",
+				"--format", "pdf",
+				"--style", style,
+				"--source-name", sourceName,
+			], {
+				cwd: path.dirname(inputPath),
+			});
+
+			const timeout = setTimeout(() => {
+				child.kill();
+				reject(new Error("downstage render timed out after 60 seconds"));
+			}, 60_000);
+
+			child.stdout.on("data", (chunk: Buffer) => {
+				chunks.push(chunk);
+			});
+			child.stderr.on("data", (chunk: Buffer | string) => {
+				const text = chunk.toString();
+				stderr += text;
+				outputChannel.append(text);
+			});
+			child.on("error", (error) => {
+				clearTimeout(timeout);
+				reject(error);
+			});
+			child.on("close", (code) => {
+				clearTimeout(timeout);
+				if (code === 0) {
+					const pdfData = Buffer.concat(chunks);
+					fs.writeFileSync(tempPath, pdfData);
+					previewTempFiles.add(tempPath);
+					resolve();
+					return;
+				}
+				reject(new DownstageRenderError(
+					`downstage render exited with code ${code ?? "unknown"}`,
+					stderr,
+				));
+			});
+
+			child.stdin.on("error", () => {
+				// Process may have died before we finished writing - ignore
+			});
+			child.stdin.write(editor.document.getText());
+			child.stdin.end();
+		});
+
+		await openRenderedPdf(vscode.Uri.file(tempPath));
+		void vscode.window.showInformationMessage(
+			`Preview: ${path.basename(inputPath)}`,
+		);
+	} catch (error) {
+		if (error instanceof DownstageRenderError) {
+			renderDiagnostics?.set(
+				editor.document.uri,
+				parseRenderDiagnostics(editor.document, error.stderr),
+			);
+		}
+		outputChannel.appendLine(String(error));
+		outputChannel.show(true);
+		void vscode.window.showErrorMessage(
+			"Downstage preview failed. See 'Downstage Render' output for details.",
 		);
 	}
 }

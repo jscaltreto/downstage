@@ -305,6 +305,22 @@ type StageDirection struct {
 func (sd *StageDirection) NodeRange() token.Range { return sd.Range }
 func (sd *StageDirection) nodeType() string       { return "StageDirection" }
 
+// --- Callout ---
+
+var _ Node = (*Callout)(nil)
+
+// Callout is a non-structural highlighted body block.
+// Continuation is true when this callout immediately follows another
+// with no blank lines between them (adjacent lines in source).
+type Callout struct {
+	Content      []Inline
+	Continuation bool
+	Range        token.Range
+}
+
+func (c *Callout) NodeRange() token.Range { return c.Range }
+func (c *Callout) nodeType() string       { return "Callout" }
+
 // --- Song ---
 
 var _ Node = (*Song)(nil)
