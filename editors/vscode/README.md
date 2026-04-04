@@ -10,9 +10,12 @@ TextMate syntax highlighting.
 ## Quick Start
 
 1. Install this extension from the VS Code Marketplace.
-2. Install the [`downstage`](https://github.com/jscaltreto/downstage) binary
-   and ensure it is on your `PATH`.
-3. Open a `.ds` file and start writing.
+2. On supported release builds, the extension uses its bundled `downstage`
+   binary automatically.
+3. If you want to override that binary or you are on an unsupported platform,
+   set `downstage.server.path` or install
+   [`downstage`](https://github.com/jscaltreto/downstage) on your `PATH`.
+4. Open a `.ds` file and start writing.
 
 ## Features
 
@@ -74,7 +77,7 @@ aliases, verse, and comments.
 
 | Setting | Type | Default | Description |
 | --- | --- | --- | --- |
-| `downstage.server.path` | string | `"downstage"` | Path to the `downstage` executable |
+| `downstage.server.path` | string | `""` | Optional explicit path to the `downstage` executable. When empty, the extension prefers the bundled binary and then falls back to `PATH` |
 | `downstage.server.trace` | string | `"off"` | LSP trace verbosity (`off` / `messages` / `verbose`) |
 | `downstage.editor.autoSuggestCharacterCues` | boolean | `true` | Auto-trigger cue suggestions on empty lines |
 | `downstage.render.style` | string | `"standard"` | Render style (`standard` / `condensed`) |
@@ -83,8 +86,18 @@ aliases, verse, and comments.
 
 ## Requirements
 
-The `downstage` binary must be installed and available on your `PATH`, or
-configured via the `downstage.server.path` setting.
+Marketplace release builds bundle the `downstage` binary for:
+
+- `linux-x64`
+- `darwin-x64`
+- `darwin-arm64`
+- `win32-x64`
+
+If you need a different binary, set `downstage.server.path`. If no bundled
+binary is present, the extension falls back to `downstage` on your `PATH`.
+
+Release notes for the extension come from the repository root
+[`CHANGELOG.md`](../../CHANGELOG.md).
 
 ## Related
 

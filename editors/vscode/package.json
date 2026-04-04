@@ -68,8 +68,8 @@
       "properties": {
         "downstage.server.path": {
           "type": "string",
-          "default": "downstage",
-          "markdownDescription": "Path to the `downstage` executable used to launch the language server."
+          "default": "",
+          "markdownDescription": "Optional path to the `downstage` executable used to launch the language server. When empty, the extension prefers its bundled binary and falls back to `PATH`."
         },
         "downstage.server.trace": {
           "type": "string",
