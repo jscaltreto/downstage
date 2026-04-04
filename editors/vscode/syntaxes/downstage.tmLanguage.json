@@ -118,6 +118,18 @@
     "stageDirections": {
       "patterns": [
         {
+          "name": "markup.quote.callout.downstage",
+          "match": "^(>>)(\\s*)(.*)$",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.quote.callout.downstage"
+            },
+            "3": {
+              "name": "markup.bold.callout.downstage"
+            }
+          }
+        },
+        {
           "name": "markup.quote.downstage",
           "match": "^(>)(\\s*)(.*)$",
           "captures": {

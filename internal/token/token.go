@@ -38,6 +38,7 @@ const (
 	Text
 	Dialogue
 	StageDirection
+	Callout
 	Verse
 
 	// Songs
@@ -76,6 +77,7 @@ var typeNames = map[Type]string{
 	Text:              "Text",
 	Dialogue:          "Dialogue",
 	StageDirection:    "StageDirection",
+	Callout:           "Callout",
 	Verse:             "Verse",
 	SongStart:         "SongStart",
 	SongEnd:           "SongEnd",
