@@ -361,6 +361,23 @@ func (r *htmlRenderer) EndStageDirection(_ *ast.StageDirection) error {
 	return nil
 }
 
+// --- Callout ---
+
+func (r *htmlRenderer) BeginCallout(c *ast.Callout) error {
+	r.beginBlock()
+	cls := "downstage-callout"
+	if c.Continuation {
+		cls += " downstage-continuation"
+	}
+	fmt.Fprintf(&r.buf, "<p class=\"%s\"%s>", cls, r.sourceAttr(c.NodeRange()))
+	return nil
+}
+
+func (r *htmlRenderer) EndCallout(_ *ast.Callout) error {
+	r.buf.WriteString("</p>\n")
+	return nil
+}
+
 // --- Song ---
 
 func (r *htmlRenderer) BeginSong(song *ast.Song) error {

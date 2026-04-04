@@ -54,6 +54,9 @@ func Walk(v Visitor, node Node) {
 	case *StageDirection:
 		walkInlines(v, n.Content)
 
+	case *Callout:
+		walkInlines(v, n.Content)
+
 	case *Song:
 		for _, child := range n.Content {
 			Walk(v, child)

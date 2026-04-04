@@ -284,3 +284,23 @@ Hi.`))
 		t.Fatalf("expected token length %d, got %d", len("OPHELIA"), tokens[0].length)
 	}
 }
+
+func TestExtractTokens_CalloutUsesCommentTokenType(t *testing.T) {
+	callout := &ast.Callout{
+		Range: token.Range{
+			Start: token.Position{Line: 9, Column: 0},
+			End:   token.Position{Line: 9, Column: 18},
+		},
+	}
+
+	tokens := extractTokens(callout)
+	expected := []rawToken{{
+		line:      9,
+		startChar: 0,
+		length:    18,
+		tokenType: tokenTypeComment,
+	}}
+	if !reflect.DeepEqual(tokens, expected) {
+		t.Fatalf("expected %v, got %v", expected, tokens)
+	}
+}

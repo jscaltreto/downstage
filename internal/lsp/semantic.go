@@ -121,6 +121,15 @@ func extractTokens(n ast.Node) []rawToken {
 			tokenType: tokenTypeComment,
 		})
 
+	case *ast.Callout:
+		r := v.Range
+		tokens = append(tokens, rawToken{
+			line:      r.Start.Line,
+			startChar: r.Start.Column,
+			length:    r.End.Column - r.Start.Column,
+			tokenType: tokenTypeComment,
+		})
+
 	case *ast.Song:
 		header := "SONG"
 		switch {

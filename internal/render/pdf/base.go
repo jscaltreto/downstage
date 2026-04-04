@@ -32,8 +32,9 @@ type pdfBase struct {
 	lineHeight     float64 // vertical line spacing in mm
 	titlePageTitle string
 
-	// Stage direction adjacency tracking
+	// Body block adjacency tracking
 	prevWasStageDirection bool
+	prevWasCallout        bool
 
 	// Dual dialogue state
 	inDualDialogue bool    // true when rendering inside a DualDialogue node
@@ -168,7 +169,13 @@ func (b *pdfBase) EndInlineDirection(_ *ast.InlineDirectionNode) error {
 func (b *pdfBase) RenderPageBreak(_ *ast.PageBreak) error {
 	b.pdf.AddPage()
 	b.prevWasStageDirection = false
+	b.prevWasCallout = false
 	return nil
+}
+
+func (b *pdfBase) resetBodyBlockState() {
+	b.prevWasStageDirection = false
+	b.prevWasCallout = false
 }
 
 func (b *pdfBase) RenderComment(_ *ast.Comment) error {
