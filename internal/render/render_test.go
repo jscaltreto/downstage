@@ -27,6 +27,8 @@ func (r *recordingRenderer) BeginDialogueLine(_ *ast.DialogueLine) error     { r
 func (r *recordingRenderer) EndDialogueLine(_ *ast.DialogueLine) error       { return nil }
 func (r *recordingRenderer) BeginStageDirection(_ *ast.StageDirection) error { return nil }
 func (r *recordingRenderer) EndStageDirection(_ *ast.StageDirection) error   { return nil }
+func (r *recordingRenderer) BeginCallout(_ *ast.Callout) error               { return nil }
+func (r *recordingRenderer) EndCallout(_ *ast.Callout) error                 { return nil }
 func (r *recordingRenderer) BeginVerseBlock(_ *ast.VerseBlock) error         { return nil }
 func (r *recordingRenderer) EndVerseBlock(_ *ast.VerseBlock) error           { return nil }
 func (r *recordingRenderer) BeginVerseLine(_ *ast.VerseLine) error           { return nil }

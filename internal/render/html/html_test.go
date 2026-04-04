@@ -142,6 +142,21 @@ func TestRender_StageDirection(t *testing.T) {
 	assert.Contains(t, out, "<p class=\"downstage-stage-direction\">The lights dim slowly.</p>")
 }
 
+func TestRender_Callout(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Callout{
+				Content: []ast.Inline{
+					&ast.TextNode{Value: "Midwinter. The room has not been heated for days."},
+				},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, "<p class=\"downstage-callout\">Midwinter. The room has not been heated for days.</p>")
+}
+
 func TestRender_Song(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{
@@ -778,6 +793,28 @@ func TestRender_StageDirectionContinuation(t *testing.T) {
 	assert.Contains(t, out, "Separated direction.")
 	// CSS rules present
 	assert.Contains(t, out, ".downstage-stage-direction.downstage-continuation")
+}
+
+func TestRender_CalloutContinuation(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Callout{
+				Content: []ast.Inline{&ast.TextNode{Value: "First callout."}},
+			},
+			&ast.Callout{
+				Content:      []ast.Inline{&ast.TextNode{Value: "Adjacent callout."}},
+				Continuation: true,
+			},
+			&ast.Callout{
+				Content: []ast.Inline{&ast.TextNode{Value: "Separated callout."}},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, `class="downstage-callout downstage-continuation"`)
+	assert.Contains(t, out, "Adjacent callout.")
+	assert.Contains(t, out, ".downstage-callout.downstage-continuation")
 }
 
 func extractBlock(t *testing.T, out, prefix, suffix string) string {

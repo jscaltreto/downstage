@@ -172,6 +172,24 @@ body {
   margin-top: 1em;
 }
 
+/* Callout */
+.downstage-callout {
+  font-weight: bold;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  margin-left: 2em;
+}
+.downstage-callout:has(+ .downstage-continuation) {
+  margin-bottom: 0;
+}
+.downstage-callout.downstage-continuation {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.downstage-callout + .downstage-callout:not(.downstage-continuation) {
+  margin-top: 1em;
+}
+
 /* Song */
 .downstage-song {
   margin-top: 1.5em;
@@ -387,6 +405,24 @@ body {
   margin-bottom: 0;
 }
 .downstage-stage-direction + .downstage-stage-direction:not(.downstage-continuation) {
+  margin-top: 0.3em;
+}
+
+/* Callout */
+.downstage-callout {
+  font-weight: bold;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  margin-left: 2em;
+}
+.downstage-callout:has(+ .downstage-continuation) {
+  margin-bottom: 0;
+}
+.downstage-callout.downstage-continuation {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.downstage-callout + .downstage-callout:not(.downstage-continuation) {
   margin-top: 0.3em;
 }
 

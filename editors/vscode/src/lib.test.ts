@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	type DiagnosticLike,
@@ -75,19 +76,27 @@ const factories: VscodeFactories = {
 
 describe("replaceExtension", () => {
 	it("swaps .ds for .pdf", () => {
-		expect(replaceExtension("/scripts/play.ds", ".pdf")).toBe("/scripts/play.pdf");
+		expect(replaceExtension(path.join("scripts", "play.ds"), ".pdf")).toBe(
+			path.join("scripts", "play.pdf"),
+		);
 	});
 
 	it("handles files with no extension", () => {
-		expect(replaceExtension("/scripts/play", ".pdf")).toBe("/scripts/play.pdf");
+		expect(replaceExtension(path.join("scripts", "play"), ".pdf")).toBe(
+			path.join("scripts", "play.pdf"),
+		);
 	});
 
 	it("handles nested paths", () => {
-		expect(replaceExtension("/a/b/c/play.ds", ".html")).toBe("/a/b/c/play.html");
+		expect(replaceExtension(path.join("a", "b", "c", "play.ds"), ".html")).toBe(
+			path.join("a", "b", "c", "play.html"),
+		);
 	});
 
 	it("handles dotfiles", () => {
-		expect(replaceExtension("/scripts/.hidden.ds", ".pdf")).toBe("/scripts/.hidden.pdf");
+		expect(replaceExtension(path.join("scripts", ".hidden.ds"), ".pdf")).toBe(
+			path.join("scripts", ".hidden.pdf"),
+		);
 	});
 });
 

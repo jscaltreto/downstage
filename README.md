@@ -222,7 +222,7 @@ A Downstage document has three sections:
 
 1. **Title Page** — optional `Key: Value` metadata lines at the start of the document, with indented continuation lines allowed
 2. **Dramatis Personae** — A `# Dramatis Personae`, `# Cast of Characters`, or `# Characters` heading followed by character names and descriptions, optionally organized into groups with `##` subheadings.
-3. **Body** — The play itself: acts (`## ACT`), scenes (`### SCENE`), dialogue (ALL CAPS character name followed by speech text), stage directions (`>` prefixed lines), verse (indented 2+ spaces), songs, and comments.
+3. **Body** — The play itself: acts (`## ACT`), scenes (`### SCENE`), dialogue (ALL CAPS character name followed by speech text), stage directions (`>` prefixed lines), callouts (`>>` prefixed lines), verse (indented 2+ spaces), songs, and comments.
 
 ### Dual Dialogue
 

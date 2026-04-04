@@ -205,6 +205,13 @@ func (l *lexer) classifyBodyLine(line, trimmed string, lineNum, lineLen int) {
 		return
 	}
 
+	// Callout: line starting with >>
+	if strings.HasPrefix(trimmed, ">>") {
+		content := strings.TrimSpace(trimmed[2:])
+		l.emit(token.Callout, content, line, lineNum, 0, lineLen)
+		return
+	}
+
 	// Stage direction: line starting with >
 	if strings.HasPrefix(trimmed, ">") {
 		content := strings.TrimSpace(trimmed[1:])
