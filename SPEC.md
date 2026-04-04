@@ -292,6 +292,16 @@ Standalone stage directions can appear anywhere in the body -- between dialogue 
 
 Consecutive `>` lines with no blank lines between them are treated as a continuation — rendered with regular line spacing (no extra gap). Consecutive `>` lines separated by blank lines are treated as separate blocks with a paragraph break between them.
 
+### Callouts
+
+A line prefixed with `>>` creates a non-structural callout:
+
+```
+>> Midwinter. The room has not been heated for days.
+```
+
+Callouts can appear anywhere standalone stage directions can appear, but they do not create or close sections. Consecutive `>>` lines with no blank lines between them are treated as a continuation. Callouts render in bold and are indented further than standalone stage directions.
+
 ### Inline Stage Directions
 
 Parenthetical text within a dialogue line is treated as an inline stage direction:
@@ -492,6 +502,7 @@ HTML rendering produces a single self-contained `.html` file with an embedded st
 | Dialogue line | `.downstage-line` |
 | Verse dialogue line | `.downstage-line.downstage-verse` |
 | Stage direction | `.downstage-stage-direction` |
+| Callout | `.downstage-callout` |
 | Inline direction | `.downstage-inline-direction` |
 | Song | `.downstage-song` |
 | Verse block | `.downstage-verse-block` |

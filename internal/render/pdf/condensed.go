@@ -160,7 +160,7 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 // --- Structural ---
 
 func (r *condensedRenderer) BeginSection(s *ast.Section) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	switch s.Kind {
 	case ast.SectionAct:
 		return r.beginAct(s)
@@ -194,7 +194,7 @@ func (r *condensedRenderer) BeginSection(s *ast.Section) error {
 }
 
 func (r *condensedRenderer) EndSection(_ *ast.Section) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	return nil
 }
 
@@ -264,7 +264,7 @@ func (r *condensedRenderer) beginScene(s *ast.Section) error {
 // --- Dual Dialogue ---
 
 func (r *condensedRenderer) BeginDualDialogue(d *ast.DualDialogue) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	r.dualSequential = false
 	r.dualMidY = 0
 	estimatedHeight := r.estimateDualDialogueHeight(d)
@@ -303,7 +303,7 @@ func (r *condensedRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
 // Character name bold, parenthetical italic, dialogue regular — all on one line.
 
 func (r *condensedRenderer) BeginDialogue(d *ast.Dialogue) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	if r.inDualDialogue {
 		return r.beginDualDialogueSide(d)
 	}
@@ -514,13 +514,43 @@ func (r *condensedRenderer) EndStageDirection(_ *ast.StageDirection) error {
 	r.setStyle("")
 	r.pdf.SetLeftMargin(r.marginL)
 	r.prevWasStageDirection = true
+	r.prevWasCallout = false
+	return nil
+}
+
+// --- Callout ---
+
+func (r *condensedRenderer) BeginCallout(c *ast.Callout) error {
+	switch {
+	case c.Continuation:
+	case r.prevWasCallout:
+		r.ensureSpace(r.lineHeight * 2)
+		r.pdf.Ln(r.lineHeight)
+	default:
+		r.ensureSpace(r.lineHeight * 2)
+		r.pdf.Ln(r.lineHeight / 2)
+	}
+
+	calloutIndent := 2 * halfInchPt * pointsToMM
+	r.setStyle("B")
+	r.pdf.SetLeftMargin(r.marginL + calloutIndent)
+	r.pdf.SetX(r.marginL + calloutIndent)
+	return nil
+}
+
+func (r *condensedRenderer) EndCallout(_ *ast.Callout) error {
+	r.pdf.Ln(r.lineHeight)
+	r.setStyle("")
+	r.pdf.SetLeftMargin(r.marginL)
+	r.prevWasStageDirection = false
+	r.prevWasCallout = true
 	return nil
 }
 
 // --- Song ---
 
 func (r *condensedRenderer) BeginSong(song *ast.Song) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	r.ensureSpace(r.lineHeight * 3)
 	r.pdf.Ln(r.lineHeight)
 
@@ -540,6 +570,7 @@ func (r *condensedRenderer) BeginSong(song *ast.Song) error {
 }
 
 func (r *condensedRenderer) EndSong(_ *ast.Song) error {
+	r.resetBodyBlockState()
 	r.pdf.Ln(r.lineHeight / 2)
 	r.setStyle("B")
 	r.centeredText("SONG END")
@@ -551,7 +582,7 @@ func (r *condensedRenderer) EndSong(_ *ast.Song) error {
 // --- Verse Block ---
 
 func (r *condensedRenderer) BeginVerseBlock(_ *ast.VerseBlock) error {
-	r.prevWasStageDirection = false
+	r.resetBodyBlockState()
 	r.ensureSpace(r.lineHeight * 2)
 	return nil
 }

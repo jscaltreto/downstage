@@ -398,6 +398,34 @@ func TestStandaloneStageDirection(t *testing.T) {
 	require.NotNil(t, sd, "expected StageDirection node")
 }
 
+func TestStandaloneCallout(t *testing.T) {
+	input := `# Play
+
+## ACT I
+
+>> Midwinter. The room has not been heated for days.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var callout *ast.Callout
+	for _, n := range doc.Body {
+		if sect, ok := n.(*ast.Section); ok {
+			for _, c := range sect.Children {
+				if inner, ok := c.(*ast.Section); ok {
+					for _, ic := range inner.Children {
+						if co, ok := ic.(*ast.Callout); ok {
+							callout = co
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+	require.NotNil(t, callout, "expected Callout node")
+}
+
 func TestSong(t *testing.T) {
 	input := `# Play
 
@@ -804,6 +832,32 @@ func TestStageDirectionContinuation(t *testing.T) {
 	assert.False(t, sd1.Continuation, "first direction is not a continuation")
 	assert.True(t, sd2.Continuation, "second direction is adjacent — should be continuation")
 	assert.False(t, sd3.Continuation, "third direction has blank line before — not a continuation")
+}
+
+func TestCalloutContinuation(t *testing.T) {
+	input := `# Play
+
+## Scene 1
+
+>> First callout.
+>> Second callout.
+
+>> Third callout.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	act := doc.Body[0].(*ast.Section)
+	scene := act.Children[0].(*ast.Section)
+	require.Len(t, scene.Children, 3)
+
+	c1 := scene.Children[0].(*ast.Callout)
+	c2 := scene.Children[1].(*ast.Callout)
+	c3 := scene.Children[2].(*ast.Callout)
+
+	assert.False(t, c1.Continuation, "first callout is not a continuation")
+	assert.True(t, c2.Continuation, "second callout is adjacent — should be continuation")
+	assert.False(t, c3.Continuation, "third callout has blank line before — not a continuation")
 }
 
 // Golden file tests
