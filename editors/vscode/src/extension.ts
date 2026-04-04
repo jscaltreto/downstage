@@ -9,6 +9,28 @@ import {
 	ServerOptions,
 	Trace,
 } from "vscode-languageclient/node";
+import {
+	type VscodeFactories,
+	DownstageRenderError,
+	getPreviewHtml,
+	getValidatedRenderStyle,
+	isCueSuggestionLine,
+	parseRenderDiagnostics,
+	provideDownstageFoldingRanges,
+	replaceExtension,
+	validateServerPath,
+} from "./lib";
+
+// Cast needed: VscodeFactories uses minimal interfaces (RangeLike etc.)
+// while vscode.Range/Diagnostic have richer signatures. Structurally
+// compatible at runtime — the lib functions only use the minimal surface.
+const vscodeFactories = {
+	Range: vscode.Range,
+	Position: vscode.Position,
+	Diagnostic: vscode.Diagnostic,
+	DiagnosticSeverity: vscode.DiagnosticSeverity,
+	FoldingRange: vscode.FoldingRange,
+} as unknown as VscodeFactories;
 
 const configSection = "downstage";
 const settingServerPath = "server.path";
@@ -92,7 +114,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		{ language: "downstage" },
 		{
 			provideFoldingRanges(document) {
-				return provideDownstageFoldingRanges(document);
+				return provideDownstageFoldingRanges(document, vscode.FoldingRange);
 			},
 		},
 	);
@@ -258,16 +280,6 @@ async function resolveServerCommand(): Promise<ResolvedServerCommand> {
 	};
 }
 
-function validateServerPath(serverPath: string): string {
-	serverPath = serverPath.trim();
-	if (!serverPath) {
-		throw new Error("downstage.server.path must not be empty");
-	}
-	if (/[\u0000-\u001f]/u.test(serverPath)) {
-		throw new Error("downstage.server.path contains control characters");
-	}
-	return serverPath;
-}
 
 async function getTrustedServerPath(configuredPath?: string): Promise<string> {
 	const serverPath = validateServerPath(configuredPath ?? pathServerCommand);
@@ -370,46 +382,6 @@ function getWorkspaceRoot(): string | undefined {
 	return workspaceFolder.uri.fsPath;
 }
 
-function provideDownstageFoldingRanges(document: vscode.TextDocument): vscode.FoldingRange[] {
-	const ranges: vscode.FoldingRange[] = [];
-	const sectionStack: Array<{ level: number; line: number }> = [];
-	let songStartLine: number | undefined;
-
-	for (let line = 0; line < document.lineCount; line++) {
-		const text = document.lineAt(line).text.trim();
-		const heading = /^(#{1,3})\s+/.exec(text);
-		if (heading) {
-			const level = heading[1].length;
-			while (sectionStack.length > 0 && sectionStack[sectionStack.length - 1].level >= level) {
-				const section = sectionStack.pop();
-				if (section && line-section.line > 1) {
-					ranges.push(new vscode.FoldingRange(section.line, line - 1));
-				}
-			}
-			sectionStack.push({ level, line });
-			continue;
-		}
-
-		if (text === "SONG END" && songStartLine !== undefined && line > songStartLine) {
-			ranges.push(new vscode.FoldingRange(songStartLine, line));
-			songStartLine = undefined;
-			continue;
-		}
-
-		if (text.startsWith("SONG")) {
-			songStartLine = line;
-		}
-	}
-
-	while (sectionStack.length > 0) {
-		const section = sectionStack.pop();
-		if (section && document.lineCount-section.line > 1) {
-			ranges.push(new vscode.FoldingRange(section.line, document.lineCount - 1));
-		}
-	}
-
-	return ranges;
-}
 
 function scheduleCueSuggestForDocument(document: vscode.TextDocument): void {
 	const editor = vscode.window.activeTextEditor;
@@ -459,19 +431,6 @@ async function maybeTriggerCueSuggest(editor: vscode.TextEditor): Promise<void> 
 	await vscode.commands.executeCommand("editor.action.triggerSuggest");
 }
 
-function isCueSuggestionLine(document: vscode.TextDocument, line: number): boolean {
-	if (line <= 0 || line >= document.lineCount) {
-		return false;
-	}
-
-	const currentLine = document.lineAt(line).text;
-	if (currentLine.trim() !== "") {
-		return false;
-	}
-
-	const previousLine = document.lineAt(line - 1).text;
-	return previousLine.trim() === "";
-}
 
 async function renderCurrentScript(styleOverride?: string): Promise<void> {
 	const editor = vscode.window.activeTextEditor;
@@ -516,7 +475,7 @@ async function renderCurrentScript(styleOverride?: string): Promise<void> {
 		if (error instanceof DownstageRenderError) {
 			renderDiagnostics?.set(
 				editor.document.uri,
-				parseRenderDiagnostics(editor.document, error.stderr),
+				parseRenderDiagnostics(editor.document, error.stderr, vscodeFactories) as unknown as vscode.Diagnostic[],
 			);
 		}
 		outputChannel.appendLine(String(error));
@@ -618,7 +577,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 		if (error instanceof DownstageRenderError) {
 			renderDiagnostics?.set(
 				editor.document.uri,
-				parseRenderDiagnostics(editor.document, error.stderr),
+				parseRenderDiagnostics(editor.document, error.stderr, vscodeFactories) as unknown as vscode.Diagnostic[],
 			);
 		}
 		outputChannel.appendLine(String(error));
@@ -636,12 +595,6 @@ function getRenderOutputChannel(): vscode.OutputChannel {
 	return renderOutputChannel;
 }
 
-function getValidatedRenderStyle(style: string): string {
-	if (!allowedRenderStyles.has(style)) {
-		throw new Error(`Unsupported render style: ${style}`);
-	}
-	return style;
-}
 
 async function runDownstageRender(
 	serverPath: string,
@@ -694,51 +647,7 @@ async function openRenderedPdf(uri: vscode.Uri): Promise<void> {
 	}
 }
 
-function parseRenderDiagnostics(
-	document: vscode.TextDocument,
-	stderr: string,
-): vscode.Diagnostic[] {
-	const diagnostics: vscode.Diagnostic[] = [];
-	const lines = stderr.split(/\r?\n/);
-	const fileName = path.basename(document.uri.fsPath);
-	const pattern = /^([^:]+):(\d+):(\d+):\s+(.*)$/;
 
-	for (const line of lines) {
-		const match = pattern.exec(line);
-		if (!match || match[1] !== fileName) {
-			continue;
-		}
-
-		const lineNumber = Number(match[2]) - 1;
-		const columnNumber = Number(match[3]) - 1;
-		if (lineNumber < 0 || lineNumber >= document.lineCount) {
-			continue;
-		}
-
-		const documentLine = document.lineAt(lineNumber);
-		const character = Math.min(Math.max(columnNumber, 0), documentLine.text.length);
-		const range = new vscode.Range(
-			new vscode.Position(lineNumber, character),
-			new vscode.Position(lineNumber, documentLine.text.length),
-		);
-		const diagnostic = new vscode.Diagnostic(
-			range,
-			match[4],
-			vscode.DiagnosticSeverity.Error,
-		);
-		diagnostic.source = "downstage-render";
-		diagnostics.push(diagnostic);
-	}
-
-	return diagnostics;
-}
-
-function replaceExtension(filePath: string, extension: string): string {
-	return path.join(
-		path.dirname(filePath),
-		`${path.basename(filePath, path.extname(filePath))}${extension}`,
-	);
-}
 
 function getPreviewDebounceSetting(): number {
 	return vscode.workspace.getConfiguration(configSection).get<number>(
@@ -791,118 +700,6 @@ function openLivePreview(): void {
 	void renderToPreview(editor.document, state);
 }
 
-function getPreviewHtml(body: string): string {
-	return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<style>
-html, body { margin: 0; padding: 0; height: 100%; }
-body { overflow: hidden; }
-.preview-container {
-	position: relative;
-	width: 100%;
-	height: 100%;
-}
-.preview-frame {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	border: 0;
-	visibility: hidden;
-}
-</style>
-</head>
-<body>
-<div class="preview-container">
-	<iframe id="preview-a" class="preview-frame" sandbox="allow-same-origin"></iframe>
-	<iframe id="preview-b" class="preview-frame" sandbox="allow-same-origin"></iframe>
-</div>
-<script>
-	const frameA = document.getElementById("preview-a");
-	const frameB = document.getElementById("preview-b");
-	let active = frameA;
-	let staging = frameB;
-	let pendingLine = null;
-	let loadGeneration = 0;
-	let clearTimer = null;
-
-	function updatePreview(html, line) {
-		if (typeof line === "number") {
-			pendingLine = line;
-		}
-		if (clearTimer !== null) {
-			clearTimeout(clearTimer);
-			clearTimer = null;
-		}
-		loadGeneration++;
-		staging.dataset.generation = String(loadGeneration);
-		staging.srcdoc = html;
-	}
-
-	function scrollPreviewToLine(line, behavior = "smooth", frame) {
-		const targetFrame = frame || active;
-		const doc = targetFrame.contentDocument;
-		if (!doc) {
-			pendingLine = line;
-			return;
-		}
-
-		const els = doc.querySelectorAll("[data-source-line]");
-		let target = null;
-		for (const el of els) {
-			const sourceLine = parseInt(el.getAttribute("data-source-line"), 10);
-			if (sourceLine <= line) {
-				target = el;
-			} else {
-				break;
-			}
-		}
-		if (target) {
-			target.scrollIntoView({ behavior, block: "center" });
-		}
-	}
-
-	function onFrameLoad(frame) {
-		if (frame !== staging) return;
-		if (frame.dataset.generation !== String(loadGeneration)) return;
-		if (pendingLine !== null) {
-			const line = pendingLine;
-			pendingLine = null;
-			scrollPreviewToLine(line, "auto", frame);
-		}
-		staging.style.visibility = "visible";
-		active.style.visibility = "hidden";
-		const retired = active;
-		active = staging;
-		staging = retired;
-		retired.dataset.generation = "-1";
-		clearTimer = setTimeout(() => {
-			clearTimer = null;
-			retired.srcdoc = "";
-		}, 0);
-	}
-
-	frameA.addEventListener("load", () => onFrameLoad(frameA));
-	frameB.addEventListener("load", () => onFrameLoad(frameB));
-
-	window.addEventListener("message", (event) => {
-		const msg = event.data;
-		if (msg.type === "update") {
-			updatePreview(msg.html, msg.line);
-		}
-		if (msg.type === "scrollTo") {
-			scrollPreviewToLine(msg.line);
-		}
-	});
-
-	updatePreview(${JSON.stringify(body)});
-</script>
-</body>
-</html>`;
-}
 
 function schedulePreviewUpdate(document: vscode.TextDocument): void {
 	const key = document.uri.toString();
@@ -1000,7 +797,7 @@ async function renderToPreview(document: vscode.TextDocument, state: PreviewStat
 			if (stderr) {
 				renderDiagnostics?.set(
 					document.uri,
-					parseRenderDiagnostics(document, stderr),
+					parseRenderDiagnostics(document, stderr, vscodeFactories) as unknown as vscode.Diagnostic[],
 				);
 				const outputChannel = getRenderOutputChannel();
 				outputChannel.appendLine(stderr);
@@ -1027,13 +824,4 @@ function syncPreviewScroll(editor: vscode.TextEditor): void {
 
 	const line = editor.selection.active.line + 1; // 1-based to match data-source-line
 	void state.panel.webview.postMessage({ type: "scrollTo", line });
-}
-
-class DownstageRenderError extends Error {
-	readonly stderr: string;
-
-	constructor(message: string, stderr: string) {
-		super(message);
-		this.stderr = stderr;
-	}
 }
