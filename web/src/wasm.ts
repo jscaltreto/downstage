@@ -26,10 +26,20 @@ export interface ParseError {
 
 export async function initWasm(): Promise<void> {
   const go = new window.Go();
-  const result = await WebAssembly.instantiateStreaming(
-    fetch("downstage.wasm"),
-    go.importObject,
-  );
+  const response = await fetch("downstage.wasm");
+  if (!response.ok) {
+    throw new Error(`failed to fetch downstage.wasm: ${response.status} ${response.statusText}`);
+  }
+
+  let result: WebAssembly.WebAssemblyInstantiatedSource;
+  try {
+    result = await WebAssembly.instantiateStreaming(response, go.importObject);
+  } catch {
+    // Some static hosts do not serve .wasm with the correct MIME type.
+    const bytes = await response.arrayBuffer();
+    result = await WebAssembly.instantiate(bytes, go.importObject);
+  }
+
   go.run(result.instance);
 }
 

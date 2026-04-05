@@ -104,7 +104,13 @@ async function main() {
     "save-source",
   ) as HTMLButtonElement;
 
-  await initWasm();
+  try {
+    await initWasm();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    loading.textContent = `Failed to load Downstage editor: ${message}`;
+    return;
+  }
 
   loading.style.display = "none";
   workspace.classList.remove("hidden");
