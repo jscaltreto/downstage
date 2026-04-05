@@ -69,6 +69,19 @@ ALICE
 It's just the beginning.
 `;
 
+function getInitialContent(): string {
+  const params = new URLSearchParams(window.location.search);
+  const encoded = params.get("content");
+  if (encoded) {
+    try {
+      return decodeURIComponent(escape(atob(encoded)));
+    } catch {
+      // Fall through to default content.
+    }
+  }
+  return defaultContent;
+}
+
 let editorView: EditorView | null = null;
 
 async function main() {
@@ -96,7 +109,7 @@ async function main() {
   );
 
   const state = EditorState.create({
-    doc: defaultContent,
+    doc: getInitialContent(),
     extensions: [
       lineNumbers(),
       history(),

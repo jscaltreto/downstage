@@ -27,7 +27,7 @@ export interface ParseError {
 export async function initWasm(): Promise<void> {
   const go = new window.Go();
   const result = await WebAssembly.instantiateStreaming(
-    fetch("dist/downstage.wasm"),
+    fetch("downstage.wasm"),
     go.importObject,
   );
   go.run(result.instance);

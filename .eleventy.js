@@ -45,10 +45,15 @@ module.exports = function (eleventyConfig) {
     });
     const displayLabel = label || language || "text";
 
+    const tryButton = language === "downstage"
+      ? `<button type="button" class="try-in-editor-button" aria-label="Open in web editor">Try it</button>`
+      : "";
+
     return `
-      <div class="code-block-shell group my-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1117] shadow-stage">
+      <div class="code-block-shell group my-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1117] shadow-stage" ${language === "downstage" ? 'data-lang="downstage"' : ""}>
         <div class="code-block-header">
           <span class="code-block-label">${escapeHtml(displayLabel)}</span>
+          ${tryButton}
           <button type="button" class="copy-code-button" aria-label="Copy code to clipboard">
             Copy
           </button>
@@ -62,6 +67,11 @@ module.exports = function (eleventyConfig) {
 
   eleventyConfig.addPassthroughCopy({ "site/assets/main.js": "assets/main.js" });
   eleventyConfig.addPassthroughCopy({ "downstage_logo.png": "downstage_logo.png" });
+  eleventyConfig.addPassthroughCopy({ "web/index.html": "editor/index.html" });
+  eleventyConfig.addPassthroughCopy({ "web/style.css": "editor/style.css" });
+  eleventyConfig.addPassthroughCopy({ "web/dist/bundle.js": "editor/bundle.js" });
+  eleventyConfig.addPassthroughCopy({ "web/dist/downstage.wasm": "editor/downstage.wasm" });
+  eleventyConfig.addPassthroughCopy({ "web/dist/wasm_exec.js": "editor/wasm_exec.js" });
   eleventyConfig.addCollection("homeSections", (collectionApi) =>
     collectionApi.getFilteredByGlob("site/content/home/*.md").sort((a, b) => a.data.order - b.data.order),
   );

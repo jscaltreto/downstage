@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Downstage Editor</title>
+  <meta name="description" content="Write stage plays in your browser with live preview and PDF export. No install required.">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app">
     <header id="toolbar">
-      <h1>Downstage</h1>
+      <h1><a href="../">Downstage</a></h1>
       <div class="toolbar-controls">
         <label for="style-select">Style:</label>
         <select id="style-select">
@@ -19,7 +20,7 @@
         <button id="export-pdf" disabled>Export PDF</button>
       </div>
     </header>
-    <div id="loading">Loading Downstage WASM module&hellip;</div>
+    <div id="loading">Loading Downstage editor&hellip;</div>
     <main id="workspace" class="hidden">
       <div id="editor-pane"></div>
       <div id="preview-pane">
@@ -27,7 +28,7 @@
       </div>
     </main>
   </div>
-  <script src="dist/wasm_exec.js"></script>
-  <script type="module" src="dist/bundle.js"></script>
+  <script src="wasm_exec.js"></script>
+  <script type="module" src="bundle.js"></script>
 </body>
 </html>

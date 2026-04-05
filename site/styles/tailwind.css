@@ -89,7 +89,8 @@
     @apply min-w-0 flex-1 font-mono text-[11px] text-parchment-300;
   }
 
-  .copy-code-button {
+  .copy-code-button,
+  .try-in-editor-button {
     @apply inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] leading-none text-parchment-300 transition;
     font-family: "Berkeley Mono", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
     appearance: none;
@@ -97,6 +98,14 @@
 
   .copy-code-button:hover {
     @apply bg-white/10 text-parchment-200;
+  }
+
+  .try-in-editor-button {
+    @apply border-brass-500/30 text-brass-300;
+  }
+
+  .try-in-editor-button:hover {
+    @apply bg-brass-500/15 text-brass-300;
   }
 
   .inline-list {

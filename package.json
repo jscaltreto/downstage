@@ -3,8 +3,9 @@
   "private": true,
   "scripts": {
     "build:css": "tailwindcss -c tailwind.config.js -i ./site/styles/tailwind.css -o ./dist/assets/styles.css --minify",
-    "build:site": "npm run build:css && eleventy",
-    "serve:site": "npm run build:css && eleventy --serve"
+    "build:editor": "cd web && npm install && npm run build",
+    "build:site": "npm run build:css && npm run build:editor && eleventy",
+    "serve:site": "npm run build:css && npm run build:editor && eleventy --serve"
   },
   "devDependencies": {
     "@11ty/eleventy": "^3.1.2",

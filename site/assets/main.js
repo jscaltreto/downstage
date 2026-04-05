@@ -111,6 +111,21 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+const tryButtons = Array.from(document.querySelectorAll(".try-in-editor-button"));
+
+for (const button of tryButtons) {
+  button.addEventListener("click", () => {
+    const shell = button.closest(".code-block-shell");
+    const template = shell?.querySelector(".copy-source");
+    const source = template?.content?.textContent ?? template?.textContent ?? "";
+    if (!source) return;
+
+    const encoded = btoa(unescape(encodeURIComponent(source)));
+    const editorBase = document.documentElement.dataset.editorBase ?? "/editor/";
+    window.open(`${editorBase}?content=${encoded}`, "_blank");
+  });
+}
+
 const copyButtons = Array.from(document.querySelectorAll(".copy-code-button"));
 
 for (const button of copyButtons) {

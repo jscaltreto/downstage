@@ -54,10 +54,11 @@ wasm: | web/dist
 
 web: wasm
 	cd web && npm install && npx esbuild src/main.ts --bundle --outfile=dist/bundle.js --format=esm --target=es2020
+	cp web/index.html web/style.css web/dist/
 
 web-dev: web
 	@echo "Serving web editor at http://localhost:8080"
-	cd web && python3 -m http.server 8080
+	cd web/dist && python3 -m http.server 8080
 
 web-clean:
 	rm -rf web/dist web/node_modules
