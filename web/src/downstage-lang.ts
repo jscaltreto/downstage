@@ -85,7 +85,7 @@ const highlightField = StateField.define<DecorationSet>({
     for (const e of tr.effects) {
       if (e.is(refreshHighlights)) return e.value;
     }
-    return tr.docChanged ? Decoration.none : value;
+    return tr.docChanged ? value.map(tr.changes) : value;
   },
   provide: (f) => EditorView.decorations.from(f),
 });
