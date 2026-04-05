@@ -8,8 +8,8 @@
     <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">{{ section.data.kicker }}</p>
     <h2 class="font-serif text-3xl leading-tight text-parchment-200 sm:text-[2rem]">{{ section.data.title }}</h2>
   </div>
-  <div class="prose-block p-6 lg:p-8">
-    <div class="prose-block">{{ section.templateContent | safe }}</div>
+  <div class="p-6 lg:p-8">
+    <div class="prose-copy">{{ section.templateContent | safe }}</div>
 
     {% if section.data.cards %}
       <div class="{{ cardGridClasses }}">

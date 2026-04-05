@@ -47,21 +47,21 @@
     @apply inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 font-semibold text-parchment-200 no-underline;
   }
 
-  .prose-block > p {
+  .prose-copy > p {
     @apply my-0 text-base leading-8 text-parchment-300;
   }
 
-  .prose-block > p + p {
+  .prose-copy > p + p {
     @apply mt-5;
   }
 
-  .prose-block a {
+  .prose-copy a {
     @apply text-brass-300 underline decoration-brass-500/40 underline-offset-4;
   }
 
-  .prose-block p code,
-  .prose-block li code,
-  .prose-block strong code {
+  .prose-copy p code,
+  .prose-copy li code,
+  .prose-copy strong code {
     @apply rounded-md border border-brass-500/20 bg-white/[0.06] px-1.5 py-0.5 text-[0.9em] text-parchment-200;
   }
 
