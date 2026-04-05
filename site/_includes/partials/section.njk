@@ -29,10 +29,17 @@
             <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-brass-500 to-brass-400 font-extrabold text-ember-850">{{ loop.index }}</span>
             <div class="min-w-0">
               <h3 class="font-serif text-2xl text-parchment-200">{{ step.title }}</h3>
-              {% if step.text %}<p class="mt-2 text-base leading-7 text-parchment-300">{{ step.text }}</p>{% endif %}
+              {% if step.text %}<p class="step-copy mt-2 text-base leading-7 text-parchment-300">{{ step.text }}</p>{% endif %}
               {% if step.code %}{% renderCodeBlock step.code, (step.codeLang or "text"), (step.codeLabel or step.codeLang or "text") %}{% endif %}
-              {% if step.after %}<p class="mt-2 text-base leading-7 text-parchment-300">{{ step.after }}</p>{% endif %}
+              {% if step.after %}<p class="step-copy mt-2 text-base leading-7 text-parchment-300">{{ step.after | safe }}</p>{% endif %}
               {% if step.extraCode %}{% renderCodeBlock step.extraCode, (step.extraCodeLang or step.codeLang or "text"), (step.extraCodeLabel or step.extraCodeLang or step.codeLang or "text") %}{% endif %}
+              {% if step.actions %}
+                <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  {% for action in step.actions %}
+                    <a class="{% if action.kind == 'primary' %}button-primary{% else %}button-secondary{% endif %}" href="{% if action.href and action.href[0] == '/' %}{{ action.href | url }}{% else %}{{ action.href }}{% endif %}">{{ action.label }}</a>
+                  {% endfor %}
+                </div>
+              {% endif %}
             </div>
           </article>
         {% endeach %}

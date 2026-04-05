@@ -2,26 +2,16 @@
 permalink: false
 id: first-workflow
 kicker: First Pass
-title: Your first end-to-end workflow
+title: From draft to PDF
 navTitle: Your First Script
 order: 4
 workflow:
   - title: Draft
     text: Write cues, dialogue, headings, and stage directions in a single file.
-  - title: Check
-    text: Run `downstage validate my-play.ds` to catch structural mistakes.
-  - title: Render
-    text: Run `downstage render my-play.ds` to make a PDF manuscript.
-  - title: Refine
-    text: Add editor integration later if you want autocompletion, hover help, or previews.
-codeLang: bash
-codeLabel: shell
-code: |-
-  downstage validate my-play.ds
-  downstage render my-play.ds
-  downstage render --format html my-play.ds
-caption: That last command gives you an HTML version if you want a browser-friendly preview.
+  - title: Preview
+    text: Use the Web Editor or VS Code preview when you want immediate page feedback while drafting.
+  - title: Export
+    text: Export a PDF manuscript or acting edition from the same draft when it is ready to read or share.
 ---
-A typical beginner workflow looks like this: write in a plain text editor,
-render when you want to see pages, then add editor support later if you want
-live help while drafting.
+A typical workflow is simple: write in plain text, preview when you want
+feedback, and export when you want pages.

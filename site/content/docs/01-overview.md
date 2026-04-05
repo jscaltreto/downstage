@@ -2,8 +2,8 @@
 permalink: false
 id: overview
 kicker: Start Here
-title: What Downstage actually is
-navTitle: What It Is
+title: What is Downstage?
+navTitle: What Is Downstage?
 order: 1
 cardsClass: feature-grid
 cards:

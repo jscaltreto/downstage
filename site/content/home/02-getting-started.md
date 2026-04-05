@@ -2,30 +2,16 @@
 permalink: false
 id: getting-started
 kicker: Get Started
-title: Start in three steps
-navTitle: Get Started
+title: New here?
+navTitle: false
 order: 2
-steps:
-  - title: Install it
-    codeLang: bash
-    codeLabel: shell
-    code: |-
-      brew tap jscaltreto/tap
-      brew install downstage
-  - title: Write a file
-    codeLang: downstage
-    codeLabel: downstage
-    code: |-
-      Title: My Play
-      Author: You
-
-      JANE
-      I finally started the draft.
-  - title: Render it
-    codeLang: bash
-    codeLabel: shell
-    code: downstage render my-play.ds
-callout:
-  title: "Want to skip the install?"
-  text: '<a href="../editor/">Try the web editor</a> — it runs entirely in your browser with live preview and PDF export, no install required.'
+actions:
+  - label: Start Here
+    href: /start/
+    kind: primary
+  - label: Open Editor
+    href: /editor/
+    kind: secondary
 ---
+Start Here if you want the easiest way to choose between the Web Editor, VS
+Code, and the command line.

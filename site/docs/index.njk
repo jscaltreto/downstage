@@ -1,7 +1,7 @@
 ---
 layout: layouts/base.njk
-title: Downstage Docs | Install, syntax guide, and workflow
-description: Reference documentation for Downstage, including product overview, quick start, and the full syntax guide.
+title: Downstage Docs | Web Editor, workflow, and reference
+description: Start in the Web Editor, use VS Code if you prefer, then dig into the full Downstage reference.
 bodyClass: docs-page
 permalink: /docs/
 ---
@@ -38,16 +38,34 @@ permalink: /docs/
       <img class="h-12 w-12 object-contain" src="{{ '/downstage_logo.png' | url }}" alt="Downstage logo">
       <span class="font-serif text-3xl font-bold text-parchment-200">Downstage</span>
     </a>
-    <p class="mb-5 mt-3 leading-7 text-parchment-300">How to start, how it works, and where to dig deeper.</p>
+    <p class="mb-5 mt-3 leading-7 text-parchment-300">Use the Web Editor, learn the workflow, then dig into the full reference.</p>
     <nav aria-label="Section navigation" class="docs-nav-sections js-section-nav grid gap-1">
       {% for section in collections.docsSections %}
-        <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+        {% if section.data.order <= 6 or section.data.order >= 19 %}
+          {% if section.data.id == "syntax-guide" %}
+            <details class="grid gap-1">
+              <summary class="nav-link cursor-pointer rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200">
+                {{ section.data.navTitle or section.data.title }}
+              </summary>
+              <div class="ml-4 grid gap-1 border-l border-white/10 pl-3">
+                {% for child in collections.docsSections %}
+                  {% if child.data.order >= 7 and child.data.order <= 18 %}
+                    <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ child.data.id }}">{{ child.data.navTitle or child.data.title }}</a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </details>
+          {% else %}
+            <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+          {% endif %}
+        {% endif %}
       {% endfor %}
     </nav>
     <div class="mt-5 border-t border-white/10 pt-4">
       <p class="px-3 pb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Project resources</p>
       <div class="grid gap-1">
-        <a class="nav-link rounded-xl px-3 py-2 text-sm font-semibold text-brass-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-brass-300" href="{{ '/editor/' | url }}">Try It Live</a>
+        <a class="nav-link rounded-xl px-3 py-2 text-sm font-semibold text-brass-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-brass-300" href="{{ '/start/' | url }}">Start Here</a>
+        <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="{{ '/editor/' | url }}">Web Editor</a>
         <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="{{ '/' | url }}">Home</a>
         <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage#readme">Project README</a>
         <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage/blob/main/SPEC.md">Full Specification</a>
@@ -60,15 +78,34 @@ permalink: /docs/
       <img class="h-12 w-12 object-contain" src="{{ '/downstage_logo.png' | url }}" alt="Downstage logo">
       <span class="font-serif text-3xl font-bold text-parchment-200">Downstage</span>
     </a>
-    <p class="mb-5 mt-3 leading-7 text-parchment-300">How to start, how it works, and where to dig deeper.</p>
+    <p class="mb-5 mt-3 leading-7 text-parchment-300">Use the Web Editor, learn the workflow, then dig into the full reference.</p>
     <nav aria-label="Section navigation" class="docs-nav-sections js-section-nav grid gap-1">
       {% for section in collections.docsSections %}
-        <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+        {% if section.data.order <= 6 or section.data.order >= 19 %}
+          {% if section.data.id == "syntax-guide" %}
+            <details class="grid gap-1">
+              <summary class="nav-link cursor-pointer rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200">
+                {{ section.data.navTitle or section.data.title }}
+              </summary>
+              <div class="ml-4 grid gap-1 border-l border-white/10 pl-3">
+                {% for child in collections.docsSections %}
+                  {% if child.data.order >= 7 and child.data.order <= 18 %}
+                    <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ child.data.id }}">{{ child.data.navTitle or child.data.title }}</a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </details>
+          {% else %}
+            <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+          {% endif %}
+        {% endif %}
       {% endfor %}
     </nav>
     <div class="mt-5 border-t border-white/10 pt-4">
       <p class="px-3 pb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Project resources</p>
       <div class="grid gap-1">
+      <a class="nav-link rounded-xl px-3 py-2 text-sm font-semibold text-brass-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-brass-300" href="{{ '/start/' | url }}">Start Here</a>
+      <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="{{ '/editor/' | url }}">Web Editor</a>
       <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="{{ '/' | url }}">Home</a>
         <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage#readme">Project README</a>
         <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage/blob/main/SPEC.md">Full Specification</a>

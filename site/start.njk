@@ -1,0 +1,108 @@
+---
+layout: layouts/base.njk
+title: Start Here | Downstage for Playwrights
+description: "Choose the easiest way to start writing in Downstage: the Web Editor, VS Code, or the command line."
+bodyClass: docs-page
+permalink: /start/
+---
+<div class="mx-auto grid max-w-5xl gap-6 px-4 py-6 sm:px-6 lg:px-8">
+  <main class="grid gap-6" id="top">
+    <section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] shadow-stage backdrop-blur-xl">
+      <div class="p-6 text-center lg:p-10">
+        <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Start Here</p>
+        <h1 class="mx-auto max-w-[16ch] font-serif text-4xl leading-tight text-parchment-200 sm:text-5xl lg:text-6xl">
+          Write a play. Preview pages. Export a PDF.
+        </h1>
+        <p class="mx-auto mt-4 max-w-3xl text-base leading-8 text-parchment-300 sm:text-lg">
+          Start with the Web Editor to write a scene, preview pages, and export a PDF without touching the command line.
+        </p>
+        <div class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
+          <a class="button-primary" href="{{ '/editor/' | url }}">Start Writing</a>
+          <a class="button-secondary" href="{{ '/docs/' | url }}">Read the Docs</a>
+          <a class="button-secondary" href="{{ '/' | url }}">Back to Home</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] shadow-stage backdrop-blur-xl">
+      <div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div class="border-b border-white/10 p-6 lg:border-b-0 lg:border-r lg:p-8">
+          <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Path 1</p>
+          <h2 class="font-serif text-3xl leading-tight text-parchment-200 sm:text-[2rem]">Web Editor</h2>
+        </div>
+        <div class="p-6 lg:p-8">
+          <p class="text-base leading-7 text-parchment-300">This is the default recommendation. It is the fastest way to go from a blank page to a readable PDF.</p>
+          <div class="my-5 grid gap-4">
+            <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
+              <h3 class="font-serif text-2xl text-parchment-200">Who it is for</h3>
+              <p class="mt-2 text-base leading-7 text-parchment-300">Playwrights who want to start writing immediately and do not want to think about setup first.</p>
+            </article>
+            <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
+              <h3 class="font-serif text-2xl text-parchment-200">What you do</h3>
+              <p class="mt-2 text-base leading-7 text-parchment-300">Open the editor, write your scene, check the live preview, then export a PDF when you want a manuscript.</p>
+            </article>
+            <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
+              <h3 class="font-serif text-2xl text-parchment-200">Why start here</h3>
+              <p class="mt-2 text-base leading-7 text-parchment-300">No install required. No terminal required. The first success is obvious.</p>
+            </article>
+          </div>
+          <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <a class="button-primary" href="{{ '/editor/' | url }}">Open Web Editor</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] shadow-stage backdrop-blur-xl">
+      <div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div class="border-b border-white/10 p-6 lg:border-b-0 lg:border-r lg:p-8">
+          <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Path 2</p>
+          <h2 class="font-serif text-3xl leading-tight text-parchment-200 sm:text-[2rem]">VS Code</h2>
+        </div>
+        <div class="p-6 lg:p-8">
+          <p class="text-base leading-7 text-parchment-300">Use this if VS Code is already where you write. The extension keeps the writing flow in the editor you know.</p>
+          <div class="my-5 grid gap-4">
+            <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
+              <h3 class="font-serif text-2xl text-parchment-200">First session</h3>
+              <p class="mt-2 text-base leading-7 text-parchment-300">Install the extension, open a `.ds` file, draft your scene, and use live preview or render commands when you want pages.</p>
+            </article>
+            <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
+              <h3 class="font-serif text-2xl text-parchment-200">Why choose it</h3>
+              <p class="mt-2 text-base leading-7 text-parchment-300">It adds completions, diagnostics, preview, and export without asking you to learn a new writing app.</p>
+            </article>
+          </div>
+          <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <a class="button-primary" href="https://marketplace.visualstudio.com/items?itemName=jscaltreto.downstage-vscode">Get Extension</a>
+            <a class="button-secondary" href="https://github.com/jscaltreto/downstage/tree/main/editors/vscode">Read the Extension Docs</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] shadow-stage backdrop-blur-xl">
+      <div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div class="border-b border-white/10 p-6 lg:border-b-0 lg:border-r lg:p-8">
+          <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Path 3</p>
+          <h2 class="font-serif text-3xl leading-tight text-parchment-200 sm:text-[2rem]">Command Line</h2>
+        </div>
+        <div class="p-6 lg:p-8">
+          <p class="text-base leading-7 text-parchment-300">Use this if you are already comfortable with terminal workflows, automation, or editor setups built around CLI tools.</p>
+          <div class="my-5 grid gap-4">
+            <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
+              <h3 class="font-serif text-2xl text-parchment-200">What it is good for</h3>
+              <p class="mt-2 text-base leading-7 text-parchment-300">Validation, rendering, automation, and integrating Downstage into your existing toolchain.</p>
+            </article>
+            <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
+              <h3 class="font-serif text-2xl text-parchment-200">What to expect</h3>
+              <p class="mt-2 text-base leading-7 text-parchment-300">This path assumes more technical comfort. It is useful, but it should not be your first stop unless you already want it.</p>
+            </article>
+          </div>
+          <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <a class="button-secondary" href="{{ '/docs/' | url }}">Open the Docs</a>
+            <a class="button-secondary" href="https://github.com/jscaltreto/downstage#readme">Read the README</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
