@@ -1,87 +1,87 @@
 import { ViewPlugin, type EditorView } from "@codemirror/view";
 
+function absoluteTop(el: HTMLElement): number {
+  let top = 0;
+  let current: HTMLElement | null = el;
+  while (current) {
+    top += current.offsetTop;
+    current = current.offsetParent as HTMLElement | null;
+  }
+  return top;
+}
+
 export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
   let rafId: ReturnType<typeof requestAnimationFrame> | null = null;
 
   function syncScroll(view: EditorView) {
-    const idoc = iframe.contentDocument;
+    let idoc: Document | null = null;
+    try {
+      idoc = iframe.contentDocument;
+    } catch {
+      return;
+    }
     if (!idoc?.body) return;
 
     const scrollEl = idoc.scrollingElement ?? idoc.documentElement;
     const maxEditorScroll =
       view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
-
     if (maxEditorScroll <= 0) return;
 
     const ratio = view.scrollDOM.scrollTop / maxEditorScroll;
 
-    // At extremes, just use proportional scroll to avoid jitter.
-    if (ratio <= 0.02) {
+    if (ratio <= 0.01) {
       scrollEl.scrollTop = 0;
       return;
     }
-    if (ratio >= 0.98) {
+    if (ratio >= 0.99) {
       scrollEl.scrollTop = scrollEl.scrollHeight;
       return;
     }
 
-    // Find the source line at the top of the editor viewport.
+    // Find the 1-based source line at the top of the editor viewport.
     const topBlock = view.elementAtHeight(view.scrollDOM.scrollTop);
     const topLine = view.state.doc.lineAt(topBlock.from).number;
 
-    // Walk the anchored elements to find the best match.
-    const els = idoc.querySelectorAll("[data-source-line]");
+    // Walk anchored elements to find the bracket [best, next).
+    const els = Array.from(idoc.querySelectorAll("[data-source-line]"));
     if (els.length === 0) return;
 
-    let best: Element | null = null;
-    let bestLine = 0;
-    for (const el of els) {
-      const n = parseInt(el.getAttribute("data-source-line")!, 10);
-      if (isNaN(n)) continue;
+    let bestIdx = 0;
+    for (let i = 0; i < els.length; i++) {
+      const n = parseInt(els[i].getAttribute("data-source-line")!, 10);
       if (n <= topLine) {
-        best = el;
-        bestLine = n;
+        bestIdx = i;
       } else {
         break;
       }
     }
 
-    if (!best) {
-      scrollEl.scrollTop = 0;
-      return;
-    }
+    const bestEl = els[bestIdx] as HTMLElement;
+    const bestLine = parseInt(bestEl.getAttribute("data-source-line")!, 10);
+    const bestTop = absoluteTop(bestEl);
 
-    // Scroll so the matched element sits at the top of the iframe.
-    // Use offsetTop which is relative to the document, not the viewport.
-    const target = (best as HTMLElement).offsetTop;
-
-    // If there's a next anchored element, interpolate between the two
-    // based on how far between bestLine and the next anchor's line we are.
-    let nextEl: Element | null = null;
-    let nextLine = 0;
-    for (const el of els) {
-      const n = parseInt(el.getAttribute("data-source-line")!, 10);
-      if (n > bestLine) {
-        nextEl = el;
-        nextLine = n;
-        break;
+    // Interpolate toward the next anchor for smoother tracking.
+    const nextEl = els[bestIdx + 1] as HTMLElement | undefined;
+    if (nextEl) {
+      const nextLine = parseInt(nextEl.getAttribute("data-source-line")!, 10);
+      const nextTop = absoluteTop(nextEl);
+      if (nextLine > bestLine) {
+        const t = Math.min((topLine - bestLine) / (nextLine - bestLine), 1);
+        scrollEl.scrollTop = bestTop + (nextTop - bestTop) * t;
+        return;
       }
     }
 
-    if (nextEl && nextLine > bestLine) {
-      const nextTop = (nextEl as HTMLElement).offsetTop;
-      const progress = (topLine - bestLine) / (nextLine - bestLine);
-      scrollEl.scrollTop = target + (nextTop - target) * progress;
-    } else {
-      scrollEl.scrollTop = target;
-    }
+    scrollEl.scrollTop = bestTop;
   }
 
   return ViewPlugin.fromClass(
     class {
       private handler: () => void;
+      private scrollDOM: HTMLElement;
 
       constructor(view: EditorView) {
+        this.scrollDOM = view.scrollDOM;
         this.handler = () => {
           if (rafId) cancelAnimationFrame(rafId);
           rafId = requestAnimationFrame(() => {
@@ -89,12 +89,13 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
             rafId = null;
           });
         };
-        view.scrollDOM.addEventListener("scroll", this.handler, {
+        this.scrollDOM.addEventListener("scroll", this.handler, {
           passive: true,
         });
       }
 
       destroy() {
+        this.scrollDOM.removeEventListener("scroll", this.handler);
         if (rafId) cancelAnimationFrame(rafId);
       }
     },
