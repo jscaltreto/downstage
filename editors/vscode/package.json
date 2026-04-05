@@ -1,7 +1,7 @@
 {
   "name": "downstage-vscode",
   "displayName": "Downstage",
-  "description": "VS Code support for Downstage scripts.",
+  "description": "Write stage plays in plain text, preview pages, and export clean PDFs.",
   "version": "0.0.1",
   "publisher": "jscaltreto",
   "license": "MIT",
@@ -26,41 +26,59 @@
     "vscode": "^1.82.0"
   },
   "categories": [
-    "Programming Languages"
+    "Other",
+    "Snippets"
   ],
   "keywords": [
     "downstage",
-    "theatre",
     "playwriting",
-    "screenplay",
-    "lsp"
+    "theatre",
+    "stage-play",
+    "scriptwriting",
+    "manuscript"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
+        "command": "downstage.newPlay",
+        "title": "Downstage: New Play"
+      },
+      {
+        "command": "downstage.openSamplePlay",
+        "title": "Downstage: Open Sample Play"
+      },
+      {
+        "command": "downstage.openWelcome",
+        "title": "Downstage: Open Start Guide"
+      },
+      {
+        "command": "downstage.openHelp",
+        "title": "Downstage: Open Help"
+      },
+      {
         "command": "downstage.restartLanguageServer",
-        "title": "Downstage: Restart Language Server"
+        "title": "Downstage: Restart Downstage"
       },
       {
         "command": "downstage.renderCurrentScript",
-        "title": "Downstage: Render Current Script"
+        "title": "Downstage: Export Manuscript PDF"
       },
       {
         "command": "downstage.renderCondensedScript",
-        "title": "Downstage: Render Condensed Script"
+        "title": "Downstage: Export Acting Edition PDF"
       },
       {
         "command": "downstage.previewCurrentScript",
-        "title": "Downstage: Preview Current Script PDF"
+        "title": "Downstage: Open Manuscript PDF Preview"
       },
       {
         "command": "downstage.previewCondensedScript",
-        "title": "Downstage: Preview Condensed Script PDF"
+        "title": "Downstage: Open Acting Edition PDF Preview"
       },
       {
         "command": "downstage.livePreview",
-        "title": "Downstage: Live Preview"
+        "title": "Downstage: Open Live Preview"
       }
     ],
     "configuration": {
@@ -93,7 +111,7 @@
             "condensed"
           ],
           "default": "standard",
-          "markdownDescription": "Rendering style used by the VS Code render command."
+          "markdownDescription": "Default export style. `standard` creates a Manuscript PDF. `condensed` creates an Acting Edition PDF."
         },
         "downstage.render.openAfterRender": {
           "type": "boolean",

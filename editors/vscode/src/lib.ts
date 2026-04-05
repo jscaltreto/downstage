@@ -38,6 +38,11 @@ export interface FoldingRangeLike {
 	readonly end: number;
 }
 
+export interface SelectionTarget {
+	readonly line: number;
+	readonly character: number;
+}
+
 /** Constructors injected by the caller so lib stays VS Code-free. */
 export interface VscodeFactories {
 	Range: new (startLine: number, startChar: number, endLine: number, endChar: number) => RangeLike;
@@ -69,6 +74,78 @@ export function validateServerPath(serverPath: string): string {
 	return serverPath;
 }
 
+const newPlayTemplate = [
+	"Title: Your Play",
+	"Author: Your Name",
+	`Date: ${new Date().getFullYear()}`,
+	"",
+	"# Dramatis Personae",
+	"",
+	"PROTAGONIST - Brief description",
+	"",
+	"# Your Play",
+	"",
+	"## ACT I",
+	"",
+	"### SCENE 1",
+	"",
+	"> A room waiting for trouble.",
+	"",
+	"PROTAGONIST",
+	"Your opening line.",
+].join("\n");
+
+const samplePlayTemplate = [
+	"Title: Lanterns After Intermission",
+	"Author: Downstage",
+	"",
+	"# Dramatis Personae",
+	"",
+	"MARA - Stage manager who refuses to panic.",
+	"JULES - Actor with perfect timing and terrible luck.",
+	"THE GHOST LIGHT - Silent, steady company.",
+	"",
+	"# Lanterns After Intermission",
+	"",
+	"## ACT I",
+	"",
+	"### SCENE 1: The Empty House",
+	"",
+	"> The theatre is dark except for the ghost light.",
+	"",
+	"MARA",
+	"We are not cancelling opening night because of one missing wall.",
+	"",
+	"JULES",
+	"It is not one wall. It is the wall with the door.",
+	"",
+	"> Mara studies the gap where a drawing room should be.",
+	"",
+	"MARA",
+	"Then we will stage the finest invisible door in the state.",
+].join("\n");
+
+export function getNewPlayTemplate(): string {
+	return newPlayTemplate;
+}
+
+export function getSamplePlayTemplate(): string {
+	return samplePlayTemplate;
+}
+
+export function findTitleValueSelection(documentText: string): SelectionTarget {
+	const titlePrefix = "Title: ";
+	const titleLine = documentText.split(/\r?\n/u)[0] ?? "";
+	if (!titleLine.startsWith(titlePrefix)) {
+		return { line: 0, character: 0 };
+	}
+
+	return {
+		line: 0,
+		character: titlePrefix.length,
+	};
+}
+
 const allowedRenderStyles = new Set(["standard", "condensed"]);
 
 export function getValidatedRenderStyle(style: string): string {
@@ -76,6 +153,12 @@ export function getValidatedRenderStyle(style: string): string {
 		throw new Error(`Unsupported render style: ${style}`);
 	}
 	return style;
+}
+
+export function getRenderStyleDisplayName(style: string): string {
+	return getValidatedRenderStyle(style) === "condensed"
+		? "Acting Edition"
+		: "Manuscript";
 }
 
 export function getPreviewHtml(body: string): string {

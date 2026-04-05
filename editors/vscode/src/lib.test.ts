@@ -4,10 +4,15 @@ import {
 	type DiagnosticLike,
 	type FoldingRangeLike,
 	type RangeLike,
+	type SelectionTarget,
 	type TextDocumentLike,
 	type VscodeFactories,
 	DownstageRenderError,
+	findTitleValueSelection,
+	getNewPlayTemplate,
 	getPreviewHtml,
+	getRenderStyleDisplayName,
+	getSamplePlayTemplate,
 	getValidatedRenderStyle,
 	isCueSuggestionLine,
 	parseRenderDiagnostics,
@@ -128,6 +133,39 @@ describe("validateServerPath", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Templates
+// ---------------------------------------------------------------------------
+
+describe("getNewPlayTemplate", () => {
+	it("starts with a title field for immediate writing", () => {
+		const template = getNewPlayTemplate();
+		expect(template.startsWith("Title: Your Play")).toBe(true);
+		expect(template).toContain("## ACT I");
+	});
+});
+
+describe("getSamplePlayTemplate", () => {
+	it("returns a richer example play", () => {
+		const template = getSamplePlayTemplate();
+		expect(template).toContain("Lanterns After Intermission");
+		expect(template).toContain("### SCENE 1");
+		expect(template).toContain("THE GHOST LIGHT");
+	});
+});
+
+describe("findTitleValueSelection", () => {
+	it("places the cursor after the title prefix", () => {
+		const selection: SelectionTarget = findTitleValueSelection(getNewPlayTemplate());
+		expect(selection).toEqual({ line: 0, character: 7 });
+	});
+
+	it("falls back to the start when the first line is not a title", () => {
+		const selection = findTitleValueSelection("No title here");
+		expect(selection).toEqual({ line: 0, character: 0 });
+	});
+});
+
+// ---------------------------------------------------------------------------
 // getValidatedRenderStyle
 // ---------------------------------------------------------------------------
 
@@ -142,6 +180,16 @@ describe("getValidatedRenderStyle", () => {
 
 	it("rejects unknown styles", () => {
 		expect(() => getValidatedRenderStyle("fancy")).toThrow("Unsupported render style");
+	});
+});
+
+describe("getRenderStyleDisplayName", () => {
+	it("maps standard to Manuscript", () => {
+		expect(getRenderStyleDisplayName("standard")).toBe("Manuscript");
+	});
+
+	it("maps condensed to Acting Edition", () => {
+		expect(getRenderStyleDisplayName("condensed")).toBe("Acting Edition");
 	});
 });
 
