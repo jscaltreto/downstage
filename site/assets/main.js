@@ -122,7 +122,9 @@ for (const button of tryButtons) {
 
     const encoded = btoa(unescape(encodeURIComponent(source)));
     const editorBase = document.documentElement.dataset.editorBase ?? "/editor/";
-    window.open(`${editorBase}?content=${encoded}`, "_blank");
+    const url = new URL(editorBase, window.location.origin);
+    url.searchParams.set("content", encoded);
+    window.open(url.toString(), "_blank");
   });
 }
 
