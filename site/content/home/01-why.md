@@ -13,8 +13,8 @@ cards:
     text: Acts, scenes, cues, stage directions, songs, and verse are not awkward workarounds.
   - title: Clean output
     text: Render PDF or HTML from the same file without rewriting the draft.
-  - title: Track changes over time
-    text: Because the script is plain text, Git can show revisions, compare drafts, and preserve history cleanly.
+  - title: Revision history
+    text: Because the script is plain text, Git can compare drafts and preserve every revision cleanly.
 ---
 If [Fountain](https://fountain.io/) feels too screenplay-shaped and word processors
-keep dragging you into formatting chores, Downstage is the cleaner option.
+keep pulling you into formatting chores, Downstage keeps the focus on the play.

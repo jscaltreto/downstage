@@ -1,11 +1,49 @@
 ---
 layout: layouts/base.njk
 title: Downstage | Plaintext for Playwrights
-description: Downstage helps playwrights draft in plain text, render clean manuscripts, and keep theatre writing readable from first draft to output.
+description: Downstage helps playwrights write in plain text, render clean manuscripts, and keep revision history readable.
 bodyClass: landing-page
 permalink: /
 ---
 <div class="mx-auto max-w-7xl">
+  <button
+    type="button"
+    class="mobile-menu-toggle fixed right-4 top-4 z-50 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-white/15 bg-[rgba(35,22,20,0.92)] text-parchment-200 shadow-stage backdrop-blur-xl lg:hidden"
+    data-mobile-menu-toggle
+    data-mobile-menu-target="home-mobile-menu"
+    data-mobile-menu-backdrop="home-mobile-menu-backdrop"
+    aria-expanded="false"
+    aria-controls="home-mobile-menu"
+    aria-label="Open site menu"
+  >
+    <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2">
+      <path d="M4 7h16"></path>
+      <path d="M4 12h16"></path>
+      <path d="M4 17h16"></path>
+    </svg>
+    <span class="sr-only">Open site menu</span>
+  </button>
+  <div
+    id="home-mobile-menu-backdrop"
+    class="mobile-menu-backdrop hidden lg:hidden"
+    data-mobile-menu-backdrop-panel="home-mobile-menu"
+  ></div>
+  <div
+    id="home-mobile-menu"
+    class="mobile-menu-panel hidden lg:hidden"
+    data-mobile-menu-panel
+    aria-label="Site menu"
+  >
+    <nav class="section-links js-section-nav grid gap-2" aria-label="Page sections">
+      {% for section in collections.homeSections %}
+        {% if section.data.navTitle != false %}
+          <a class="nav-link rounded-xl px-3 py-3 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+        {% endif %}
+      {% endfor %}
+      <a class="nav-link rounded-xl px-3 py-3 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="/docs/">Docs</a>
+      <a class="nav-link rounded-xl px-3 py-3 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage">GitHub</a>
+    </nav>
+  </div>
   <main class="mx-auto grid max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:px-8" id="top">
     <section class="grid min-h-[72vh] place-items-center py-10 sm:min-h-[78vh] sm:py-16">
       <div class="mx-auto max-w-5xl text-center">
@@ -16,16 +54,15 @@ permalink: /
             alt="Downstage logo"
           >
         </div>
-        <h1 class="mx-auto mt-4 max-w-[14ch] font-serif text-5xl leading-none text-parchment-200 sm:text-6xl lg:text-7xl">
-          Write plays, not formatting.
+        <h1 class="mx-auto mt-4 max-w-[16ch] font-serif text-5xl leading-none text-parchment-200 sm:text-6xl lg:text-7xl">
+          Write stage plays in plain text.
         </h1>
-        <p class="mx-auto mt-4 max-w-[32ch] font-serif text-xl leading-tight text-brass-300 sm:text-2xl">
-          Draft in plain text. Render a real script when you need one.
+        <p class="mx-auto mt-4 max-w-[28ch] font-serif text-2xl leading-tight text-brass-300 sm:text-[2rem]">
+          Write plays, not formatting.
         </p>
         <p class="mx-auto mt-5 max-w-3xl text-base leading-8 text-parchment-300 sm:text-lg">
-            Downstage is a playwright-first writing format and toolchain for stage plays.
-            Draft in plain text, render a proper manuscript when you need one, and keep
-            the source readable at every stage.
+          Downstage keeps the source readable, renders a clean manuscript when you
+          need one, and makes revision history easy to follow.
         </p>
         <div class="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <a class="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-br from-brass-500 to-brass-400 px-5 font-semibold text-ember-850" href="#getting-started">Start Writing</a>
@@ -33,7 +70,7 @@ permalink: /
         </div>
       </div>
     </section>
-    <section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] p-4 shadow-stage backdrop-blur-xl" aria-label="Page sections">
+    <nav class="section-links js-section-nav hidden rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] p-4 shadow-stage backdrop-blur-xl lg:block" aria-label="Page sections">
       <div class="flex flex-wrap items-center gap-2">
       {% for section in collections.homeSections %}
         {% if section.data.navTitle != false %}
@@ -57,7 +94,7 @@ permalink: /
         </svg>
       </a>
       </div>
-    </section>
+    </nav>
     {% asyncEach section in collections.homeSections %}
       {% include "partials/section.njk" %}
     {% endeach %}

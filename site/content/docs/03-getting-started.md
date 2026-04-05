@@ -35,8 +35,7 @@ steps:
     after: This creates a PDF by default.
 callout:
   title: "Important:"
-  text: the command line here is small on purpose. Most writers only need a couple of commands to get value out of Downstage.
+  text: the command line here is small on purpose. Most writers only need a couple of commands to get moving.
 ---
-You do not need to learn the whole spec before you begin. Install the
-command-line tool once, create a text file ending in `.ds`, and start with a
-tiny script.
+You do not need to learn the whole spec before you begin. Install Downstage
+once, write a `.ds` file, and start with a tiny script.

@@ -25,9 +25,9 @@
     {% if section.data.steps %}
       <div class="my-5 grid gap-4">
         {% asyncEach step in section.data.steps %}
-          <article class="grid gap-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 md:grid-cols-[auto_minmax(0,1fr)]">
+          <article class="grid min-w-0 gap-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 md:grid-cols-[auto_minmax(0,1fr)]">
             <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-brass-500 to-brass-400 font-extrabold text-ember-850">{{ loop.index }}</span>
-            <div>
+            <div class="min-w-0">
               <h3 class="font-serif text-2xl text-parchment-200">{{ step.title }}</h3>
               {% if step.text %}<p class="mt-2 text-base leading-7 text-parchment-300">{{ step.text }}</p>{% endif %}
               {% if step.code %}{% renderCodeBlock step.code, (step.codeLang or "text"), (step.codeLabel or step.codeLang or "text") %}{% endif %}
@@ -51,9 +51,9 @@
     {% endif %}
 
     {% if section.data.examplePairs %}
-      <div class="grid gap-4">
+      <div class="grid min-w-0 gap-4">
         {% asyncEach item in section.data.examplePairs %}
-          <div>
+          <div class="min-w-0">
             {% if item.text %}<p class="mt-2 text-base leading-7 text-parchment-300">{{ item.text | safe }}</p>{% endif %}
             {% renderCodeBlock item.code, (item.lang or "text"), (item.label or item.lang or "text") %}
           </div>
@@ -62,7 +62,7 @@
     {% endif %}
 
     {% if section.data.examples %}
-      <div class="grid gap-4">
+      <div class="grid min-w-0 gap-4">
         {% asyncEach example in section.data.examples %}
           {% set lang = "text" %}
           {% set label = "text" %}

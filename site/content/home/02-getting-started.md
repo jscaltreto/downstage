@@ -2,7 +2,7 @@
 permalink: false
 id: getting-started
 kicker: Get Started
-title: Three steps, not a software project
+title: Start in three steps
 navTitle: Get Started
 order: 2
 steps:
@@ -26,6 +26,6 @@ steps:
     codeLabel: shell
     code: downstage render my-play.ds
 callout:
-  title: Need details?
+  title: Need the reference?
   text: The full reference, examples, and syntax guide live in <a href="/docs/">the docs</a>.
 ---

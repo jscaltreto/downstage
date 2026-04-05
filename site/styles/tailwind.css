@@ -26,6 +26,27 @@
     @apply translate-x-0.5 bg-white/5 text-parchment-200;
   }
 
+  .mobile-menu-backdrop {
+    @apply fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px];
+  }
+
+  .mobile-menu-panel {
+    @apply fixed right-4 top-4 z-40 flex max-h-[calc(100vh-2rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.98)] p-5 shadow-stage backdrop-blur-xl transition-transform duration-200 ease-out;
+    transform: translateX(calc(100% + 1rem));
+  }
+
+  .mobile-menu-panel.is-open {
+    transform: translateX(0);
+  }
+
+  .button-primary {
+    @apply inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-br from-brass-500 to-brass-400 px-5 font-semibold text-ember-850 no-underline;
+  }
+
+  .button-secondary {
+    @apply inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 font-semibold text-parchment-200 no-underline;
+  }
+
   .prose-block > p {
     @apply my-0 text-base leading-8 text-parchment-300;
   }
@@ -50,6 +71,14 @@
 
   .shiki-frame .shiki code {
     @apply !bg-transparent;
+  }
+
+  .code-block-shell {
+    @apply min-w-0 max-w-full;
+  }
+
+  .shiki-frame {
+    @apply max-w-full;
   }
 
   .code-block-header {

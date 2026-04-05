@@ -8,16 +8,16 @@ order: 5
 cardsClass: tool-grid
 cards:
   - title: CLI
-    text: The command-line tool. It is just the way you ask Downstage to check or render your file.
+    text: The command-line tool you use to check or render a play.
   - title: Renderer
-    text: The part that turns your plain text play into a PDF or HTML document.
+    text: The part that turns your plain-text play into a PDF or HTML document.
   - title: Language Server
-    text: The behind-the-scenes helper that lets editors show warnings, completions, and document structure.
+    text: The editor helper that powers warnings, completions, and document structure.
   - title: VS Code Extension
-    text: A packaged editor setup so VS Code users can get syntax highlighting, previews, and commands quickly.
+    text: A packaged editor setup for VS Code users who want syntax highlighting, previews, and commands quickly.
 ---
-The repo mentions a CLI, a renderer, an LSP, and editor extensions. That can
-sound more technical than it is, so here is the plain version:
+You only need a couple of pieces on day one: a way to check the file and a way
+to render it. The rest helps in editors and grows with you.
 
-You do not need every piece on day one. Start with writing and rendering. Add
-editor niceties when they are useful.
+Under the hood, those pieces are called a CLI, a renderer, a language server,
+and editor extensions.

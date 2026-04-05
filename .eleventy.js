@@ -48,9 +48,10 @@ module.exports = function (eleventyConfig) {
       <div class="code-block-shell group my-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1117] shadow-stage">
         <div class="code-block-header">
           <span class="code-block-label">${escapeHtml(displayLabel)}</span>
-          <button type="button" class="copy-code-button">
+          <button type="button" class="copy-code-button" aria-label="Copy code to clipboard">
             Copy
           </button>
+          <span class="copy-code-status sr-only" aria-live="polite"></span>
         </div>
         <div class="shiki-frame overflow-x-auto p-0">${rendered}</div>
         <template class="copy-source">${escapeHtml(code || "")}</template>
