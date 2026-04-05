@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/jscaltreto/downstage/compare/v0.3.0...v0.4.0) (2026-04-05)
+
+
+### Features
+
+* **vscode:** guide first-run playwriting flow ([#95](https://github.com/jscaltreto/downstage/issues/95)) ([7d49417](https://github.com/jscaltreto/downstage/commit/7d494174643aca2594b22cf83b8915208856a42f))
+* **web:** improve browser editor onboarding ([#97](https://github.com/jscaltreto/downstage/issues/97)) ([68a4c61](https://github.com/jscaltreto/downstage/commit/68a4c617561f66eba08a060e95effd1a62ab0164))
+
 ## [0.3.0](https://github.com/jscaltreto/downstage/compare/v0.2.0...v0.3.0) (2026-04-05)
 
 
