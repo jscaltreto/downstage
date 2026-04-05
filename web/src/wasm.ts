@@ -40,7 +40,28 @@ export async function initWasm(): Promise<void> {
     result = await WebAssembly.instantiate(bytes, go.importObject);
   }
 
-  go.run(result.instance);
+  const runPromise = go.run(result.instance);
+  await waitForDownstage(runPromise);
+}
+
+async function waitForDownstage(runPromise: Promise<void>): Promise<void> {
+  const timeoutMs = 5000;
+  const start = performance.now();
+
+  while (!window.downstage) {
+    if (performance.now() - start >= timeoutMs) {
+      throw new Error("timed out waiting for WASM runtime to initialize");
+    }
+
+    const state = await Promise.race([
+      new Promise<"tick">((resolve) => setTimeout(() => resolve("tick"), 0)),
+      runPromise.then(() => "exit" as const),
+    ]);
+
+    if (state === "exit" && !window.downstage) {
+      throw new Error("WASM runtime exited before initialization completed");
+    }
+  }
 }
 
 export function parse(source: string) {
