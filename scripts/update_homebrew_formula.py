@@ -72,11 +72,12 @@ def asset_info(release: dict, checksums: dict[str, str], name: str) -> tuple[str
 
 
 def formula_content(version: str, release: dict, checksums: dict[str, str]) -> str:
+    archive_version = version.removeprefix("v")
     assets = {
-        "darwin_amd64": asset_info(release, checksums, f"downstage_{version}_Darwin_x86_64.tar.gz"),
-        "darwin_arm64": asset_info(release, checksums, f"downstage_{version}_Darwin_arm64.tar.gz"),
-        "linux_amd64": asset_info(release, checksums, f"downstage_{version}_Linux_x86_64.tar.gz"),
-        "linux_arm64": asset_info(release, checksums, f"downstage_{version}_Linux_arm64.tar.gz"),
+        "darwin_amd64": asset_info(release, checksums, f"downstage_{archive_version}_Darwin_x86_64.tar.gz"),
+        "darwin_arm64": asset_info(release, checksums, f"downstage_{archive_version}_Darwin_arm64.tar.gz"),
+        "linux_amd64": asset_info(release, checksums, f"downstage_{archive_version}_Linux_x86_64.tar.gz"),
+        "linux_arm64": asset_info(release, checksums, f"downstage_{archive_version}_Linux_arm64.tar.gz"),
     }
 
     return f"""class Downstage < Formula
