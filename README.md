@@ -5,17 +5,20 @@
 # Downstage
 
 [![Docs](https://img.shields.io/badge/docs-pages-firebrick)](https://www.getdownstage.com/)
-[![Try It Live](https://img.shields.io/badge/try_it-live_editor-e3a857)](https://www.getdownstage.com/editor/)
+[![Start Writing](https://img.shields.io/badge/start_writing-web_editor-e3a857)](https://www.getdownstage.com/editor/)
 
-A plaintext markup language for stage plays.
+A plain-text playwriting format with a simple way to write, preview, and
+export PDF manuscripts.
 
 ## What is Downstage?
 
 Downstage is a plaintext markup language for writing stage plays, inspired by
 [Fountain](https://fountain.io/) (for screenplays) and the archived
 [TheatreScript](https://github.com/contrapunctus-1/TheatreScript) spec. It
-ships with an LSP server for editor integration and CLI tools for parsing,
-validation, and rendering to PDF and HTML. Files use the `.ds` extension.
+gives you three clear ways to start: the Web Editor, the VS Code
+extension, or the command line. Files use the `.ds` extension.
+
+If you just want to start, open the [Web Editor](https://www.getdownstage.com/editor/).
 
 Read the [Syntax Guide](https://www.getdownstage.com/).
 
@@ -116,6 +119,9 @@ SONG END
 - CLI tools for parsing and validation
 
 ## Installation
+
+If you are new to Downstage, you probably want the Web Editor or the VS
+Code extension before you want installation steps.
 
 ```
 go install github.com/jscaltreto/downstage@latest
@@ -231,7 +237,7 @@ Extension Development Host.
 
 ### Web Editor
 
-[**Try it live**](https://www.getdownstage.com/editor/) — a
+[**Start writing**](https://www.getdownstage.com/editor/) in the Web Editor, a
 browser-based editor with live preview, syntax highlighting, and PDF export.
 No install required; the entire pipeline runs client-side via WebAssembly.
 

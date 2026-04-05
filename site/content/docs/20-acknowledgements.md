@@ -3,6 +3,7 @@ permalink: false
 id: acknowledgements
 kicker: Acknowledgements
 title: Inspiration and prior art
+navTitle: Acknowledgements
 order: 20
 ---
 Downstage is inspired by [Fountain](https://fountain.io/), which showed the
@@ -13,3 +14,7 @@ specification, which explored theatre-native structure directly.
 This project builds on those ideas with a more complete toolchain for stage
 writing: rendering, validation, and editor support around the same readable
 source format.
+
+Downstage was created by [Jake Scaltreto](https://github.com/jscaltreto), a
+software developer and playwright who wanted a better way to write plays than
+fighting a word processor.

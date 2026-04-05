@@ -1,10 +1,8 @@
-![Downstage](images/icon.png)
-
 # Downstage for VS Code
 
 Downstage turns VS Code into a plain-text playwriting desk. Start a new play,
-watch pages update in live preview, and export a clean PDF manuscript when
-you are ready.
+watch pages update in live preview, and export a clean PDF manuscript or
+acting edition when you are ready.
 
 ## Quick Start
 
@@ -12,7 +10,7 @@ you are ready.
 2. Run `Downstage: New Play`.
 3. Write your title and first scene.
 4. Run `Downstage: Open Live Preview` to see pages update as you work.
-5. Run `Downstage: Export Manuscript PDF` when you want a manuscript file.
+5. Run `Downstage: Export Manuscript PDF` or `Downstage: Export Acting Edition PDF` when you want a shareable file.
 
 You do not need to start in the terminal. The extension opens a start guide on
 first launch with direct actions for `New Play`, `Open Sample Play`, and
@@ -28,13 +26,13 @@ first launch with direct actions for `New Play`, `Open Sample Play`, and
   format in action.
 - The cursor lands in the title field so you can start typing immediately.
 
-### Live Preview
+### Live manuscript preview
 
 Open a live manuscript preview inside VS Code while you write. If you launch
 preview before opening a script, Downstage creates a new play first so you are
 not blocked on file setup.
 
-### PDF Rendering
+### PDF export
 
 Export the current script to either a Manuscript PDF or an Acting Edition PDF
 from the command palette. The generated file opens automatically unless you
@@ -49,7 +47,7 @@ Downstage includes:
 - Diagnostics in the Problems panel
 - Snippets for acts, scenes, cues, stage directions, and songs
 
-### Snippets
+### Snippets for common structures
 
 Type one of these snippet prefixes inside a Downstage document:
 
@@ -59,6 +57,11 @@ Type one of these snippet prefixes inside a Downstage document:
 - `cue` for a character cue with dialogue
 - `stage` for a stage direction
 - `song` for a song block
+
+### Syntax highlighting
+
+Highlighting covers metadata, headings, stage directions, songs,
+parentheticals, character cues, aliases, verse, and comments.
 
 ## Commands
 
@@ -99,6 +102,9 @@ If your platform is not listed, or if you want to use a different binary, set
 `downstage.server.path` in VS Code settings. If no bundled binary is present,
 the extension also tries `downstage` on your system path.
 
+Most users can ignore this, install the extension, open a script, and start
+writing.
+
 Release notes for the extension come from the repository root
 [`CHANGELOG.md`](../../CHANGELOG.md).
 
@@ -119,6 +125,7 @@ separate release track.
 
 ## Related
 
+- [Start Here](https://www.getdownstage.com/start/)
 - [Downstage documentation](https://www.getdownstage.com/docs/)
 - [GitHub repository](https://github.com/jscaltreto/downstage)
 

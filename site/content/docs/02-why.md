@@ -13,10 +13,8 @@ cards:
     text: Plain text travels well, works with version history, and does not trap your script in one app.
   - title: Theatre-first, not screenplay-first
     text: Downstage is built for stage writing, so common playwriting structures do not feel bolted on.
-list:
-  - Use it when you want a clean source file you can read anywhere.
-  - Use it when you want manuscript output from the same draft you are editing.
-  - Use it when you want lightweight tools without extra setup.
+  - title: Portable
+    text: It works on macOS, Windows, Linux, and in the Web Editor without locking your script to one device.
 ---
 If [Fountain](https://fountain.io/) feels too screenwriting-shaped and a word
 processor keeps nudging you into layout work, Downstage gives you a plain-text
