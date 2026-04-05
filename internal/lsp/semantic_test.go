@@ -65,7 +65,7 @@ func TestSortTokens(t *testing.T) {
 }
 
 func TestComputeSemanticTokens_Nil(t *testing.T) {
-	result := computeSemanticTokens(nil, nil)
+	result := ComputeSemanticTokens(nil, nil)
 	if result != nil {
 		t.Errorf("expected nil for nil doc, got %v", result)
 	}
@@ -85,7 +85,7 @@ func TestComputeSemanticTokens_WithDialogue(t *testing.T) {
 	})
 	doc := &ast.Document{Body: []ast.Node{dialogue}}
 
-	tokens := computeSemanticTokens(doc, nil)
+	tokens := ComputeSemanticTokens(doc, nil)
 	// Should produce one token for the character name.
 	if len(tokens) != 5 {
 		t.Fatalf("expected 5 values (1 token), got %d", len(tokens))
@@ -116,7 +116,7 @@ func TestComputeSemanticTokens_IncludesDialogueParenthetical(t *testing.T) {
 	})
 
 	doc := &ast.Document{Body: []ast.Node{dialogue}}
-	tokens := computeSemanticTokens(doc, nil)
+	tokens := ComputeSemanticTokens(doc, nil)
 	expected := []uint32{
 		5, 0, 6, tokenTypeType, 0,
 		1, 0, 7, tokenTypeComment, 0,
@@ -140,7 +140,7 @@ func TestComputeSemanticTokens_UsesUTF16Columns(t *testing.T) {
 	})
 
 	doc := &ast.Document{Body: []ast.Node{dialogue}}
-	tokens := computeSemanticTokens(doc, nil)
+	tokens := ComputeSemanticTokens(doc, nil)
 	expected := []uint32{3, 0, 3, tokenTypeType, 0}
 	if !reflect.DeepEqual(tokens, expected) {
 		t.Errorf("expected %v, got %v", expected, tokens)
@@ -161,7 +161,7 @@ func TestComputeSemanticTokens_SectionStartsAfterHeadingMarker(t *testing.T) {
 		},
 	}
 
-	tokens := computeSemanticTokens(doc, nil)
+	tokens := ComputeSemanticTokens(doc, nil)
 	expected := []uint32{2, 2, uint32(len("Dramatis Personae")), tokenTypeNamespace, 0}
 	if !reflect.DeepEqual(tokens, expected) {
 		t.Errorf("expected %v, got %v", expected, tokens)
@@ -183,7 +183,7 @@ func TestComputeSemanticTokens_ActHeadingUsesFullHeader(t *testing.T) {
 		},
 	}
 
-	tokens := computeSemanticTokens(doc, nil)
+	tokens := ComputeSemanticTokens(doc, nil)
 	expected := []uint32{4, 3, uint32(len("ACT I")), tokenTypeNamespace, 0}
 	if !reflect.DeepEqual(tokens, expected) {
 		t.Errorf("expected %v, got %v", expected, tokens)
@@ -206,7 +206,7 @@ func TestComputeSemanticTokens_SceneHeadingIncludesSubtitle(t *testing.T) {
 		},
 	}
 
-	tokens := computeSemanticTokens(doc, nil)
+	tokens := ComputeSemanticTokens(doc, nil)
 	expected := []uint32{7, 4, uint32(len("SCENE 2: The Garden")), tokenTypeNamespace, 0}
 	if !reflect.DeepEqual(tokens, expected) {
 		t.Errorf("expected %v, got %v", expected, tokens)
@@ -227,7 +227,7 @@ func TestComputeSemanticTokens_SceneHeadingWithoutNumberUsesKeyword(t *testing.T
 		},
 	}
 
-	tokens := computeSemanticTokens(doc, nil)
+	tokens := ComputeSemanticTokens(doc, nil)
 	expected := []uint32{9, 3, uint32(len("SCENE")), tokenTypeNamespace, 0}
 	if !reflect.DeepEqual(tokens, expected) {
 		t.Errorf("expected %v, got %v", expected, tokens)
@@ -254,7 +254,7 @@ func TestComputeSemanticTokens_InlineFormattingUsesNodeRange(t *testing.T) {
 		},
 	}
 
-	tokens := computeSemanticTokens(doc, nil)
+	tokens := ComputeSemanticTokens(doc, nil)
 	expected := []uint32{4, 8, 8, tokenTypeString, 0}
 	if !reflect.DeepEqual(tokens, expected) {
 		t.Errorf("expected %v, got %v", expected, tokens)
