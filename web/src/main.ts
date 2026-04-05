@@ -96,11 +96,20 @@ async function main() {
     "export-pdf",
   ) as HTMLButtonElement;
 
+  const copyBtn = document.getElementById(
+    "copy-source",
+  ) as HTMLButtonElement;
+  const saveBtn = document.getElementById(
+    "save-source",
+  ) as HTMLButtonElement;
+
   await initWasm();
 
   loading.style.display = "none";
   workspace.classList.remove("hidden");
   exportBtn.disabled = false;
+  copyBtn.disabled = false;
+  saveBtn.disabled = false;
 
   const previewPlugin = createPreviewPlugin(
     iframe,
@@ -128,6 +137,32 @@ async function main() {
   });
 
   setupPdfExport(exportBtn, styleSelect, () => editorView);
+
+  copyBtn.addEventListener("click", async () => {
+    if (!editorView) return;
+    const source = editorView.state.doc.toString();
+    try {
+      await navigator.clipboard.writeText(source);
+      const prev = copyBtn.textContent;
+      copyBtn.textContent = "Copied";
+      setTimeout(() => { copyBtn.textContent = prev; }, 1500);
+    } catch {
+      copyBtn.textContent = "Failed";
+      setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+    }
+  });
+
+  saveBtn.addEventListener("click", () => {
+    if (!editorView) return;
+    const source = editorView.state.doc.toString();
+    const blob = new Blob([source], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "untitled.ds";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 }
 
 main();

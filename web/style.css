@@ -54,6 +54,12 @@ html, body {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
 }
 
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 #toolbar h1 {
   font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "URW Palladio L", serif;
   font-size: 20px;
@@ -64,6 +70,22 @@ html, body {
 #toolbar h1 a {
   color: inherit;
   text-decoration: none;
+}
+
+#docs-link {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.15s, color 0.15s;
+}
+
+#docs-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--parchment-200);
 }
 
 .toolbar-controls {
@@ -90,6 +112,31 @@ html, body {
 .toolbar-controls select:focus {
   outline: 2px solid var(--brass-500);
   outline-offset: 2px;
+}
+
+#copy-source,
+#save-source {
+  padding: 7px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--parchment-200);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#copy-source:not(:disabled):hover,
+#save-source:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#copy-source:disabled,
+#save-source:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 #export-pdf {
