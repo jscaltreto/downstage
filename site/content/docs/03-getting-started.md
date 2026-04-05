@@ -35,7 +35,7 @@ steps:
     after: This creates a PDF by default.
 callout:
   title: "Want to skip the install?"
-  text: '<a href="/editor/">Try the web editor</a> — it runs entirely in your browser with live preview and PDF export, no install required.'
+  text: '<a href="../editor/">Try the web editor</a> — it runs entirely in your browser with live preview and PDF export, no install required.'
 ---
 You do not need to learn the whole spec before you begin. Install Downstage
 once, write a `.ds` file, and start with a tiny script.
