@@ -50,7 +50,7 @@ module.exports = function (eleventyConfig) {
       : "";
 
     return `
-      <div class="code-block-shell group my-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1117] shadow-stage" ${language === "downstage" ? 'data-lang="downstage"' : ""}>
+      <div class="code-block-shell group my-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1117] shadow-stage">
         <div class="code-block-header">
           <span class="code-block-label">${escapeHtml(displayLabel)}</span>
           ${tryButton}

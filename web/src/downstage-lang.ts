@@ -5,8 +5,8 @@ import {
   ViewPlugin,
   type ViewUpdate,
 } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";
-import { semanticTokens } from "./wasm";
+import { RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import { semanticTokens, tokenTypeNames } from "./wasm";
 
 const tokenClassMap: Record<string, string> = {
   namespace: "cm-ds-namespace",
@@ -17,19 +17,18 @@ const tokenClassMap: Record<string, string> = {
   string: "cm-ds-string",
 };
 
-const tokenTypeNames = [
-  "namespace",
-  "type",
-  "comment",
-  "keyword",
-  "property",
-  "string",
-];
+// Cached at init time from the WASM bridge.
+let cachedTypeNames: string[] | null = null;
+function getTypeNames(): string[] {
+  if (!cachedTypeNames) cachedTypeNames = tokenTypeNames();
+  return cachedTypeNames;
+}
 
 function buildDecorations(view: EditorView): DecorationSet {
   const doc = view.state.doc;
   const source = doc.toString();
   const tokens = semanticTokens(source);
+  const typeNames = getTypeNames();
 
   const builder = new RangeSetBuilder<Decoration>();
   const decos: { from: number; to: number; deco: Decoration }[] = [];
@@ -50,12 +49,10 @@ function buildDecorations(view: EditorView): DecorationSet {
       col += deltaCol;
     }
 
-    const typeName = tokenTypeNames[tokenType];
+    const typeName = typeNames[tokenType];
     const className = tokenClassMap[typeName];
     if (!className) continue;
 
-    // Convert 0-based line/col to CM absolute position.
-    // Lines in CM are 1-based.
     if (line + 1 > doc.lines) continue;
     const lineObj = doc.line(line + 1);
     const from = lineObj.from + col;
@@ -70,7 +67,6 @@ function buildDecorations(view: EditorView): DecorationSet {
     });
   }
 
-  // RangeSetBuilder requires sorted, non-overlapping ranges.
   decos.sort((a, b) => a.from - b.from || a.to - b.to);
   for (const d of decos) {
     builder.add(d.from, d.to, d.deco);
@@ -79,29 +75,47 @@ function buildDecorations(view: EditorView): DecorationSet {
   return builder.finish();
 }
 
-export const downstageHighlighter = ViewPlugin.fromClass(
+const refreshHighlights = StateEffect.define<DecorationSet>();
+
+const highlightField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (e.is(refreshHighlights)) return e.value;
+    }
+    return tr.docChanged ? Decoration.none : value;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+const highlightPlugin = ViewPlugin.fromClass(
   class {
-    decorations: DecorationSet;
     pending: ReturnType<typeof setTimeout> | null = null;
 
     constructor(view: EditorView) {
-      this.decorations = buildDecorations(view);
+      this.scheduleUpdate(view, 0);
     }
 
     update(update: ViewUpdate) {
       if (!update.docChanged) return;
+      this.scheduleUpdate(update.view, 150);
+    }
 
+    scheduleUpdate(view: EditorView, delay: number) {
       if (this.pending) clearTimeout(this.pending);
       this.pending = setTimeout(() => {
-        this.decorations = buildDecorations(update.view);
-        update.view.dispatch({ effects: [] }); // trigger redraw
+        const decos = buildDecorations(view);
+        view.dispatch({ effects: refreshHighlights.of(decos) });
         this.pending = null;
-      }, 150);
+      }, delay);
     }
 
     destroy() {
       if (this.pending) clearTimeout(this.pending);
     }
   },
-  { decorations: (v) => v.decorations },
 );
+
+export const downstageHighlighter = [highlightField, highlightPlugin];

@@ -83,9 +83,11 @@ func renderPDF(_ js.Value, args []js.Value) any {
 		cfg.Style = render.StyleCondensed
 	}
 
-	nr := pdfrender.NewRenderer(cfg)
+	var nr render.NodeRenderer
 	if cfg.Style == render.StyleCondensed {
 		nr = pdfrender.NewCondensedRenderer(cfg)
+	} else {
+		nr = pdfrender.NewRenderer(cfg)
 	}
 
 	var buf bytes.Buffer
