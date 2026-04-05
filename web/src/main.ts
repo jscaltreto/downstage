@@ -7,6 +7,7 @@ import { downstageHighlighter } from "./downstage-lang";
 import { downstageLinter } from "./diagnostics";
 import { createPreviewPlugin } from "./preview";
 import { setupPdfExport } from "./pdf-export";
+import { createScrollSyncPlugin } from "./scroll-sync";
 
 const defaultContent = `Title: The Example Play
 Author: Your Name
@@ -116,6 +117,7 @@ async function main() {
     styleSelect,
     () => editorView,
   );
+  const scrollSyncPlugin = createScrollSyncPlugin(iframe);
 
   const state = EditorState.create({
     doc: getInitialContent(),
@@ -127,6 +129,7 @@ async function main() {
       downstageHighlighter,
       downstageLinter,
       previewPlugin,
+      scrollSyncPlugin,
       EditorView.lineWrapping,
     ],
   });
