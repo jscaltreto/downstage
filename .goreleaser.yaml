@@ -63,7 +63,6 @@ signs:
       - ${artifact}
     env:
       - COSIGN_YES=true
-    if: "{{ not .IsSnapshot }}"
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
