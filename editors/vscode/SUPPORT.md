@@ -8,7 +8,7 @@ Please open an issue on GitHub:
 ## Documentation
 
 The Downstage language reference and user guide are available at:
-<https://jscaltreto.github.io/downstage/>
+<https://www.getdownstage.com/docs/>
 
 ## Extension Configuration
 

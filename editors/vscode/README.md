@@ -3,13 +3,13 @@
 # Downstage for VS Code
 
 Downstage is a VS Code extension for writing stage plays in
-[Downstage](https://jscaltreto.github.io/downstage/) markup. It provides full
+[Downstage](https://www.getdownstage.com/docs/) markup. It provides full
 LSP support, live PDF preview, render commands, snippets, diagnostics, and
 TextMate syntax highlighting.
 
 ## Quick Start
 
-1. Install this extension from the VS Code Marketplace.
+1. Install this extension from the Visual Studio Marketplace or Open VSX.
 2. On supported release builds, the extension uses its bundled `downstage`
    binary automatically.
 3. If you want to override that binary or you are on an unsupported platform,
@@ -101,7 +101,7 @@ Release notes for the extension come from the repository root
 
 ## Related
 
-- [Downstage documentation](https://jscaltreto.github.io/downstage/)
+- [Downstage documentation](https://www.getdownstage.com/docs/)
 - [GitHub repository](https://github.com/jscaltreto/downstage)
 
 ## Development
