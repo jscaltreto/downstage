@@ -69,6 +69,7 @@ module.exports = function (eleventyConfig) {
   });
 
   eleventyConfig.addPassthroughCopy({ "downstage_logo.png": "downstage_logo.png" });
+  eleventyConfig.addPassthroughCopy({ "editors/vscode/images/icon.png": "favicon.png" });
   eleventyConfig.addPassthroughCopy({ "web/dist": "editor" });
   eleventyConfig.addGlobalData("assetManifest", () => {
     const manifestPath = path.join(__dirname, "dist", "asset-manifest.json");
