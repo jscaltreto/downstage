@@ -2,14 +2,15 @@
   "name": "downstage-site",
   "private": true,
   "scripts": {
-    "build:css": "tailwindcss -c tailwind.config.js -i ./site/styles/tailwind.css -o ./dist/assets/styles.css --minify",
-    "build:editor": "make wasm && cd web && npm install && npm run build",
-    "build:site": "npm run build:css && npm run build:editor && eleventy",
-    "serve:site": "npm run build:css && npm run build:editor && eleventy --serve"
+    "build:assets": "vite build",
+    "build:editor": "make wasm && npm --prefix web run build",
+    "build:site": "npm run build:assets && npm run build:editor && eleventy",
+    "serve:site": "npm run build:assets && npm run build:editor && eleventy --serve"
   },
   "devDependencies": {
     "@11ty/eleventy": "^3.1.2",
     "shiki": "^1.29.2",
-    "tailwindcss": "^3.4.19"
+    "tailwindcss": "^3.4.19",
+    "vite": "^8.0.3"
   }
 }

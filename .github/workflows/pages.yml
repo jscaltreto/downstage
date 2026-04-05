@@ -48,11 +48,11 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Build WASM
-        run: make wasm
-
       - name: Install site dependencies
         run: npm ci
+
+      - name: Install web editor dependencies
+        run: npm --prefix web ci
 
       - name: Build site
         env:
