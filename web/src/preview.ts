@@ -12,7 +12,26 @@ export function createPreviewPlugin(
   function updatePreview(source: string) {
     const style = styleSelect.value;
     const html = renderHTML(source, style);
+
+    // Save the current scroll position before replacing content.
+    const scrollEl =
+      iframe.contentDocument?.scrollingElement ??
+      iframe.contentDocument?.documentElement;
+    const savedScroll = scrollEl?.scrollTop ?? 0;
+
     iframe.srcdoc = html;
+
+    // Restore scroll position once the new content loads.
+    iframe.addEventListener(
+      "load",
+      () => {
+        const el =
+          iframe.contentDocument?.scrollingElement ??
+          iframe.contentDocument?.documentElement;
+        if (el) el.scrollTop = savedScroll;
+      },
+      { once: true },
+    );
   }
 
   styleSelect.addEventListener("change", () => {
