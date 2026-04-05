@@ -26,6 +26,6 @@ steps:
     codeLabel: shell
     code: downstage render my-play.ds
 callout:
-  title: Need the reference?
-  text: The full reference, examples, and syntax guide live in <a href="docs/">the docs</a>.
+  title: "Want to skip the install?"
+  text: '<a href="../editor/">Try the web editor</a> — it runs entirely in your browser with live preview and PDF export, no install required.'
 ---

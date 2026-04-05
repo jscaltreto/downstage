@@ -4,8 +4,8 @@
 
 # Downstage
 
-[![Docs](https://img.shields.io/badge/docs-pages-firebrick)](https://jscaltreto.github.io/downstage/)
-[![Try It Live](https://img.shields.io/badge/try_it-live_editor-e3a857)](https://jscaltreto.github.io/downstage/editor/)
+[![Docs](https://img.shields.io/badge/docs-pages-firebrick)](https://www.getdownstage.com/)
+[![Try It Live](https://img.shields.io/badge/try_it-live_editor-e3a857)](https://www.getdownstage.com/editor/)
 
 A plaintext markup language for stage plays.
 
@@ -17,7 +17,7 @@ Downstage is a plaintext markup language for writing stage plays, inspired by
 ships with an LSP server for editor integration and CLI tools for parsing,
 validation, and rendering to PDF and HTML. Files use the `.ds` extension.
 
-Read the [Syntax Guide](https://jscaltreto.github.io/downstage/).
+Read the [Syntax Guide](https://www.getdownstage.com/).
 
 ## Website
 
@@ -231,7 +231,7 @@ Extension Development Host.
 
 ### Web Editor
 
-[**Try it live**](https://jscaltreto.github.io/downstage/editor/) — a
+[**Try it live**](https://www.getdownstage.com/editor/) — a
 browser-based editor with live preview, syntax highlighting, and PDF export.
 No install required; the entire pipeline runs client-side via WebAssembly.
 
