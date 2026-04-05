@@ -5,6 +5,7 @@
 # Downstage
 
 [![Docs](https://img.shields.io/badge/docs-pages-firebrick)](https://jscaltreto.github.io/downstage/)
+[![Try It Live](https://img.shields.io/badge/try_it-live_editor-e3a857)](https://jscaltreto.github.io/downstage/editor/)
 
 A plaintext markup language for stage plays.
 
@@ -226,6 +227,21 @@ npm run compile
 
 Then open the `editors/vscode` folder in VS Code and press `F5` to launch an
 Extension Development Host.
+
+### Web Editor
+
+[**Try it live**](https://jscaltreto.github.io/downstage/editor/) — a
+browser-based editor with live preview, syntax highlighting, and PDF export.
+No install required; the entire pipeline runs client-side via WebAssembly.
+
+For local development:
+
+```bash
+make web      # Build WASM binary + bundle JS
+make web-dev  # Serve at http://localhost:8080
+```
+
+See [`web/README.md`](web/README.md) for details.
 
 ## Language Overview
 

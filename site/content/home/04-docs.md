@@ -9,6 +9,9 @@ actions:
   - label: Read the docs
     href: /docs/
     kind: primary
+  - label: Try it live
+    href: /editor/
+    kind: secondary
   - label: Read the spec
     href: https://github.com/jscaltreto/downstage/blob/main/SPEC.md
     kind: secondary

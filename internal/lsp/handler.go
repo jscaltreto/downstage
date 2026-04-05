@@ -79,7 +79,7 @@ func (h *handler) handleInitialize(ctx context.Context, reply jsonrpc2.Replier, 
 			SemanticTokensProvider: semanticTokensCapability{
 				Full: true,
 				Legend: protocol.SemanticTokensLegend{
-					TokenTypes:     semanticTokenTypesLegend(),
+					TokenTypes:     SemanticTokenTypesLegend(),
 					TokenModifiers: []protocol.SemanticTokenModifiers{},
 				},
 			},
@@ -157,7 +157,7 @@ func (h *handler) handleSemanticTokensFull(ctx context.Context, reply jsonrpc2.R
 		return reply(ctx, &protocol.SemanticTokens{}, nil)
 	}
 
-	tokens := computeSemanticTokens(doc.doc, doc.errors)
+	tokens := ComputeSemanticTokens(doc.doc, doc.errors)
 	return reply(ctx, &protocol.SemanticTokens{Data: tokens}, nil)
 }
 

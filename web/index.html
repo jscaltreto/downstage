@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Downstage Editor</title>
+  <meta name="description" content="Write stage plays in your browser with live preview and PDF export. No install required.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="toolbar">
+      <div class="toolbar-left">
+        <h1><a href="../">Downstage</a></h1>
+        <a id="docs-link" href="../docs/">Docs</a>
+      </div>
+      <div class="toolbar-controls">
+        <label for="style-select">Style:</label>
+        <select id="style-select">
+          <option value="standard">Standard</option>
+          <option value="condensed">Condensed</option>
+        </select>
+        <button id="copy-source" disabled>Copy</button>
+        <button id="save-source" disabled>Save .ds</button>
+        <button id="export-pdf" disabled>Export PDF</button>
+      </div>
+    </header>
+    <div id="loading">Loading Downstage editor&hellip;</div>
+    <main id="workspace" class="hidden">
+      <div id="editor-pane"></div>
+      <div id="preview-pane">
+        <iframe id="preview" sandbox="allow-same-origin" title="Live preview"></iframe>
+      </div>
+    </main>
+  </div>
+  <script src="wasm_exec.js"></script>
+  <script type="module" src="bundle.js"></script>
+</body>
+</html>

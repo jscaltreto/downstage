@@ -41,6 +41,10 @@ jobs:
         id: build
         run: make
 
+      - name: Build WASM
+        id: wasm
+        run: GOOS=js GOARCH=wasm go build -o /dev/null ./cmd/wasm/
+
       - name: Job summary
         if: always()
         run: |
@@ -50,3 +54,4 @@ jobs:
           echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Checks | \`${{ steps.checks.outcome }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build  | \`${{ steps.build.outcome }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| WASM   | \`${{ steps.wasm.outcome }}\` |" >> "$GITHUB_STEP_SUMMARY"

@@ -20,8 +20,15 @@ const (
 	tokenTypeString    = 5 // inline formatting (bold/italic)
 )
 
-// semanticTokenTypesLegend returns the legend of token types registered with the client.
-func semanticTokenTypesLegend() []protocol.SemanticTokenTypes {
+// SemanticTokenTypeNames lists the token type names in index order.
+// This is useful for consumers (e.g. WASM bridge) that need the legend
+// without depending on LSP protocol types.
+var SemanticTokenTypeNames = []string{
+	"namespace", "type", "comment", "keyword", "property", "string",
+}
+
+// SemanticTokenTypesLegend returns the legend of token types registered with the client.
+func SemanticTokenTypesLegend() []protocol.SemanticTokenTypes {
 	return []protocol.SemanticTokenTypes{
 		protocol.SemanticTokenNamespace, // 0
 		protocol.SemanticTokenType,      // 1
@@ -32,9 +39,9 @@ func semanticTokenTypesLegend() []protocol.SemanticTokenTypes {
 	}
 }
 
-// computeSemanticTokens walks the AST and returns delta-encoded semantic tokens.
+// ComputeSemanticTokens walks the AST and returns delta-encoded semantic tokens.
 // Each token is 5 integers: [deltaLine, deltaStartChar, length, tokenType, tokenModifiers].
-func computeSemanticTokens(doc *ast.Document, _ []*parser.ParseError) []uint32 {
+func ComputeSemanticTokens(doc *ast.Document, _ []*parser.ParseError) []uint32 {
 	if doc == nil {
 		return nil
 	}

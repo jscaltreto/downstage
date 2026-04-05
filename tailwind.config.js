@@ -1,5 +1,5 @@
 module.exports = {
-  content: ["./site/**/*.{njk,md}", "./.eleventy.js"],
+  content: ["./site/**/*.{njk,md}", "./.eleventy.js", "./web/index.html"],
   theme: {
     extend: {
       colors: {

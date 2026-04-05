@@ -6,10 +6,14 @@ on:
       - main
     paths:
       - site/**
+      - web/**
+      - cmd/wasm/**
+      - internal/**
       - downstage_logo.png
       - package.json
       - package-lock.json
       - .eleventy.js
+      - tailwind.config.js
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -32,11 +36,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
+
+      - name: Build WASM
+        run: make wasm
 
       - name: Install site dependencies
         run: npm ci

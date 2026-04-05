@@ -1,0 +1,281 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --toolbar-height: 52px;
+
+  /* Downstage design tokens — ember / brass / parchment */
+  --ember-950: #0d0908;
+  --ember-900: #120d0c;
+  --ember-850: #231614;
+  --ember-800: #2f1c17;
+  --ember-700: #42271f;
+  --ember-600: #7f2718;
+  --brass-300: #ffcf83;
+  --brass-400: #f0c67a;
+  --brass-500: #e3a857;
+  --parchment-100: #f8ecd8;
+  --parchment-200: #f4e8d5;
+  --parchment-300: #d8c0a6;
+
+  --bg: var(--ember-900);
+  --surface: var(--ember-700);
+  --text: var(--parchment-200);
+  --text-muted: var(--parchment-300);
+  --accent: var(--brass-500);
+  --accent-light: var(--brass-300);
+  --border: rgba(227, 168, 87, 0.2); /* brass-500/20 */
+}
+
+html, body {
+  height: 100%;
+  font-family: "Avenir Next", "Segoe UI Variable", "Helvetica Neue", "Arial Narrow", sans-serif;
+  background:
+    radial-gradient(circle at top center, rgba(227, 168, 87, 0.16), transparent 26%),
+    radial-gradient(circle at 20% 20%, rgba(127, 39, 24, 0.4), transparent 32%),
+    linear-gradient(180deg, #231614 0%, #120d0c 55%, #0d0908 100%);
+  color: var(--text);
+}
+
+/* Toolbar */
+#toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--toolbar-height);
+  padding: 0 20px;
+  background: linear-gradient(160deg, rgba(127, 39, 24, 0.42), transparent 35%), rgba(66, 39, 31, 0.96);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+#toolbar h1 {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "URW Palladio L", serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--parchment-200);
+}
+
+#toolbar h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+#docs-link {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.15s, color 0.15s;
+}
+
+#docs-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--parchment-200);
+}
+
+.toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.toolbar-controls label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.toolbar-controls select {
+  padding: 5px 10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--parchment-200);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.toolbar-controls select:focus {
+  outline: 2px solid var(--brass-500);
+  outline-offset: 2px;
+}
+
+#copy-source,
+#save-source {
+  padding: 7px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--parchment-200);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#copy-source:not(:disabled):hover,
+#save-source:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#copy-source:disabled,
+#save-source:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+#export-pdf {
+  padding: 7px 20px;
+  border-radius: 9999px;
+  border: none;
+  background: linear-gradient(to bottom right, var(--brass-500), var(--brass-400));
+  color: var(--ember-850);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+#export-pdf:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+#export-pdf:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+/* Loading */
+#loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "URW Palladio L", serif;
+  font-size: 20px;
+  color: var(--text-muted);
+}
+
+/* App layout */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Workspace */
+#workspace {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+
+#workspace.hidden {
+  display: none;
+}
+
+#editor-pane {
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+
+#editor-pane .cm-editor {
+  height: 100%;
+}
+
+#editor-pane .cm-scroller {
+  overflow: auto;
+}
+
+#preview-pane {
+  overflow: hidden;
+}
+
+#preview {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+/* CodeMirror base overrides */
+.cm-editor {
+  font-size: 14px;
+  background: var(--ember-950);
+}
+
+.cm-editor .cm-content {
+  font-family: "Berkeley Mono", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+}
+
+.cm-editor .cm-gutters {
+  background: var(--ember-900);
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.cm-editor .cm-activeLineGutter {
+  background: rgba(227, 168, 87, 0.08);
+}
+
+.cm-editor .cm-activeLine {
+  background: rgba(227, 168, 87, 0.05);
+}
+
+/* Semantic token highlighting — warm theatrical palette */
+.cm-ds-namespace {
+  color: var(--brass-300);
+  font-weight: bold;
+}
+
+.cm-ds-type {
+  color: #89b4fa;
+  font-weight: bold;
+}
+
+.cm-ds-comment {
+  color: var(--parchment-300);
+  font-style: italic;
+}
+
+.cm-ds-keyword {
+  color: #cba6f7;
+  font-weight: bold;
+}
+
+.cm-ds-property {
+  color: var(--brass-400);
+}
+
+.cm-ds-string {
+  color: #a6e3a1;
+}
+
+/* Responsive: stack on narrow viewports */
+@media (max-width: 768px) {
+  #workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  #editor-pane {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
