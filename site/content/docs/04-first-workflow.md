@@ -14,6 +14,8 @@ workflow:
     text: Run `downstage render my-play.ds` to make a PDF manuscript.
   - title: Refine
     text: Add editor integration later if you want autocompletion, hover help, or previews.
+codeLang: bash
+codeLabel: shell
 code: |-
   downstage validate my-play.ds
   downstage render my-play.ds

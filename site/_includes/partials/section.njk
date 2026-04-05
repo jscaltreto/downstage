@@ -1,64 +1,94 @@
-<section class="section-grid" id="{{ section.data.id }}">
-  <div class="section-heading">
-    <p class="section-kicker">{{ section.data.kicker }}</p>
-    <h2>{{ section.data.title }}</h2>
+{% set cardGridClasses = "grid gap-4 pt-6 md:grid-cols-2" %}
+{% if section.data.cardsClass == "tool-grid" %}
+  {% set cardGridClasses = "grid gap-4 pt-6" %}
+{% endif %}
+<section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] shadow-stage backdrop-blur-xl" id="{{ section.data.id }}">
+  <div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]">
+  <div class="border-b border-white/10 p-6 lg:border-b-0 lg:border-r lg:p-8">
+    <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">{{ section.data.kicker }}</p>
+    <h2 class="font-serif text-3xl leading-tight text-parchment-200 sm:text-[2rem]">{{ section.data.title }}</h2>
   </div>
-  <div class="section-body">
-    {{ section.templateContent | safe }}
+  <div class="prose-block p-6 lg:p-8">
+    <div class="prose-block">{{ section.templateContent | safe }}</div>
 
     {% if section.data.cards %}
-      <div class="card-grid {{ section.data.cardsClass | default('') }}">
+      <div class="{{ cardGridClasses }}">
         {% for card in section.data.cards %}
-          <article class="card">
-            <h3>{{ card.title }}</h3>
-            <p>{{ card.text }}</p>
+          <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
+            <h3 class="font-serif text-2xl text-parchment-200">{{ card.title }}</h3>
+            <p class="card-copy">{{ card.text }}</p>
           </article>
         {% endfor %}
       </div>
     {% endif %}
 
     {% if section.data.steps %}
-      <div class="steps">
-        {% for step in section.data.steps %}
-          <article class="step">
-            <span class="step-number">{{ loop.index }}</span>
+      <div class="my-5 grid gap-4">
+        {% asyncEach step in section.data.steps %}
+          <article class="grid gap-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 md:grid-cols-[auto_minmax(0,1fr)]">
+            <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-brass-500 to-brass-400 font-extrabold text-ember-850">{{ loop.index }}</span>
             <div>
-              <h3>{{ step.title }}</h3>
-              {% if step.text %}<p>{{ step.text }}</p>{% endif %}
-              {% if step.code %}<pre><code>{{ step.code }}</code></pre>{% endif %}
-              {% if step.after %}<p>{{ step.after }}</p>{% endif %}
-              {% if step.extraCode %}<pre><code>{{ step.extraCode }}</code></pre>{% endif %}
+              <h3 class="font-serif text-2xl text-parchment-200">{{ step.title }}</h3>
+              {% if step.text %}<p class="mt-2 text-base leading-7 text-parchment-300">{{ step.text }}</p>{% endif %}
+              {% if step.code %}{% renderCodeBlock step.code, (step.codeLang or "text"), (step.codeLabel or step.codeLang or "text") %}{% endif %}
+              {% if step.after %}<p class="mt-2 text-base leading-7 text-parchment-300">{{ step.after }}</p>{% endif %}
+              {% if step.extraCode %}{% renderCodeBlock step.extraCode, (step.extraCodeLang or step.codeLang or "text"), (step.extraCodeLabel or step.extraCodeLang or step.codeLang or "text") %}{% endif %}
             </div>
           </article>
-        {% endfor %}
+        {% endeach %}
       </div>
     {% endif %}
 
     {% if section.data.workflow %}
-      <div class="workflow-strip">
+      <div class="my-5 grid gap-4">
         {% for item in section.data.workflow %}
-          <div class="workflow-card">
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.text }}</p>
+          <div class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
+            <h3 class="font-serif text-2xl text-parchment-200">{{ item.title }}</h3>
+            <p class="mt-2 text-base leading-7 text-parchment-300">{{ item.text }}</p>
           </div>
         {% endfor %}
       </div>
     {% endif %}
 
+    {% if section.data.examplePairs %}
+      <div class="grid gap-4">
+        {% asyncEach item in section.data.examplePairs %}
+          <div>
+            {% if item.text %}<p class="mt-2 text-base leading-7 text-parchment-300">{{ item.text | safe }}</p>{% endif %}
+            {% renderCodeBlock item.code, (item.lang or "text"), (item.label or item.lang or "text") %}
+          </div>
+        {% endeach %}
+      </div>
+    {% endif %}
+
     {% if section.data.examples %}
-      <div class="two-up">
-        {% for example in section.data.examples %}
-          <pre><code>{{ example }}</code></pre>
-        {% endfor %}
+      <div class="grid gap-4">
+        {% asyncEach example in section.data.examples %}
+          {% set lang = "text" %}
+          {% set label = "text" %}
+          {% if section.data.examplesLangs and section.data.examplesLangs[loop.index0] %}
+            {% set lang = section.data.examplesLangs[loop.index0] %}
+          {% elseif section.data.exampleLang %}
+            {% set lang = section.data.exampleLang %}
+          {% endif %}
+          {% if section.data.exampleLabels and section.data.exampleLabels[loop.index0] %}
+            {% set label = section.data.exampleLabels[loop.index0] %}
+          {% elseif section.data.exampleLabel %}
+            {% set label = section.data.exampleLabel %}
+          {% else %}
+            {% set label = lang %}
+          {% endif %}
+          {% renderCodeBlock example, lang, label %}
+        {% endeach %}
       </div>
     {% endif %}
 
     {% if section.data.code %}
-      <pre><code>{{ section.data.code }}</code></pre>
+      {% renderCodeBlock section.data.code, (section.data.codeLang or "text"), (section.data.codeLabel or section.data.codeLang or "text") %}
     {% endif %}
 
     {% if section.data.caption %}
-      <p class="caption">{{ section.data.caption }}</p>
+      <p class="-mt-1 text-sm text-parchment-300">{{ section.data.caption }}</p>
     {% endif %}
 
     {% if section.data.list %}
@@ -70,7 +100,7 @@
     {% endif %}
 
     {% if section.data.callout %}
-      <div class="rule-callout">
+      <div class="callout">
         <strong>{{ section.data.callout.title }}</strong> {{ section.data.callout.text | safe }}
       </div>
     {% endif %}
@@ -91,17 +121,18 @@
     {% endif %}
 
     {% if section.data.actions %}
-      <div class="hero-actions">
+      <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         {% for action in section.data.actions %}
-          <a class="button {{ action.kind }}" href="{{ action.href }}">{{ action.label }}</a>
+          <a class="{% if action.kind == 'primary' %}button-primary{% else %}button-secondary{% endif %}" href="{{ action.href }}">{{ action.label }}</a>
         {% endfor %}
       </div>
     {% endif %}
 
     {% if bodyClass == "docs-page" %}
-      <p class="section-top-link">
-        <a href="#top">Back to top</a>
+      <p class="mt-5 text-right text-sm">
+        <a class="text-brass-300 underline decoration-brass-500/40 underline-offset-4" href="#top">Back to top</a>
       </p>
     {% endif %}
+  </div>
   </div>
 </section>

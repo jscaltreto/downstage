@@ -4,6 +4,8 @@ id: structure
 kicker: "1"
 title: Document Structure
 order: 7
+codeLang: downstage
+codeLabel: downstage
 code: |-
   ALICE
   Hello, world!

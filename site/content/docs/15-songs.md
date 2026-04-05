@@ -4,6 +4,8 @@ id: songs
 kicker: "9"
 title: Songs
 order: 15
+codeLang: downstage
+codeLabel: downstage
 code: |-
   SONG 1: The Stagehand's Lament
 

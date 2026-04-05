@@ -5,38 +5,45 @@ description: Downstage helps playwrights draft in plain text, render clean manus
 bodyClass: landing-page
 permalink: /
 ---
-<div class="site-shell">
-  <main class="site-main" id="top">
-    <section class="hero hero-home">
-      <div class="hero-layout">
-        <div class="hero-copy-column">
-          <div class="hero-brand">
-            <img class="hero-logo" src="/downstage_logo.png" alt="Downstage logo">
-          </div>
-          <h1>Write plays, not formatting.</h1>
-          <p class="hero-subhead">Draft in plain text. Render a real script when you need one.</p>
-          <p class="hero-copy">
+<div class="mx-auto max-w-7xl">
+  <main class="mx-auto grid max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:px-8" id="top">
+    <section class="grid min-h-[72vh] place-items-center py-10 sm:min-h-[78vh] sm:py-16">
+      <div class="mx-auto max-w-5xl text-center">
+        <div class="flex justify-center">
+          <img
+            class="h-auto w-[220px] drop-shadow-[0_20px_30px_rgba(0,0,0,0.28)] sm:w-[280px] lg:w-[360px]"
+            src="/downstage_logo.png"
+            alt="Downstage logo"
+          >
+        </div>
+        <h1 class="mx-auto mt-4 max-w-[14ch] font-serif text-5xl leading-none text-parchment-200 sm:text-6xl lg:text-7xl">
+          Write plays, not formatting.
+        </h1>
+        <p class="mx-auto mt-4 max-w-[32ch] font-serif text-xl leading-tight text-brass-300 sm:text-2xl">
+          Draft in plain text. Render a real script when you need one.
+        </p>
+        <p class="mx-auto mt-5 max-w-3xl text-base leading-8 text-parchment-300 sm:text-lg">
             Downstage is a playwright-first writing format and toolchain for stage plays.
             Draft in plain text, render a proper manuscript when you need one, and keep
             the source readable at every stage.
-          </p>
-          <div class="hero-actions">
-            <a class="button primary" href="#getting-started">Start Writing</a>
-            <a class="button secondary" href="/docs/">Open Docs</a>
-          </div>
+        </p>
+        <div class="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <a class="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-br from-brass-500 to-brass-400 px-5 font-semibold text-ember-850" href="#getting-started">Start Writing</a>
+          <a class="inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 font-semibold text-parchment-200" href="/docs/">Open Docs</a>
         </div>
       </div>
     </section>
-    <section class="section-links" aria-label="Page sections">
+    <section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] p-4 shadow-stage backdrop-blur-xl" aria-label="Page sections">
+      <div class="flex flex-wrap items-center gap-2">
       {% for section in collections.homeSections %}
         {% if section.data.navTitle != false %}
-          <a href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+          <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
         {% endif %}
       {% endfor %}
-      <a href="/docs/">Docs</a>
-      <span class="section-links-spacer" aria-hidden="true"></span>
-      <a class="icon-link" href="https://github.com/jscaltreto/downstage" aria-label="GitHub">
-        <svg viewBox="0 0 16 16" aria-hidden="true">
+      <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="/docs/">Docs</a>
+      <span class="min-w-0 flex-1" aria-hidden="true"></span>
+      <a class="nav-link inline-flex min-h-[42px] min-w-[42px] items-center justify-center rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage" aria-label="GitHub">
+        <svg class="h-5 w-5" viewBox="0 0 16 16" aria-hidden="true">
           <path
             fill="currentColor"
             d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38
@@ -49,9 +56,10 @@ permalink: /
           ></path>
         </svg>
       </a>
+      </div>
     </section>
-    {% for section in collections.homeSections %}
+    {% asyncEach section in collections.homeSections %}
       {% include "partials/section.njk" %}
-    {% endfor %}
+    {% endeach %}
   </main>
 </div>

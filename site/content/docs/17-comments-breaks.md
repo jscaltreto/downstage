@@ -4,16 +4,21 @@ id: comments-breaks
 kicker: "11"
 title: Comments and Page Breaks
 order: 17
-examples:
-  - |-
+examplePairs:
+  - text: Comments are ignored when rendering, so they will not appear in the PDF.
+    lang: downstage
+    label: downstage
+    code: |-
       // A line comment
 
       /* A block comment
          spanning multiple lines */
-  - |-
+  - text: <code>===</code> inserts a page break in rendered output.
+    lang: downstage
+    label: downstage
+    code: |-
       ===
 
       ### SCENE 2
 ---
-Comments are ignored when rendering, so they will not appear in the PDF.
-`===` inserts a page break in rendered output.
+These elements affect the working file and rendered pages differently.

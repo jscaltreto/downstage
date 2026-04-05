@@ -5,29 +5,29 @@ description: Reference documentation for Downstage, including product overview, 
 bodyClass: docs-page
 permalink: /docs/
 ---
-<div class="docs-shell">
-  <aside class="docs-nav">
-    <a class="brand-lockup" href="/">
-      <img class="brand-mark" src="/downstage_logo.png" alt="Downstage logo">
-      <span class="brand-text">Downstage</span>
+<div class="mx-auto grid max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-8">
+  <aside class="docs-nav docs-nav-panel h-fit border-brass-500/20 bg-[linear-gradient(180deg,rgba(127,39,24,0.38),transparent_28%),rgba(66,39,31,0.96)] p-5">
+    <a class="inline-flex items-center gap-3 no-underline" href="/">
+      <img class="h-12 w-12 object-contain" src="/downstage_logo.png" alt="Downstage logo">
+      <span class="font-serif text-3xl font-bold text-parchment-200">Downstage</span>
     </a>
-    <p class="brand-note">Docs and reference for the playwright-first plaintext workflow.</p>
-    <nav aria-label="Section navigation">
+    <p class="mb-5 mt-3 leading-7 text-parchment-300">Docs and reference for the playwright-first plaintext workflow.</p>
+    <nav aria-label="Section navigation" class="grid gap-1">
       {% for section in collections.docsSections %}
-        <a href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+        <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
       {% endfor %}
     </nav>
-    <div class="nav-links">
-      <a href="/">Home</a>
-      <a href="https://github.com/jscaltreto/downstage#readme">README</a>
-      <a href="https://github.com/jscaltreto/downstage/blob/main/SPEC.md">Full Spec</a>
-      <a href="https://github.com/jscaltreto/downstage">GitHub</a>
+    <div class="mt-5 grid gap-1 border-t border-white/10 pt-4">
+      <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="/">Home</a>
+      <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage#readme">README</a>
+      <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage/blob/main/SPEC.md">Full Spec</a>
+      <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage">GitHub</a>
     </div>
   </aside>
 
-  <main class="site-main" id="top">
-    {% for section in collections.docsSections %}
+  <main class="grid gap-6" id="top">
+    {% asyncEach section in collections.docsSections %}
       {% include "partials/section.njk" %}
-    {% endfor %}
+    {% endeach %}
   </main>
 </div>

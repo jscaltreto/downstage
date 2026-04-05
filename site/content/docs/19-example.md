@@ -4,6 +4,8 @@ id: example
 kicker: "13"
 title: Complete Example
 order: 19
+codeLang: downstage
+codeLabel: downstage
 code: |-
   Title: The Last Curtain Call
   Author: Eleanor Vance

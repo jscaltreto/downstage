@@ -4,14 +4,18 @@ id: stage-directions
 kicker: "7"
 title: Stage Directions
 order: 13
-examples:
-  - |-
+examplePairs:
+  - text: Standalone stage directions start with <code>&gt;</code>. Use <code>&gt;&gt;</code> for bold non-structural callouts inside scene flow.
+    lang: downstage
+    label: downstage
+    code: |-
       > The lights dim.
       >> Midwinter. The room has not been heated for days.
-  - |-
+  - text: Inline parentheticals inside dialogue stay part of the speech block.
+    lang: downstage
+    label: downstage
+    code: |-
       HAMLET
       To be (pause) or not to be.
 ---
-Standalone stage directions start with `>`. Inline parentheticals inside
-dialogue stay part of the speech block. Use `>>` for bold non-structural
-callouts inside scene flow.
+Stage directions can stand on their own or live inside dialogue.

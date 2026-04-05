@@ -29,3 +29,31 @@ if (navLinks.length > 0) {
   setActive();
   window.addEventListener("scroll", setActive, { passive: true });
 }
+
+const copyButtons = Array.from(document.querySelectorAll(".copy-code-button"));
+
+for (const button of copyButtons) {
+  button.addEventListener("click", async () => {
+    const shell = button.closest(".code-block-shell");
+    const template = shell?.querySelector(".copy-source");
+    const source = template?.content?.textContent ?? template?.textContent ?? "";
+
+    if (!source) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(source);
+      const previous = button.textContent;
+      button.textContent = "Copied";
+      window.setTimeout(() => {
+        button.textContent = previous ?? "Copy";
+      }, 1500);
+    } catch {
+      button.textContent = "Failed";
+      window.setTimeout(() => {
+        button.textContent = "Copy";
+      }, 1500);
+    }
+  });
+}

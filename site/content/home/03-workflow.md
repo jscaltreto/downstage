@@ -14,6 +14,8 @@ workflow:
     text: Generate a PDF manuscript or HTML preview.
   - title: Refine
     text: Add editor support only when it helps.
+codeLang: bash
+codeLabel: shell
 code: |-
   downstage validate my-play.ds
   downstage render my-play.ds

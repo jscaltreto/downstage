@@ -4,6 +4,8 @@ id: verse
 kicker: "8"
 title: Verse
 order: 14
+codeLang: downstage
+codeLabel: downstage
 code: |-
   MARGARET
     To stand upon this stage once more,

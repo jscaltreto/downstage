@@ -2,10 +2,13 @@
   "name": "downstage-site",
   "private": true,
   "scripts": {
-    "build:site": "eleventy",
-    "serve:site": "eleventy --serve"
+    "build:css": "tailwindcss -c tailwind.config.js -i ./site/styles/tailwind.css -o ./dist/assets/styles.css --minify",
+    "build:site": "npm run build:css && eleventy",
+    "serve:site": "npm run build:css && eleventy --serve"
   },
   "devDependencies": {
-    "@11ty/eleventy": "^3.1.2"
+    "@11ty/eleventy": "^3.1.2",
+    "shiki": "^1.29.2",
+    "tailwindcss": "^3.4.19"
   }
 }

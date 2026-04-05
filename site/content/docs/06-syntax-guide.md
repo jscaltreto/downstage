@@ -5,6 +5,8 @@ kicker: Reference
 title: Syntax guide
 navTitle: Syntax Guide
 order: 6
+codeLang: downstage
+codeLabel: downstage
 callout:
   title: "Quick reminder:"
   text: a very small Downstage file is valid.

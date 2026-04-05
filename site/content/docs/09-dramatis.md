@@ -4,6 +4,8 @@ id: dramatis-personae
 kicker: "3"
 title: Dramatis Personae
 order: 9
+codeLang: downstage
+codeLabel: downstage
 callout:
   title: "Accepted headings:"
   text: <code># Dramatis Personae</code>, <code># Cast of Characters</code>, and <code># Characters</code> all start the same section type.
@@ -12,7 +14,6 @@ code: |-
 
   MARGARET — An aging actress
   JAMES/JIM — Her estranged son
-  [JAMES/JIM]
 
   ## The Crew
 
@@ -21,7 +22,6 @@ code: |-
 list:
   - <code>NAME</code> or <code>NAME — Description</code> are both valid.
   - <code>NAME/ALIAS</code> defines a shorter dialogue alias inline.
-  - <code>[FULLNAME/ALIAS]</code> defines the same alias on a separate line.
 ---
 The character list is a dedicated section. Entries can include descriptions,
 aliases, and optional subgroup headings.

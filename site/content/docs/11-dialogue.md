@@ -4,6 +4,8 @@ id: dialogue
 kicker: "5"
 title: Dialogue
 order: 11
+codeLang: downstage
+codeLabel: downstage
 code: |-
   HAMLET
   (aside)

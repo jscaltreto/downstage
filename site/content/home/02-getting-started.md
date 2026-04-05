@@ -7,10 +7,14 @@ navTitle: Get Started
 order: 2
 steps:
   - title: Install it
+    codeLang: bash
+    codeLabel: shell
     code: |-
       brew tap jscaltreto/tap
       brew install downstage
   - title: Write a file
+    codeLang: downstage
+    codeLabel: downstage
     code: |-
       Title: My Play
       Author: You
@@ -18,6 +22,8 @@ steps:
       JANE
       I finally started the draft.
   - title: Render it
+    codeLang: bash
+    codeLabel: shell
     code: downstage render my-play.ds
 callout:
   title: Need details?

@@ -4,6 +4,8 @@ id: title-page
 kicker: "2"
 title: Title Page
 order: 8
+codeLang: downstage
+codeLabel: downstage
 code: |-
   Title: The Last Curtain Call
   Subtitle: A Drama in Two Acts
