@@ -48,20 +48,19 @@ $(BUILD_DIR):
 
 # --- Web editor (WASM) ---
 
-wasm: | web/dist
-	GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o web/dist/downstage.wasm ./cmd/wasm/
-	cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" web/dist/
+wasm: | web/build
+	GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o web/build/downstage.wasm ./cmd/wasm/
+	cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" web/build/
 
 web: wasm
-	cd web && npm install && npx esbuild src/main.ts --bundle --outfile=dist/bundle.js --format=esm --target=es2020
-	cp web/index.html web/style.css web/dist/
+	npm --prefix web run build
 
-web-dev: web
-	@echo "Serving web editor at http://localhost:8080"
-	cd web/dist && python3 -m http.server 8080
+web-dev: wasm
+	@echo "Serving web editor at http://localhost:5173/editor/"
+	cd web && npm run dev -- --host 0.0.0.0
 
 web-clean:
-	rm -rf web/dist web/node_modules
+	rm -rf web/build web/dist web/node_modules
 
-web/dist:
-	mkdir -p web/dist
+web/build:
+	mkdir -p web/build

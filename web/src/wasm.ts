@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 declare class Go {
   importObject: WebAssembly.Imports;
   run(instance: WebAssembly.Instance): Promise<void>;
@@ -24,11 +26,17 @@ export interface ParseError {
   endCol: number;
 }
 
+import wasmExecUrl from "../build/wasm_exec.js?url";
+import wasmUrl from "../build/downstage.wasm?url";
+
+let goRuntimePromise: Promise<void> | null = null;
+
 export async function initWasm(): Promise<void> {
+  await ensureGoRuntime();
   const go = new window.Go();
-  const response = await fetch("downstage.wasm");
+  const response = await fetch(wasmUrl);
   if (!response.ok) {
-    throw new Error(`failed to fetch downstage.wasm: ${response.status} ${response.statusText}`);
+    throw new Error(`failed to fetch Downstage runtime: ${response.status} ${response.statusText}`);
   }
 
   let result: WebAssembly.WebAssemblyInstantiatedSource;
@@ -42,6 +50,32 @@ export async function initWasm(): Promise<void> {
 
   const runPromise = go.run(result.instance);
   await waitForDownstage(runPromise);
+}
+
+async function ensureGoRuntime(): Promise<void> {
+  if (window.Go) {
+    return;
+  }
+
+  if (!goRuntimePromise) {
+    goRuntimePromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = wasmExecUrl;
+      script.async = true;
+      script.onload = () => {
+        if (window.Go) {
+          resolve();
+          return;
+        }
+
+        reject(new Error("WASM loader did not initialize"));
+      };
+      script.onerror = () => reject(new Error("failed to load WASM runtime loader"));
+      document.head.appendChild(script);
+    });
+  }
+
+  await goRuntimePromise;
 }
 
 async function waitForDownstage(runPromise: Promise<void>): Promise<void> {

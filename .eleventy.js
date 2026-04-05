@@ -7,6 +7,9 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+const fs = require("fs");
+const path = require("path");
+
 const downstageGrammar = require("./editors/vscode/syntaxes/downstage.tmLanguage.json");
 const pathPrefix = process.env.SITE_BASE_PATH || "/";
 
@@ -65,13 +68,25 @@ module.exports = function (eleventyConfig) {
     `;
   });
 
-  eleventyConfig.addPassthroughCopy({ "site/assets/main.js": "assets/main.js" });
   eleventyConfig.addPassthroughCopy({ "downstage_logo.png": "downstage_logo.png" });
-  eleventyConfig.addPassthroughCopy({ "web/index.html": "editor/index.html" });
-  eleventyConfig.addPassthroughCopy({ "web/style.css": "editor/style.css" });
-  eleventyConfig.addPassthroughCopy({ "web/dist/bundle.js": "editor/bundle.js" });
-  eleventyConfig.addPassthroughCopy({ "web/dist/downstage.wasm": "editor/downstage.wasm" });
-  eleventyConfig.addPassthroughCopy({ "web/dist/wasm_exec.js": "editor/wasm_exec.js" });
+  eleventyConfig.addPassthroughCopy({ "web/dist": "editor" });
+  eleventyConfig.addGlobalData("assetManifest", () => {
+    const manifestPath = path.join(__dirname, "dist", "asset-manifest.json");
+    if (!fs.existsSync(manifestPath)) {
+      return {};
+    }
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    const findEntry = (sourcePath) =>
+      Object.values(manifest).find((entry) => entry.src === sourcePath || entry.file === sourcePath);
+    const stylesEntry = findEntry("site/styles/tailwind.css");
+    const scriptEntry = findEntry("site/assets/main.js");
+
+    return {
+      styles: stylesEntry?.file ? `/${stylesEntry.file}` : undefined,
+      script: scriptEntry?.file ? `/${scriptEntry.file}` : undefined,
+    };
+  });
   eleventyConfig.addCollection("homeSections", (collectionApi) =>
     collectionApi.getFilteredByGlob("site/content/home/*.md").sort((a, b) => a.data.order - b.data.order),
   );

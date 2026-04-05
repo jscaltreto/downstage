@@ -1,14 +1,16 @@
 <!doctype html>
 <html lang="en" data-editor-base="{{ '/editor/' | url }}">
+  {% set stylesPath = assetManifest.styles or '/assets/styles.css' %}
+  {% set scriptPath = assetManifest.script or '/assets/main.js' %}
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title }}</title>
     <meta name="description" content="{{ description }}">
-    <link rel="stylesheet" href="{{ '/assets/styles.css' | url }}">
+    <link rel="stylesheet" href="{{ stylesPath | url }}">
   </head>
   <body class="{{ bodyClass | default('') }}">
     {{ content | safe }}
-    <script src="{{ '/assets/main.js' | url }}"></script>
+    <script src="{{ scriptPath | url }}"></script>
   </body>
 </html>

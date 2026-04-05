@@ -8,9 +8,11 @@ WebAssembly — no server required.
 
 ```bash
 # From the repository root:
+npm install
+npm --prefix web install
 make web
 make web-dev
-# Open http://localhost:8080
+# Open http://localhost:5173/editor/
 ```
 
 ## Building
@@ -23,25 +25,19 @@ make web-dev
 ### Build Steps
 
 ```bash
-# Build the WASM binary
-make wasm
-
-# Bundle the TypeScript
+# Build the WASM runtime and editor bundle
 make web
 
 # Or manually:
-GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o web/dist/downstage.wasm ./cmd/wasm/
-cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/dist/
+GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o web/build/downstage.wasm ./cmd/wasm/
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/build/
 cd web && npm install && npm run build
 ```
 
 ### Development
 
 ```bash
-# Watch mode for TypeScript changes:
-cd web && npm run watch
-
-# In another terminal, serve the files:
+# Start the editor dev server after rebuilding WASM:
 make web-dev
 ```
 

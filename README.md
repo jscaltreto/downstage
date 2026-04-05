@@ -26,6 +26,7 @@ templates in `site/`.
 
 ```bash
 npm install
+npm --prefix web install
 npm run build:site
 npm run serve:site
 ```
@@ -237,8 +238,9 @@ No install required; the entire pipeline runs client-side via WebAssembly.
 For local development:
 
 ```bash
-make web      # Build WASM binary + bundle JS
-make web-dev  # Serve at http://localhost:8080
+npm --prefix web install
+make web      # Build the editor for Pages output
+make web-dev  # Run the editor dev server with Vite
 ```
 
 See [`web/README.md`](web/README.md) for details.
