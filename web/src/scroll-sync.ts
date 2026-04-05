@@ -4,45 +4,76 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
   let rafId: ReturnType<typeof requestAnimationFrame> | null = null;
 
   function syncScroll(view: EditorView) {
-    const doc = iframe.contentDocument;
-    if (!doc || !doc.body) return;
+    const idoc = iframe.contentDocument;
+    if (!idoc?.body) return;
 
-    const scrollTop = view.scrollDOM.scrollTop;
-    const scrollHeight = view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
+    const scrollEl = idoc.scrollingElement ?? idoc.documentElement;
+    const maxEditorScroll =
+      view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
 
-    // If the editor is near the very top or bottom, just match proportionally
-    // as a fast path — avoids jitter at extremes.
-    if (scrollHeight <= 0) return;
-    const ratio = scrollTop / scrollHeight;
+    if (maxEditorScroll <= 0) return;
 
-    if (ratio < 0.01) {
-      doc.documentElement.scrollTop = 0;
+    const ratio = view.scrollDOM.scrollTop / maxEditorScroll;
+
+    // At extremes, just use proportional scroll to avoid jitter.
+    if (ratio <= 0.02) {
+      scrollEl.scrollTop = 0;
       return;
     }
-    if (ratio > 0.99) {
-      doc.documentElement.scrollTop = doc.documentElement.scrollHeight;
+    if (ratio >= 0.98) {
+      scrollEl.scrollTop = scrollEl.scrollHeight;
       return;
     }
 
     // Find the source line at the top of the editor viewport.
-    const topBlock = view.elementAtHeight(scrollTop);
+    const topBlock = view.elementAtHeight(view.scrollDOM.scrollTop);
     const topLine = view.state.doc.lineAt(topBlock.from).number;
 
-    const els = doc.querySelectorAll("[data-source-line]");
-    let target: Element | null = null;
+    // Walk the anchored elements to find the best match.
+    const els = idoc.querySelectorAll("[data-source-line]");
+    if (els.length === 0) return;
+
+    let best: Element | null = null;
+    let bestLine = 0;
     for (const el of els) {
-      const sourceLine = parseInt(el.getAttribute("data-source-line")!, 10);
-      if (sourceLine <= topLine) {
-        target = el;
+      const n = parseInt(el.getAttribute("data-source-line")!, 10);
+      if (isNaN(n)) continue;
+      if (n <= topLine) {
+        best = el;
+        bestLine = n;
       } else {
         break;
       }
     }
 
-    if (target) {
-      const rect = target.getBoundingClientRect();
-      const currentScroll = doc.documentElement.scrollTop;
-      doc.documentElement.scrollTop = currentScroll + rect.top;
+    if (!best) {
+      scrollEl.scrollTop = 0;
+      return;
+    }
+
+    // Scroll so the matched element sits at the top of the iframe.
+    // Use offsetTop which is relative to the document, not the viewport.
+    const target = (best as HTMLElement).offsetTop;
+
+    // If there's a next anchored element, interpolate between the two
+    // based on how far between bestLine and the next anchor's line we are.
+    let nextEl: Element | null = null;
+    let nextLine = 0;
+    for (const el of els) {
+      const n = parseInt(el.getAttribute("data-source-line")!, 10);
+      if (n > bestLine) {
+        nextEl = el;
+        nextLine = n;
+        break;
+      }
+    }
+
+    if (nextEl && nextLine > bestLine) {
+      const nextTop = (nextEl as HTMLElement).offsetTop;
+      const progress = (topLine - bestLine) / (nextLine - bestLine);
+      scrollEl.scrollTop = target + (nextTop - target) * progress;
+    } else {
+      scrollEl.scrollTop = target;
     }
   }
 
