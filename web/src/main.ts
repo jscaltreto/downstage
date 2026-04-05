@@ -6,13 +6,14 @@ import { oneDark } from "@codemirror/theme-one-dark";
 import { initWasm } from "./wasm";
 import { downstageHighlighter } from "./downstage-lang";
 import { downstageLinter } from "./diagnostics";
-import { createPreviewPlugin } from "./preview";
+import { createPreviewPlugin, renderPreview } from "./preview";
 import { setupPdfExport } from "./pdf-export";
 import { createScrollSyncPlugin } from "./scroll-sync";
 
 declare const __APP_VERSION__: string;
 
 const cheatSheetStorageKey = "downstage-editor-cheat-sheet-hidden";
+const previewStorageKey = "downstage-editor-preview-hidden";
 const draftsStorageKey = "downstage-editor-drafts";
 const activeDraftStorageKey = "downstage-editor-active-draft";
 
@@ -97,6 +98,8 @@ interface SavedDraft {
 
 const octiconChevronRight = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06L6.28 12.78a.75.75 0 1 1-1.06-1.06L8.94 8 5.22 4.28a.75.75 0 0 1 0-1.06Z"></path></svg>`;
 const octiconTrash = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6.5 1.75a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75V3h3.25a.75.75 0 0 1 0 1.5h-.538l-.613 8.177A1.75 1.75 0 0 1 9.859 14.5H6.14a1.75 1.75 0 0 1-1.745-1.823L3.782 4.5H3.25a.75.75 0 0 1 0-1.5H6.5V1.75Zm1.5.75v.5h1v-.5h-1Zm-2.103 2 .594 7.927a.25.25 0 0 0 .249.068H9.86a.25.25 0 0 0 .249-.233L10.703 4.5H5.897ZM6.75 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 6.75 6Zm2.5 0a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 9.25 6Z"></path></svg>`;
+const octiconSidebarCollapse = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9.78 3.22a.75.75 0 0 1 0 1.06L6.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"></path></svg>`;
+const octiconSidebarExpand = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 1 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z"></path></svg>`;
 
 function buildNewPlayTemplate(): string {
   const currentYear = new Date().getFullYear();
@@ -405,6 +408,7 @@ async function main() {
   const workspace = document.getElementById("workspace")!;
   const editorPane = document.getElementById("editor-pane")!;
   const iframe = document.getElementById("preview") as HTMLIFrameElement;
+  const workspaceEl = document.getElementById("workspace") as HTMLElement;
   const styleSelect = document.getElementById(
     "style-select",
   ) as HTMLSelectElement;
@@ -424,6 +428,9 @@ async function main() {
   ) as HTMLButtonElement;
   const toggleCheatSheetBtn = document.getElementById(
     "toggle-cheat-sheet",
+  ) as HTMLButtonElement;
+  const togglePreviewBtn = document.getElementById(
+    "toggle-preview",
   ) as HTMLButtonElement;
   const dismissCheatSheetBtn = document.getElementById(
     "dismiss-cheat-sheet",
@@ -594,6 +601,21 @@ async function main() {
     localStorage.setItem(cheatSheetStorageKey, "true");
   };
 
+  const setPreviewVisibility = (visible: boolean) => {
+    workspaceEl.classList.toggle("preview-hidden", !visible);
+    togglePreviewBtn.setAttribute("aria-pressed", String(!visible));
+    togglePreviewBtn.setAttribute("aria-label", visible ? "Hide preview" : "Show preview");
+    togglePreviewBtn.title = visible ? "Hide preview" : "Show preview";
+    togglePreviewBtn.innerHTML = visible ? octiconSidebarCollapse : octiconSidebarExpand;
+
+    if (visible) {
+      localStorage.removeItem(previewStorageKey);
+      return;
+    }
+
+    localStorage.setItem(previewStorageKey, "true");
+  };
+
   try {
     await initWasm();
   } catch (error) {
@@ -612,6 +634,7 @@ async function main() {
   loadExampleBtn.disabled = false;
   copyBtn.disabled = false;
   saveBtn.disabled = false;
+  togglePreviewBtn.disabled = false;
   toggleCheatSheetBtn.disabled = false;
   dismissCheatSheetBtn.disabled = false;
   importDsFileBtn.disabled = false;
@@ -623,6 +646,7 @@ async function main() {
     iframe,
     styleSelect,
     () => editorView,
+    () => !workspaceEl.classList.contains("preview-hidden"),
   );
   const scrollSyncPlugin = createScrollSyncPlugin(iframe);
 
@@ -662,6 +686,7 @@ async function main() {
   });
 
   setupPdfExport(exportBtn, styleSelect, () => editorView);
+  setPreviewVisibility(localStorage.getItem(previewStorageKey) !== "true");
   setCheatSheetVisibility(localStorage.getItem(cheatSheetStorageKey) !== "true");
   renderDraftList();
   window.addEventListener("pagehide", flushDraftPersistence);
@@ -698,6 +723,14 @@ async function main() {
 
   toggleCheatSheetBtn.addEventListener("click", () => {
     setCheatSheetVisibility(cheatSheet.hidden);
+  });
+
+  togglePreviewBtn.addEventListener("click", () => {
+    const showPreview = workspaceEl.classList.contains("preview-hidden");
+    setPreviewVisibility(showPreview);
+    if (showPreview && editorView) {
+      renderPreview(iframe, styleSelect, editorView.state.doc.toString());
+    }
   });
 
   dismissCheatSheetBtn.addEventListener("click", () => {

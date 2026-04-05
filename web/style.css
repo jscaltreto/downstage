@@ -225,12 +225,20 @@ html, body {
   display: none;
 }
 
+#workspace.preview-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 #editor-column {
   min-width: 0;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   border-right: 1px solid var(--border);
   overflow: hidden;
+}
+
+#workspace.preview-hidden #editor-column {
+  border-right: none;
 }
 
 #editor-tools {
@@ -251,12 +259,24 @@ html, body {
   padding: 4px 8px;
 }
 
-.format-help {
-  margin-left: auto;
+.format-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 28px;
   width: 28px;
   height: 28px;
   padding: 0;
+}
+
+.format-icon-button svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.format-help {
+  margin-left: auto;
   border-radius: 999px;
   font-size: 14px;
   font-weight: 700;
@@ -375,6 +395,10 @@ html, body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+#workspace.preview-hidden #preview-pane {
+  display: none;
 }
 
 .pane-heading {
