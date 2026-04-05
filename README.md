@@ -18,6 +18,17 @@ validation, and rendering to PDF and HTML. Files use the `.ds` extension.
 
 Read the [Syntax Guide](https://jscaltreto.github.io/downstage/).
 
+## Website
+
+The Pages site is built with [Eleventy](https://www.11ty.dev/) from the
+templates in `site/`.
+
+```bash
+npm install
+npm run build:site
+npm run serve:site
+```
+
 ## Quick Example
 
 ```

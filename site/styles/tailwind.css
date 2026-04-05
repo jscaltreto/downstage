@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-page-glow font-sans text-parchment-200;
+  }
+
+  a {
+    @apply text-inherit;
+  }
+
+  code,
+  pre {
+    @apply font-mono;
+  }
+}
+
+@layer components {
+  .nav-link.active {
+    @apply translate-x-0.5 bg-white/5 text-parchment-200;
+  }
+
+  .mobile-menu-backdrop {
+    @apply fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px];
+  }
+
+  .mobile-menu-panel {
+    @apply fixed right-4 top-4 z-40 flex max-h-[calc(100vh-2rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.98)] p-5 shadow-stage backdrop-blur-xl transition-transform duration-200 ease-out;
+    transform: translateX(calc(100% + 1rem));
+  }
+
+  .mobile-menu-panel.is-open {
+    transform: translateX(0);
+  }
+
+  .button-primary {
+    @apply inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-br from-brass-500 to-brass-400 px-5 font-semibold text-ember-850 no-underline;
+  }
+
+  .button-secondary {
+    @apply inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 font-semibold text-parchment-200 no-underline;
+  }
+
+  .prose-block > p {
+    @apply my-0 text-base leading-8 text-parchment-300;
+  }
+
+  .prose-block > p + p {
+    @apply mt-5;
+  }
+
+  .prose-block a {
+    @apply text-brass-300 underline decoration-brass-500/40 underline-offset-4;
+  }
+
+  .prose-block p code,
+  .prose-block li code,
+  .prose-block strong code {
+    @apply rounded-md border border-brass-500/20 bg-white/[0.06] px-1.5 py-0.5 text-[0.9em] text-parchment-200;
+  }
+
+  .shiki-frame .shiki {
+    @apply !bg-transparent px-4 py-4 text-sm leading-7;
+  }
+
+  .shiki-frame .shiki code {
+    @apply !bg-transparent;
+  }
+
+  .code-block-shell {
+    @apply min-w-0 max-w-full;
+  }
+
+  .shiki-frame {
+    @apply max-w-full;
+  }
+
+  .code-block-header {
+    @apply flex items-center gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-2;
+  }
+
+  .code-block-label {
+    @apply min-w-0 flex-1 font-mono text-[11px] text-parchment-300;
+  }
+
+  .copy-code-button {
+    @apply inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] leading-none text-parchment-300 transition;
+    font-family: "Berkeley Mono", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+    appearance: none;
+  }
+
+  .copy-code-button:hover {
+    @apply bg-white/10 text-parchment-200;
+  }
+
+  .inline-list {
+    @apply pl-5 text-base leading-8 text-parchment-300;
+  }
+
+  .inline-list li + li {
+    @apply mt-1;
+  }
+
+  .callout {
+    @apply my-4 rounded-2xl border-l-4 border-brass-500 bg-brass-500/10 px-4 py-4 text-parchment-200;
+  }
+
+  .syntax-table {
+    @apply overflow-hidden rounded-3xl border border-white/10 bg-[rgba(15,11,10,0.78)];
+  }
+
+  .syntax-row {
+    @apply grid grid-cols-1 gap-3 border-t border-white/10 px-4 py-4 md:grid-cols-[220px_minmax(0,1fr)];
+  }
+
+  .syntax-header {
+    @apply border-t-0 bg-brass-500/10 font-semibold text-parchment-200;
+  }
+}

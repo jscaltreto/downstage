@@ -1,0 +1,102 @@
+---
+layout: layouts/base.njk
+title: Downstage | Plaintext for Playwrights
+description: Downstage helps playwrights write in plain text, render clean manuscripts, and keep revision history readable.
+bodyClass: landing-page
+permalink: /
+---
+<div class="mx-auto max-w-7xl">
+  <button
+    type="button"
+    class="mobile-menu-toggle fixed right-4 top-4 z-50 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-white/15 bg-[rgba(35,22,20,0.92)] text-parchment-200 shadow-stage backdrop-blur-xl lg:hidden"
+    data-mobile-menu-toggle
+    data-mobile-menu-target="home-mobile-menu"
+    data-mobile-menu-backdrop="home-mobile-menu-backdrop"
+    aria-expanded="false"
+    aria-controls="home-mobile-menu"
+    aria-label="Open site menu"
+  >
+    <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2">
+      <path d="M4 7h16"></path>
+      <path d="M4 12h16"></path>
+      <path d="M4 17h16"></path>
+    </svg>
+    <span class="sr-only">Open site menu</span>
+  </button>
+  <div
+    id="home-mobile-menu-backdrop"
+    class="mobile-menu-backdrop hidden lg:hidden"
+    data-mobile-menu-backdrop-panel="home-mobile-menu"
+  ></div>
+  <div
+    id="home-mobile-menu"
+    class="mobile-menu-panel hidden lg:hidden"
+    data-mobile-menu-panel
+    aria-label="Site menu"
+  >
+    <nav class="section-links js-section-nav grid gap-2" aria-label="Page sections">
+      {% for section in collections.homeSections %}
+        {% if section.data.navTitle != false %}
+          <a class="nav-link rounded-xl px-3 py-3 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+        {% endif %}
+      {% endfor %}
+      <a class="nav-link rounded-xl px-3 py-3 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="/docs/">Docs</a>
+      <a class="nav-link rounded-xl px-3 py-3 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage">GitHub</a>
+    </nav>
+  </div>
+  <main class="mx-auto grid max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:px-8" id="top">
+    <section class="grid min-h-[72vh] place-items-center py-10 sm:min-h-[78vh] sm:py-16">
+      <div class="mx-auto max-w-5xl text-center">
+        <div class="flex justify-center">
+          <img
+            class="h-auto w-[220px] drop-shadow-[0_20px_30px_rgba(0,0,0,0.28)] sm:w-[280px] lg:w-[360px]"
+            src="/downstage_logo.png"
+            alt="Downstage logo"
+          >
+        </div>
+        <h1 class="mx-auto mt-4 max-w-[16ch] font-serif text-5xl leading-none text-parchment-200 sm:text-6xl lg:text-7xl">
+          Write stage plays in plain text.
+        </h1>
+        <p class="mx-auto mt-4 max-w-[28ch] font-serif text-2xl leading-tight text-brass-300 sm:text-[2rem]">
+          Write plays, not formatting.
+        </p>
+        <p class="mx-auto mt-5 max-w-3xl text-base leading-8 text-parchment-300 sm:text-lg">
+          Downstage keeps the source readable, renders a clean manuscript when you
+          need one, and makes revision history easy to follow.
+        </p>
+        <div class="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <a class="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-br from-brass-500 to-brass-400 px-5 font-semibold text-ember-850" href="#getting-started">Start Writing</a>
+          <a class="inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 font-semibold text-parchment-200" href="/docs/">Open Docs</a>
+        </div>
+      </div>
+    </section>
+    <nav class="section-links js-section-nav hidden rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] p-4 shadow-stage backdrop-blur-xl lg:block" aria-label="Page sections">
+      <div class="flex flex-wrap items-center gap-2">
+      {% for section in collections.homeSections %}
+        {% if section.data.navTitle != false %}
+          <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="#{{ section.data.id }}">{{ section.data.navTitle or section.data.title }}</a>
+        {% endif %}
+      {% endfor %}
+      <a class="nav-link rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="/docs/">Docs</a>
+      <span class="min-w-0 flex-1" aria-hidden="true"></span>
+      <a class="nav-link inline-flex min-h-[42px] min-w-[42px] items-center justify-center rounded-xl px-3 py-2 text-sm text-parchment-300 transition hover:translate-x-0.5 hover:bg-white/5 hover:text-parchment-200" href="https://github.com/jscaltreto/downstage" aria-label="GitHub">
+        <svg class="h-5 w-5" viewBox="0 0 16 16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38
+            0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52
+            -.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2
+            -3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5
+            7.5 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15
+            0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01
+            8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+          ></path>
+        </svg>
+      </a>
+      </div>
+    </nav>
+    {% asyncEach section in collections.homeSections %}
+      {% include "partials/section.njk" %}
+    {% endeach %}
+  </main>
+</div>
