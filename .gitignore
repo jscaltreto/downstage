@@ -23,6 +23,7 @@ coverage.html
 build/
 dist/
 node_modules/
+*.wasm
 editors/vscode/node_modules/
 editors/vscode/out/
 editors/vscode/*.vsix

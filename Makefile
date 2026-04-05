@@ -1,4 +1,4 @@
-.PHONY: all test lint fmt vet check clean render release-check release-snapshot
+.PHONY: all test lint fmt vet check clean render release-check release-snapshot wasm web web-dev web-clean
 
 BINARY := downstage
 BUILD_DIR := build
@@ -45,3 +45,22 @@ $(BUILD_DIR)/%_condensed.pdf: testdata/%.ds $(BINARY) | $(BUILD_DIR)
 
 $(BUILD_DIR):
 	mkdir -p $@
+
+# --- Web editor (WASM) ---
+
+wasm: | web/dist
+	GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o web/dist/downstage.wasm ./cmd/wasm/
+	cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" web/dist/
+
+web: wasm
+	cd web && npm install && npx esbuild src/main.ts --bundle --outfile=dist/bundle.js --format=esm --target=es2020
+
+web-dev: web
+	@echo "Serving web editor at http://localhost:8080"
+	cd web && python3 -m http.server 8080
+
+web-clean:
+	rm -rf web/dist web/node_modules
+
+web/dist:
+	mkdir -p web/dist

@@ -1,0 +1,120 @@
+import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { EditorState } from "@codemirror/state";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { initWasm } from "./wasm";
+import { downstageHighlighter } from "./downstage-lang";
+import { downstageLinter } from "./diagnostics";
+import { createPreviewPlugin } from "./preview";
+import { setupPdfExport } from "./pdf-export";
+
+const defaultContent = `Title: The Example Play
+Author: Your Name
+Date: 2024
+Draft: First
+
+# Dramatis Personae
+
+ALICE — A curious young woman
+BOB — Her steadfast companion
+
+# The Example Play
+
+## ACT I
+
+### SCENE 1
+
+> A sunny park. Birds sing. A bench sits center stage.
+
+ALICE
+(excited)
+Have you ever noticed how the world looks different
+when you pay **attention** to the *small things*?
+
+BOB
+I suppose I haven't given it much thought.
+
+> ALICE crosses to the bench and sits.
+
+ALICE
+That's precisely the problem, Bob.
+Everyone rushes past the beauty right under their noses.
+
+BOB
+And what beauty have you found today?
+
+ALICE
+~Everything.~ This park. This bench. This conversation.
+
+===
+
+### SCENE 2
+
+> Evening. The same park, now lit by streetlamps.
+
+SONG 1: The Wanderer's Lament
+
+ALICE
+  O, the paths we walk alone
+  through the gardens overgrown,
+  every stone a stepping place
+  to a new and unknown space.
+
+SONG END
+
+BOB
+That was beautiful.
+
+ALICE
+It's just the beginning.
+`;
+
+let editorView: EditorView | null = null;
+
+async function main() {
+  const loading = document.getElementById("loading")!;
+  const workspace = document.getElementById("workspace")!;
+  const editorPane = document.getElementById("editor-pane")!;
+  const iframe = document.getElementById("preview") as HTMLIFrameElement;
+  const styleSelect = document.getElementById(
+    "style-select",
+  ) as HTMLSelectElement;
+  const exportBtn = document.getElementById(
+    "export-pdf",
+  ) as HTMLButtonElement;
+
+  await initWasm();
+
+  loading.style.display = "none";
+  workspace.classList.remove("hidden");
+  exportBtn.disabled = false;
+
+  const previewPlugin = createPreviewPlugin(
+    iframe,
+    styleSelect,
+    () => editorView,
+  );
+
+  const state = EditorState.create({
+    doc: defaultContent,
+    extensions: [
+      lineNumbers(),
+      history(),
+      keymap.of([...defaultKeymap, ...historyKeymap]),
+      oneDark,
+      downstageHighlighter,
+      downstageLinter,
+      previewPlugin,
+      EditorView.lineWrapping,
+    ],
+  });
+
+  editorView = new EditorView({
+    state,
+    parent: editorPane,
+  });
+
+  setupPdfExport(exportBtn, styleSelect, () => editorView);
+}
+
+main();

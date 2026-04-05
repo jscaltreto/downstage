@@ -227,6 +227,18 @@ npm run compile
 Then open the `editors/vscode` folder in VS Code and press `F5` to launch an
 Extension Development Host.
 
+### Web Editor
+
+A browser-based editor with live preview, syntax highlighting, and PDF export.
+No install required — the entire pipeline runs client-side via WebAssembly.
+
+```bash
+make web      # Build WASM binary + bundle JS
+make web-dev  # Serve at http://localhost:8080
+```
+
+See [`web/README.md`](web/README.md) for details.
+
 ## Language Overview
 
 A Downstage document has three sections:
