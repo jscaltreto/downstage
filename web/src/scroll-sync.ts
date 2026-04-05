@@ -1,15 +1,32 @@
-import { ViewPlugin, type EditorView, type ViewUpdate } from "@codemirror/view";
+import { ViewPlugin, type EditorView } from "@codemirror/view";
 
 export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
-  let pending: ReturnType<typeof requestAnimationFrame> | null = null;
+  let rafId: ReturnType<typeof requestAnimationFrame> | null = null;
 
   function syncScroll(view: EditorView) {
     const doc = iframe.contentDocument;
-    if (!doc) return;
+    if (!doc || !doc.body) return;
 
-    // Get the 1-based line number at the top of the visible editor area.
-    const topPos = view.elementAtHeight(view.scrollDOM.scrollTop);
-    const topLine = view.state.doc.lineAt(topPos.from).number;
+    const scrollTop = view.scrollDOM.scrollTop;
+    const scrollHeight = view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
+
+    // If the editor is near the very top or bottom, just match proportionally
+    // as a fast path — avoids jitter at extremes.
+    if (scrollHeight <= 0) return;
+    const ratio = scrollTop / scrollHeight;
+
+    if (ratio < 0.01) {
+      doc.documentElement.scrollTop = 0;
+      return;
+    }
+    if (ratio > 0.99) {
+      doc.documentElement.scrollTop = doc.documentElement.scrollHeight;
+      return;
+    }
+
+    // Find the source line at the top of the editor viewport.
+    const topBlock = view.elementAtHeight(scrollTop);
+    const topLine = view.state.doc.lineAt(topBlock.from).number;
 
     const els = doc.querySelectorAll("[data-source-line]");
     let target: Element | null = null;
@@ -23,25 +40,31 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
     }
 
     if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      const rect = target.getBoundingClientRect();
+      const currentScroll = doc.documentElement.scrollTop;
+      doc.documentElement.scrollTop = currentScroll + rect.top;
     }
   }
 
   return ViewPlugin.fromClass(
     class {
-      constructor(_view: EditorView) {}
+      private handler: () => void;
 
-      update(update: ViewUpdate) {
-        if (!update.geometryChanged) return;
-        if (pending) cancelAnimationFrame(pending);
-        pending = requestAnimationFrame(() => {
-          syncScroll(update.view);
-          pending = null;
+      constructor(view: EditorView) {
+        this.handler = () => {
+          if (rafId) cancelAnimationFrame(rafId);
+          rafId = requestAnimationFrame(() => {
+            syncScroll(view);
+            rafId = null;
+          });
+        };
+        view.scrollDOM.addEventListener("scroll", this.handler, {
+          passive: true,
         });
       }
 
       destroy() {
-        if (pending) cancelAnimationFrame(pending);
+        if (rafId) cancelAnimationFrame(rafId);
       }
     },
   );
