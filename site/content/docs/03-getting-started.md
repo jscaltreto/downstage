@@ -2,7 +2,7 @@
 permalink: false
 id: getting-started
 kicker: How
-title: Get started without jargon
+title: Get started
 navTitle: Get Started
 order: 3
 steps:

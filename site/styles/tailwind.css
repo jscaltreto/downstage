@@ -116,8 +116,24 @@
     @apply mt-1;
   }
 
+  .inline-list a {
+    @apply text-brass-300 underline decoration-brass-500/40 underline-offset-4;
+  }
+
+  .inline-list code {
+    @apply rounded-md border border-brass-500/20 bg-white/[0.06] px-1.5 py-0.5 text-[0.9em] text-parchment-200;
+  }
+
   .callout {
     @apply my-4 rounded-2xl border-l-4 border-brass-500 bg-brass-500/10 px-4 py-4 text-parchment-200;
+  }
+
+  .callout a {
+    @apply text-brass-300 underline decoration-brass-500/40 underline-offset-4;
+  }
+
+  .callout code {
+    @apply rounded-md border border-brass-500/20 bg-white/[0.06] px-1.5 py-0.5 text-[0.9em] text-parchment-200;
   }
 
   .syntax-table {
