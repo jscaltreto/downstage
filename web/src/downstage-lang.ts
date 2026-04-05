@@ -1,7 +1,7 @@
 import {
   Decoration,
   type DecorationSet,
-  type EditorView,
+  EditorView,
   ViewPlugin,
   type ViewUpdate,
 } from "@codemirror/view";
