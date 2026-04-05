@@ -99,6 +99,21 @@ binary is present, the extension falls back to `downstage` on your `PATH`.
 Release notes for the extension come from the repository root
 [`CHANGELOG.md`](../../CHANGELOG.md).
 
+## Release Process
+
+The VS Code extension ships from this repository. It does not maintain a
+separate release track.
+
+- Release tags `v*` drive the extension version used for packaged VSIX files.
+- `.github/workflows/release.yml` packages one VSIX per supported platform and
+  uploads them to the GitHub release.
+- If the `VSCE_PAT` GitHub Actions secret is configured, the same workflow also
+  publishes those VSIX files to the Visual Studio Marketplace.
+- If the `OVSX_TOKEN` GitHub Actions secret is configured, the workflow also
+  publishes the same VSIX files to Open VSX.
+- The registries are published independently, so one can fail without blocking
+  the other.
+
 ## Related
 
 - [Downstage documentation](https://www.getdownstage.com/docs/)
