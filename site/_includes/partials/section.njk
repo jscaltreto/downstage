@@ -123,7 +123,7 @@
     {% if section.data.actions %}
       <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         {% for action in section.data.actions %}
-          <a class="{% if action.kind == 'primary' %}button-primary{% else %}button-secondary{% endif %}" href="{{ action.href }}">{{ action.label }}</a>
+          <a class="{% if action.kind == 'primary' %}button-primary{% else %}button-secondary{% endif %}" href="{% if action.href and action.href[0] == '/' %}{{ action.href | url }}{% else %}{{ action.href }}{% endif %}">{{ action.label }}</a>
         {% endfor %}
       </div>
     {% endif %}

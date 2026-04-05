@@ -27,5 +27,5 @@ steps:
     code: downstage render my-play.ds
 callout:
   title: Need the reference?
-  text: The full reference, examples, and syntax guide live in <a href="/docs/">the docs</a>.
+  text: The full reference, examples, and syntax guide live in <a href="{{ '/docs/' | url }}">the docs</a>.
 ---

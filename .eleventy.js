@@ -8,6 +8,7 @@ function escapeHtml(value) {
 }
 
 const downstageGrammar = require("./editors/vscode/syntaxes/downstage.tmLanguage.json");
+const pathPrefix = process.env.SITE_BASE_PATH || "/";
 
 module.exports = function (eleventyConfig) {
   let highlighterPromise;
@@ -69,6 +70,7 @@ module.exports = function (eleventyConfig) {
   );
 
   return {
+    pathPrefix,
     dir: {
       input: "site",
       includes: "_includes",
