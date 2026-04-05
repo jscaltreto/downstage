@@ -2,99 +2,102 @@
 
 # Downstage for VS Code
 
-Downstage is a VS Code extension for writing stage plays in
-[Downstage](https://www.getdownstage.com/docs/) markup. It provides full
-LSP support, live PDF preview, render commands, snippets, diagnostics, and
-TextMate syntax highlighting.
+Downstage turns VS Code into a plain-text playwriting desk. Start a new play,
+watch pages update in live preview, and export a clean PDF manuscript when
+you are ready.
 
 ## Quick Start
 
-1. Install this extension from the Visual Studio Marketplace or Open VSX.
-2. On supported release builds, the extension uses its bundled `downstage`
-   binary automatically.
-3. If you want to override that binary or you are on an unsupported platform,
-   set `downstage.server.path` or install
-   [`downstage`](https://github.com/jscaltreto/downstage) on your `PATH`.
-4. Open a `.ds` file and start writing.
+1. Install this extension from the VS Code Marketplace.
+2. Run `Downstage: New Play`.
+3. Write your title and first scene.
+4. Run `Downstage: Open Live Preview` to see pages update as you work.
+5. Run `Downstage: Export Manuscript PDF` when you want a manuscript file.
+
+You do not need to start in the terminal. The extension opens a start guide on
+first launch with direct actions for `New Play`, `Open Sample Play`, and
+`Open Live Preview`.
 
 ## Features
 
-### Language Server
+### Start Writing Fast
 
-The extension communicates with the Downstage language server (`downstage lsp`)
-to provide:
-
-- Context-aware character cue completions
-- Structural heading completions
-- Diagnostics surfaced in the Problems panel
-- Folding for title pages, sections, songs, and block comments
+- `Downstage: New Play` opens an untitled script with a ready-to-edit play
+  skeleton.
+- `Downstage: Open Sample Play` opens a fuller example so you can see the
+  format in action.
+- The cursor lands in the title field so you can start typing immediately.
 
 ### Live Preview
 
-Open a real-time PDF preview inside VS Code that updates as you type.
-The debounce delay is configurable.
+Open a live manuscript preview inside VS Code while you write. If you launch
+preview before opening a script, Downstage creates a new play first so you are
+not blocked on file setup.
 
 ### PDF Rendering
 
-Render the current script to a standard or compact PDF directly from the
-command palette. The generated file opens automatically (configurable).
+Export the current script to either a Manuscript PDF or an Acting Edition PDF
+from the command palette. The generated file opens automatically unless you
+turn that off.
+
+### Writing Help
+
+Downstage includes:
+
+- Character cue suggestions in scene context
+- Structure-aware headings and folding
+- Diagnostics in the Problems panel
+- Snippets for acts, scenes, cues, stage directions, and songs
 
 ### Snippets
 
-Pre-built snippets for common Downstage constructs let you scaffold a play
-skeleton, add acts, scenes, cues, stage directions, and songs with a few
-keystrokes.
+Type one of these snippet prefixes inside a Downstage document:
 
-### Syntax Highlighting
-
-A TextMate grammar provides highlighting for all Downstage constructs:
-metadata, headings, stage directions, songs, parentheticals, character cues,
-aliases, verse, and comments.
+- `play` for a full play skeleton
+- `act` for an act heading
+- `scene` for a scene heading
+- `cue` for a character cue with dialogue
+- `stage` for a stage direction
+- `song` for a song block
 
 ## Commands
 
-| Command | Description |
+| Command | What it does |
 | --- | --- |
-| Downstage: Restart Language Server | Restart the LSP connection |
-| Downstage: Render Current Script | Render to standard PDF |
-| Downstage: Render Condensed Script | Render to condensed PDF |
-| Downstage: Preview Current Script PDF | Preview standard PDF in VS Code |
-| Downstage: Preview Condensed Script PDF | Preview condensed PDF in VS Code |
-| Downstage: Live Preview | Live-updating PDF preview |
-
-## Snippets
-
-| Prefix | Description |
-| --- | --- |
-| `play` | Full play skeleton with title page, cast, act, and scene |
-| `act` | Act heading |
-| `scene` | Scene heading |
-| `cue` | Character cue with dialogue |
-| `stage` | Stage direction |
-| `song` | Song block |
+| Downstage: New Play | Open a new play with a starter script |
+| Downstage: Open Sample Play | Open a richer example play |
+| Downstage: Open Start Guide | Reopen the first-run guide |
+| Downstage: Open Help | Open Downstage help in your browser |
+| Downstage: Restart Downstage | Restart the Downstage background services |
+| Downstage: Export Manuscript PDF | Export the current script as a manuscript PDF |
+| Downstage: Export Acting Edition PDF | Export the current script as an acting edition PDF |
+| Downstage: Open Manuscript PDF Preview | Preview the manuscript PDF in VS Code |
+| Downstage: Open Acting Edition PDF Preview | Preview the acting edition PDF in VS Code |
+| Downstage: Open Live Preview | Open the live-updating manuscript preview |
 
 ## Settings
 
 | Setting | Type | Default | Description |
 | --- | --- | --- | --- |
-| `downstage.server.path` | string | `""` | Optional explicit path to the `downstage` executable. When empty, the extension prefers the bundled binary and then falls back to `PATH` |
-| `downstage.server.trace` | string | `"off"` | LSP trace verbosity (`off` / `messages` / `verbose`) |
+| `downstage.server.path` | string | `""` | Optional explicit path to the `downstage` app. When empty, the extension first tries its bundled copy and then tries your system path |
+| `downstage.server.trace` | string | `"off"` | Extra diagnostic logging for troubleshooting |
 | `downstage.editor.autoSuggestCharacterCues` | boolean | `true` | Auto-trigger cue suggestions on empty lines |
-| `downstage.render.style` | string | `"standard"` | Render style (`standard` / `condensed`) |
+| `downstage.render.style` | string | `"standard"` | Default export style. `standard` means Manuscript. `condensed` means Acting Edition |
 | `downstage.render.openAfterRender` | boolean | `true` | Open PDF after rendering |
 | `downstage.preview.debounceMs` | number | `300` | Delay before re-rendering live preview (ms) |
 
-## Requirements
+## If Downstage Does Not Start
 
-Marketplace release builds bundle the `downstage` binary for:
+Release builds of the extension bundle Downstage for:
 
 - `linux-x64`
 - `darwin-x64`
 - `darwin-arm64`
 - `win32-x64`
 
-If you need a different binary, set `downstage.server.path`. If no bundled
-binary is present, the extension falls back to `downstage` on your `PATH`.
+If your platform is not listed, or if you want to use a different binary, set
+`downstage.server.path` in VS Code settings. If no bundled binary is present,
+the extension also tries `downstage` on your system path.
 
 Release notes for the extension come from the repository root
 [`CHANGELOG.md`](../../CHANGELOG.md).

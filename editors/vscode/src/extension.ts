@@ -12,7 +12,11 @@ import {
 import {
 	type VscodeFactories,
 	DownstageRenderError,
+	findTitleValueSelection,
+	getNewPlayTemplate,
 	getPreviewHtml,
+	getRenderStyleDisplayName,
+	getSamplePlayTemplate,
 	getValidatedRenderStyle,
 	isCueSuggestionLine,
 	parseRenderDiagnostics,
@@ -48,6 +52,8 @@ let extensionContext: vscode.ExtensionContext | undefined;
 const allowedRenderStyles = new Set(["standard", "condensed"]);
 const pathServerCommand = "downstage";
 const trustedServerPathsKey = "downstage.trustedServerPaths";
+const welcomeShownKey = "downstage.welcomeShown";
+const helpUrl = "https://www.getdownstage.com/docs/";
 const bundledServerTargets = new Map<string, string>([
 	["linux:x64", "linux-x64"],
 	["darwin:x64", "darwin-x64"],
@@ -69,6 +75,7 @@ interface PreviewState {
 }
 const previewPanels = new Map<string, PreviewState>();
 const previewTempFiles = new Set<string>();
+let welcomePanel: vscode.WebviewPanel | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	extensionContext = context;
@@ -106,8 +113,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	);
 	const livePreviewCommand = vscode.commands.registerCommand(
 		"downstage.livePreview",
+		async () => {
+			await openLivePreview();
+		},
+	);
+	const newPlayCommand = vscode.commands.registerCommand(
+		"downstage.newPlay",
+		async () => {
+			await openTemplateDocument(getNewPlayTemplate());
+		},
+	);
+	const openSamplePlayCommand = vscode.commands.registerCommand(
+		"downstage.openSamplePlay",
+		async () => {
+			await openTemplateDocument(getSamplePlayTemplate());
+		},
+	);
+	const openWelcomeCommand = vscode.commands.registerCommand(
+		"downstage.openWelcome",
 		() => {
-			openLivePreview();
+			openWelcomePanel();
+		},
+	);
+	const openHelpCommand = vscode.commands.registerCommand(
+		"downstage.openHelp",
+		async () => {
+			await vscode.env.openExternal(vscode.Uri.parse(helpUrl));
 		},
 	);
 	const foldingProvider = vscode.languages.registerFoldingRangeProvider(
@@ -125,6 +156,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(previewCommand);
 	context.subscriptions.push(previewCondensedCommand);
 	context.subscriptions.push(livePreviewCommand);
+	context.subscriptions.push(newPlayCommand);
+	context.subscriptions.push(openSamplePlayCommand);
+	context.subscriptions.push(openWelcomeCommand);
+	context.subscriptions.push(openHelpCommand);
 	context.subscriptions.push(foldingProvider);
 	context.subscriptions.push(renderDiagnostics);
 	context.subscriptions.push(
@@ -165,6 +200,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}),
 	);
 	await startLanguageServer(context);
+	await maybeShowWelcomeOnFirstRun(context);
 }
 
 export async function deactivate(): Promise<void> {
@@ -225,11 +261,15 @@ async function startLanguageServer(context: vscode.ExtensionContext): Promise<vo
 	} catch (error) {
 		client = undefined;
 		const message = [
-			"Failed to start the Downstage language server.",
-			"Set `downstage.server.path`, use a release build with a bundled binary, or install `downstage` on your PATH.",
+			"Downstage could not start yet.",
+			"Open help for setup steps, or open settings to choose a Downstage app.",
 		].join(" ");
 		outputChannel.appendLine(String(error));
-		void vscode.window.showErrorMessage(message, "Open Settings").then((selection) => {
+		void vscode.window.showErrorMessage(message, "Open Help", "Open Settings").then((selection) => {
+			if (selection === "Open Help") {
+				void vscode.commands.executeCommand("downstage.openHelp");
+				return;
+			}
 			if (selection === "Open Settings") {
 				void vscode.commands.executeCommand(
 					"workbench.action.openSettings",
@@ -238,6 +278,117 @@ async function startLanguageServer(context: vscode.ExtensionContext): Promise<vo
 			}
 		});
 	}
+}
+
+async function maybeShowWelcomeOnFirstRun(context: vscode.ExtensionContext): Promise<void> {
+	if (context.workspaceState.get<boolean>(welcomeShownKey, false)) {
+		return;
+	}
+
+	await context.workspaceState.update(welcomeShownKey, true);
+	openWelcomePanel();
+}
+
+function openWelcomePanel(): void {
+	if (welcomePanel) {
+		welcomePanel.reveal(vscode.ViewColumn.One);
+		return;
+	}
+
+	welcomePanel = vscode.window.createWebviewPanel(
+		"downstageWelcome",
+		"Downstage: Start Writing",
+		vscode.ViewColumn.One,
+		{ enableCommandUris: true },
+	);
+	welcomePanel.webview.html = getWelcomeHtml();
+	welcomePanel.onDidDispose(() => {
+		welcomePanel = undefined;
+	});
+}
+
+function getWelcomeHtml(): string {
+	const newPlayCommandUri = vscode.Uri.parse("command:downstage.newPlay");
+	const samplePlayCommandUri = vscode.Uri.parse("command:downstage.openSamplePlay");
+	const livePreviewCommandUri = vscode.Uri.parse("command:downstage.livePreview");
+	const helpCommandUri = vscode.Uri.parse("command:downstage.openHelp");
+
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+	color-scheme: light dark;
+	font-family: Georgia, "Times New Roman", serif;
+}
+body {
+	margin: 0;
+	padding: 32px 24px;
+	background:
+		radial-gradient(circle at top, rgba(211, 157, 70, 0.2), transparent 45%),
+		linear-gradient(180deg, #151515 0%, #231d17 100%);
+	color: #f8f1e8;
+}
+main {
+	max-width: 720px;
+	margin: 0 auto;
+}
+h1 {
+	font-size: 2.4rem;
+	line-height: 1.1;
+	margin: 0 0 12px;
+}
+p {
+	font-size: 1.05rem;
+	line-height: 1.6;
+	color: rgba(248, 241, 232, 0.88);
+}
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin: 28px 0 18px;
+}
+.action {
+	display: inline-block;
+	padding: 12px 18px;
+	border-radius: 999px;
+	text-decoration: none;
+	font-weight: 600;
+}
+.action-primary {
+	background: #f4c98a;
+	color: #1d1408;
+}
+.action-secondary {
+	border: 1px solid rgba(248, 241, 232, 0.25);
+	color: #f8f1e8;
+}
+.note {
+	padding: 18px;
+	border-radius: 18px;
+	background: rgba(255, 255, 255, 0.06);
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Write a play. See the pages. Export the PDF.</h1>
+<p>Downstage keeps the writing plain and the manuscript clean. Start with a blank play, explore a sample, or open live preview while you write.</p>
+<div class="actions">
+<a class="action action-primary" href="${newPlayCommandUri}">New Play</a>
+<a class="action action-secondary" href="${samplePlayCommandUri}">Open Sample Play</a>
+<a class="action action-secondary" href="${livePreviewCommandUri}">Open Live Preview</a>
+</div>
+<div class="note">
+<p>If Downstage cannot start, open the help guide for setup steps or point the extension at a local Downstage app in settings.</p>
+<p><a class="action action-secondary" href="${helpCommandUri}">Open Help</a></p>
+</div>
+</main>
+</body>
+</html>`;
 }
 
 function getExplicitServerPath(): string | undefined {
@@ -382,6 +533,18 @@ function getWorkspaceRoot(): string | undefined {
 	return workspaceFolder.uri.fsPath;
 }
 
+async function openTemplateDocument(content: string): Promise<vscode.TextEditor> {
+	const document = await vscode.workspace.openTextDocument({
+		language: "downstage",
+		content,
+	});
+	const editor = await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
+	const selection = findTitleValueSelection(content);
+	const position = new vscode.Position(selection.line, selection.character);
+	editor.selection = new vscode.Selection(position, position);
+	return editor;
+}
+
 
 function scheduleCueSuggestForDocument(document: vscode.TextDocument): void {
 	const editor = vscode.window.activeTextEditor;
@@ -455,12 +618,13 @@ async function renderCurrentScript(styleOverride?: string): Promise<void> {
 	try {
 		const serverPath = await resolveServerCommand();
 		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
+		const styleName = getRenderStyleDisplayName(style);
 		outputChannel.appendLine(`Running: ${serverPath.expectedLocation} render --style ${style} ${inputPath}`);
 		outputChannel.show(true);
 		renderDiagnostics?.delete(editor.document.uri);
 
 		await runDownstageRender(serverPath.command, style, inputPath, outputChannel);
-		const message = `Rendered PDF: ${path.basename(outputPath)}`;
+		const message = `Rendered ${styleName} PDF: ${path.basename(outputPath)}`;
 
 		if (!getOpenAfterRenderSetting()) {
 			void vscode.window.showInformationMessage(message);
@@ -505,6 +669,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 	try {
 		const serverPath = await resolveServerCommand();
 		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
+		const styleName = getRenderStyleDisplayName(style);
 		const sourceName = path.basename(inputPath);
 		const tempPath = path.join(
 			os.tmpdir(),
@@ -571,7 +736,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 
 		await openRenderedPdf(vscode.Uri.file(tempPath));
 		void vscode.window.showInformationMessage(
-			`Preview: ${path.basename(inputPath)}`,
+			`${styleName} preview: ${path.basename(inputPath)}`,
 		);
 	} catch (error) {
 		if (error instanceof DownstageRenderError) {
@@ -656,11 +821,10 @@ function getPreviewDebounceSetting(): number {
 	);
 }
 
-function openLivePreview(): void {
-	const editor = vscode.window.activeTextEditor;
+async function openLivePreview(): Promise<void> {
+	let editor = vscode.window.activeTextEditor;
 	if (!editor || editor.document.languageId !== "downstage") {
-		void vscode.window.showErrorMessage("Open a Downstage script to preview.");
-		return;
+		editor = await openTemplateDocument(getNewPlayTemplate());
 	}
 
 	const key = editor.document.uri.toString();
