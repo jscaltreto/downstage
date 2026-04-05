@@ -1,25 +1,26 @@
 import { linter, type Diagnostic } from "@codemirror/lint";
-import { parse, type ParseError } from "./wasm";
+import { diagnostics, type WasmDiagnostic } from "./wasm";
 
 function toDiagnostics(
   doc: { line(n: number): { from: number; to: number } ; lines: number },
-  errors: ParseError[],
+  sourceDiagnostics: WasmDiagnostic[],
 ): Diagnostic[] {
   const result: Diagnostic[] = [];
-  for (const err of errors) {
-    const startLine = err.line + 1; // 0-based → 1-based
-    const endLine = err.endLine + 1;
+  for (const diagnostic of sourceDiagnostics) {
+    const startLine = diagnostic.line + 1; // 0-based → 1-based
+    const endLine = diagnostic.endLine + 1;
     if (startLine > doc.lines || endLine > doc.lines) continue;
 
-    const from = doc.line(startLine).from + err.col;
-    let to = doc.line(endLine).from + err.endCol;
+    const from = doc.line(startLine).from + diagnostic.col;
+    let to = doc.line(endLine).from + diagnostic.endCol;
     if (to <= from) to = from + 1;
 
     result.push({
       from,
       to: Math.min(to, doc.line(endLine).to),
-      severity: "error",
-      message: err.message,
+      severity: diagnostic.severity,
+      message: diagnostic.message,
+      source: "downstage",
     });
   }
   return result;
@@ -28,8 +29,8 @@ function toDiagnostics(
 export const downstageLinter = linter(
   (view) => {
     const source = view.state.doc.toString();
-    const { errors } = parse(source);
-    return toDiagnostics(view.state.doc, errors);
+    const { diagnostics: sourceDiagnostics } = diagnostics(source);
+    return toDiagnostics(view.state.doc, sourceDiagnostics);
   },
   { delay: 300 },
 );

@@ -1,7 +1,8 @@
 # Downstage Web Editor
 
-A browser-based Downstage editor with live preview, syntax highlighting, and
-PDF export. The entire parsing and rendering pipeline runs client-side via
+A browser-based Downstage editor with live preview, syntax highlighting,
+browser-local draft storage, an Open Draft picker, and PDF export. The entire parsing and
+rendering pipeline runs client-side via
 WebAssembly — no server required.
 
 ## Quick Start
@@ -46,11 +47,11 @@ After Go changes, rebuild with `make wasm` and refresh the browser.
 ## Architecture
 
 ```
-cmd/wasm/main.go    → WASM bridge (syscall/js), exposes 4 functions
+cmd/wasm/main.go    → WASM bridge (syscall/js), exposes editor functions
 web/src/main.ts     → Entry point, WASM init, CodeMirror setup
 web/src/wasm.ts     → TypeScript bindings for WASM functions
 web/src/downstage-lang.ts → Syntax highlighting via WASM semantic tokens
-web/src/diagnostics.ts    → Error markers via WASM parser
+web/src/diagnostics.ts    → LSP-grade diagnostics via WASM
 web/src/preview.ts  → Live HTML preview (debounced)
 web/src/pdf-export.ts     → PDF download via WASM renderer
 ```
@@ -65,7 +66,8 @@ The WASM module exposes a global `downstage` object:
 | Function | Input | Output |
 |----------|-------|--------|
 | `parse(source)` | Downstage source string | `{errors: [{message, line, col, endLine, endCol}]}` |
-| `renderHTML(source, style?)` | Source + optional style (`"standard"` or `"condensed"`) | HTML string |
+| `diagnostics(source)` | Downstage source string | `{diagnostics: [{message, severity, line, col, endLine, endCol, code?}]}` |
+| `renderHTML(source, style?)` | Source + optional style (`"standard"`/Manuscript or `"condensed"`/Acting Edition) | HTML string |
 | `renderPDF(source, style?)` | Source + optional style | `Uint8Array` (PDF bytes) |
 | `semanticTokens(source)` | Source string | `Uint32Array` (delta-encoded LSP tokens) |
 | `tokenTypeNames` | — | `string[]` (token type legend) |

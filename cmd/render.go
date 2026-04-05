@@ -39,7 +39,7 @@ func init() {
 	renderCmd.Flags().StringVarP(&renderFormat, "format", "f", "pdf", "output format: pdf, html")
 	renderCmd.Flags().StringVarP(&renderOutput, "output", "o", "", "output file (default: input name with format extension)")
 	renderCmd.Flags().StringVar(&renderPageSize, "page-size", "letter", "page size: letter, a4")
-	renderCmd.Flags().StringVar(&renderStyle, "style", "standard", "rendering style: standard, condensed")
+	renderCmd.Flags().StringVar(&renderStyle, "style", "standard", "rendering style: standard (Manuscript), condensed (Acting Edition)")
 	renderCmd.Flags().StringVar(&renderFont, "font", "", "path to a custom TTF font file")
 	renderCmd.Flags().BoolVar(&renderStdin, "stdin", false, "read input from stdin instead of a file")
 	renderCmd.Flags().BoolVar(&renderStdout, "stdout", false, "write output to stdout instead of a file")

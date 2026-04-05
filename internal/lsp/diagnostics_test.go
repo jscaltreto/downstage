@@ -47,6 +47,39 @@ func TestBuildDiagnostics_ParserErrors(t *testing.T) {
 	}
 }
 
+func TestComputeDiagnostics_MatchesBuildDiagnostics(t *testing.T) {
+	content := `# Dramatis Personae
+
+HAMLET
+
+## ACT
+
+### SCENE
+
+GHOST
+Hello.`
+
+	doc, errs := parser.Parse([]byte(content))
+	got := ComputeDiagnostics(doc, errs)
+	want := buildDiagnostics(doc, errs)
+
+	if len(got) != len(want) {
+		t.Fatalf("expected %d diagnostics, got %d", len(want), len(got))
+	}
+
+	for i := range want {
+		if got[i].Message != want[i].Message {
+			t.Fatalf("diagnostic %d message mismatch: got %q want %q", i, got[i].Message, want[i].Message)
+		}
+		if got[i].Severity != want[i].Severity {
+			t.Fatalf("diagnostic %d severity mismatch: got %v want %v", i, got[i].Severity, want[i].Severity)
+		}
+		if got[i].Code != want[i].Code {
+			t.Fatalf("diagnostic %d code mismatch: got %#v want %#v", i, got[i].Code, want[i].Code)
+		}
+	}
+}
+
 func TestBuildDiagnostics_UnknownCharacter(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{

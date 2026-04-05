@@ -10,6 +10,7 @@ declare global {
     Go: typeof Go;
     downstage: {
       parse(source: string): { errors: ParseError[] };
+      diagnostics(source: string): { diagnostics: WasmDiagnostic[] };
       renderHTML(source: string, style?: string): string;
       renderPDF(source: string, style?: string): Uint8Array;
       semanticTokens(source: string): Uint32Array;
@@ -24,6 +25,16 @@ export interface ParseError {
   col: number;
   endLine: number;
   endCol: number;
+}
+
+export interface WasmDiagnostic {
+  message: string;
+  severity: "error" | "warning" | "info" | "hint";
+  line: number;
+  col: number;
+  endLine: number;
+  endCol: number;
+  code?: string;
 }
 
 import wasmExecUrl from "../build/wasm_exec.js?url";
@@ -100,6 +111,10 @@ async function waitForDownstage(runPromise: Promise<void>): Promise<void> {
 
 export function parse(source: string) {
   return window.downstage.parse(source);
+}
+
+export function diagnostics(source: string) {
+  return window.downstage.diagnostics(source);
 }
 
 export function renderHTML(source: string, style?: string): string {

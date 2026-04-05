@@ -150,21 +150,21 @@ non-zero if parsing fails.
 `downstage render` supports PDF (default) and HTML output via `--format`:
 
 ```
-downstage render play.ds                              # PDF, standard
-downstage render --format html play.ds                # HTML, standard
+downstage render play.ds                              # PDF, manuscript
+downstage render --format html play.ds                # HTML, manuscript
 downstage render --format html --style condensed play.ds
 downstage render --format html -o play.html play.ds   # explicit output file
 ```
 
 Both formats support two styles via `--style`:
 
-- **`standard`** (default) — Traditional manuscript format. Character names
+- **`standard`** (default, Manuscript) — Traditional manuscript format. Character names
   centered above dialogue, generous margins.
-- **`condensed`** — Acting edition format designed for rehearsal use. Character
+- **`condensed`** (Acting Edition) — Acting edition format designed for rehearsal use. Character
   names inline with dialogue (e.g. `HAMLET. To be or not...`), tighter spacing.
 
-PDF uses Courier 12pt on letter-size pages for standard, and Libre Baskerville
-10pt on half-letter for condensed. HTML produces a self-contained document with
+PDF uses Courier 12pt on letter-size pages for manuscript, and Libre Baskerville
+10pt on half-letter for acting edition. HTML produces a self-contained document with
 embedded CSS using semantic `.downstage-*` class names for custom styling.
 
 ## Editor Setup

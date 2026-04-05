@@ -78,6 +78,11 @@ func buildDiagnostics(doc *ast.Document, errors []*parser.ParseError) []protocol
 	return buildDiagnosticsWithIndex(doc, errors, newDocumentIndex(doc))
 }
 
+// ComputeDiagnostics returns the same diagnostics surfaced by the Downstage LSP.
+func ComputeDiagnostics(doc *ast.Document, errors []*parser.ParseError) []protocol.Diagnostic {
+	return buildDiagnostics(doc, errors)
+}
+
 func buildDiagnosticsWithIndex(doc *ast.Document, errors []*parser.ParseError, index *documentIndex) []protocol.Diagnostic {
 	if doc == nil && len(errors) == 0 {
 		return []protocol.Diagnostic{}

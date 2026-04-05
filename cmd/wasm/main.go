@@ -12,12 +12,14 @@ import (
 	"github.com/jscaltreto/downstage/internal/render"
 	htmlrender "github.com/jscaltreto/downstage/internal/render/html"
 	pdfrender "github.com/jscaltreto/downstage/internal/render/pdf"
+	"go.lsp.dev/protocol"
 )
 
 func main() {
 	ds := js.Global().Get("Object").New()
 
 	ds.Set("parse", js.FuncOf(parse))
+	ds.Set("diagnostics", js.FuncOf(diagnostics))
 	ds.Set("renderHTML", js.FuncOf(renderHTML))
 	ds.Set("renderPDF", js.FuncOf(renderPDF))
 	ds.Set("semanticTokens", js.FuncOf(semanticTokens))
@@ -37,6 +39,16 @@ type parseErrorJSON struct {
 	EndCol  int    `json:"endCol"`
 }
 
+type diagnosticJSON struct {
+	Message  string `json:"message"`
+	Severity string `json:"severity"`
+	Line     int    `json:"line"`
+	Col      int    `json:"col"`
+	EndLine  int    `json:"endLine"`
+	EndCol   int    `json:"endCol"`
+	Code     string `json:"code,omitempty"`
+}
+
 func parse(_ js.Value, args []js.Value) any {
 	source := args[0].String()
 	_, errs := parser.Parse([]byte(source))
@@ -53,6 +65,28 @@ func parse(_ js.Value, args []js.Value) any {
 	}
 
 	data, _ := json.Marshal(map[string]any{"errors": out})
+	return js.Global().Get("JSON").Call("parse", string(data))
+}
+
+func diagnostics(_ js.Value, args []js.Value) any {
+	source := args[0].String()
+	doc, errs := parser.Parse([]byte(source))
+	diags := lsp.ComputeDiagnostics(doc, errs)
+
+	out := make([]diagnosticJSON, len(diags))
+	for i, diag := range diags {
+		out[i] = diagnosticJSON{
+			Message:  diag.Message,
+			Severity: diagnosticSeverity(diag.Severity),
+			Line:     int(diag.Range.Start.Line),
+			Col:      int(diag.Range.Start.Character),
+			EndLine:  int(diag.Range.End.Line),
+			EndCol:   int(diag.Range.End.Character),
+			Code:     diagnosticCode(diag.Code),
+		}
+	}
+
+	data, _ := json.Marshal(map[string]any{"diagnostics": out})
 	return js.Global().Get("JSON").Call("parse", string(data))
 }
 
@@ -120,4 +154,26 @@ func tokenTypeNamesArray() js.Value {
 		arr.SetIndex(i, name)
 	}
 	return arr
+}
+
+func diagnosticSeverity(severity protocol.DiagnosticSeverity) string {
+	switch severity {
+	case protocol.DiagnosticSeverityError:
+		return "error"
+	case protocol.DiagnosticSeverityWarning:
+		return "warning"
+	case protocol.DiagnosticSeverityInformation:
+		return "info"
+	default:
+		return "error"
+	}
+}
+
+func diagnosticCode(code any) string {
+	switch v := code.(type) {
+	case string:
+		return v
+	default:
+		return ""
+	}
 }

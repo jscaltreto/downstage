@@ -2,19 +2,8 @@ name: Pages
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - site/**
-      - web/**
-      - cmd/wasm/**
-      - internal/**
-      - downstage_logo.png
-      - package.json
-      - package-lock.json
-      - .eleventy.js
-      - tailwind.config.js
-      - .github/workflows/pages.yml
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -55,6 +44,8 @@ jobs:
         run: npm --prefix web ci
 
       - name: Build site
+        env:
+          RELEASE_VERSION: ${{ github.ref_name || 'dev' }}
         run: npm run build:site
 
       - name: Configure GitHub Pages
