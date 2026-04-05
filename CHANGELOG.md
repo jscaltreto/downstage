@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/jscaltreto/downstage/compare/v0.4.0...v0.4.1) (2026-04-05)
+
+
+### Bug Fixes
+
+* **site:** make web editor primary onboarding path ([#99](https://github.com/jscaltreto/downstage/issues/99)) ([fd14adc](https://github.com/jscaltreto/downstage/commit/fd14adcbf6be3faf4545892c6a7c9d82657c3cf4)), closes [#92](https://github.com/jscaltreto/downstage/issues/92)
+
 ## [0.4.0](https://github.com/jscaltreto/downstage/compare/v0.3.0...v0.4.0) (2026-04-05)
 
 
