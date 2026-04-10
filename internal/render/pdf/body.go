@@ -164,31 +164,11 @@ func (r *pdfRenderer) BeginDialogue(d *ast.Dialogue) error {
 	if r.inDualDialogue {
 		return r.beginDualDialogueSide(d)
 	}
-
-	r.ensureSpace(r.lineHeight * 3)
-	r.pdf.Ln(r.lineHeight)
-
-	// Character name — centered, uppercase, bold
-	r.setStyle("B")
-	r.centeredText(strings.ToUpper(d.Character))
-	r.setStyle("")
-
-	// Parenthetical — centered, italic
-	if d.Parenthetical != "" {
-		r.setStyle("I")
-		paren := d.Parenthetical
-		if len(paren) == 0 || paren[0] != '(' {
-			paren = "(" + paren + ")"
-		}
-		r.centeredText(paren)
-		r.setStyle("")
+	r.activeDialogue = &bufferedDialogue{
+		character:     d.Character,
+		parenthetical: d.Parenthetical,
+		lines:         make([]bufferedDialogueLine, 0, len(d.Lines)),
 	}
-
-	// Set dialogue column margins
-	dialogueMargin := r.bodyW * 0.15
-	dialogueX := r.marginL + dialogueMargin
-	r.pdf.SetLeftMargin(dialogueX)
-	r.pdf.SetRightMargin(r.marginR + dialogueMargin)
 	return nil
 }
 
@@ -294,16 +274,20 @@ func (r *pdfRenderer) EndDialogue(_ *ast.Dialogue) error {
 		r.dualSide++
 		return nil
 	}
-	r.pdf.SetLeftMargin(r.marginL)
-	r.pdf.SetRightMargin(r.marginR)
-	return nil
+	if r.activeDialogue == nil {
+		return nil
+	}
+	dialogue := *r.activeDialogue
+	r.activeDialogue = nil
+	return r.renderBufferedDialogue(dialogue)
 }
 
 func (r *pdfRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
-	if len(line.Content) == 0 {
-		return nil
-	}
 	if r.inDualDialogue {
+		r.captureDialogueLine = false
+		if len(line.Content) == 0 {
+			return nil
+		}
 		// In dual dialogue, lines flow within the current column margins
 		leftM, _, _, _ := r.pdf.GetMargins()
 		if line.IsVerse {
@@ -314,18 +298,23 @@ func (r *pdfRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 		return nil
 	}
 
-	dialogueMargin := r.bodyW * 0.15
-	dialogueX := r.marginL + dialogueMargin
-	if line.IsVerse {
-		r.pdf.SetX(dialogueX + 10)
-	} else {
-		r.pdf.SetX(dialogueX)
-	}
+	r.beginCapturedDialogueLine()
 	return nil
 }
 
-func (r *pdfRenderer) EndDialogueLine(_ *ast.DialogueLine) error {
-	r.pdf.Ln(r.lineHeight)
+func (r *pdfRenderer) EndDialogueLine(line *ast.DialogueLine) error {
+	if r.inDualDialogue {
+		r.pdf.Ln(r.lineHeight)
+		return nil
+	}
+	runs := r.endCapturedDialogueLine()
+	if r.activeDialogue == nil {
+		return nil
+	}
+	r.activeDialogue.lines = append(r.activeDialogue.lines, bufferedDialogueLine{
+		runs:    runs,
+		isVerse: line.IsVerse,
+	})
 	return nil
 }
 

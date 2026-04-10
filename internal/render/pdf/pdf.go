@@ -11,6 +11,7 @@ import (
 const manuscriptLineHeight = 5.0 // mm
 
 var _ render.NodeRenderer = (*pdfRenderer)(nil)
+var _ dialoguePaginationStrategy = (*pdfRenderer)(nil)
 
 // NewRenderer creates a manuscript-style PDF NodeRenderer.
 func NewRenderer(cfg render.Config) render.NodeRenderer {
@@ -19,6 +20,7 @@ func NewRenderer(cfg render.Config) render.NodeRenderer {
 
 type pdfRenderer struct {
 	pdfBase
+	activeDialogue *bufferedDialogue
 }
 
 // --- Lifecycle ---

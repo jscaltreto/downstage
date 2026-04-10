@@ -42,6 +42,17 @@ type pdfBase struct {
 	dualSide       int     // 0 = left, 1 = right
 	dualStartY     float64 // Y position at start of dual dialogue
 	dualMidY       float64 // Y after left column, to compute max height
+
+	// Buffered dialogue inline capture for custom pagination.
+	captureDialogueLine bool
+	captureStyle        string
+	captureDirDepth     int
+	capturedRuns        []dialogueTextRun
+}
+
+type dialogueTextRun struct {
+	text  string
+	style string
 }
 
 func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
@@ -94,61 +105,113 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 // --- Inline rendering (shared by all PDF renderers) ---
 
 func (b *pdfBase) RenderText(t *ast.TextNode) error {
+	if b.captureDialogueLine {
+		b.appendCapturedText(t.Value)
+		return nil
+	}
 	b.pdf.Write(b.lineHeight, t.Value)
 	return nil
 }
 
 func (b *pdfBase) BeginBold(_ *ast.BoldNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = mergeStyles(b.captureStyle, "B")
+		return nil
+	}
 	b.pushStyle("B")
 	return nil
 }
 
 func (b *pdfBase) EndBold(_ *ast.BoldNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = removeStyles(b.captureStyle, "B")
+		return nil
+	}
 	b.popStyle("B")
 	return nil
 }
 
 func (b *pdfBase) BeginItalic(_ *ast.ItalicNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = mergeStyles(b.captureStyle, "I")
+		return nil
+	}
 	b.pushStyle("I")
 	return nil
 }
 
 func (b *pdfBase) EndItalic(_ *ast.ItalicNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = removeStyles(b.captureStyle, "I")
+		return nil
+	}
 	b.popStyle("I")
 	return nil
 }
 
 func (b *pdfBase) BeginBoldItalic(_ *ast.BoldItalicNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = mergeStyles(b.captureStyle, "BI")
+		return nil
+	}
 	b.pushStyle("BI")
 	return nil
 }
 
 func (b *pdfBase) EndBoldItalic(_ *ast.BoldItalicNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = removeStyles(b.captureStyle, "BI")
+		return nil
+	}
 	b.popStyle("BI")
 	return nil
 }
 
 func (b *pdfBase) BeginUnderline(_ *ast.UnderlineNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = mergeStyles(b.captureStyle, "U")
+		return nil
+	}
 	b.pushStyle("U")
 	return nil
 }
 
 func (b *pdfBase) EndUnderline(_ *ast.UnderlineNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = removeStyles(b.captureStyle, "U")
+		return nil
+	}
 	b.popStyle("U")
 	return nil
 }
 
 func (b *pdfBase) BeginStrikethrough(_ *ast.StrikethroughNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = mergeStyles(b.captureStyle, "S")
+		return nil
+	}
 	b.pushStyle("S")
 	return nil
 }
 
 func (b *pdfBase) EndStrikethrough(_ *ast.StrikethroughNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = removeStyles(b.captureStyle, "S")
+		return nil
+	}
 	b.popStyle("S")
 	return nil
 }
 
 func (b *pdfBase) BeginInlineDirection(_ *ast.InlineDirectionNode) error {
+	if b.captureDialogueLine {
+		b.captureStyle = mergeStyles(b.captureStyle, "I")
+		b.captureDirDepth++
+		if b.captureDirDepth == 1 {
+			b.appendCapturedText("(")
+		}
+		return nil
+	}
 	b.pushStyle("I")
 	b.dirDepth++
 	if b.dirDepth == 1 {
@@ -158,12 +221,47 @@ func (b *pdfBase) BeginInlineDirection(_ *ast.InlineDirectionNode) error {
 }
 
 func (b *pdfBase) EndInlineDirection(_ *ast.InlineDirectionNode) error {
+	if b.captureDialogueLine {
+		b.captureDirDepth--
+		if b.captureDirDepth == 0 {
+			b.appendCapturedText(")")
+		}
+		b.captureStyle = removeStyles(b.captureStyle, "I")
+		return nil
+	}
 	b.dirDepth--
 	if b.dirDepth == 0 {
 		b.pdf.Write(b.lineHeight, ")")
 	}
 	b.popStyle("I")
 	return nil
+}
+
+func (b *pdfBase) beginCapturedDialogueLine() {
+	b.captureDialogueLine = true
+	b.captureStyle = ""
+	b.captureDirDepth = 0
+	b.capturedRuns = b.capturedRuns[:0]
+}
+
+func (b *pdfBase) endCapturedDialogueLine() []dialogueTextRun {
+	runs := append([]dialogueTextRun(nil), b.capturedRuns...)
+	b.captureDialogueLine = false
+	b.captureStyle = ""
+	b.captureDirDepth = 0
+	b.capturedRuns = b.capturedRuns[:0]
+	return runs
+}
+
+func (b *pdfBase) appendCapturedText(text string) {
+	if text == "" {
+		return
+	}
+	if n := len(b.capturedRuns); n > 0 && b.capturedRuns[n-1].style == b.captureStyle {
+		b.capturedRuns[n-1].text += text
+		return
+	}
+	b.capturedRuns = append(b.capturedRuns, dialogueTextRun{text: text, style: b.captureStyle})
 }
 
 func (b *pdfBase) RenderPageBreak(_ *ast.PageBreak) error {

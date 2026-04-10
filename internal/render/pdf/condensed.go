@@ -19,6 +19,7 @@ const (
 )
 
 var _ render.NodeRenderer = (*condensedRenderer)(nil)
+var _ dialoguePaginationStrategy = (*condensedRenderer)(nil)
 
 // NewCondensedRenderer creates an acting-edition PDF NodeRenderer.
 // Uses half-letter page, Libre Baskerville serif font, and compact layout
@@ -37,8 +38,8 @@ func NewCondensedRenderer(cfg render.Config) render.NodeRenderer {
 
 type condensedRenderer struct {
 	pdfBase
-	inDialogue bool // tracks whether we're inside a dialogue block
-	firstLine  bool // tracks first line of a dialogue (continues after character name)
+	dualDialogueInlineFirstLine bool
+	activeDialogue              *bufferedDialogue
 }
 
 // --- Lifecycle ---
@@ -307,32 +308,11 @@ func (r *condensedRenderer) BeginDialogue(d *ast.Dialogue) error {
 	if r.inDualDialogue {
 		return r.beginDualDialogueSide(d)
 	}
-
-	r.ensureSpace(r.lineHeight * 2)
-	r.pdf.Ln(r.lineHeight / 2)
-
-	r.inDialogue = true
-	r.firstLine = true
-
-	// Character name — bold, followed by period
-	r.pdf.SetX(r.marginL)
-	r.setStyle("B")
-	r.pdf.Write(r.lineHeight, strings.ToUpper(d.Character)+".")
-	r.setStyle("")
-	r.pdf.Write(r.lineHeight, "  ")
-
-	// Parenthetical — italic, inline
-	if d.Parenthetical != "" {
-		r.setStyle("I")
-		paren := d.Parenthetical
-		if len(paren) == 0 || paren[0] != '(' {
-			paren = "(" + paren + ")"
-		}
-		r.pdf.Write(r.lineHeight, paren)
-		r.setStyle("")
-		r.pdf.Write(r.lineHeight, " ")
+	r.activeDialogue = &bufferedDialogue{
+		character:     d.Character,
+		parenthetical: d.Parenthetical,
+		lines:         make([]bufferedDialogueLine, 0, len(d.Lines)),
 	}
-
 	return nil
 }
 
@@ -357,8 +337,7 @@ func (r *condensedRenderer) beginDualDialogueSide(d *ast.Dialogue) error {
 	r.pdf.SetLeftMargin(leftM)
 	r.pdf.SetRightMargin(rightM)
 
-	r.inDialogue = true
-	r.firstLine = true
+	r.dualDialogueInlineFirstLine = true
 
 	// Character name — bold, inline
 	r.pdf.SetX(leftM)
@@ -448,20 +427,33 @@ func (r *condensedRenderer) estimateDialogueHeight(d *ast.Dialogue, width float6
 func (r *condensedRenderer) EndDialogue(_ *ast.Dialogue) error {
 	if r.inDualDialogue {
 		r.dualSide++
+		return nil
 	}
-	r.inDialogue = false
-	r.firstLine = false
+	if r.activeDialogue != nil {
+		dialogue := *r.activeDialogue
+		r.activeDialogue = nil
+		if err := r.renderBufferedDialogue(dialogue); err != nil {
+			return err
+		}
+	}
+	r.dualDialogueInlineFirstLine = false
 	return nil
 }
 
 func (r *condensedRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
-	if len(line.Content) == 0 {
-		r.firstLine = false
+	if !r.inDualDialogue {
+		r.beginCapturedDialogueLine()
 		return nil
 	}
-	if r.firstLine {
+	r.captureDialogueLine = false
+
+	if len(line.Content) == 0 {
+		r.dualDialogueInlineFirstLine = false
+		return nil
+	}
+	if r.dualDialogueInlineFirstLine {
 		// First line continues after character name on the same line
-		r.firstLine = false
+		r.dualDialogueInlineFirstLine = false
 		if line.IsVerse {
 			// Even verse on the first line starts inline
 		}
@@ -478,6 +470,18 @@ func (r *condensedRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 }
 
 func (r *condensedRenderer) EndDialogueLine(line *ast.DialogueLine) error {
+	if !r.inDualDialogue {
+		runs := r.endCapturedDialogueLine()
+		if r.activeDialogue == nil {
+			return nil
+		}
+		r.activeDialogue.lines = append(r.activeDialogue.lines, bufferedDialogueLine{
+			runs:    runs,
+			isVerse: line.IsVerse,
+		})
+		return nil
+	}
+
 	if len(line.Content) == 0 {
 		r.pdf.Ln(r.lineHeight / 2)
 		return nil
