@@ -95,8 +95,7 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 	b.pdf.SetFooterFunc(func() {
 		b.pdf.SetY(-b.marginB + 5)
 		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize-2)
-		b.pdf.CellFormat(0, 10, fmt.Sprintf("%d", b.pdf.PageNo()),
-			"", 0, "C", false, 0, "")
+		b.renderPageNumberFooter(fmt.Sprintf("%d", b.pdf.PageNo()), 10)
 		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize)
 	})
 
@@ -333,6 +332,12 @@ func (b *pdfBase) ensureSpace(mm float64) {
 
 func (b *pdfBase) centeredText(text string) {
 	b.pdf.CellFormat(b.bodyW, b.lineHeight, text, "", 1, "C", false, 0, "")
+}
+
+func (b *pdfBase) renderPageNumberFooter(text string, height float64) {
+	width := b.pdf.GetStringWidth(text)
+	b.pdf.SetX((b.pageW - width) / 2)
+	b.pdf.CellFormat(width, height, text, "", 0, "", false, 0, "")
 }
 
 func (b *pdfBase) centeredInlines(inlines []ast.Inline, prefix, suffix string) error {

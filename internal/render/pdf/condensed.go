@@ -94,8 +94,7 @@ func (r *condensedRenderer) initCondensedPDF() {
 	r.pdf.SetFooterFunc(func() {
 		r.pdf.SetY(-r.marginB + 3)
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize-2)
-		r.pdf.CellFormat(0, 8, fmt.Sprintf("%d", r.pdf.PageNo()),
-			"", 0, "C", false, 0, "")
+		r.renderPageNumberFooter(fmt.Sprintf("%d", r.pdf.PageNo()), 8)
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize)
 	})
 
