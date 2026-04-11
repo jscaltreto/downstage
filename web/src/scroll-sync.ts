@@ -1,4 +1,4 @@
-import { ViewPlugin, type EditorView } from "@codemirror/view";
+import { ViewPlugin, type EditorView, type ViewUpdate } from "@codemirror/view";
 
 function absoluteTop(el: HTMLElement): number {
   let top = 0;
@@ -10,10 +10,15 @@ function absoluteTop(el: HTMLElement): number {
   return top;
 }
 
+export type SyncMode = 'center' | 'top';
+
 export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
   let rafId: ReturnType<typeof requestAnimationFrame> | null = null;
+  let lastSyncLine = -1;
+  let lastSyncMode: SyncMode | null = null;
+  let lastDocument: Document | null = null;
 
-  function syncScroll(view: EditorView) {
+  function syncToLine(view: EditorView, lineNumber: number, mode: SyncMode) {
     let idoc: Document | null = null;
     try {
       idoc = iframe.contentDocument;
@@ -22,80 +27,89 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
     }
     if (!idoc?.body) return;
 
-    const scrollEl = idoc.scrollingElement ?? idoc.documentElement;
-    const maxEditorScroll =
-      view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
-    if (maxEditorScroll <= 0) return;
-
-    const ratio = view.scrollDOM.scrollTop / maxEditorScroll;
-
-    if (ratio <= 0.01) {
-      scrollEl.scrollTop = 0;
-      return;
-    }
-    if (ratio >= 0.99) {
-      scrollEl.scrollTop = scrollEl.scrollHeight;
-      return;
+    if (idoc !== lastDocument) {
+        lastDocument = idoc;
+        lastSyncLine = -1;
+        lastSyncMode = null;
     }
 
-    // Find the 1-based source line at the top of the editor viewport.
-    const topBlock = view.elementAtHeight(view.scrollDOM.scrollTop);
-    const topLine = view.state.doc.lineAt(topBlock.from).number;
-
-    // Walk anchored elements to find the bracket [best, next).
+    if (lineNumber === lastSyncLine && mode === lastSyncMode) return;
+    
     const els = Array.from(idoc.querySelectorAll("[data-source-line]"));
     if (els.length === 0) return;
 
-    let bestIdx = 0;
+    let bestIdx = -1;
     for (let i = 0; i < els.length; i++) {
-      const n = parseInt(els[i].getAttribute("data-source-line")!, 10);
-      if (n <= topLine) {
+      const el = els[i] as HTMLElement;
+      const n = parseInt(el.getAttribute("data-source-line")!, 10);
+      if (n <= lineNumber) {
         bestIdx = i;
       } else {
         break;
       }
     }
 
+    if (bestIdx === -1) return;
     const bestEl = els[bestIdx] as HTMLElement;
-    const bestLine = parseInt(bestEl.getAttribute("data-source-line")!, 10);
-    const bestTop = absoluteTop(bestEl);
+    
+    lastSyncLine = lineNumber;
+    lastSyncMode = mode;
 
-    // Interpolate toward the next anchor for smoother tracking.
-    const nextEl = els[bestIdx + 1] as HTMLElement | undefined;
-    if (nextEl) {
-      const nextLine = parseInt(nextEl.getAttribute("data-source-line")!, 10);
-      const nextTop = absoluteTop(nextEl);
-      if (nextLine > bestLine) {
-        const t = Math.min((topLine - bestLine) / (nextLine - bestLine), 1);
-        scrollEl.scrollTop = bestTop + (nextTop - bestTop) * t;
-        return;
-      }
+    const scrollEl = idoc.scrollingElement ?? idoc.documentElement;
+
+    if (mode === 'center') {
+        bestEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+        const bestTop = absoluteTop(bestEl);
+        const bestLine = parseInt(bestEl.getAttribute("data-source-line")!, 10);
+        const nextEl = els[bestIdx + 1] as HTMLElement | undefined;
+        
+        if (nextEl) {
+            const nextLine = parseInt(nextEl.getAttribute("data-source-line")!, 10);
+            const nextTop = absoluteTop(nextEl);
+            if (nextLine > bestLine) {
+                const t = Math.min((lineNumber - bestLine) / (nextLine - bestLine), 1);
+                scrollEl.scrollTop = bestTop + (nextTop - bestTop) * t;
+                return;
+            }
+        }
+        scrollEl.scrollTop = bestTop;
     }
-
-    scrollEl.scrollTop = bestTop;
   }
 
   return ViewPlugin.fromClass(
     class {
-      private handler: () => void;
+      private scrollHandler: () => void;
       private scrollDOM: HTMLElement;
 
-      constructor(view: EditorView) {
+      constructor(private view: EditorView) {
         this.scrollDOM = view.scrollDOM;
-        this.handler = () => {
+        
+        this.scrollHandler = () => {
           if (rafId) cancelAnimationFrame(rafId);
           rafId = requestAnimationFrame(() => {
-            syncScroll(view);
+            const topBlock = view.elementAtHeight(view.scrollDOM.scrollTop);
+            const topLine = view.state.doc.lineAt(topBlock.from).number;
+            syncToLine(view, topLine, 'top');
             rafId = null;
           });
         };
-        this.scrollDOM.addEventListener("scroll", this.handler, {
+
+        this.scrollDOM.addEventListener("scroll", this.scrollHandler, {
           passive: true,
         });
       }
 
+      update(update: ViewUpdate) {
+        if (update.selectionSet || (update.docChanged && update.view.hasFocus)) {
+          const head = update.state.selection.main.head;
+          const line = update.state.doc.lineAt(head).number;
+          syncToLine(this.view, line, 'center');
+        }
+      }
+
       destroy() {
-        this.scrollDOM.removeEventListener("scroll", this.handler);
+        this.scrollDOM.removeEventListener("scroll", this.scrollHandler);
         if (rafId) cancelAnimationFrame(rafId);
       }
     },

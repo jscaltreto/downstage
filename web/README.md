@@ -16,12 +16,20 @@ make web-dev
 # Open http://localhost:5173/editor/
 ```
 
+## Tech Stack
+
+- **Vue 3**: Component-based UI shell
+- **Tailwind CSS v4**: Adaptive theatrical design system (Dark/Light mode)
+- **CodeMirror 6**: Plaintext editor core
+- **Lucide**: Consistent iconography
+- **WebAssembly**: Go-powered parsing and rendering
+
 ## Building
 
 ### Prerequisites
 
-- Go 1.23+ (for WASM compilation)
-- Node.js 18+ and npm (for bundling)
+- Go 1.24+ (for WASM compilation)
+- Node.js 22+ and npm (for bundling)
 
 ### Build Steps
 
@@ -47,17 +55,14 @@ After Go changes, rebuild with `make wasm` and refresh the browser.
 ## Architecture
 
 ```
-cmd/wasm/main.go    → WASM bridge (syscall/js), exposes editor functions
-web/src/main.ts     → Entry point, WASM init, CodeMirror setup
+web/src/core/       → Pure TypeScript logic (Store, Engine, Types)
+web/src/components/ → Vue Single File Components
+web/src/web-app.ts  → Web-specific entry point and environment implementation
 web/src/wasm.ts     → TypeScript bindings for WASM functions
-web/src/downstage-lang.ts → Syntax highlighting via WASM semantic tokens
-web/src/diagnostics.ts    → LSP-grade diagnostics via WASM
-web/src/preview.ts  → Live HTML preview (debounced)
-web/src/pdf-export.ts     → PDF download via WASM renderer
 ```
 
-All parsing and rendering happens in Go via WASM. The TypeScript code handles
-only the editor UI and WASM glue.
+All parsing and rendering happens in Go via WASM. The TypeScript core handles
+the editor lifecycle, while Vue handles the presentation layer.
 
 ### WASM API
 
@@ -71,10 +76,3 @@ The WASM module exposes a global `downstage` object:
 | `renderPDF(source, style?)` | Source + optional style | `Uint8Array` (PDF bytes) |
 | `semanticTokens(source)` | Source string | `Uint32Array` (delta-encoded LSP tokens) |
 | `tokenTypeNames` | — | `string[]` (token type legend) |
-
-### Binary Size
-
-The WASM binary is ~8.5 MB uncompressed due to embedded fonts (Courier Prime +
-Libre Baskerville) and the Go runtime. With gzip compression (~3 MB) or brotli
-(~2.5 MB), this is acceptable for a tool that loads once per session. Configure
-your web server to serve `.wasm` files with compression.

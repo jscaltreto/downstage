@@ -1,5 +1,5 @@
 import { linter, type Diagnostic } from "@codemirror/lint";
-import { diagnostics, type WasmDiagnostic } from "./wasm";
+import type { EditorEnv, WasmDiagnostic } from "./core/types";
 
 function toDiagnostics(
   doc: { line(n: number): { from: number; to: number } ; lines: number },
@@ -26,11 +26,13 @@ function toDiagnostics(
   return result;
 }
 
-export const downstageLinter = linter(
-  (view) => {
-    const source = view.state.doc.toString();
-    const { diagnostics: sourceDiagnostics } = diagnostics(source);
-    return toDiagnostics(view.state.doc, sourceDiagnostics);
-  },
-  { delay: 300 },
-);
+export function createDownstageLinter(env: EditorEnv) {
+  return linter(
+    async (view) => {
+      const source = view.state.doc.toString();
+      const { diagnostics: sourceDiagnostics } = await env.diagnostics(source);
+      return toDiagnostics(view.state.doc, sourceDiagnostics);
+    },
+    { delay: 300 },
+  );
+}

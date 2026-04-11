@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/* Fix for class-based dark mode in Tailwind v4 */
+@variant dark (&:where(.dark, .dark *));
+
+/* THEME VARIABLES - Tailwind v4 */
+@theme {
+  /* Default (Light) - Warm Architectural */
+  --color-page-bg: #fdfaf3;
+  --color-page-surface: #f4e8d5;
+  --color-toolbar-bg: #e2d1bc; 
+  --color-text-main: #1a1a1a;
+  --color-text-muted: #5c5c5c;
+  --color-accent: #1a1a1a;
+  
+  /* Shared Branding */
+  --color-brass-300: #ffcf83;
+  --color-brass-400: #f0c67a;
+  --color-brass-500: #e3a857;
+  --color-brass-600: #c28a3e;
+
+  /* Parchment Scale */
+  --color-parchment-100: #fdfaf3;
+  --color-parchment-200: #f4e8d5;
+  --color-parchment-300: #d8c0a6;
+
+  /* Ember Scale (Dark) */
+  --color-ember-950: #0d0908;
+  --color-ember-900: #120d0c;
+  --color-ember-850: #1a1412;
+  --color-ember-800: #2f1c17;
+  --color-ember-700: #42271f;
+  --color-ember-600: #7f2718;
+
+  --color-ink-900: #1a1a1a;
+  --color-ink-800: #2d2d2d;
+  --color-ink-700: #404040;
+
+  --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "URW Palladio L", serif;
+  --font-mono: "Berkeley Mono", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+
+  --shadow-stage: 0 24px 70px rgba(0, 0, 0, 0.12);
+  --color-border: rgba(0, 0, 0, 0.06);
+}
+
+/* Dark Mode Overrides */
+.dark {
+  --color-page-bg: var(--color-ember-950);
+  --color-page-surface: var(--color-ember-900);
+  --color-toolbar-bg: var(--color-ember-850);
+  --color-text-main: var(--color-parchment-200);
+  --color-text-muted: var(--color-parchment-300);
+  --color-accent: var(--color-brass-500);
+  --shadow-stage: 0 24px 70px rgba(0, 0, 0, 0.38);
+  --color-border: rgba(227, 168, 87, 0.12);
+}
+
+@layer base {
+  html, body {
+    @apply h-full overflow-hidden bg-[var(--color-page-bg)] text-[var(--color-text-main)];
+  }
+  
+  *, ::after, ::before {
+    border-color: var(--color-border);
+  }
+}
+
+/* Background Gradients */
+.bg-page-glow {
+  background:
+    radial-gradient(circle at top center, rgba(227, 168, 87, 0.05), transparent 40%),
+    linear-gradient(180deg, #fdfaf3 0%, #f4e8d5 100%);
+}
+
+.dark .bg-page-glow {
+  background:
+    radial-gradient(circle at top center, rgba(227, 168, 87, 0.16), transparent 26%),
+    radial-gradient(circle at 20% 20%, rgba(127, 39, 24, 0.4), transparent 32%),
+    linear-gradient(180deg, #120d0c 0%, #0d0908 100%);
+}
+
+/* Syntax Highlighting - Adaptive */
+.cm-ds-namespace { color: #8b4513; font-weight: bold; }
+.dark .cm-ds-namespace { color: var(--color-brass-300); }
+
+.cm-ds-type { color: #005cc5; font-weight: bold; }
+.dark .cm-ds-type { color: var(--color-brass-500); }
+
+.cm-ds-comment { color: #6a737d; font-style: italic; }
+.dark .cm-ds-comment { color: #6a9955; }
+
+.cm-ds-keyword { color: #d73a49; font-weight: bold; }
+.dark .cm-ds-keyword { color: var(--color-brass-400); }
+
+.cm-ds-property { color: #6f42c1; font-style: italic; }
+.dark .cm-ds-property { color: #d8c0a6; }
+
+.cm-ds-string { color: #032f62; }
+.dark .cm-ds-string { color: var(--color-parchment-100); }
+
+.cm-ds-variable { color: #e36209; }
+.dark .cm-ds-variable { color: var(--color-brass-300); }
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { 
+    @apply rounded-full bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20;
+}

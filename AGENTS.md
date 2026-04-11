@@ -35,8 +35,16 @@ file overrides them for a subtree.
 - Prefer explicit, writer-facing behavior over hidden magic. If automation is
   added, make it predictable and easy to disable.
 
+## Design Documents
+
+- Store design documents, epics, and architectural plans in the `.design_docs/`
+  directory.
+- This directory is gitignored and should not be committed to the repository.
+- Use these documents to track long-term goals and complex feature implementations.
+
 ## Scoped Files
 
 - `internal/lsp/AGENTS.md` covers language-server work.
 - `internal/render/AGENTS.md` covers renderers and output targets.
 - `editors/vscode/AGENTS.md` covers the VS Code extension.
+- `web/AGENTS.md` covers the Vue-based web editor.

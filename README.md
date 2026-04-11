@@ -238,8 +238,9 @@ Extension Development Host.
 ### Web Editor
 
 [**Start writing**](https://www.getdownstage.com/editor/) in the Web Editor, a
-browser-based editor with live preview, syntax highlighting, and PDF export.
-No install required; the entire pipeline runs client-side via WebAssembly.
+modern browser-based editor built with Vue 3, Tailwind CSS v4, and CodeMirror 6.
+It features live preview, adaptive syntax highlighting, and PDF export. No
+install required; the entire pipeline runs client-side via WebAssembly.
 
 For local development:
 
