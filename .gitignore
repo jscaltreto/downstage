@@ -35,3 +35,6 @@ editors/vscode/.vsix-stage/
 # OS
 .DS_Store
 Thumbs.db
+
+# Project-specific ignored files
+.design_docs/

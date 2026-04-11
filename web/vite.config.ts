@@ -1,5 +1,8 @@
 import { execSync } from "node:child_process";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import tailwindcss from "@tailwindcss/vite";
 
 function withTrailingSlash(path: string): string {
   return path.endsWith("/") ? path : `${path}/`;
@@ -23,6 +26,10 @@ function resolveAppVersion(): string {
 
 export default defineConfig({
   base: `${siteBasePath}editor/`,
+  plugins: [
+    vue(),
+    tailwindcss(),
+  ],
   define: {
     __APP_VERSION__: JSON.stringify(resolveAppVersion()),
   },
@@ -30,5 +37,10 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: "assets",
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+      },
+    },
   },
 });

@@ -6,7 +6,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
-import { semanticTokens, tokenTypeNames } from "./wasm";
+import type { EditorEnv } from "./core/types";
 
 const tokenClassMap: Record<string, string> = {
   namespace: "cm-ds-namespace",
@@ -15,20 +15,15 @@ const tokenClassMap: Record<string, string> = {
   keyword: "cm-ds-keyword",
   property: "cm-ds-property",
   string: "cm-ds-string",
+  variable: "cm-ds-variable",
+  operator: "cm-ds-operator",
+  meta: "cm-ds-meta",
 };
 
-// Cached at init time from the WASM bridge.
-let cachedTypeNames: string[] | null = null;
-function getTypeNames(): string[] {
-  if (!cachedTypeNames) cachedTypeNames = tokenTypeNames();
-  return cachedTypeNames;
-}
-
-function buildDecorations(view: EditorView): DecorationSet {
+async function buildDecorations(view: EditorView, env: EditorEnv, typeNames: string[]): Promise<DecorationSet> {
   const doc = view.state.doc;
   const source = doc.toString();
-  const tokens = semanticTokens(source);
-  const typeNames = getTypeNames();
+  const tokens = await env.semanticTokens(source);
 
   const builder = new RangeSetBuilder<Decoration>();
   const decos: { from: number; to: number; deco: Decoration }[] = [];
@@ -90,32 +85,39 @@ const highlightField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
-const highlightPlugin = ViewPlugin.fromClass(
-  class {
-    pending: ReturnType<typeof setTimeout> | null = null;
+export function createDownstageHighlighter(env: EditorEnv) {
+  let typeNames: string[] | null = null;
 
-    constructor(view: EditorView) {
-      this.scheduleUpdate(view, 0);
-    }
+  const highlightPlugin = ViewPlugin.fromClass(
+    class {
+      pending: ReturnType<typeof setTimeout> | null = null;
 
-    update(update: ViewUpdate) {
-      if (!update.docChanged) return;
-      this.scheduleUpdate(update.view, 150);
-    }
+      constructor(view: EditorView) {
+        this.scheduleUpdate(view, 0);
+      }
 
-    scheduleUpdate(view: EditorView, delay: number) {
-      if (this.pending) clearTimeout(this.pending);
-      this.pending = setTimeout(() => {
-        const decos = buildDecorations(view);
-        view.dispatch({ effects: refreshHighlights.of(decos) });
-        this.pending = null;
-      }, delay);
-    }
+      update(update: ViewUpdate) {
+        if (!update.docChanged) return;
+        this.scheduleUpdate(update.view, 150);
+      }
 
-    destroy() {
-      if (this.pending) clearTimeout(this.pending);
-    }
-  },
-);
+      async scheduleUpdate(view: EditorView, delay: number) {
+        if (this.pending) clearTimeout(this.pending);
+        this.pending = setTimeout(async () => {
+          if (!typeNames) {
+            typeNames = await env.tokenTypeNames();
+          }
+          const decos = await buildDecorations(view, env, typeNames);
+          view.dispatch({ effects: refreshHighlights.of(decos) });
+          this.pending = null;
+        }, delay);
+      }
 
-export const downstageHighlighter = [highlightField, highlightPlugin];
+      destroy() {
+        if (this.pending) clearTimeout(this.pending);
+      }
+    },
+  );
+
+  return [highlightField, highlightPlugin];
+}
