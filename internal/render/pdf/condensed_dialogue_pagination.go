@@ -232,37 +232,32 @@ func (r *condensedRenderer) captureInlineRuns(inlines []ast.Inline, baseStyle st
 
 func (r *condensedRenderer) renderWrappedStyledRuns(startX float64, runs []dialogueTextRun, maxWidth float64) float64 {
 	leftM, _, _, _ := r.pdf.GetMargins()
+	tokens := tokenizeDialogueRuns(runs)
 	x := startX
-	var pendingSpaces []styledDialogueToken
 
-	for _, token := range tokenizeDialogueRuns(runs) {
-		if token.whitespace {
-			pendingSpaces = append(pendingSpaces, token)
-			continue
-		}
-
-		spaceWidth := 0.0
-		for _, ws := range pendingSpaces {
-			spaceWidth += r.measureTextWidth(ws.style, ws.text)
-		}
-		tokenWidth := r.measureTextWidth(token.style, token.text)
-		if x > 0 && x+spaceWidth+tokenWidth > maxWidth {
+	for len(tokens) > 0 {
+		lineRuns, remainingTokens, endX := r.fitStyledRunsToWidth(x, tokens, maxWidth)
+		if len(lineRuns) == 0 {
 			r.pdf.Ln(r.lineHeight)
 			r.pdf.SetX(leftM)
 			x = 0
-			pendingSpaces = nil
-			spaceWidth = 0
+			tokens = trimLeadingWhitespaceTokens(tokens)
+			continue
 		}
 
-		for _, ws := range pendingSpaces {
-			r.setStyle(ws.style)
-			r.pdf.Write(r.lineHeight, ws.text)
-			x += r.measureTextWidth(ws.style, ws.text)
+		for _, run := range lineRuns {
+			r.setStyle(run.style)
+			r.pdf.Write(r.lineHeight, run.text)
 		}
-		r.setStyle(token.style)
-		r.pdf.Write(r.lineHeight, token.text)
-		x += tokenWidth
-		pendingSpaces = nil
+		x = endX
+		tokens = remainingTokens
+		if len(tokens) == 0 {
+			break
+		}
+
+		r.pdf.Ln(r.lineHeight)
+		r.pdf.SetX(leftM)
+		x = 0
 	}
 
 	r.setStyle("")
@@ -302,36 +297,8 @@ func tokenizeDialogueRuns(runs []dialogueTextRun) []styledDialogueToken {
 }
 
 func (r *condensedRenderer) splitRunsForWidth(startX float64, runs []dialogueTextRun, maxWidth float64) ([]dialogueTextRun, []dialogueTextRun) {
-	tokens := tokenizeDialogueRuns(runs)
-	x := startX
-	var pendingSpaces []styledDialogueToken
-	var first []dialogueTextRun
-
-	for i, token := range tokens {
-		if token.whitespace {
-			pendingSpaces = append(pendingSpaces, token)
-			continue
-		}
-
-		spaceWidth := 0.0
-		for _, ws := range pendingSpaces {
-			spaceWidth += r.measureTextWidth(ws.style, ws.text)
-		}
-		tokenWidth := r.measureTextWidth(token.style, token.text)
-		if x > 0 && x+spaceWidth+tokenWidth > maxWidth {
-			return first, collapseStyledTokens(tokens[i:])
-		}
-
-		for _, ws := range pendingSpaces {
-			first = appendDialogueRun(first, ws.text, ws.style)
-			x += r.measureTextWidth(ws.style, ws.text)
-		}
-		first = appendDialogueRun(first, token.text, token.style)
-		x += tokenWidth
-		pendingSpaces = nil
-	}
-
-	return first, nil
+	first, remaining, _ := r.fitStyledRunsToWidth(startX, tokenizeDialogueRuns(runs), maxWidth)
+	return first, collapseStyledTokens(remaining)
 }
 
 func collapseStyledTokens(tokens []styledDialogueToken) []dialogueTextRun {
@@ -351,6 +318,52 @@ func appendDialogueRun(runs []dialogueTextRun, text, style string) []dialogueTex
 		return runs
 	}
 	return append(runs, dialogueTextRun{text: text, style: style})
+}
+
+func (r *condensedRenderer) fitStyledRunsToWidth(startX float64, tokens []styledDialogueToken, maxWidth float64) ([]dialogueTextRun, []styledDialogueToken, float64) {
+	x := startX
+	var lineRuns []dialogueTextRun
+	var pendingSpaces []styledDialogueToken
+
+	for i, token := range tokens {
+		if token.whitespace {
+			pendingSpaces = append(pendingSpaces, token)
+			continue
+		}
+
+		spaceWidth := r.measureStyledTokenWidth(pendingSpaces)
+		tokenWidth := r.measureTextWidth(token.style, token.text)
+		if x > 0 && x+spaceWidth+tokenWidth > maxWidth {
+			return lineRuns, trimLeadingWhitespaceTokens(tokens[i:]), x
+		}
+
+		for _, ws := range pendingSpaces {
+			lineRuns = appendDialogueRun(lineRuns, ws.text, ws.style)
+			x += r.measureTextWidth(ws.style, ws.text)
+		}
+		lineRuns = appendDialogueRun(lineRuns, token.text, token.style)
+		x += tokenWidth
+		pendingSpaces = nil
+	}
+
+	return lineRuns, nil, x
+}
+
+func (r *condensedRenderer) measureStyledTokenWidth(tokens []styledDialogueToken) float64 {
+	width := 0.0
+	for _, token := range tokens {
+		width += r.measureTextWidth(token.style, token.text)
+	}
+	return width
+}
+
+func trimLeadingWhitespaceTokens(tokens []styledDialogueToken) []styledDialogueToken {
+	for i, token := range tokens {
+		if !token.whitespace {
+			return tokens[i:]
+		}
+	}
+	return nil
 }
 
 func (r *condensedRenderer) layoutCondensedInlineText(startX float64, extraLines int, text, style string) (float64, int) {

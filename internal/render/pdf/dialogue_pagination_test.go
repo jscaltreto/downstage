@@ -41,6 +41,48 @@ func TestSplitDialogueRunsTrimsBoundaryWhitespace(t *testing.T) {
 	require.Equal(t, []dialogueTextRun{{text: "next", style: "I"}}, right)
 }
 
+func TestSplitDialogueRunsPreservesUnderlineWordBoundary(t *testing.T) {
+	runs := []dialogueTextRun{
+		{text: "(beat; ", style: "I"},
+		{text: "almost", style: "IU"},
+		{text: " fighting the impulse to continue.)", style: "I"},
+	}
+
+	left, right := splitDialogueRuns(runs, len([]rune("(beat; almost")))
+
+	require.Equal(t, []dialogueTextRun{
+		{text: "(beat; ", style: "I"},
+		{text: "almost", style: "IU"},
+	}, left)
+	require.Equal(t, []dialogueTextRun{
+		{text: "fighting the impulse to continue.)", style: "I"},
+	}, right)
+}
+
+func TestCondensedSplitRunsForWidthPreservesWhitespaceStyles(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	runs := []dialogueTextRun{
+		{text: "(beat;", style: "I"},
+		{text: " ", style: "I"},
+		{text: "almost", style: "IU"},
+		{text: " fighting the impulse to continue.)", style: "I"},
+	}
+	startX := r.measureTextWidth("B", "NOTBOB.") + r.measureTextWidth("", "  ")
+	maxWidth := startX + r.measureTextWidth("I", "(beat; ") + r.measureTextWidth("IU", "almost")
+
+	first, remaining := r.splitRunsForWidth(startX, runs, maxWidth)
+
+	require.Equal(t, []dialogueTextRun{
+		{text: "(beat; ", style: "I"},
+		{text: "almost", style: "IU"},
+	}, first)
+	require.Equal(t, []dialogueTextRun{
+		{text: "fighting the impulse to continue.)", style: "I"},
+	}, remaining)
+}
+
 func TestPreferredSplitOffsetUsesSentenceBoundary(t *testing.T) {
 	line := bufferedDialogueLine{
 		plainText: strings.Join([]string{
