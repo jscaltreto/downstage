@@ -41,6 +41,48 @@ func TestSplitDialogueRunsTrimsBoundaryWhitespace(t *testing.T) {
 	require.Equal(t, []dialogueTextRun{{text: "next", style: "I"}}, right)
 }
 
+func TestSplitDialogueRunsPreservesUnderlineWordBoundary(t *testing.T) {
+	runs := []dialogueTextRun{
+		{text: "(beat; ", style: "I"},
+		{text: "almost", style: "IU"},
+		{text: " fighting the impulse to continue.)", style: "I"},
+	}
+
+	left, right := splitDialogueRuns(runs, len([]rune("(beat; almost")))
+
+	require.Equal(t, []dialogueTextRun{
+		{text: "(beat; ", style: "I"},
+		{text: "almost", style: "IU"},
+	}, left)
+	require.Equal(t, []dialogueTextRun{
+		{text: "fighting the impulse to continue.)", style: "I"},
+	}, right)
+}
+
+func TestCondensedSplitRunsForWidthPreservesWhitespaceStyles(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	runs := []dialogueTextRun{
+		{text: "(beat;", style: "I"},
+		{text: " ", style: "I"},
+		{text: "almost", style: "IU"},
+		{text: " fighting the impulse to continue.)", style: "I"},
+	}
+	startX := r.measureTextWidth("B", "NOTBOB.") + r.measureTextWidth("", "  ")
+	maxWidth := startX + r.measureTextWidth("I", "(beat; ") + r.measureTextWidth("IU", "almost")
+
+	first, remaining := r.splitRunsForWidth(startX, runs, maxWidth)
+
+	require.Equal(t, []dialogueTextRun{
+		{text: "(beat; ", style: "I"},
+		{text: "almost", style: "IU"},
+	}, first)
+	require.Equal(t, []dialogueTextRun{
+		{text: "fighting the impulse to continue.)", style: "I"},
+	}, remaining)
+}
+
 func TestPreferredSplitOffsetUsesSentenceBoundary(t *testing.T) {
 	line := bufferedDialogueLine{
 		plainText: strings.Join([]string{
@@ -283,4 +325,40 @@ func TestRenderBufferedDialogueWithCapturedStyles(t *testing.T) {
 	require.NoError(t, r.EndDialogue(dialogue))
 
 	assert.Greater(t, r.pdf.PageNo(), 0)
+}
+
+func TestRenderBufferedDialogue_InlineDirectionNestedItalicPreservesItalicContext(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	dialogue := &ast.Dialogue{Character: "HAMLET"}
+	require.NoError(t, r.BeginDialogue(dialogue))
+
+	line := &ast.DialogueLine{Content: []ast.Inline{
+		&ast.TextNode{Value: "To be "},
+		&ast.InlineDirectionNode{Content: []ast.Inline{
+			&ast.TextNode{Value: "not merely "},
+			&ast.ItalicNode{Content: []ast.Inline{&ast.TextNode{Value: "appearing"}}},
+			&ast.TextNode{Value: " so"},
+		}},
+		&ast.TextNode{Value: "."},
+	}}
+	require.NoError(t, r.BeginDialogueLine(line))
+	require.NoError(t, r.RenderText(line.Content[0].(*ast.TextNode)))
+	require.NoError(t, r.BeginInlineDirection(line.Content[1].(*ast.InlineDirectionNode)))
+	require.NoError(t, r.RenderText(line.Content[1].(*ast.InlineDirectionNode).Content[0].(*ast.TextNode)))
+	require.NoError(t, r.BeginItalic(line.Content[1].(*ast.InlineDirectionNode).Content[1].(*ast.ItalicNode)))
+	require.NoError(t, r.RenderText(line.Content[1].(*ast.InlineDirectionNode).Content[1].(*ast.ItalicNode).Content[0].(*ast.TextNode)))
+	require.NoError(t, r.EndItalic(line.Content[1].(*ast.InlineDirectionNode).Content[1].(*ast.ItalicNode)))
+	require.NoError(t, r.RenderText(line.Content[1].(*ast.InlineDirectionNode).Content[2].(*ast.TextNode)))
+	require.NoError(t, r.EndInlineDirection(line.Content[1].(*ast.InlineDirectionNode)))
+	require.NoError(t, r.RenderText(line.Content[2].(*ast.TextNode)))
+	require.NoError(t, r.EndDialogueLine(line))
+	require.Len(t, r.activeDialogue.lines, 1)
+	require.Equal(t, []dialogueTextRun{
+		{text: "To be ", style: ""},
+		{text: "(not merely appearing so)", style: "I"},
+		{text: ".", style: ""},
+	}, r.activeDialogue.lines[0].runs)
+	require.NoError(t, r.EndDialogue(dialogue))
 }

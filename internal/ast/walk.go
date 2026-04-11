@@ -47,6 +47,7 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Right)
 
 	case *Dialogue:
+		walkInlines(v, n.ParentheticalInlines())
 		for _, line := range n.Lines {
 			walkInlines(v, line.Content)
 		}

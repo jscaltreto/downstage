@@ -158,7 +158,58 @@ To be or not to be.`
 	assert.Equal(t, 3, dlg.ParentheticalRange().Start.Line)
 	assert.Equal(t, 0, dlg.ParentheticalRange().Start.Column)
 	assert.Equal(t, 7, dlg.ParentheticalRange().End.Column)
+	require.Len(t, dlg.ParentheticalInlines(), 1)
+	assert.Equal(t, "aside", dlg.ParentheticalInlines()[0].(*ast.TextNode).Value)
 	assert.Len(t, dlg.Lines, 1)
+}
+
+func TestDialogueWithFormattedParenthetical(t *testing.T) {
+	input := `# Play
+
+GUARD
+(offstage, _exasperated_; **overlapping** NOTBOB)
+Hold there.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	require.Len(t, dlg.ParentheticalInlines(), 5)
+	assert.Equal(t, "offstage, ", dlg.ParentheticalInlines()[0].(*ast.TextNode).Value)
+	_, ok := dlg.ParentheticalInlines()[1].(*ast.UnderlineNode)
+	require.True(t, ok)
+	assert.Equal(t, "; ", dlg.ParentheticalInlines()[2].(*ast.TextNode).Value)
+	_, ok = dlg.ParentheticalInlines()[3].(*ast.BoldNode)
+	require.True(t, ok)
+	assert.Equal(t, " NOTBOB", dlg.ParentheticalInlines()[4].(*ast.TextNode).Value)
+}
+
+func TestDialogueInlineDirectionWithFormatting(t *testing.T) {
+	input := `# Play
+
+GIDEON
+The state of our ship is strong.
+(beat; _almost_ fighting the impulse to continue.)
+By all measures.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	require.Len(t, dlg.Lines, 3)
+	require.Len(t, dlg.Lines[1].Content, 1)
+
+	dir, ok := dlg.Lines[1].Content[0].(*ast.InlineDirectionNode)
+	require.True(t, ok)
+	require.Len(t, dir.Content, 3)
+	assert.Equal(t, "beat; ", dir.Content[0].(*ast.TextNode).Value)
+	_, ok = dir.Content[1].(*ast.UnderlineNode)
+	require.True(t, ok)
+	assert.Equal(t, " fighting the impulse to continue.", dir.Content[2].(*ast.TextNode).Value)
 }
 
 func TestForcedCharacter(t *testing.T) {

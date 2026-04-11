@@ -782,6 +782,11 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 		if strings.HasPrefix(lit, "(") && strings.HasSuffix(lit, ")") {
 			pTok := p.advance()
 			dlg.Parenthetical = strings.TrimSpace(pTok.Literal)
+			inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(dlg.Parenthetical, "("), ")"))
+			if inner != "" {
+				innerRange := sliceInlineRange(dlg.Parenthetical, pTok.Range, 1, len(dlg.Parenthetical)-1)
+				dlg.SetParentheticalInlines(parseInlineContent(inner, innerRange))
+			}
 			dlg.SetParentheticalRange(pTok.Range)
 		}
 	}
@@ -1125,7 +1130,7 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 				inner := s[i+1 : i+1+end]
 				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
 				result = append(result, &ast.InlineDirectionNode{
-					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: sliceInlineRange(s, r, i+1, i+1+end)}},
+					Content: parseInlineContent(inner, sliceInlineRange(s, r, i+1, i+1+end)),
 					Range:   nodeRange,
 				})
 				i = i + 1 + end + 1

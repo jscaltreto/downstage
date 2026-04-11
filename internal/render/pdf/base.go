@@ -26,6 +26,7 @@ type pdfBase struct {
 	marginB        float64
 	bodyW          float64 // pageW - marginL - marginR
 	fontStyle      string  // tracks current accumulated style
+	styleStack     []string
 	dirDepth       int     // nesting depth of InlineDirectionNodes
 	hasTitlePage   bool    // whether a title page was rendered
 	hasBody        bool    // whether the document has body content after front matter
@@ -46,6 +47,7 @@ type pdfBase struct {
 	// Buffered dialogue inline capture for custom pagination.
 	captureDialogueLine bool
 	captureStyle        string
+	captureStyleStack   []string
 	captureDirDepth     int
 	capturedRuns        []dialogueTextRun
 }
@@ -93,13 +95,13 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 	b.pdf.SetFooterFunc(func() {
 		b.pdf.SetY(-b.marginB + 5)
 		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize-2)
-		b.pdf.CellFormat(0, 10, fmt.Sprintf("%d", b.pdf.PageNo()),
-			"", 0, "C", false, 0, "")
+		b.renderPageNumberFooter(fmt.Sprintf("%d", b.pdf.PageNo()), 10)
 		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize)
 	})
 
 	b.pdf.AddPage()
 	b.fontStyle = ""
+	b.styleStack = b.styleStack[:0]
 }
 
 // --- Inline rendering (shared by all PDF renderers) ---
@@ -115,7 +117,7 @@ func (b *pdfBase) RenderText(t *ast.TextNode) error {
 
 func (b *pdfBase) BeginBold(_ *ast.BoldNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = mergeStyles(b.captureStyle, "B")
+		b.pushCaptureStyle("B")
 		return nil
 	}
 	b.pushStyle("B")
@@ -124,16 +126,16 @@ func (b *pdfBase) BeginBold(_ *ast.BoldNode) error {
 
 func (b *pdfBase) EndBold(_ *ast.BoldNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = removeStyles(b.captureStyle, "B")
+		b.popCaptureStyle()
 		return nil
 	}
-	b.popStyle("B")
+	b.popStyle()
 	return nil
 }
 
 func (b *pdfBase) BeginItalic(_ *ast.ItalicNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = mergeStyles(b.captureStyle, "I")
+		b.pushCaptureStyle("I")
 		return nil
 	}
 	b.pushStyle("I")
@@ -142,16 +144,16 @@ func (b *pdfBase) BeginItalic(_ *ast.ItalicNode) error {
 
 func (b *pdfBase) EndItalic(_ *ast.ItalicNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = removeStyles(b.captureStyle, "I")
+		b.popCaptureStyle()
 		return nil
 	}
-	b.popStyle("I")
+	b.popStyle()
 	return nil
 }
 
 func (b *pdfBase) BeginBoldItalic(_ *ast.BoldItalicNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = mergeStyles(b.captureStyle, "BI")
+		b.pushCaptureStyle("BI")
 		return nil
 	}
 	b.pushStyle("BI")
@@ -160,16 +162,16 @@ func (b *pdfBase) BeginBoldItalic(_ *ast.BoldItalicNode) error {
 
 func (b *pdfBase) EndBoldItalic(_ *ast.BoldItalicNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = removeStyles(b.captureStyle, "BI")
+		b.popCaptureStyle()
 		return nil
 	}
-	b.popStyle("BI")
+	b.popStyle()
 	return nil
 }
 
 func (b *pdfBase) BeginUnderline(_ *ast.UnderlineNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = mergeStyles(b.captureStyle, "U")
+		b.pushCaptureStyle("U")
 		return nil
 	}
 	b.pushStyle("U")
@@ -178,16 +180,16 @@ func (b *pdfBase) BeginUnderline(_ *ast.UnderlineNode) error {
 
 func (b *pdfBase) EndUnderline(_ *ast.UnderlineNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = removeStyles(b.captureStyle, "U")
+		b.popCaptureStyle()
 		return nil
 	}
-	b.popStyle("U")
+	b.popStyle()
 	return nil
 }
 
 func (b *pdfBase) BeginStrikethrough(_ *ast.StrikethroughNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = mergeStyles(b.captureStyle, "S")
+		b.pushCaptureStyle("S")
 		return nil
 	}
 	b.pushStyle("S")
@@ -196,16 +198,16 @@ func (b *pdfBase) BeginStrikethrough(_ *ast.StrikethroughNode) error {
 
 func (b *pdfBase) EndStrikethrough(_ *ast.StrikethroughNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = removeStyles(b.captureStyle, "S")
+		b.popCaptureStyle()
 		return nil
 	}
-	b.popStyle("S")
+	b.popStyle()
 	return nil
 }
 
 func (b *pdfBase) BeginInlineDirection(_ *ast.InlineDirectionNode) error {
 	if b.captureDialogueLine {
-		b.captureStyle = mergeStyles(b.captureStyle, "I")
+		b.pushCaptureStyle("I")
 		b.captureDirDepth++
 		if b.captureDirDepth == 1 {
 			b.appendCapturedText("(")
@@ -226,20 +228,21 @@ func (b *pdfBase) EndInlineDirection(_ *ast.InlineDirectionNode) error {
 		if b.captureDirDepth == 0 {
 			b.appendCapturedText(")")
 		}
-		b.captureStyle = removeStyles(b.captureStyle, "I")
+		b.popCaptureStyle()
 		return nil
 	}
 	b.dirDepth--
 	if b.dirDepth == 0 {
 		b.pdf.Write(b.lineHeight, ")")
 	}
-	b.popStyle("I")
+	b.popStyle()
 	return nil
 }
 
 func (b *pdfBase) beginCapturedDialogueLine() {
 	b.captureDialogueLine = true
 	b.captureStyle = ""
+	b.captureStyleStack = b.captureStyleStack[:0]
 	b.captureDirDepth = 0
 	b.capturedRuns = b.capturedRuns[:0]
 }
@@ -248,6 +251,7 @@ func (b *pdfBase) endCapturedDialogueLine() []dialogueTextRun {
 	runs := append([]dialogueTextRun(nil), b.capturedRuns...)
 	b.captureDialogueLine = false
 	b.captureStyle = ""
+	b.captureStyleStack = b.captureStyleStack[:0]
 	b.captureDirDepth = 0
 	b.capturedRuns = b.capturedRuns[:0]
 	return runs
@@ -290,13 +294,34 @@ func (b *pdfBase) setStyle(style string) {
 }
 
 func (b *pdfBase) pushStyle(add string) {
+	b.styleStack = append(b.styleStack, b.fontStyle)
 	merged := mergeStyles(b.fontStyle, add)
 	b.setStyle(merged)
 }
 
-func (b *pdfBase) popStyle(remove string) {
-	result := removeStyles(b.fontStyle, remove)
-	b.setStyle(result)
+func (b *pdfBase) popStyle() {
+	if len(b.styleStack) == 0 {
+		b.setStyle("")
+		return
+	}
+	prev := b.styleStack[len(b.styleStack)-1]
+	b.styleStack = b.styleStack[:len(b.styleStack)-1]
+	b.setStyle(prev)
+}
+
+func (b *pdfBase) pushCaptureStyle(add string) {
+	b.captureStyleStack = append(b.captureStyleStack, b.captureStyle)
+	b.captureStyle = mergeStyles(b.captureStyle, add)
+}
+
+func (b *pdfBase) popCaptureStyle() {
+	if len(b.captureStyleStack) == 0 {
+		b.captureStyle = ""
+		return
+	}
+	prev := b.captureStyleStack[len(b.captureStyleStack)-1]
+	b.captureStyleStack = b.captureStyleStack[:len(b.captureStyleStack)-1]
+	b.captureStyle = prev
 }
 
 func (b *pdfBase) ensureSpace(mm float64) {
@@ -307,6 +332,29 @@ func (b *pdfBase) ensureSpace(mm float64) {
 
 func (b *pdfBase) centeredText(text string) {
 	b.pdf.CellFormat(b.bodyW, b.lineHeight, text, "", 1, "C", false, 0, "")
+}
+
+func (b *pdfBase) renderPageNumberFooter(text string, height float64) {
+	width := b.pdf.GetStringWidth(text)
+	b.pdf.SetX((b.pageW - width) / 2)
+	b.pdf.CellFormat(width, height, text, "", 0, "", false, 0, "")
+}
+
+func (b *pdfBase) centeredInlines(inlines []ast.Inline, prefix, suffix string) error {
+	text := prefix + render.PlainText(inlines) + suffix
+	width := b.pdf.GetStringWidth(text)
+	b.pdf.SetX(b.marginL + (b.bodyW-width)/2)
+	if prefix != "" {
+		b.pdf.Write(b.lineHeight, prefix)
+	}
+	if err := b.renderInlineContent(inlines); err != nil {
+		return err
+	}
+	if suffix != "" {
+		b.pdf.Write(b.lineHeight, suffix)
+	}
+	b.pdf.Ln(b.lineHeight)
+	return nil
 }
 
 func (b *pdfBase) remainingPageHeight() float64 {
@@ -344,17 +392,106 @@ func mergeStyles(a, b string) string {
 	return out.String()
 }
 
-// removeStyles removes specific style flags from a style string.
-func removeStyles(style, remove string) string {
-	removeSet := make(map[byte]bool)
-	for i := range len(remove) {
-		removeSet[remove[i]] = true
-	}
-	var out strings.Builder
-	for i := range len(style) {
-		if !removeSet[style[i]] {
-			out.WriteByte(style[i])
+func (b *pdfBase) renderInlineContent(inlines []ast.Inline) error {
+	for _, inline := range inlines {
+		switch n := inline.(type) {
+		case *ast.TextNode:
+			if err := b.RenderText(n); err != nil {
+				return err
+			}
+		case *ast.BoldNode:
+			if err := b.BeginBold(n); err != nil {
+				return err
+			}
+			if err := b.renderInlineContent(n.Content); err != nil {
+				return err
+			}
+			if err := b.EndBold(n); err != nil {
+				return err
+			}
+		case *ast.ItalicNode:
+			if err := b.BeginItalic(n); err != nil {
+				return err
+			}
+			if err := b.renderInlineContent(n.Content); err != nil {
+				return err
+			}
+			if err := b.EndItalic(n); err != nil {
+				return err
+			}
+		case *ast.BoldItalicNode:
+			if err := b.BeginBoldItalic(n); err != nil {
+				return err
+			}
+			if err := b.renderInlineContent(n.Content); err != nil {
+				return err
+			}
+			if err := b.EndBoldItalic(n); err != nil {
+				return err
+			}
+		case *ast.UnderlineNode:
+			if err := b.BeginUnderline(n); err != nil {
+				return err
+			}
+			if err := b.renderInlineContent(n.Content); err != nil {
+				return err
+			}
+			if err := b.EndUnderline(n); err != nil {
+				return err
+			}
+		case *ast.StrikethroughNode:
+			if err := b.BeginStrikethrough(n); err != nil {
+				return err
+			}
+			if err := b.renderInlineContent(n.Content); err != nil {
+				return err
+			}
+			if err := b.EndStrikethrough(n); err != nil {
+				return err
+			}
+		case *ast.InlineDirectionNode:
+			if err := b.BeginInlineDirection(n); err != nil {
+				return err
+			}
+			if err := b.renderInlineContent(n.Content); err != nil {
+				return err
+			}
+			if err := b.EndInlineDirection(n); err != nil {
+				return err
+			}
 		}
 	}
-	return out.String()
+	return nil
+}
+
+func dialogueParentheticalInlines(d *ast.Dialogue) []ast.Inline {
+	return parentheticalInlineContent(d.Parenthetical, d.ParentheticalInlines())
+}
+
+func parentheticalInlineContent(parenthetical string, inlines []ast.Inline) []ast.Inline {
+	if len(inlines) > 0 {
+		return inlines
+	}
+	paren := strings.TrimSpace(parenthetical)
+	if strings.HasPrefix(paren, "(") && strings.HasSuffix(paren, ")") {
+		paren = strings.TrimSuffix(strings.TrimPrefix(paren, "("), ")")
+	}
+	if paren == "" {
+		return nil
+	}
+	return []ast.Inline{&ast.TextNode{Value: paren}}
+}
+
+func parentheticalPlainText(parenthetical string, inlines []ast.Inline) string {
+	if len(inlines) > 0 {
+		return "(" + render.PlainText(inlines) + ")"
+	}
+	paren := parenthetical
+	if paren == "" {
+		return ""
+	}
+	if paren[0] != '(' {
+		paren = "(" + paren + ")"
+	}
+	return paren
 }

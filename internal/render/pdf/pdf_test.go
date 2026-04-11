@@ -458,7 +458,7 @@ func TestCondensedStageDirectionUsesTightLeadInSpacing(t *testing.T) {
 		Content: []ast.Inline{&ast.TextNode{Value: "He crosses to the window."}},
 	}))
 
-	assert.InDelta(t, r.lineHeight/2, r.pdf.GetY()-yBefore, 0.01)
+	assert.InDelta(t, r.condensedSmallGap(), r.pdf.GetY()-yBefore, 0.01)
 }
 
 func TestStandardCalloutSetsIndentedLeftMargin(t *testing.T) {
@@ -477,6 +477,51 @@ func TestStandardCalloutSetsIndentedLeftMargin(t *testing.T) {
 	assert.InDelta(t, r.marginL, left, 0.01)
 }
 
+func TestStageDirectionNestedItalicPreservesOuterItalic(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	stageDirection := &ast.StageDirection{
+		Content: []ast.Inline{
+			&ast.TextNode{Value: "Not performing humanity, not approximating it--"},
+			&ast.ItalicNode{Content: []ast.Inline{&ast.TextNode{Value: "inhabiting"}}},
+			&ast.TextNode{Value: " it."},
+		},
+	}
+
+	require.NoError(t, r.BeginStageDirection(stageDirection))
+	require.Equal(t, "I", r.fontStyle)
+	require.NoError(t, r.RenderText(stageDirection.Content[0].(*ast.TextNode)))
+	require.NoError(t, r.BeginItalic(stageDirection.Content[1].(*ast.ItalicNode)))
+	require.Equal(t, "I", r.fontStyle)
+	require.NoError(t, r.RenderText(stageDirection.Content[1].(*ast.ItalicNode).Content[0].(*ast.TextNode)))
+	require.NoError(t, r.EndItalic(stageDirection.Content[1].(*ast.ItalicNode)))
+	assert.Equal(t, "I", r.fontStyle)
+	require.NoError(t, r.RenderText(stageDirection.Content[2].(*ast.TextNode)))
+	require.NoError(t, r.EndStageDirection(stageDirection))
+	assert.Equal(t, "", r.fontStyle)
+}
+
+func TestDialogueParentheticalNestedFormattingPreservesOuterItalic(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	inlines := []ast.Inline{
+		&ast.TextNode{Value: "offstage, "},
+		&ast.UnderlineNode{Content: []ast.Inline{&ast.TextNode{Value: "exasperated"}}},
+		&ast.TextNode{Value: "; "},
+		&ast.BoldNode{Content: []ast.Inline{&ast.TextNode{Value: "overlapping"}}},
+	}
+
+	r.setStyle("I")
+	r.pdf.Write(r.lineHeight, "(")
+	require.NoError(t, r.renderInlineContent(inlines))
+	assert.Equal(t, "I", r.fontStyle)
+	r.pdf.Write(r.lineHeight, ")")
+	r.setStyle("")
+	assert.Equal(t, "", r.fontStyle)
+}
+
 func TestCondensedCalloutUsesParagraphGapAfterPreviousCallout(t *testing.T) {
 	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
 	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
@@ -491,5 +536,61 @@ func TestCondensedCalloutUsesParagraphGapAfterPreviousCallout(t *testing.T) {
 		Content: []ast.Inline{&ast.TextNode{Value: "Second callout."}},
 	}))
 
-	assert.InDelta(t, r.lineHeight, r.pdf.GetY()-yBefore, 0.01)
+	assert.InDelta(t, r.condensedSmallGap(), r.pdf.GetY()-yBefore, 0.01)
+}
+
+func TestCondensedDialogueLongParentheticalWrapsDuringRendering(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	inlines := []ast.Inline{
+		&ast.TextNode{Value: "fewer voices than before; but the ones who say it, mean it and keep saying it long after the room should have gone quiet"},
+	}
+	runs, err := r.captureInlineRuns(inlines, "I")
+	require.NoError(t, err)
+	runs = append([]dialogueTextRun{{text: "(", style: "I"}}, runs...)
+	runs = append(runs, dialogueTextRun{text: ")", style: "I"})
+
+	startX := r.measureTextWidth("B", "ALL.") + r.measureTextWidth("", "  ")
+	yBefore := r.pdf.GetY()
+	xAfter := r.renderWrappedStyledRuns(startX, runs, r.bodyW)
+
+	assert.Greater(t, r.pdf.GetY(), yBefore)
+	assert.LessOrEqual(t, xAfter, r.bodyW)
+}
+
+func TestCondensedDialogueExactReportedParentheticalWraps(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	dialogue := &ast.Dialogue{
+		Character:     "ALL",
+		Parenthetical: "(fewer voices than before; but the ones who say it, mean it)",
+		Lines: []ast.DialogueLine{
+			{Content: []ast.Inline{&ast.TextNode{Value: "Thank Bob."}}},
+		},
+	}
+
+	yBefore := r.pdf.GetY()
+	require.NoError(t, r.BeginDialogue(dialogue))
+	require.NoError(t, r.BeginDialogueLine(&dialogue.Lines[0]))
+	require.NoError(t, r.RenderText(dialogue.Lines[0].Content[0].(*ast.TextNode)))
+	require.NoError(t, r.EndDialogueLine(&dialogue.Lines[0]))
+	require.NoError(t, r.EndDialogue(dialogue))
+
+	assert.Greater(t, r.pdf.GetY(), yBefore+r.lineHeight)
+}
+
+func TestCondensedPrepareDialogueLinesOnlyNarrowsFirstVisualLine(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	text := "As I record this, we are celebrating the very first in what I hope will become an enduring tradition: Ascension Day. Today marks twenty-five years since our departure from Earth, and it's hard to believe that an entire generation of children born here aboard Nemus Dianae will begin their adulthood, never having known the world I was born into."
+	lines := []bufferedDialogueLine{{runs: []dialogueTextRun{{text: text, style: ""}}}}
+
+	prepared := r.prepareDialogueLines(lines, 45)
+	require.Len(t, prepared, 1)
+
+	narrowAllLines := r.pdf.SplitText(text, 45)
+	assert.Less(t, len(prepared[0].wrappedText), len(narrowAllLines))
 }

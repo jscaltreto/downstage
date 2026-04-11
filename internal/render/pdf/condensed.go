@@ -11,6 +11,7 @@ import (
 
 const condensedLineHeight = 4.5 // mm
 const halfInchPt = 36.0         // 0.5 inch in points
+const condensedSmallGapFactor = 0.25
 
 // Half-letter page size: 5.5" x 8.5"
 const (
@@ -40,6 +41,10 @@ type condensedRenderer struct {
 	pdfBase
 	dualDialogueInlineFirstLine bool
 	activeDialogue              *bufferedDialogue
+}
+
+func (r *condensedRenderer) condensedSmallGap() float64 {
+	return r.lineHeight * condensedSmallGapFactor
 }
 
 // --- Lifecycle ---
@@ -89,8 +94,7 @@ func (r *condensedRenderer) initCondensedPDF() {
 	r.pdf.SetFooterFunc(func() {
 		r.pdf.SetY(-r.marginB + 3)
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize-2)
-		r.pdf.CellFormat(0, 8, fmt.Sprintf("%d", r.pdf.PageNo()),
-			"", 0, "C", false, 0, "")
+		r.renderPageNumberFooter(fmt.Sprintf("%d", r.pdf.PageNo()), 8)
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize)
 	})
 
@@ -309,9 +313,10 @@ func (r *condensedRenderer) BeginDialogue(d *ast.Dialogue) error {
 		return r.beginDualDialogueSide(d)
 	}
 	r.activeDialogue = &bufferedDialogue{
-		character:     d.Character,
-		parenthetical: d.Parenthetical,
-		lines:         make([]bufferedDialogueLine, 0, len(d.Lines)),
+		character:            d.Character,
+		parenthetical:        d.Parenthetical,
+		parentheticalInlines: dialogueParentheticalInlines(d),
+		lines:                make([]bufferedDialogueLine, 0, len(d.Lines)),
 	}
 	return nil
 }
@@ -325,13 +330,13 @@ func (r *condensedRenderer) beginDualDialogueSide(d *ast.Dialogue) error {
 	if r.dualSide == 0 {
 		leftM = r.marginL
 		rightM = r.pageW - r.marginL - colW
-		r.pdf.Ln(r.lineHeight / 2)
+		r.pdf.Ln(r.condensedSmallGap())
 	} else {
 		r.dualMidY = r.pdf.GetY()
 		r.pdf.SetY(r.dualStartY)
 		leftM = r.marginL + halfW + gap/2
 		rightM = r.marginR
-		r.pdf.Ln(r.lineHeight / 2)
+		r.pdf.Ln(r.condensedSmallGap())
 	}
 
 	r.pdf.SetLeftMargin(leftM)
@@ -348,12 +353,13 @@ func (r *condensedRenderer) beginDualDialogueSide(d *ast.Dialogue) error {
 
 	// Parenthetical
 	if d.Parenthetical != "" {
+		parenInlines := dialogueParentheticalInlines(d)
 		r.setStyle("I")
-		paren := d.Parenthetical
-		if len(paren) == 0 || paren[0] != '(' {
-			paren = "(" + paren + ")"
+		r.pdf.Write(r.lineHeight, "(")
+		if err := r.renderInlineContent(parenInlines); err != nil {
+			return err
 		}
-		r.pdf.Write(r.lineHeight, paren)
+		r.pdf.Write(r.lineHeight, ")")
 		r.setStyle("")
 		r.pdf.Write(r.lineHeight, " ")
 	}
@@ -379,14 +385,10 @@ func (r *condensedRenderer) estimateDialogueHeight(d *ast.Dialogue, width float6
 		return 0
 	}
 
-	height := r.lineHeight / 2
+	height := r.condensedSmallGap()
 	firstLineWidth := width - r.pdf.GetStringWidth(strings.ToUpper(d.Character)+".  ")
 	if d.Parenthetical != "" {
-		paren := d.Parenthetical
-		if len(paren) == 0 || paren[0] != '(' {
-			paren = "(" + paren + ")"
-		}
-		firstLineWidth -= r.pdf.GetStringWidth(paren + " ")
+		firstLineWidth -= r.pdf.GetStringWidth(parentheticalPlainText(d.Parenthetical, dialogueParentheticalInlines(d)) + " ")
 	}
 	if firstLineWidth < 10 {
 		firstLineWidth = 10
@@ -398,7 +400,7 @@ func (r *condensedRenderer) estimateDialogueHeight(d *ast.Dialogue, width float6
 
 	for i, line := range d.Lines {
 		if len(line.Content) == 0 {
-			height += r.lineHeight / 2
+			height += r.condensedSmallGap()
 			continue
 		}
 		lineWidth := width
@@ -483,7 +485,7 @@ func (r *condensedRenderer) EndDialogueLine(line *ast.DialogueLine) error {
 	}
 
 	if len(line.Content) == 0 {
-		r.pdf.Ln(r.lineHeight / 2)
+		r.pdf.Ln(r.condensedSmallGap())
 		return nil
 	}
 	r.pdf.Ln(r.lineHeight)
@@ -500,10 +502,10 @@ func (r *condensedRenderer) BeginStageDirection(sd *ast.StageDirection) error {
 	case r.prevWasStageDirection:
 		// Separated by blank lines — small paragraph break
 		r.ensureSpace(r.lineHeight * 2)
-		r.pdf.Ln(r.lineHeight / 2)
+		r.pdf.Ln(r.condensedSmallGap())
 	default:
 		r.ensureSpace(r.lineHeight * 2)
-		r.pdf.Ln(r.lineHeight / 2)
+		r.pdf.Ln(r.condensedSmallGap())
 	}
 
 	stageIndent := halfInchPt * pointsToMM
@@ -529,10 +531,10 @@ func (r *condensedRenderer) BeginCallout(c *ast.Callout) error {
 	case c.Continuation:
 	case r.prevWasCallout:
 		r.ensureSpace(r.lineHeight * 2)
-		r.pdf.Ln(r.lineHeight)
+		r.pdf.Ln(r.condensedSmallGap())
 	default:
 		r.ensureSpace(r.lineHeight * 2)
-		r.pdf.Ln(r.lineHeight / 2)
+		r.pdf.Ln(r.condensedSmallGap())
 	}
 
 	calloutIndent := 2 * halfInchPt * pointsToMM

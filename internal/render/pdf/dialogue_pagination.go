@@ -3,6 +3,8 @@ package pdf
 import (
 	"strings"
 	"unicode"
+
+	"github.com/jscaltreto/downstage/internal/ast"
 )
 
 const minContinuedDialogueLines = 3
@@ -10,9 +12,10 @@ const continuedDialogueSuffix = " (CONT'D)"
 const continuedDialogueFooter = "(MORE)"
 
 type bufferedDialogue struct {
-	character     string
-	parenthetical string
-	lines         []bufferedDialogueLine
+	character            string
+	parenthetical        string
+	parentheticalInlines []ast.Inline
+	lines                []bufferedDialogueLine
 }
 
 type bufferedDialogueLine struct {
@@ -46,7 +49,7 @@ func (r *pdfRenderer) prepare(lines []bufferedDialogueLine, _ bufferedDialogue, 
 }
 
 func (r *pdfRenderer) availableWrappedLines(dialogue bufferedDialogue, _ bool, firstSegment bool) int {
-	headerHeight := r.dialogueHeaderHeight(firstSegment, dialogue.parenthetical != "")
+	headerHeight := r.dialogueHeaderHeight(firstSegment, len(dialogue.parentheticalInlines) > 0 || dialogue.parenthetical != "")
 	if headerHeight > r.remainingPageHeight() {
 		r.pdf.AddPage()
 	}
@@ -54,7 +57,7 @@ func (r *pdfRenderer) availableWrappedLines(dialogue bufferedDialogue, _ bool, f
 }
 
 func (r *pdfRenderer) renderSegment(dialogue bufferedDialogue, continuation, firstSegment bool, lines []bufferedDialogueLine, showMore bool) {
-	r.renderDialogueSegment(dialogue.character, dialogue.parenthetical, continuation, firstSegment, lines, showMore)
+	r.renderDialogueSegment(dialogue.character, dialogue.parenthetical, dialogue.parentheticalInlines, continuation, firstSegment, lines, showMore)
 }
 
 func (r *pdfRenderer) addPage() {
@@ -65,8 +68,8 @@ func (r *pdfRenderer) showContinuationFooter() bool {
 	return true
 }
 
-func (r *pdfRenderer) renderDialogueSegment(character, parenthetical string, continuation, firstSegment bool, lines []bufferedDialogueLine, showMore bool) {
-	r.renderDialogueHeader(character, parenthetical, continuation, firstSegment)
+func (r *pdfRenderer) renderDialogueSegment(character, parenthetical string, parentheticalInlines []ast.Inline, continuation, firstSegment bool, lines []bufferedDialogueLine, showMore bool) {
+	r.renderDialogueHeader(character, parenthetical, parentheticalInlines, continuation, firstSegment)
 	dialogueMargin := r.bodyW * 0.15
 	dialogueX := r.marginL + dialogueMargin
 	r.pdf.SetLeftMargin(dialogueX)
@@ -94,7 +97,8 @@ func (r *pdfRenderer) renderDialogueSegment(character, parenthetical string, con
 	r.pdf.SetRightMargin(r.marginR)
 }
 
-func (r *pdfRenderer) renderDialogueHeader(character, parenthetical string, continuation, firstSegment bool) {
+func (r *pdfRenderer) renderDialogueHeader(character, parenthetical string, parentheticalInlines []ast.Inline, continuation, firstSegment bool) {
+	parentheticalInlines = parentheticalInlineContent(parenthetical, parentheticalInlines)
 	r.pdf.Ln(r.lineHeight)
 	r.setStyle("B")
 	name := strings.ToUpper(character)
@@ -104,9 +108,9 @@ func (r *pdfRenderer) renderDialogueHeader(character, parenthetical string, cont
 	r.centeredText(name)
 	r.setStyle("")
 
-	if firstSegment && parenthetical != "" {
+	if firstSegment && (parenthetical != "" || len(parentheticalInlines) > 0) {
 		r.setStyle("I")
-		r.centeredText(parentheticalText(parenthetical))
+		_ = r.centeredInlines(parentheticalInlines, "(", ")")
 		r.setStyle("")
 	}
 }

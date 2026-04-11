@@ -308,12 +308,10 @@ func (r *htmlRenderer) BeginDialogue(d *ast.Dialogue) error {
 	fmt.Fprintf(&r.buf, "<div class=\"downstage-dialogue\"%s>\n", r.sourceAttr(d.NodeRange()))
 	fmt.Fprintf(&r.buf, "<p class=\"downstage-character\">%s</p>\n", html.EscapeString(strings.ToUpper(d.Character)))
 	if d.Parenthetical != "" {
-		paren := d.Parenthetical
-		if len(paren) == 0 || paren[0] != '(' {
-			paren = "(" + paren + ")"
-		}
-		fmt.Fprintf(&r.buf, "<p class=\"downstage-parenthetical\">%s</p>\n",
-			html.EscapeString(paren))
+		r.buf.WriteString("<p class=\"downstage-parenthetical\">")
+		r.buf.WriteString("(")
+		r.renderInlineContent(dialogueParentheticalInlines(d))
+		r.buf.WriteString(")</p>\n")
 	}
 	return nil
 }
@@ -508,6 +506,56 @@ func (r *htmlRenderer) EndInlineDirection(_ *ast.InlineDirectionNode) error {
 		r.buf.WriteString(")</span>")
 	}
 	return nil
+}
+
+func (r *htmlRenderer) renderInlineContent(inlines []ast.Inline) {
+	for _, inline := range inlines {
+		switch n := inline.(type) {
+		case *ast.TextNode:
+			r.buf.WriteString(html.EscapeString(n.Value))
+		case *ast.BoldNode:
+			r.buf.WriteString("<strong>")
+			r.renderInlineContent(n.Content)
+			r.buf.WriteString("</strong>")
+		case *ast.ItalicNode:
+			r.buf.WriteString("<em>")
+			r.renderInlineContent(n.Content)
+			r.buf.WriteString("</em>")
+		case *ast.BoldItalicNode:
+			r.buf.WriteString("<strong><em>")
+			r.renderInlineContent(n.Content)
+			r.buf.WriteString("</em></strong>")
+		case *ast.UnderlineNode:
+			r.buf.WriteString("<u>")
+			r.renderInlineContent(n.Content)
+			r.buf.WriteString("</u>")
+		case *ast.StrikethroughNode:
+			r.buf.WriteString("<del>")
+			r.renderInlineContent(n.Content)
+			r.buf.WriteString("</del>")
+		case *ast.InlineDirectionNode:
+			r.dirDepth++
+			if r.dirDepth == 1 {
+				r.buf.WriteString("<span class=\"downstage-inline-direction\">(")
+			}
+			r.renderInlineContent(n.Content)
+			r.dirDepth--
+			if r.dirDepth == 0 {
+				r.buf.WriteString(")</span>")
+			}
+		}
+	}
+}
+
+func dialogueParentheticalInlines(d *ast.Dialogue) []ast.Inline {
+	if len(d.ParentheticalInlines()) > 0 {
+		return d.ParentheticalInlines()
+	}
+	paren := strings.TrimSpace(d.Parenthetical)
+	if strings.HasPrefix(paren, "(") && strings.HasSuffix(paren, ")") {
+		paren = strings.TrimSuffix(strings.TrimPrefix(paren, "("), ")")
+	}
+	return []ast.Inline{&ast.TextNode{Value: paren}}
 }
 
 // --- Helpers ---

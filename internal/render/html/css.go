@@ -252,6 +252,7 @@ body {
   line-height: 1.4;
   color: #000;
   background: #fff;
+  --downstage-condensed-small-gap: 0.15em;
 }
 
 .downstage-document {
@@ -377,7 +378,7 @@ body {
   margin-left: 2em;
 }
 .downstage-line-break { display: block; }
-.downstage-dialogue-break { display: block; margin-top: 0.3em; }
+.downstage-dialogue-break { display: block; margin-top: var(--downstage-condensed-small-gap); }
 
 /* Dual Dialogue */
 .downstage-dual-dialogue {
@@ -405,7 +406,7 @@ body {
   margin-bottom: 0;
 }
 .downstage-stage-direction + .downstage-stage-direction:not(.downstage-continuation) {
-  margin-top: 0.3em;
+  margin-top: var(--downstage-condensed-small-gap);
 }
 
 /* Callout */
@@ -423,7 +424,7 @@ body {
   margin-bottom: 0;
 }
 .downstage-callout + .downstage-callout:not(.downstage-continuation) {
-  margin-top: 0.3em;
+  margin-top: var(--downstage-condensed-small-gap);
 }
 
 /* Song */
