@@ -782,6 +782,11 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 		if strings.HasPrefix(lit, "(") && strings.HasSuffix(lit, ")") {
 			pTok := p.advance()
 			dlg.Parenthetical = strings.TrimSpace(pTok.Literal)
+			inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(dlg.Parenthetical, "("), ")"))
+			if inner != "" {
+				innerRange := sliceInlineRange(dlg.Parenthetical, pTok.Range, 1, len(dlg.Parenthetical)-1)
+				dlg.SetParentheticalInlines(parseInlineContent(inner, innerRange))
+			}
 			dlg.SetParentheticalRange(pTok.Range)
 		}
 	}

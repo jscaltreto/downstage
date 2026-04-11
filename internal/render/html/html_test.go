@@ -95,6 +95,31 @@ func TestRender_DialogueWithFormatting(t *testing.T) {
 	assert.Contains(t, out, "</div>")
 }
 
+func TestRender_DialogueParentheticalWithFormatting(t *testing.T) {
+	parenthetical := []ast.Inline{
+		&ast.TextNode{Value: "offstage, "},
+		&ast.UnderlineNode{Content: []ast.Inline{&ast.TextNode{Value: "exasperated"}}},
+		&ast.TextNode{Value: "; "},
+		&ast.BoldNode{Content: []ast.Inline{&ast.TextNode{Value: "overlapping"}}},
+		&ast.TextNode{Value: " NOTBOB"},
+	}
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Dialogue{
+				Character:     "GUARD",
+				Parenthetical: "(offstage, _exasperated_; **overlapping** NOTBOB)",
+				Lines: []ast.DialogueLine{
+					{Content: []ast.Inline{&ast.TextNode{Value: "Hold there."}}},
+				},
+			},
+		},
+	}
+	doc.Body[0].(*ast.Dialogue).SetParentheticalInlines(parenthetical)
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, `<p class="downstage-parenthetical">(offstage, <u>exasperated</u>; <strong>overlapping</strong> NOTBOB)</p>`)
+}
+
 func TestRender_DualDialogue(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{
@@ -140,6 +165,25 @@ func TestRender_StageDirection(t *testing.T) {
 	out := renderHTML(t, doc)
 
 	assert.Contains(t, out, "<p class=\"downstage-stage-direction\">The lights dim slowly.</p>")
+}
+
+func TestRender_StageDirectionWithNestedItalic(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.StageDirection{
+				Content: []ast.Inline{
+					&ast.TextNode{Value: "Not performing humanity, not approximating it--"},
+					&ast.ItalicNode{Content: []ast.Inline{
+						&ast.TextNode{Value: "inhabiting"},
+					}},
+					&ast.TextNode{Value: " it."},
+				},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, "<p class=\"downstage-stage-direction\">Not performing humanity, not approximating it--<em>inhabiting</em> it.</p>")
 }
 
 func TestRender_Callout(t *testing.T) {

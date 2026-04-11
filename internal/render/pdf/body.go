@@ -165,9 +165,10 @@ func (r *pdfRenderer) BeginDialogue(d *ast.Dialogue) error {
 		return r.beginDualDialogueSide(d)
 	}
 	r.activeDialogue = &bufferedDialogue{
-		character:     d.Character,
-		parenthetical: d.Parenthetical,
-		lines:         make([]bufferedDialogueLine, 0, len(d.Lines)),
+		character:            d.Character,
+		parenthetical:        d.Parenthetical,
+		parentheticalInlines: dialogueParentheticalInlines(d),
+		lines:                make([]bufferedDialogueLine, 0, len(d.Lines)),
 	}
 	return nil
 }
@@ -206,14 +207,16 @@ func (r *pdfRenderer) beginDualDialogueSide(d *ast.Dialogue) error {
 
 	// Parenthetical — centered in column, italic
 	if d.Parenthetical != "" {
+		parenInlines := dialogueParentheticalInlines(d)
 		r.setStyle("I")
-		paren := d.Parenthetical
-		if len(paren) == 0 || paren[0] != '(' {
-			paren = "(" + paren + ")"
-		}
+		paren := parentheticalPlainText(d.Parenthetical, parenInlines)
 		parenW := r.pdf.GetStringWidth(paren)
 		r.pdf.SetX(leftM + (colW-parenW)/2)
-		r.pdf.Write(r.lineHeight, paren)
+		r.pdf.Write(r.lineHeight, "(")
+		if err := r.renderInlineContent(parenInlines); err != nil {
+			return err
+		}
+		r.pdf.Write(r.lineHeight, ")")
 		r.pdf.Ln(r.lineHeight)
 		r.setStyle("")
 	}

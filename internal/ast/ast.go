@@ -238,12 +238,13 @@ var _ Node = (*Dialogue)(nil)
 
 // Dialogue represents character dialogue.
 type Dialogue struct {
-	Character          string
-	Parenthetical      string
-	Lines              []DialogueLine
-	Range              token.Range
-	nameRange          token.Range
-	parentheticalRange token.Range
+	Character            string
+	Parenthetical        string
+	parentheticalInlines []Inline
+	Lines                []DialogueLine
+	Range                token.Range
+	nameRange            token.Range
+	parentheticalRange   token.Range
 }
 
 func (d *Dialogue) NodeRange() token.Range { return d.Range }
@@ -266,6 +267,12 @@ func (d *Dialogue) ParentheticalRange() token.Range {
 }
 func (d *Dialogue) SetParentheticalRange(r token.Range) {
 	d.parentheticalRange = r
+}
+func (d *Dialogue) ParentheticalInlines() []Inline {
+	return d.parentheticalInlines
+}
+func (d *Dialogue) SetParentheticalInlines(inlines []Inline) {
+	d.parentheticalInlines = inlines
 }
 
 // --- Dual Dialogue ---

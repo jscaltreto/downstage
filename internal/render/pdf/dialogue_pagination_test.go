@@ -284,3 +284,39 @@ func TestRenderBufferedDialogueWithCapturedStyles(t *testing.T) {
 
 	assert.Greater(t, r.pdf.PageNo(), 0)
 }
+
+func TestRenderBufferedDialogue_InlineDirectionNestedItalicPreservesItalicContext(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	dialogue := &ast.Dialogue{Character: "HAMLET"}
+	require.NoError(t, r.BeginDialogue(dialogue))
+
+	line := &ast.DialogueLine{Content: []ast.Inline{
+		&ast.TextNode{Value: "To be "},
+		&ast.InlineDirectionNode{Content: []ast.Inline{
+			&ast.TextNode{Value: "not merely "},
+			&ast.ItalicNode{Content: []ast.Inline{&ast.TextNode{Value: "appearing"}}},
+			&ast.TextNode{Value: " so"},
+		}},
+		&ast.TextNode{Value: "."},
+	}}
+	require.NoError(t, r.BeginDialogueLine(line))
+	require.NoError(t, r.RenderText(line.Content[0].(*ast.TextNode)))
+	require.NoError(t, r.BeginInlineDirection(line.Content[1].(*ast.InlineDirectionNode)))
+	require.NoError(t, r.RenderText(line.Content[1].(*ast.InlineDirectionNode).Content[0].(*ast.TextNode)))
+	require.NoError(t, r.BeginItalic(line.Content[1].(*ast.InlineDirectionNode).Content[1].(*ast.ItalicNode)))
+	require.NoError(t, r.RenderText(line.Content[1].(*ast.InlineDirectionNode).Content[1].(*ast.ItalicNode).Content[0].(*ast.TextNode)))
+	require.NoError(t, r.EndItalic(line.Content[1].(*ast.InlineDirectionNode).Content[1].(*ast.ItalicNode)))
+	require.NoError(t, r.RenderText(line.Content[1].(*ast.InlineDirectionNode).Content[2].(*ast.TextNode)))
+	require.NoError(t, r.EndInlineDirection(line.Content[1].(*ast.InlineDirectionNode)))
+	require.NoError(t, r.RenderText(line.Content[2].(*ast.TextNode)))
+	require.NoError(t, r.EndDialogueLine(line))
+	require.Len(t, r.activeDialogue.lines, 1)
+	require.Equal(t, []dialogueTextRun{
+		{text: "To be ", style: ""},
+		{text: "(not merely appearing so)", style: "I"},
+		{text: ".", style: ""},
+	}, r.activeDialogue.lines[0].runs)
+	require.NoError(t, r.EndDialogue(dialogue))
+}
