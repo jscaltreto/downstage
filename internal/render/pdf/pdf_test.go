@@ -580,3 +580,17 @@ func TestCondensedDialogueExactReportedParentheticalWraps(t *testing.T) {
 
 	assert.Greater(t, r.pdf.GetY(), yBefore+r.lineHeight)
 }
+
+func TestCondensedPrepareDialogueLinesOnlyNarrowsFirstVisualLine(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	text := "As I record this, we are celebrating the very first in what I hope will become an enduring tradition: Ascension Day. Today marks twenty-five years since our departure from Earth, and it's hard to believe that an entire generation of children born here aboard Nemus Dianae will begin their adulthood, never having known the world I was born into."
+	lines := []bufferedDialogueLine{{runs: []dialogueTextRun{{text: text, style: ""}}}}
+
+	prepared := r.prepareDialogueLines(lines, 45)
+	require.Len(t, prepared, 1)
+
+	narrowAllLines := r.pdf.SplitText(text, 45)
+	assert.Less(t, len(prepared[0].wrappedText), len(narrowAllLines))
+}

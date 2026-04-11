@@ -137,15 +137,50 @@ func (r *condensedRenderer) prepareDialogueLines(lines []bufferedDialogueLine, f
 			continue
 		}
 
-		width := r.condensedRegularLineWidth(prepared[i].isVerse)
+		prepared[i].wrappedText = r.wrapCondensedDialogueText(
+			prepared[i].plainText,
+			prepared[i].isVerse,
+			firstTextLine,
+			firstLineWidth,
+		)
 		if firstTextLine {
-			width = firstLineWidth
 			firstTextLine = false
 		}
-		prepared[i].wrappedText = r.pdf.SplitText(prepared[i].plainText, width)
 	}
 
 	return prepared
+}
+
+func (r *condensedRenderer) wrapCondensedDialogueText(text string, isVerse, useReducedFirstLine bool, firstLineWidth float64) []string {
+	if text == "" {
+		return nil
+	}
+
+	regularWidth := r.condensedRegularLineWidth(isVerse)
+	if !useReducedFirstLine {
+		return r.pdf.SplitText(text, regularWidth)
+	}
+
+	runes := []rune(text)
+	if len(runes) == 0 {
+		return nil
+	}
+
+	firstWrapped := r.pdf.SplitText(text, firstLineWidth)
+	if len(firstWrapped) == 0 {
+		return nil
+	}
+
+	firstLine := firstWrapped[0]
+	offset := dialogueSplitOffset(text, []string{firstLine})
+	lines := []string{firstLine}
+
+	remaining := strings.TrimLeftFunc(string(runes[offset:]), unicode.IsSpace)
+	if remaining == "" {
+		return lines
+	}
+
+	return append(lines, r.pdf.SplitText(remaining, regularWidth)...)
 }
 
 func (r *condensedRenderer) condensedPrefixLayout(character, parenthetical string, parentheticalInlines []ast.Inline, firstSegment bool) (int, float64) {
