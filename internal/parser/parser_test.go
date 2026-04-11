@@ -186,6 +186,32 @@ Hold there.`
 	assert.Equal(t, " NOTBOB", dlg.ParentheticalInlines()[4].(*ast.TextNode).Value)
 }
 
+func TestDialogueInlineDirectionWithFormatting(t *testing.T) {
+	input := `# Play
+
+GIDEON
+The state of our ship is strong.
+(beat; _almost_ fighting the impulse to continue.)
+By all measures.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	require.Len(t, dlg.Lines, 3)
+	require.Len(t, dlg.Lines[1].Content, 1)
+
+	dir, ok := dlg.Lines[1].Content[0].(*ast.InlineDirectionNode)
+	require.True(t, ok)
+	require.Len(t, dir.Content, 3)
+	assert.Equal(t, "beat; ", dir.Content[0].(*ast.TextNode).Value)
+	_, ok = dir.Content[1].(*ast.UnderlineNode)
+	require.True(t, ok)
+	assert.Equal(t, " fighting the impulse to continue.", dir.Content[2].(*ast.TextNode).Value)
+}
+
 func TestForcedCharacter(t *testing.T) {
 	input := `# Play
 

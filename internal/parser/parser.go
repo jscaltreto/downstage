@@ -1130,7 +1130,7 @@ func parseInlines(s string, r token.Range) []ast.Inline {
 				inner := s[i+1 : i+1+end]
 				nodeRange := sliceInlineRange(s, r, i, i+1+end+1)
 				result = append(result, &ast.InlineDirectionNode{
-					Content: []ast.Inline{&ast.TextNode{Value: inner, Range: sliceInlineRange(s, r, i+1, i+1+end)}},
+					Content: parseInlineContent(inner, sliceInlineRange(s, r, i+1, i+1+end)),
 					Range:   nodeRange,
 				})
 				i = i + 1 + end + 1

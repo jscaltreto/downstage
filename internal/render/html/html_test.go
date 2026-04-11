@@ -120,6 +120,28 @@ func TestRender_DialogueParentheticalWithFormatting(t *testing.T) {
 	assert.Contains(t, out, `<p class="downstage-parenthetical">(offstage, <u>exasperated</u>; <strong>overlapping</strong> NOTBOB)</p>`)
 }
 
+func TestRender_InlineDirectionWithFormatting(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Dialogue{
+				Character: "GIDEON",
+				Lines: []ast.DialogueLine{
+					{Content: []ast.Inline{
+						&ast.InlineDirectionNode{Content: []ast.Inline{
+							&ast.TextNode{Value: "beat; "},
+							&ast.UnderlineNode{Content: []ast.Inline{&ast.TextNode{Value: "almost"}}},
+							&ast.TextNode{Value: " fighting the impulse to continue."},
+						}},
+					}},
+				},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, `<span class="downstage-inline-direction">(beat; <u>almost</u> fighting the impulse to continue.)</span>`)
+}
+
 func TestRender_DualDialogue(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{
