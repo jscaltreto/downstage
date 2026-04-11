@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2](https://github.com/jscaltreto/downstage/compare/v0.4.1...v0.4.2) (2026-04-11)
+
+
+### Bug Fixes
+
+* **pdf:** paginate dialogue continuations ([#110](https://github.com/jscaltreto/downstage/issues/110)) ([6b86063](https://github.com/jscaltreto/downstage/commit/6b86063ef9b6f2fa1e2827c0dc19001e51e3609a))
+* tighten condensed layout and formatting ([#120](https://github.com/jscaltreto/downstage/issues/120)) ([96e3c02](https://github.com/jscaltreto/downstage/commit/96e3c025edbf030e9e43eeffa42387de0cc8ba81))
+
 ## [0.4.1](https://github.com/jscaltreto/downstage/compare/v0.4.0...v0.4.1) (2026-04-05)
 
 
