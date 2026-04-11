@@ -233,31 +233,36 @@ func (r *condensedRenderer) captureInlineRuns(inlines []ast.Inline, baseStyle st
 func (r *condensedRenderer) renderWrappedStyledRuns(startX float64, runs []dialogueTextRun, maxWidth float64) float64 {
 	leftM, _, _, _ := r.pdf.GetMargins()
 	x := startX
-	pendingSpaces := ""
+	var pendingSpaces []styledDialogueToken
 
 	for _, token := range tokenizeDialogueRuns(runs) {
 		if token.whitespace {
-			pendingSpaces += token.text
+			pendingSpaces = append(pendingSpaces, token)
 			continue
 		}
 
-		text := token.text
-		if x > 0 {
-			text = pendingSpaces + text
+		spaceWidth := 0.0
+		for _, ws := range pendingSpaces {
+			spaceWidth += r.measureTextWidth(ws.style, ws.text)
 		}
-		width := r.measureTextWidth(token.style, text)
-		if x > 0 && x+width > maxWidth {
+		tokenWidth := r.measureTextWidth(token.style, token.text)
+		if x > 0 && x+spaceWidth+tokenWidth > maxWidth {
 			r.pdf.Ln(r.lineHeight)
 			r.pdf.SetX(leftM)
 			x = 0
-			text = token.text
-			width = r.measureTextWidth(token.style, text)
+			pendingSpaces = nil
+			spaceWidth = 0
 		}
 
+		for _, ws := range pendingSpaces {
+			r.setStyle(ws.style)
+			r.pdf.Write(r.lineHeight, ws.text)
+			x += r.measureTextWidth(ws.style, ws.text)
+		}
 		r.setStyle(token.style)
-		r.pdf.Write(r.lineHeight, text)
-		x += width
-		pendingSpaces = ""
+		r.pdf.Write(r.lineHeight, token.text)
+		x += tokenWidth
+		pendingSpaces = nil
 	}
 
 	r.setStyle("")
@@ -299,27 +304,31 @@ func tokenizeDialogueRuns(runs []dialogueTextRun) []styledDialogueToken {
 func (r *condensedRenderer) splitRunsForWidth(startX float64, runs []dialogueTextRun, maxWidth float64) ([]dialogueTextRun, []dialogueTextRun) {
 	tokens := tokenizeDialogueRuns(runs)
 	x := startX
-	pendingSpaces := ""
+	var pendingSpaces []styledDialogueToken
 	var first []dialogueTextRun
 
 	for i, token := range tokens {
 		if token.whitespace {
-			pendingSpaces += token.text
+			pendingSpaces = append(pendingSpaces, token)
 			continue
 		}
 
-		text := token.text
-		if x > 0 {
-			text = pendingSpaces + text
+		spaceWidth := 0.0
+		for _, ws := range pendingSpaces {
+			spaceWidth += r.measureTextWidth(ws.style, ws.text)
 		}
-		width := r.measureTextWidth(token.style, text)
-		if x > 0 && x+width > maxWidth {
+		tokenWidth := r.measureTextWidth(token.style, token.text)
+		if x > 0 && x+spaceWidth+tokenWidth > maxWidth {
 			return first, collapseStyledTokens(tokens[i:])
 		}
 
-		first = appendDialogueRun(first, text, token.style)
-		x += width
-		pendingSpaces = ""
+		for _, ws := range pendingSpaces {
+			first = appendDialogueRun(first, ws.text, ws.style)
+			x += r.measureTextWidth(ws.style, ws.text)
+		}
+		first = appendDialogueRun(first, token.text, token.style)
+		x += tokenWidth
+		pendingSpaces = nil
 	}
 
 	return first, nil
