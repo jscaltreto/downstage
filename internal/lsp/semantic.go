@@ -7,6 +7,7 @@ import (
 
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/parser"
+	"github.com/jscaltreto/downstage/internal/token"
 	"go.lsp.dev/protocol"
 )
 
@@ -313,13 +314,5 @@ func sortTokens(tokens []rawToken) {
 }
 
 func utf16Len(s string) int {
-	n := 0
-	for _, r := range s {
-		if r > 0xFFFF {
-			n += 2
-		} else {
-			n++
-		}
-	}
-	return n
+	return token.UTF16Len(s)
 }

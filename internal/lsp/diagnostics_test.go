@@ -84,6 +84,51 @@ Hello.`
 	}
 }
 
+func TestCheckUnknownCharacters_MixedCompilationScopesIndependently(t *testing.T) {
+	content := `# First Play
+
+## Dramatis Personae
+
+ALICE
+
+## ACT I
+
+ALICE
+Hello.
+
+GHOST
+Boo.
+
+# Second Play
+
+## ACT I
+
+BOB
+No DP here, so no unknown-character warning.`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+	var unknownNames []string
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeUnknownCharacter {
+			continue
+		}
+		data, ok := diag.Data.(map[string]string)
+		if !ok {
+			t.Fatalf("diagnostic data missing character map: %#v", diag.Data)
+		}
+		unknownNames = append(unknownNames, data["character"])
+	}
+
+	if len(unknownNames) != 1 || unknownNames[0] != "GHOST" {
+		t.Fatalf("expected only GHOST unknown in first play, got %v", unknownNames)
+	}
+}
+
 func TestBuildDiagnostics_AddsV1DocumentDiagnostic(t *testing.T) {
 	content := `Title: Hamlet
 Author: William Shakespeare

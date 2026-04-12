@@ -281,19 +281,7 @@ func utf16Column(s string, byteOffset int) int {
 		return 0
 	}
 	if byteOffset >= len(s) {
-		return utf16Len(s)
+		return token.UTF16Len(s)
 	}
-	return utf16Len(s[:byteOffset])
-}
-
-func utf16Len(s string) int {
-	n := 0
-	for _, r := range s {
-		if r > 0xFFFF {
-			n += 2
-		} else {
-			n++
-		}
-	}
-	return n
+	return token.UTF16Len(s[:byteOffset])
 }

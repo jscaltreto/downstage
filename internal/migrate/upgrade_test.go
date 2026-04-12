@@ -76,3 +76,56 @@ Hello.`
 	assert.False(t, changed)
 	assert.Equal(t, source, upgraded)
 }
+
+func TestUpgradeV1ToV2_PromotesDramatisPersonaeSubheadings(t *testing.T) {
+	source := `Title: Play
+Author: Me
+
+# Dramatis Personae
+
+ALICE
+## The Servants
+BOB
+
+# Play
+
+ALICE
+Hi.`
+
+	upgraded, changed := UpgradeV1ToV2(source)
+	assert.True(t, changed)
+	assert.Contains(t, upgraded, "## Dramatis Personae")
+	assert.Contains(t, upgraded, "### The Servants")
+}
+
+func TestUpgradeV1ToV2_PreservesOrphanedAlias(t *testing.T) {
+	source := `Title: Play
+
+# Dramatis Personae
+
+HAMLET — Prince of Denmark
+[GHOST/SPECTRE]
+
+# Play`
+
+	upgraded, _ := UpgradeV1ToV2(source)
+	// The orphan alias has no matching base entry, so the migrator emits it as
+	// an inline alias rather than dropping it silently.
+	assert.Contains(t, upgraded, "GHOST/SPECTRE")
+}
+
+func TestUpgradeV1ToV2_KeepsLeadingBlockComments(t *testing.T) {
+	source := `/* Notes about this script. */
+
+Title: Play
+Author: Me
+
+HAMLET
+Hi.`
+
+	upgraded, changed := UpgradeV1ToV2(source)
+	// Leading block comments look like body content to the migrator, so it
+	// leaves the file alone rather than guessing where the metadata sits.
+	assert.False(t, changed)
+	assert.Equal(t, source, upgraded)
+}

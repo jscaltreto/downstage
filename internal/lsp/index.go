@@ -85,6 +85,11 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		}
 	}
 
+	// When no top-level section owns a Dramatis Personae the document is
+	// either V1-shaped (doc-level DP) or DP-free. In that case fall back to a
+	// document-wide scope. In compilations where at least one play has a DP,
+	// plays without one intentionally get no scope — that keeps scoping rules
+	// self-contained per play rather than leaking names across the collection.
 	if len(index.characterScopes) == 0 {
 		index.legacyCharacterScope = newCharacterScope(ast.FindDramatisPersonae(doc.Body))
 	}

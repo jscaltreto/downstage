@@ -1,6 +1,16 @@
 package token
 
-import "fmt"
+import (
+	"fmt"
+	"unicode/utf16"
+)
+
+// UTF16Len returns the UTF-16 code unit length of s. LSP positions are
+// expressed in UTF-16 units rather than bytes or runes, so components that
+// translate between source offsets and LSP ranges share this helper.
+func UTF16Len(s string) int {
+	return len(utf16.Encode([]rune(s)))
+}
 
 // Position tracks location in source.
 type Position struct {

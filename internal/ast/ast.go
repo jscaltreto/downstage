@@ -1,8 +1,6 @@
 package ast
 
 import (
-	"unicode/utf16"
-
 	"github.com/jscaltreto/downstage/internal/token"
 )
 
@@ -86,10 +84,14 @@ type Section struct {
 func (s *Section) NodeRange() token.Range { return s.Range }
 func (s *Section) nodeType() string       { return "Section" }
 func (s *Section) HeadingRange() token.Range {
-	if s.headingRange.Start == (token.Position{}) && s.headingRange.End == (token.Position{}) {
+	if isZeroRange(s.headingRange) {
 		return s.Range
 	}
 	return s.headingRange
+}
+
+func isZeroRange(r token.Range) bool {
+	return r.Start == (token.Position{}) && r.End == (token.Position{})
 }
 func (s *Section) SetHeadingRange(r token.Range) { s.headingRange = r }
 
@@ -284,10 +286,10 @@ type Dialogue struct {
 func (d *Dialogue) NodeRange() token.Range { return d.Range }
 func (d *Dialogue) nodeType() string       { return "Dialogue" }
 func (d *Dialogue) NameRange() token.Range {
-	if d.nameRange.Start == (token.Position{}) && d.nameRange.End == (token.Position{}) {
+	if isZeroRange(d.nameRange) {
 		r := d.Range
 		r.End = r.Start
-		r.End.Column += len(utf16.Encode([]rune(d.Character)))
+		r.End.Column += token.UTF16Len(d.Character)
 		r.End.Offset += len(d.Character)
 		return r
 	}

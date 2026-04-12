@@ -219,7 +219,10 @@ func TestIntegrationTitlePageOnly(t *testing.T) {
 
 // --- no_title_page.ds ---
 
-func TestIntegrationNoTitlePage(t *testing.T) {
+// TestIntegrationNoDocumentLevelTitlePage verifies that a document with no
+// V1-style frontmatter produces no doc-level TitlePage. The renderer may still
+// synthesize a title page from the first top-level section's heading.
+func TestIntegrationNoDocumentLevelTitlePage(t *testing.T) {
 	doc, errs := parser.Parse(readTestdata(t, "no_title_page.ds"))
 	assert.Empty(t, errs)
 
