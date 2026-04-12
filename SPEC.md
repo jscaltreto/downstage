@@ -23,14 +23,21 @@ A Downstage document has two parts:
 1. **Title Page** (optional) -- metadata key-value pairs at the start of the document
 2. **Body** -- everything after the title page: sections (`#` headings), dialogue, stage directions, etc.
 
-All `#` headings start a new section. The content determines the section's role:
+The document title page applies to the file as a whole. In a single-play file, that is usually the play itself. In a compilation, it can describe the collection while individual plays carry their own metadata under top-level headings.
 
-- `# Dramatis Personae`, `# Cast of Characters`, or `# Characters` -- character list (detected by heading text)
+All headings start structural sections. The heading level determines the scope:
+
+- `# <title>` -- top-level section within the file; when it contains metadata, a local dramatis personae, acts, scenes, or dialogue, it defines a play scope (or "subplay")
+- `# Dramatis Personae`, `# Cast of Characters`, or `# Characters` -- legacy document-level character list for backward compatibility
+- `## Dramatis Personae`, `## Cast of Characters`, or `## Characters` -- preferred character list for the enclosing top-level play section
 - `## ACT I` -- act heading (detected by "ACT" prefix)
 - `### SCENE 1` -- scene heading (detected by "SCENE" prefix or position within an act)
-- `# Playwright's Notes` -- generic prose section (anything else)
+- `# Playwright's Notes` -- generic top-level section when the heading is not acting as a play section title
+- `## Notes` / `### Notes` -- generic nested prose section
 
-All three are optional. A minimal valid document can be as simple as:
+Headings are structural, not presentational. Tooling SHOULD treat content under a `#` heading as a distinct top-level scope. When that scope contains play content, tooling SHOULD treat it as an independent play for metadata, dramatis personae, and section numbering.
+
+All structure is optional. A minimal valid document can be as simple as:
 
 ```
 ALICE
@@ -64,15 +71,77 @@ Draft: Third Draft
 Copyright: 2025 Eleanor Vance
 ```
 
-## 4. Dramatis Personae
+## 4. Top-Level Play Sections
 
-The dramatis personae section begins with one of these headings:
+A file MAY contain multiple plays. Each play is introduced by a `#` heading whose content is the play section title.
+
+Every `#` heading creates a top-level section. A top-level section is considered a play section when it contains any of the following:
+
+- a local metadata block
+- a local `## Dramatis Personae`
+- acts, scenes, or dialogue
+
+Top-level sections that do not contain play content remain valid generic sections.
+
+Within a play section, the heading establishes a new local scope. That scope can contain:
+
+- an optional local metadata block immediately after the `#` heading
+- an optional `## Dramatis Personae` section for that play
+- acts, scenes, and ordinary body content
+
+### Local Metadata
+
+A play section MAY begin with a metadata block using the same `Key: Value` format as the document title page.
+
+Common keys remain `Title`, `Subtitle`, `Author`, `Date`, `Draft`, `Copyright`, `Contact`, and `Notes`, but any key is allowed.
+
+This block is only recognised when it appears immediately after the `#` heading, before any other body content. It ends when the first nested heading, page break, or non-indented non-`Key: Value` line is encountered.
+
+If a play section has both a `#` heading title and a local `Title:` field, the local `Title:` value is authoritative metadata, while the heading remains the structural title that begins the section. Tools MAY warn when the two disagree.
+
+### Example
+
+```
+Title: Three Short Plays
+Author: Eleanor Vance
+
+# The Last Curtain Call
+Subtitle: A Drama in Two Acts
+Author: Eleanor Vance
+
+## Dramatis Personae
+MARGARET — An aging actress
+
+## ACT I
+```
+
+## 5. Dramatis Personae
+
+The preferred dramatis personae section begins with one of these headings inside a top-level play section:
+
+- `## Dramatis Personae`
+- `## Cast of Characters`
+- `## Characters`
+
+For backward compatibility, a document-level dramatis personae section MAY also begin with:
 
 - `# Dramatis Personae`
 - `# Cast of Characters`
 - `# Characters`
 
-Heading matching is case-insensitive. The section ends at the next `#` (H1) heading.
+Heading matching is case-insensitive.
+
+Scope is determined by heading level:
+
+- `## Dramatis Personae` applies only to the enclosing `#` play section.
+- `# Dramatis Personae` applies to the document as a whole and is a legacy form.
+
+Boundaries follow heading structure:
+
+- a `## Dramatis Personae` section ends at the next `#` or `##` heading
+- a `# Dramatis Personae` section ends at the next `#` heading
+
+When both a local `## Dramatis Personae` and a legacy document-level `# Dramatis Personae` exist, tooling MUST prefer the local section for character resolution, hover, definition lookup, diagnostics, completion ranking, and code actions. Tooling MAY fall back to the legacy document-level section when no local section exists for the current play.
 
 ### Character Entries
 
@@ -106,23 +175,28 @@ Both forms define `JIM` as a valid alias for `JAMES`. When `JIM` appears as a ch
 
 ### Character Groups
 
-Characters can be organized into groups using `##` subheadings within the dramatis personae section.
+Characters can be organized into groups using nested subheadings within the dramatis personae section.
+
+- inside a legacy `# Dramatis Personae`, groups use `##`
+- inside a preferred local `## Dramatis Personae`, groups use `###`
 
 ```
-# Dramatis Personae
+# A Play
+
+## Dramatis Personae
 
 MARGARET — An aging actress
 JAMES — Her son
 
-## The Crew
+### The Crew
 
 STAGEHAND 1 — A quiet worker
 STAGEHAND 2 — Talkative and nervous
 ```
 
-Characters before any `##` heading are ungrouped. The group name is available in LSP hover information.
+Characters before any group heading are ungrouped. The group name is available in LSP hover information.
 
-## 5. Acts and Scenes
+## 6. Acts and Scenes
 
 ### Acts
 
@@ -165,6 +239,8 @@ Title: A Short Play
 
 # A Short Play
 
+Author: Jane Smith
+
 ALICE
 Hello!
 
@@ -175,6 +251,13 @@ Goodbye!
 ### Example with Acts and Scenes
 
 ```
+# The Last Curtain Call
+
+## Dramatis Personae
+
+ALICE — A young actor
+BOB — Her brother
+
 ## ACT I
 
 ### SCENE 1
@@ -199,7 +282,9 @@ ALICE
 We meet again.
 ```
 
-## 6. Dialogue
+In a multi-play file, act and scene numbering is scoped to the enclosing top-level play section. Tooling SHOULD restart act numbering at each new `#` play section, and SHOULD restart scene numbering within each act in that play section.
+
+## 7. Dialogue
 
 Dialogue is the primary content type. A dialogue block consists of:
 
@@ -276,9 +361,9 @@ Valid names: `HAMLET`, `STAGE HAND`, `MARY-JANE`, `MR. SMITH`, `O'BRIEN`, `GUARD
 
 Invalid names: `Hamlet` (lowercase), `A` (too short), `ROBOT_3` (underscore)
 
-When these rules are too restrictive, use a forced character (see Section 13).
+When these rules are too restrictive, use a forced character (see Section 14).
 
-## 7. Stage Directions
+## 8. Stage Directions
 
 ### Standalone Stage Directions
 
@@ -321,7 +406,7 @@ CLAIRE
 Ms. Thornton, we have three hours.
 ```
 
-## 8. Verse
+## 9. Verse
 
 Lines indented with 2 or more spaces within dialogue are treated as verse. Verse preserves line breaks, which is important for poetry, song lyrics, and heightened speech.
 
@@ -345,7 +430,7 @@ A piece of work is man, how noble in reason.
 
 The first line is prose. The indented lines are verse.
 
-## 9. Songs
+## 10. Songs
 
 Song blocks mark musical numbers within the play.
 
@@ -382,7 +467,7 @@ SONG END
 
 Songs can appear within scenes or directly in the body.
 
-## 10. Inline Formatting
+## 11. Inline Formatting
 
 Formatting markers work within dialogue, stage directions, and verse.
 
@@ -412,7 +497,7 @@ I think it was to see my mother's ~wedding~ marriage.
 - Formatting does **not** nest. Inner markers within formatted text are treated as plain text.
 - Unclosed formatting markers are treated as literal characters.
 
-## 11. Comments
+## 12. Comments
 
 Comments are preserved in the AST but are not part of the play's content.
 
@@ -433,7 +518,7 @@ Block comments can also be single-line: `/* single line comment */`
 
 Comments can appear anywhere -- between scenes, within dialogue blocks, at the top of the document.
 
-## 12. Page Breaks
+## 13. Page Breaks
 
 Three equals signs on their own line:
 
@@ -443,7 +528,7 @@ Three equals signs on their own line:
 
 Page breaks indicate a page separation in rendered output. They can appear anywhere in the body.
 
-## 13. Forced Elements
+## 14. Forced Elements
 
 When the normal parsing rules produce the wrong result, forced elements override them.
 
@@ -468,7 +553,7 @@ Prefix text with `.` to force it to be treated as a heading, without needing `#`
 
 This creates a structural heading. The `.` prefix requires the next character to be uppercase. The `.` is stripped from the heading text in the AST.
 
-## 14. Rendering
+## 15. Rendering
 
 The `downstage render` command converts `.ds` files to output formats.
 
@@ -519,7 +604,7 @@ downstage render --format html --style condensed play.ds
 downstage render --format html --output play.html play.ds
 ```
 
-## 15. Divergences from TheatreScript
+## 16. Divergences from TheatreScript
 
 Downstage is inspired by the archived [TheatreScript](https://github.com/contrapunctus-1/TheatreScript) specification but diverges in these ways:
 
@@ -531,7 +616,7 @@ Downstage is inspired by the archived [TheatreScript](https://github.com/contrap
 6. **Separate lines.** Character names and dialogue are always on separate lines. The original spec supported inline `NAME: dialogue` format, which Downstage does not.
 7. **Dual dialogue.** `CHARACTER ^` marks simultaneous speech for side-by-side rendering. Inspired by [Fountain's dual dialogue](https://fountain.io/syntax/#dual-dialogue). Not present in the original spec.
 
-## 16. Complete Example
+## 17. Complete Example
 
 The following is `testdata/full_play.ds`, demonstrating every Downstage feature in context.
 
