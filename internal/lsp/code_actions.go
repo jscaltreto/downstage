@@ -9,6 +9,17 @@ import (
 	"go.lsp.dev/protocol"
 )
 
+// ComputeCodeActions returns the quick-fix actions surfaced by the Downstage LSP.
+func ComputeCodeActions(
+	doc *ast.Document,
+	content string,
+	uri protocol.DocumentURI,
+	diagnostics []protocol.Diagnostic,
+	allDiagnostics []protocol.Diagnostic,
+) []protocol.CodeAction {
+	return computeCodeActions(doc, content, uri, diagnostics, allDiagnostics)
+}
+
 func computeCodeActions(
 	doc *ast.Document,
 	content string,

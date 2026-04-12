@@ -22,6 +22,8 @@ func main() {
 	ds.Set("parse", js.FuncOf(parse))
 	ds.Set("diagnostics", js.FuncOf(diagnostics))
 	ds.Set("upgradeV1", js.FuncOf(upgradeV1))
+	ds.Set("completion", js.FuncOf(completion))
+	ds.Set("codeActions", js.FuncOf(codeActions))
 	ds.Set("renderHTML", js.FuncOf(renderHTML))
 	ds.Set("renderPDF", js.FuncOf(renderPDF))
 	ds.Set("semanticTokens", js.FuncOf(semanticTokens))
@@ -41,14 +43,17 @@ type parseErrorJSON struct {
 	EndCol  int    `json:"endCol"`
 }
 
+const codeActionsURI protocol.DocumentURI = "inmemory://document.ds"
+
 type diagnosticJSON struct {
-	Message  string `json:"message"`
-	Severity string `json:"severity"`
-	Line     int    `json:"line"`
-	Col      int    `json:"col"`
-	EndLine  int    `json:"endLine"`
-	EndCol   int    `json:"endCol"`
-	Code     string `json:"code,omitempty"`
+	Message    string   `json:"message"`
+	Severity   string   `json:"severity"`
+	Line       int      `json:"line"`
+	Col        int      `json:"col"`
+	EndLine    int      `json:"endLine"`
+	EndCol     int      `json:"endCol"`
+	Code       string   `json:"code,omitempty"`
+	QuickFixes []string `json:"quickFixes,omitempty"`
 }
 
 func parse(_ js.Value, args []js.Value) any {
@@ -86,9 +91,93 @@ func diagnostics(_ js.Value, args []js.Value) any {
 			EndCol:   int(diag.Range.End.Character),
 			Code:     diagnosticCode(diag.Code),
 		}
+
+		actions := lsp.ComputeCodeActions(doc, source, codeActionsURI, []protocol.Diagnostic{diag}, diags)
+		titles := actionTitles(actions)
+		if len(titles) > 0 {
+			out[i].QuickFixes = titles
+		}
 	}
 
 	data, _ := json.Marshal(map[string]any{"diagnostics": out})
+	return js.Global().Get("JSON").Call("parse", string(data))
+}
+
+func actionTitles(actions []protocol.CodeAction) []string {
+	titles := make([]string, 0, len(actions))
+	for _, a := range actions {
+		if a.Edit == nil {
+			continue
+		}
+		if edits := a.Edit.Changes[codeActionsURI]; len(edits) == 0 {
+			continue
+		}
+		titles = append(titles, a.Title)
+	}
+	return titles
+}
+
+func completion(_ js.Value, args []js.Value) any {
+	source := args[0].String()
+	line := args[1].Int()
+	col := args[2].Int()
+
+	doc, errs := parser.Parse([]byte(source))
+	list := lsp.ComputeCompletion(doc, errs, source, protocol.Position{
+		Line:      uint32(line),
+		Character: uint32(col),
+	})
+	if list == nil {
+		list = &protocol.CompletionList{Items: []protocol.CompletionItem{}}
+	}
+
+	data, _ := json.Marshal(list)
+	return js.Global().Get("JSON").Call("parse", string(data))
+}
+
+func codeActions(_ js.Value, args []js.Value) any {
+	source := args[0].String()
+	line := args[1].Int()
+	col := args[2].Int()
+
+	var codeFilter map[string]struct{}
+	if len(args) > 3 && args[3].Type() == js.TypeObject {
+		codeFilter = make(map[string]struct{})
+		length := args[3].Length()
+		for i := 0; i < length; i++ {
+			codeFilter[args[3].Index(i).String()] = struct{}{}
+		}
+	}
+
+	doc, errs := parser.Parse([]byte(source))
+	allDiags := lsp.ComputeDiagnostics(doc, errs)
+
+	var ctxDiags []protocol.Diagnostic
+	for _, d := range allDiags {
+		if int(d.Range.Start.Line) != line {
+			continue
+		}
+		if col < int(d.Range.Start.Character) || col > int(d.Range.End.Character) {
+			continue
+		}
+		if codeFilter != nil {
+			code, _ := d.Code.(string)
+			if _, ok := codeFilter[code]; !ok {
+				continue
+			}
+		}
+		ctxDiags = append(ctxDiags, d)
+	}
+
+	actions := lsp.ComputeCodeActions(doc, source, codeActionsURI, ctxDiags, allDiags)
+	if actions == nil {
+		actions = []protocol.CodeAction{}
+	}
+
+	data, _ := json.Marshal(map[string]any{
+		"uri":     string(codeActionsURI),
+		"actions": actions,
+	})
 	return js.Global().Get("JSON").Call("parse", string(data))
 }
 

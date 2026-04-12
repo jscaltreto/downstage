@@ -1,8 +1,10 @@
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { completionKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { createDownstageLinter } from "../diagnostics";
+import { createDownstageCompletion } from "../completion";
 import { createDownstageHighlighter } from "../downstage-lang";
 import { createScrollSyncPlugin } from "../scroll-sync";
 import type { EditorEnv } from "./types";
@@ -60,10 +62,11 @@ export class Engine {
         extensions: [
           lineNumbers(),
           history(),
-          keymap.of([...defaultKeymap, ...historyKeymap]),
+          keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
           themeCompartment.of(isDark ? oneDark : lightTheme),
           customTheme,
           createDownstageHighlighter(this.env),
+          createDownstageCompletion(this.env),
           createDownstageLinter(this.env),
           createScrollSyncPlugin(this.iframe),
           EditorView.lineWrapping,
