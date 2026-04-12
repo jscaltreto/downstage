@@ -96,12 +96,16 @@ func buildDiagnosticsWithIndex(doc *ast.Document, errors []*parser.ParseError, i
 
 	// Convert parser errors to diagnostics.
 	for _, e := range errors {
-		diags = append(diags, protocol.Diagnostic{
+		diag := protocol.Diagnostic{
 			Range:    toLSPRange(e.Range),
 			Severity: protocol.DiagnosticSeverityError,
 			Source:   "downstage",
 			Message:  e.Message,
-		})
+		}
+		if e.Code != "" {
+			diag.Code = e.Code
+		}
+		diags = append(diags, diag)
 	}
 	if diag := v1DocumentDiagnostic(errors); diag != nil {
 		diags = append(diags, *diag)

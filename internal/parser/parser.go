@@ -86,6 +86,10 @@ func (p *parser) addError(msg string, r token.Range) {
 	p.errors = append(p.errors, &ParseError{Message: msg, Range: r})
 }
 
+func (p *parser) addCodedError(code, msg string, r token.Range) {
+	p.errors = append(p.errors, &ParseError{Message: msg, Range: r, Code: code})
+}
+
 func (p *parser) skipToNextBlank() {
 	for !p.at(token.Blank) && !p.at(token.EOF) {
 		p.advance()
@@ -581,7 +585,7 @@ func (p *parser) parseDPContent(section *ast.Section) {
 			// ALL-CAPS name, possibly with description on same line
 			tok := p.advance()
 			if hasUnsupportedDPDash(tok.Literal) {
-				p.addError("character descriptions in Dramatis Personae must use ASCII ` - `", tok.Range)
+				p.addCodedError(ErrCodeDPUnicodeDash, "character descriptions in Dramatis Personae must use ASCII ` - `", tok.Range)
 			}
 			ch := parseCharacterEntry(tok)
 			if currentGroup != nil {
@@ -594,12 +598,12 @@ func (p *parser) parseDPContent(section *ast.Section) {
 
 		case token.CharacterAlias:
 			tok := p.advance()
-			p.addError("standalone character alias syntax is not supported; use NAME/ALIAS inline", tok.Range)
+			p.addCodedError(ErrCodeDPStandaloneAlias, "standalone character alias syntax is not supported; use NAME/ALIAS inline", tok.Range)
 
 		case token.Text:
 			tok := p.advance()
 			if hasUnsupportedDPDash(tok.Literal) {
-				p.addError("character descriptions in Dramatis Personae must use ASCII ` - `", tok.Range)
+				p.addCodedError(ErrCodeDPUnicodeDash, "character descriptions in Dramatis Personae must use ASCII ` - `", tok.Range)
 			}
 			ch := parseCharacterEntry(tok)
 			if currentGroup != nil {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/migrate"
+	"github.com/jscaltreto/downstage/internal/parser"
 	"go.lsp.dev/protocol"
 )
 
@@ -42,6 +43,38 @@ func computeCodeActions(
 
 	for _, diagnostic := range diagnostics {
 		switch diagnostic.Code {
+		case parser.ErrCodeDPUnicodeDash:
+			edit := replaceUnicodeDashEdit(content, diagnostic.Range)
+			if edit == nil {
+				continue
+			}
+			actions = append(actions, protocol.CodeAction{
+				Title:       "Replace Unicode dash with ASCII ` - `",
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {*edit},
+					},
+				},
+			})
+		case parser.ErrCodeDPStandaloneAlias:
+			edit := inlineStandaloneAliasEdit(content, diagnostic.Range)
+			if edit == nil {
+				continue
+			}
+			actions = append(actions, protocol.CodeAction{
+				Title:       "Rewrite alias as inline NAME/ALIAS",
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {*edit},
+					},
+				},
+			})
 		case diagnosticCodeV1Document:
 			upgraded, changed := migrate.UpgradeV1ToV2(content)
 			if !changed {
@@ -310,6 +343,55 @@ func dpHasNoEntries(dp *ast.Section) bool {
 		return true
 	}
 	return len(dp.Characters) == 0 && len(dp.Groups) == 0
+}
+
+// replaceUnicodeDashEdit returns a TextEdit that rewrites em-dashes and
+// en-dashes around the DP separator with the ASCII ` - ` form expected
+// by SPEC §5.
+func replaceUnicodeDashEdit(content string, r protocol.Range) *protocol.TextEdit {
+	line, ok := lineAt(content, int(r.Start.Line))
+	if !ok {
+		return nil
+	}
+	replaced := strings.ReplaceAll(line, " \u2014 ", " - ")
+	replaced = strings.ReplaceAll(replaced, " \u2013 ", " - ")
+	if replaced == line {
+		return nil
+	}
+	return &protocol.TextEdit{
+		Range: protocol.Range{
+			Start: protocol.Position{Line: r.Start.Line, Character: 0},
+			End:   protocol.Position{Line: r.Start.Line, Character: uint32(utf16Len(line))},
+		},
+		NewText: replaced,
+	}
+}
+
+// inlineStandaloneAliasEdit rewrites a `[NAME/ALIAS]` line as the
+// bracketless `NAME/ALIAS` form that the V2 parser accepts as a
+// character entry.
+func inlineStandaloneAliasEdit(content string, r protocol.Range) *protocol.TextEdit {
+	line, ok := lineAt(content, int(r.Start.Line))
+	if !ok {
+		return nil
+	}
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "[") || !strings.HasSuffix(trimmed, "]") {
+		return nil
+	}
+	inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trimmed, "["), "]"))
+	if inner == "" {
+		return nil
+	}
+	// Preserve the line's leading whitespace so the edit is minimally invasive.
+	lead := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+	return &protocol.TextEdit{
+		Range: protocol.Range{
+			Start: protocol.Position{Line: r.Start.Line, Character: 0},
+			End:   protocol.Position{Line: r.Start.Line, Character: uint32(utf16Len(line))},
+		},
+		NewText: lead + inner,
+	}
 }
 
 func maxInt(a, b int) int {

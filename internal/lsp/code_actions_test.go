@@ -53,6 +53,66 @@ Boo.`
 	}
 }
 
+func TestComputeCodeActions_ReplaceUnicodeDashInDP(t *testing.T) {
+	content := "# Play\n\n## Dramatis Personae\n\nHAMLET — Prince of Denmark\n"
+
+	doc, errs := parser.Parse([]byte(content))
+	diagnostics := buildDiagnostics(doc, errs)
+
+	var ctx []protocol.Diagnostic
+	for _, d := range diagnostics {
+		if code, _ := d.Code.(string); code == parser.ErrCodeDPUnicodeDash {
+			ctx = append(ctx, d)
+		}
+	}
+	if len(ctx) != 1 {
+		t.Fatalf("expected 1 unicode-dash diagnostic, got %d", len(ctx))
+	}
+
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///t.ds"), ctx, diagnostics)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action, got %d", len(actions))
+	}
+	if !strings.Contains(actions[0].Title, "Replace Unicode dash") {
+		t.Fatalf("unexpected title: %q", actions[0].Title)
+	}
+
+	edit := actions[0].Edit.Changes[protocol.DocumentURI("file:///t.ds")][0]
+	if edit.NewText != "HAMLET - Prince of Denmark" {
+		t.Fatalf("expected ASCII rewrite, got %q", edit.NewText)
+	}
+}
+
+func TestComputeCodeActions_InlineStandaloneAlias(t *testing.T) {
+	content := "# Play\n\n## Dramatis Personae\n\nHAMLET - Prince\n[HAMLET/HAM]\n"
+
+	doc, errs := parser.Parse([]byte(content))
+	diagnostics := buildDiagnostics(doc, errs)
+
+	var ctx []protocol.Diagnostic
+	for _, d := range diagnostics {
+		if code, _ := d.Code.(string); code == parser.ErrCodeDPStandaloneAlias {
+			ctx = append(ctx, d)
+		}
+	}
+	if len(ctx) != 1 {
+		t.Fatalf("expected 1 standalone-alias diagnostic, got %d", len(ctx))
+	}
+
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///t.ds"), ctx, diagnostics)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action, got %d", len(actions))
+	}
+	if !strings.Contains(actions[0].Title, "Rewrite alias") {
+		t.Fatalf("unexpected title: %q", actions[0].Title)
+	}
+
+	edit := actions[0].Edit.Changes[protocol.DocumentURI("file:///t.ds")][0]
+	if edit.NewText != "HAMLET/HAM" {
+		t.Fatalf("expected bracketless rewrite, got %q", edit.NewText)
+	}
+}
+
 func TestComputeCodeActions_UpdateScriptToV2(t *testing.T) {
 	content := `Title: Hamlet
 Author: William Shakespeare
