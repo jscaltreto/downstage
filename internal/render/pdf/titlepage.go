@@ -211,20 +211,15 @@ func applyDocumentMetadata(b *pdfBase, tp *ast.TitlePage) {
 	b.pdf.SetCreator("Downstage", true)
 }
 
-// placeBottomBlock positions the cursor for a footer-ish block of
-// entryCount lines. The preferred anchor is 70% of the page height; if
-// that would push the block past the bottom margin (e.g. condensed
-// layouts with lots of wrapping), it's shifted up just far enough to
-// fit. When the author block above has already spilled past the target,
-// we fall back to a short gap below the authors instead of backtracking.
+// placeBottomBlock anchors a footer block of entryCount lines just
+// above the bottom margin. The reserve allows for a two-line wrap per
+// entry so long values (e.g. a draft note) don't spill into the
+// bottom margin and trip the auto page break. If the author block
+// above has already spilled into the reserved area, fall back to a
+// short gap below them instead of backtracking over live content.
 func placeBottomBlock(b *pdfBase, entryCount int) {
-	target := b.pageH * 0.70
-	// Reserve three line-heights per entry so the occasional wrapped
-	// metadata line doesn't overshoot the bottom margin.
-	reserve := float64(entryCount) * b.lineHeight * 3
-	if bottom := b.pageH - b.marginB - reserve; bottom < target {
-		target = bottom
-	}
+	reserve := float64(entryCount) * b.lineHeight * 2
+	target := b.pageH - b.marginB - reserve
 	if current := b.pdf.GetY(); current > target {
 		b.pdf.Ln(b.lineHeight)
 		return
