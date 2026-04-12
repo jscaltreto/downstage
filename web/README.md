@@ -5,6 +5,15 @@ browser-local draft storage, an Open Draft picker, and PDF export. The entire pa
 rendering pipeline runs client-side via
 WebAssembly — no server required.
 
+## Draft Storage
+
+Browser drafts are stored locally in the current browser profile only. They are
+not uploaded or synced to a server. If the browser storage is cleared, the
+profile is reset, or you switch devices, those drafts can be lost.
+
+Use **Save .ds** for any manuscript you care about. Treat the browser draft
+library as convenience storage, not your only copy.
+
 ## Quick Start
 
 ```bash
