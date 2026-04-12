@@ -107,7 +107,7 @@ class WebEnv implements EditorEnv {
   }
 
   async saveFile(filename: string, content: string | Uint8Array, _filters?: { displayName: string; pattern: string }[]): Promise<void> {
-    const blob = new Blob([content], { type: typeof content === "string" ? "text/plain" : "application/pdf" });
+    const blob = new Blob([content as BlobPart], { type: typeof content === "string" ? "text/plain" : "application/pdf" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

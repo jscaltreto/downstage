@@ -6,7 +6,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "test": "vitest run"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && vitest run"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
