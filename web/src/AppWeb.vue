@@ -10,6 +10,7 @@ import BaseModal from './components/shared/BaseModal.vue';
 import DeleteConfirmationModal from './components/shared/DeleteConfirmationModal.vue';
 import ToastManager from './components/shared/ToastManager.vue';
 import Editor from './components/shared/Editor.vue';
+import WelcomeModal from './components/shared/WelcomeModal.vue';
 
 const props = defineProps<{
   env: EditorEnv;
@@ -18,9 +19,13 @@ const props = defineProps<{
 const store = new Store(props.env);
 provide('store', store);
 
+const quickReferenceStorageKey = "downstage-quick-reference-hidden";
+const welcomeStorageKey = "downstage-editor-welcome-dismissed";
+
 const isLoaded = ref(false);
 const showDrafts = ref(false);
-const showCheatSheet = ref(true);
+const showQuickReference = ref(false);
+const showWelcome = ref(false);
 const activeContent = ref("");
 const pageStyle = ref("standard");
 
@@ -120,8 +125,9 @@ onMounted(async () => {
   if (store.state.drafts.length === 0 && !activeContent.value) {
     await createDraft("The Example Play", exampleContent);
   }
-  
-  showCheatSheet.value = localStorage.getItem("downstage-cheat-sheet-hidden") !== "true";
+
+  showQuickReference.value = localStorage.getItem(quickReferenceStorageKey) === "false";
+  showWelcome.value = localStorage.getItem(welcomeStorageKey) !== "true";
   isLoaded.value = true;
 
   window.addEventListener("pagehide", flushDrafts);
@@ -161,6 +167,16 @@ function flushDrafts() {
         persistTimer = null;
     }
     props.env.saveDrafts(store.state.drafts);
+}
+
+function dismissWelcome() {
+  showWelcome.value = false;
+  localStorage.setItem(welcomeStorageKey, "true");
+}
+
+function openQuickReferenceFromWelcome() {
+  showQuickReference.value = true;
+  dismissWelcome();
 }
 
 function handleNewPlay() {
@@ -240,8 +256,8 @@ watch(activeContent, (newContent) => {
     }
 });
 
-watch(showCheatSheet, (val) => {
-    localStorage.setItem("downstage-cheat-sheet-hidden", String(!val));
+watch(showQuickReference, (val) => {
+    localStorage.setItem(quickReferenceStorageKey, String(!val));
 });
 </script>
 
@@ -277,52 +293,86 @@ watch(showCheatSheet, (val) => {
       Loading Downstage editor...
     </div>
 
-    <main v-else class="flex-1 overflow-hidden flex flex-col relative">
+    <main v-else class="flex-1 overflow-hidden flex flex-col">
+      <section
+        v-if="showQuickReference"
+        class="border-b border-border bg-[var(--color-page-surface)] px-4 py-3 shadow-sm"
+      >
+        <div class="mx-auto flex max-w-7xl flex-col gap-3">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-[10px] font-bold uppercase tracking-[0.2em] text-brass-500">Quick Reference</h2>
+              <p class="mt-1 text-sm text-text-muted">
+                The basics only. Keep writing, and open the
+                <button
+                  class="font-bold text-brass-500 underline decoration-brass-500/40 underline-offset-2 hover:text-brass-400"
+                  @click="env.openURL('https://www.getdownstage.com/docs/')"
+                >
+                  docs
+                </button>
+                for the full spec.
+              </p>
+            </div>
+            <button
+              class="rounded-full p-2 text-text-muted transition-colors hover:bg-black/5 hover:text-text-main dark:hover:bg-white/5"
+              @click="showQuickReference = false"
+              aria-label="Close quick reference"
+            >
+              <X class="h-5 w-5" />
+            </button>
+          </div>
+
+          <dl class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
+              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Title Block</dt>
+              <dd>
+                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>Title: My Play
+Author: Your Name
+Draft: First</code></pre>
+              </dd>
+            </div>
+
+            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
+              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Cue + Dialogue</dt>
+              <dd>
+                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>ALICE
+I know this looks reckless.</code></pre>
+              </dd>
+            </div>
+
+            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
+              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Stage Direction</dt>
+              <dd>
+                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>&gt; The lights cut to black.</code></pre>
+              </dd>
+            </div>
+
+            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
+              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Structure</dt>
+              <dd>
+                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>## ACT I
+### SCENE 1</code></pre>
+              </dd>
+            </div>
+
+            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
+              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Emphasis</dt>
+              <dd>
+                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>**bold**
+*italic*
+_underline_</code></pre>
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
       <Editor 
         :env="env"
         v-model:content="activeContent"
         v-model:style="pageStyle"
-        @toggle-help="showCheatSheet = !showCheatSheet"
+        @toggle-help="showQuickReference = !showQuickReference"
       />
-
-      <!-- Cheat Sheet Aside -->
-      <aside 
-        v-if="showCheatSheet"
-        class="absolute left-0 bottom-0 top-0 w-80 bg-[var(--color-page-surface)] border-r border-border shadow-2xl z-30 flex flex-col p-6 overflow-y-auto custom-scrollbar"
-      >
-        <div class="flex justify-between items-start mb-6">
-            <div>
-                <h3 class="text-xs uppercase tracking-widest text-brass-500 font-bold mb-1">Cheat Sheet</h3>
-                <p class="text-sm text-text-muted italic font-serif">A writer's quick reference.</p>
-            </div>
-            <button @click="showCheatSheet = false" class="text-text-muted hover:text-text-main transition-colors">
-                <X class="w-5 h-5" />
-            </button>
-        </div>
-
-        <dl class="space-y-4 text-sm">
-            <div>
-                <dt class="font-bold text-text-main mb-1">Title block</dt>
-                <dd class="text-text-muted leading-relaxed"><code>Title: My Play</code> and <code>Author: Your Name</code></dd>
-            </div>
-            <div>
-                <dt class="font-bold text-text-main mb-1">Character cue</dt>
-                <dd class="text-text-muted leading-relaxed"><code>ALICE</code> on its own line, then dialogue below it</dd>
-            </div>
-            <div>
-                <dt class="font-bold text-text-main mb-1">Emphasis</dt>
-                <dd class="text-text-muted leading-relaxed"><code>**bold**</code>, <code>*italic*</code>, and <code>_underline_</code></dd>
-            </div>
-            <div>
-                <dt class="font-bold text-text-main mb-1">Stage direction</dt>
-                <dd class="text-text-muted leading-relaxed"><code>&gt; The lights fade.</code></dd>
-            </div>
-            <div>
-                <dt class="font-bold text-text-main mb-1">Heading</dt>
-                <dd class="text-text-muted leading-relaxed"><code>## ACT I</code> or <code>### SCENE 1</code></dd>
-            </div>
-        </dl>
-      </aside>
     </main>
 
     <BaseModal 
@@ -380,6 +430,12 @@ watch(showCheatSheet, (val) => {
         :item-name="draftToDelete.title"
         @close="draftToDelete = null"
         @confirm="confirmDeleteDraft"
+    />
+
+    <WelcomeModal
+        :open="showWelcome"
+        @close="dismissWelcome"
+        @open-quick-reference="openQuickReferenceFromWelcome"
     />
 
     <ToastManager ref="toastManager" />
