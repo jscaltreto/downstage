@@ -357,7 +357,7 @@ func partitionHTMLTitlePageEntries(tp *ast.TitlePage) (title string, subtitle st
 
 func (r *htmlRenderer) renderCharacterEntry(ch ast.Character) {
 	r.buf.WriteString("<div class=\"character-entry\">")
-	fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(ch.Name))
+	fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(render.CharacterDisplayName(ch)))
 	if ch.Description != "" {
 		fmt.Fprintf(&r.buf, "<dd>%s</dd>", html.EscapeString(ch.Description))
 	}

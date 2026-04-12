@@ -270,6 +270,38 @@ func TestRender_CompilationSubplaySupportsMultipleAuthors(t *testing.T) {
 	assert.Contains(t, out, "<p class=\"downstage-subplay-author\">John Smith</p>")
 }
 
+func TestRender_DramatisPersonaeIncludesAliases(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionDramatisPersonae,
+				Level: 2,
+				Characters: []ast.Character{
+					{Name: "HAMLET", Aliases: []string{"HAM"}, Description: "Prince of Denmark"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<dt>HAMLET/HAM</dt>")
+	assert.Contains(t, out, "<dd>Prince of Denmark</dd>")
+}
+
+func TestRender_DramatisPersonaeEmDashSeparatorPreservesTrailingSpace(t *testing.T) {
+	// The CSS escape "\2014 " swallows a single trailing space. The fix uses
+	// a non-breaking space after the em-dash; guard that in the stylesheet
+	// so a regression in css.go fails loudly.
+	out := renderHTML(t, &ast.Document{})
+	assert.Contains(t, out, `content: " \2014\00a0"`)
+}
+
+func TestRender_ForcedPageBreakHasVisibleRule(t *testing.T) {
+	out := renderHTML(t, &ast.Document{})
+	assert.Contains(t, out, ".downstage-page-break")
+	assert.Contains(t, out, "border-top: 1px dashed var(--downstage-break-color)")
+}
+
 func TestRender_DialogueWithFormatting(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{

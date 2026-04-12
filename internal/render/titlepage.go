@@ -85,6 +85,27 @@ func SectionTitlePage(doc *ast.Document, section *ast.Section) *ast.TitlePage {
 	}
 }
 
+// CharacterDisplayName returns "NAME" or "NAME/ALIAS[/ALIAS2]" using the
+// authoring syntax, so rendered output matches how users write aliases in
+// the source file.
+func CharacterDisplayName(ch ast.Character) string {
+	name := strings.TrimSpace(ch.Name)
+	if len(ch.Aliases) == 0 {
+		return name
+	}
+	var b strings.Builder
+	b.WriteString(name)
+	for _, alias := range ch.Aliases {
+		alias = strings.TrimSpace(alias)
+		if alias == "" {
+			continue
+		}
+		b.WriteByte('/')
+		b.WriteString(alias)
+	}
+	return b.String()
+}
+
 // SectionDisplayTitle returns the title used to display a section in rendered
 // output. When Metadata carries an explicit `Title:` entry it wins over the
 // heading text, matching SPEC §4.

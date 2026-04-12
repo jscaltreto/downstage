@@ -1,6 +1,9 @@
 package pdf
 
-import "github.com/jscaltreto/downstage/internal/ast"
+import (
+	"github.com/jscaltreto/downstage/internal/ast"
+	"github.com/jscaltreto/downstage/internal/render"
+)
 
 // renderDramatisPersonae renders the characters and groups from a
 // SectionDramatisPersonae section. Called by both pdfRenderer and
@@ -37,7 +40,7 @@ func renderCharacterEntry(b *pdfBase, ch ast.Character, indent float64) {
 	b.pdf.SetX(b.marginL + indent)
 
 	b.setStyle("B")
-	b.pdf.Write(b.lineHeight, ch.Name)
+	b.pdf.Write(b.lineHeight, render.CharacterDisplayName(ch))
 	b.setStyle("")
 
 	if ch.Description != "" {

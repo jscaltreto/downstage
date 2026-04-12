@@ -3,6 +3,11 @@ package html
 const standardCSS = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+:root {
+  --downstage-break-color: rgba(0, 0, 0, 0.18);
+  --downstage-break-spacing: 2em;
+}
+
 body {
   font-family: "Courier New", Courier, monospace;
   font-size: 12pt;
@@ -26,6 +31,9 @@ body {
   min-height: 80vh;
   text-align: center;
   page-break-after: always;
+  padding-bottom: var(--downstage-break-spacing);
+  border-bottom: 1px dashed var(--downstage-break-color);
+  margin-bottom: var(--downstage-break-spacing);
 }
 .downstage-title-page h1 {
   font-size: 20pt;
@@ -83,10 +91,14 @@ body {
 /* Dramatis Personae */
 .downstage-dramatis-personae {
   page-break-after: always;
-  margin-bottom: 2em;
+  margin-bottom: var(--downstage-break-spacing);
+  padding-bottom: var(--downstage-break-spacing);
+  border-bottom: 1px dashed var(--downstage-break-color);
 }
 .downstage-dramatis-personae-inline {
   page-break-after: auto;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 .downstage-dramatis-personae > h2 {
   text-align: center;
@@ -97,7 +109,7 @@ body {
 .downstage-dramatis-personae dl { margin-left: 8%; }
 .downstage-dramatis-personae dt { font-weight: bold; display: inline; }
 .downstage-dramatis-personae dd { display: inline; margin: 0; }
-.downstage-dramatis-personae dd::before { content: " \2014 "; }
+.downstage-dramatis-personae dd::before { content: " \2014\00a0"; }
 .downstage-dramatis-personae .character-entry { margin-bottom: 0.25em; }
 .downstage-character-group-name {
   text-align: center;
@@ -256,8 +268,14 @@ body {
 /* Page Break */
 .downstage-page-break {
   border: none;
+  border-top: 1px dashed var(--downstage-break-color);
   page-break-after: always;
-  margin: 2em 0;
+  margin: var(--downstage-break-spacing) 0;
+}
+
+.downstage-subplay {
+  padding-top: var(--downstage-break-spacing);
+  border-top: 1px dashed var(--downstage-break-color);
 }
 
 /* Inline */
@@ -270,20 +288,44 @@ body {
 
 @media print {
   .downstage-document { padding: 0; max-width: none; }
-  .downstage-title-page { min-height: 100vh; page-break-after: always; }
-  .downstage-dramatis-personae { page-break-after: always; }
+  .downstage-title-page {
+    min-height: 100vh;
+    page-break-after: always;
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+  .downstage-dramatis-personae {
+    page-break-after: always;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
   .downstage-dramatis-personae-inline { page-break-after: auto; }
   .downstage-act { page-break-before: always; }
-  .downstage-subplay { page-break-before: always; }
+  .downstage-subplay {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+  }
   .downstage-subplay > .downstage-scene:first-of-type { page-break-before: always; }
   .downstage-dialogue { orphans: 3; widows: 2; }
   .downstage-song { page-break-inside: avoid; }
-  .downstage-page-break { page-break-after: always; height: 0; margin: 0; }
+  .downstage-page-break {
+    page-break-after: always;
+    height: 0;
+    margin: 0;
+    border-top: none;
+  }
 }
 `
 
 const condensedCSS = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --downstage-break-color: rgba(0, 0, 0, 0.18);
+  --downstage-break-spacing: 1.5em;
+}
 
 body {
   font-family: Georgia, "Times New Roman", Times, serif;
@@ -309,6 +351,9 @@ body {
   min-height: 60vh;
   text-align: center;
   page-break-after: always;
+  padding-bottom: var(--downstage-break-spacing);
+  border-bottom: 1px dashed var(--downstage-break-color);
+  margin-bottom: var(--downstage-break-spacing);
 }
 .downstage-title-page h1 {
   font-size: 16pt;
@@ -366,10 +411,14 @@ body {
 /* Dramatis Personae */
 .downstage-dramatis-personae {
   page-break-after: always;
-  margin-bottom: 1.5em;
+  margin-bottom: var(--downstage-break-spacing);
+  padding-bottom: var(--downstage-break-spacing);
+  border-bottom: 1px dashed var(--downstage-break-color);
 }
 .downstage-dramatis-personae-inline {
   page-break-after: auto;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 .downstage-dramatis-personae > h2 {
   text-align: center;
@@ -380,7 +429,7 @@ body {
 .downstage-dramatis-personae dl { margin-left: 0; }
 .downstage-dramatis-personae dt { font-weight: bold; display: inline; }
 .downstage-dramatis-personae dd { display: inline; margin: 0; }
-.downstage-dramatis-personae dd::before { content: " \2014 "; }
+.downstage-dramatis-personae dd::before { content: " \2014\00a0"; }
 .downstage-dramatis-personae .character-entry { margin-bottom: 0.2em; }
 .downstage-character-group-name {
   text-align: center;
@@ -533,8 +582,14 @@ body {
 /* Page Break */
 .downstage-page-break {
   border: none;
+  border-top: 1px dashed var(--downstage-break-color);
   page-break-after: always;
-  margin: 1.5em 0;
+  margin: var(--downstage-break-spacing) 0;
+}
+
+.downstage-subplay {
+  padding-top: var(--downstage-break-spacing);
+  border-top: 1px dashed var(--downstage-break-color);
 }
 
 /* Inline */
@@ -547,14 +602,33 @@ body {
 
 @media print {
   .downstage-document { padding: 0; max-width: none; }
-  .downstage-title-page { min-height: 100vh; page-break-after: always; }
-  .downstage-dramatis-personae { page-break-after: always; }
+  .downstage-title-page {
+    min-height: 100vh;
+    page-break-after: always;
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+  .downstage-dramatis-personae {
+    page-break-after: always;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
   .downstage-dramatis-personae-inline { page-break-after: auto; }
   .downstage-act { page-break-before: always; }
-  .downstage-subplay { page-break-before: always; }
+  .downstage-subplay {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+  }
   .downstage-subplay > .downstage-scene:first-of-type { page-break-before: always; }
   .downstage-dialogue { orphans: 3; widows: 2; }
   .downstage-song { page-break-inside: avoid; }
-  .downstage-page-break { page-break-after: always; height: 0; margin: 0; }
+  .downstage-page-break {
+    page-break-after: always;
+    height: 0;
+    margin: 0;
+    border-top: none;
+  }
 }
 `
