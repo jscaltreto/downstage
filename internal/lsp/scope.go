@@ -22,22 +22,24 @@ func newCharacterScope(dp *ast.Section) characterScope {
 	}
 
 	seen := make(map[string]struct{})
-	for _, ch := range dp.AllCharacters() {
-		name := strings.TrimSpace(ch.Name)
-		if name != "" {
-			key := strings.ToUpper(name)
-			scope.known[key] = struct{}{}
-			if _, ok := seen[key]; !ok {
-				seen[key] = struct{}{}
-				scope.names = append(scope.names, name)
-			}
+	addName := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return
 		}
+		key := strings.ToUpper(name)
+		scope.known[key] = struct{}{}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		scope.names = append(scope.names, name)
+	}
+
+	for _, ch := range dp.AllCharacters() {
+		addName(ch.Name)
 		for _, alias := range ch.Aliases {
-			alias = strings.TrimSpace(alias)
-			if alias == "" {
-				continue
-			}
-			scope.known[strings.ToUpper(alias)] = struct{}{}
+			addName(alias)
 		}
 	}
 

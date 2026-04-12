@@ -305,6 +305,9 @@ func documentCharacterNames(doc *ast.Document) []string {
 	if dp := ast.FindDramatisPersonae(doc.Body); dp != nil {
 		for _, ch := range dp.AllCharacters() {
 			add(ch.Name)
+			for _, alias := range ch.Aliases {
+				add(alias)
+			}
 		}
 	}
 
@@ -386,18 +389,25 @@ func appendRemainingDPNames(doc *ast.Document, line int, names []string) []strin
 		seen[strings.ToUpper(strings.TrimSpace(name))] = struct{}{}
 	}
 
+	add := func(raw string) {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			return
+		}
+		key := strings.ToUpper(name)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		names = append(names, name)
+	}
+
 	if dp := scopedDramatisPersonae(doc, line); dp != nil {
 		for _, ch := range dp.AllCharacters() {
-			name := strings.TrimSpace(ch.Name)
-			if name == "" {
-				continue
+			add(ch.Name)
+			for _, alias := range ch.Aliases {
+				add(alias)
 			}
-			key := strings.ToUpper(name)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			names = append(names, name)
 		}
 	}
 

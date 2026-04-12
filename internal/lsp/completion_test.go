@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 
@@ -8,6 +9,36 @@ import (
 	"github.com/jscaltreto/downstage/internal/parser"
 	"go.lsp.dev/protocol"
 )
+
+func TestComputeCompletion_AliasesAppearInSuggestions(t *testing.T) {
+	content := `# Play
+
+## Dramatis Personae
+HAMLET/HAM
+HORATIO
+
+## ACT I
+
+### SCENE 1
+
+HA`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	result := computeCompletion(doc, errs, content, protocol.Position{Line: 10, Character: 2})
+	labels := make([]string, 0, len(result.Items))
+	for _, item := range result.Items {
+		labels = append(labels, item.Label)
+	}
+	sort.Strings(labels)
+	expected := []string{"HAM", "HAMLET"}
+	if !reflect.DeepEqual(labels, expected) {
+		t.Fatalf("expected HAM and HAMLET suggestions, got %v", labels)
+	}
+}
 
 func TestComputeCompletion_CharacterCueContext(t *testing.T) {
 	content := `# Play
