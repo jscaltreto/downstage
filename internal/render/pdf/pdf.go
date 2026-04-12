@@ -27,9 +27,10 @@ type pdfRenderer struct {
 
 func (r *pdfRenderer) BeginDocument(doc *ast.Document, w io.Writer) error {
 	r.w = w
-	r.hasTitlePage = doc.TitlePage != nil
-	r.hasBody = len(doc.Body) > 0
-	r.titlePageTitle = titlePageTitle(doc.TitlePage)
+	tp := render.DocumentTitlePage(doc)
+	r.hasTitlePage = tp != nil
+	r.hasBody = render.DocumentHasRenderableBody(doc)
+	r.titlePageTitle = titlePageTitle(tp)
 	r.initPDF(loadBundledFont, defaultFontFamily)
 	return nil
 }

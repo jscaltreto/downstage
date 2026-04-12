@@ -32,6 +32,9 @@ func Walk(v Visitor, node Node) {
 		// KeyValue is not a Node, nothing to walk
 
 	case *Section:
+		if n.Metadata != nil {
+			Walk(v, n.Metadata)
+		}
 		for _, item := range n.OrderedItems() {
 			if item.Node != nil {
 				Walk(v, item.Node)

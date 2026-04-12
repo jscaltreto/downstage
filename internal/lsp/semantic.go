@@ -48,19 +48,6 @@ func ComputeSemanticTokens(doc *ast.Document, _ []*parser.ParseError) []uint32 {
 
 	var tokens []rawToken
 
-	// Title page entries: key is property, value spans the line.
-	if tp := doc.TitlePage; tp != nil {
-		for _, entry := range tp.Entries {
-			r := entry.Range
-			tokens = append(tokens, rawToken{
-				line:      r.Start.Line,
-				startChar: r.Start.Column,
-				length:    utf16Len(entry.Key),
-				tokenType: tokenTypeProperty,
-			})
-		}
-	}
-
 	// Body nodes
 	for _, n := range doc.Body {
 		tokens = append(tokens, extractTokens(n)...)
@@ -74,6 +61,17 @@ func extractTokens(n ast.Node) []rawToken {
 
 	switch v := n.(type) {
 	case *ast.Section:
+		if v.Metadata != nil {
+			for _, entry := range v.Metadata.Entries {
+				r := entry.Range
+				tokens = append(tokens, rawToken{
+					line:      r.Start.Line,
+					startChar: r.Start.Column,
+					length:    utf16Len(entry.Key),
+					tokenType: tokenTypeProperty,
+				})
+			}
+		}
 		header := sectionHeaderText(v)
 		if header != "" {
 			startChar := v.Range.Start.Column

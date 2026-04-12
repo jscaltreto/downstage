@@ -73,6 +73,7 @@ type Section struct {
 	Level        int              // 1 (#), 2 (##), 3 (###)
 	Title        string           // heading text (e.g. "ACT I", "Playwright's Notes")
 	Number       string           // act/scene number (e.g. "I", "1") — empty for generic
+	Metadata     *TitlePage       `json:",omitempty"` // optional metadata directly under a top-level section heading
 	Children     []Node           // nested sections + content (dialogue, directions, songs, etc.)
 	Characters   []Character      // populated only for SectionDramatisPersonae
 	Groups       []CharacterGroup // populated only for SectionDramatisPersonae
@@ -210,12 +211,45 @@ type CharacterGroup struct {
 
 // FindDramatisPersonae searches the body for a SectionDramatisPersonae node.
 func FindDramatisPersonae(body []Node) *Section {
-	for _, node := range body {
-		if s, ok := node.(*Section); ok && s.Kind == SectionDramatisPersonae {
+	return FindDramatisPersonaeInNodes(body)
+}
+
+func FindDramatisPersonaeInNodes(nodes []Node) *Section {
+	for _, node := range nodes {
+		s, ok := node.(*Section)
+		if !ok {
+			continue
+		}
+		if s.Kind == SectionDramatisPersonae {
 			return s
+		}
+		if child := FindDramatisPersonaeInNodes(s.Children); child != nil {
+			return child
 		}
 	}
 	return nil
+}
+
+func FindDramatisPersonaeInSection(section *Section) *Section {
+	if section == nil {
+		return nil
+	}
+	return FindDramatisPersonaeInNodes(section.Children)
+}
+
+func FindTopLevelSection(body []Node, line int) *Section {
+	var last *Section
+	for _, node := range body {
+		s, ok := node.(*Section)
+		if !ok || s.Level != 1 {
+			continue
+		}
+		if s.Range.Start.Line > line {
+			break
+		}
+		last = s
+	}
+	return last
 }
 
 // AllCharacters returns all characters from a DramatisPersonae section,

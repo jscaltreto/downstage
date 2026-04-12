@@ -18,7 +18,7 @@ func computeDefinition(doc *ast.Document, _ []*parser.ParseError, uri protocol.D
 		return nil
 	}
 
-	dp := ast.FindDramatisPersonae(doc.Body)
+	dp := scopedDramatisPersonae(doc, int(pos.Line))
 	if dp == nil {
 		return nil
 	}

@@ -49,8 +49,9 @@ func (r *htmlRenderer) BeginDocument(doc *ast.Document, w io.Writer) error {
 	r.buf.Reset()
 	r.w = w
 	r.dirDepth = 0
-	r.hasTitlePage = doc.TitlePage != nil
-	r.titlePageTitle = titlePageTitle(doc.TitlePage)
+	tp := render.DocumentTitlePage(doc)
+	r.hasTitlePage = tp != nil
+	r.titlePageTitle = titlePageTitle(tp)
 	r.inDualDialogue = false
 	r.inParagraph = false
 	r.sectionStack = r.sectionStack[:0]
@@ -71,8 +72,8 @@ func (r *htmlRenderer) BeginDocument(doc *ast.Document, w io.Writer) error {
 	r.buf.WriteString("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
 	fmt.Fprintf(&r.buf, "<title>%s</title>\n", html.EscapeString(title))
 
-	if doc.TitlePage != nil {
-		for _, kv := range doc.TitlePage.Entries {
+	if tp != nil {
+		for _, kv := range tp.Entries {
 			if strings.EqualFold(kv.Key, "author") {
 				fmt.Fprintf(&r.buf, "<meta name=\"author\" content=\"%s\">\n", html.EscapeString(kv.Value))
 			}
@@ -112,6 +113,9 @@ func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 			other = append(other, kv)
 		}
 	}
+
+	r.hasTitlePage = true
+	r.titlePageTitle = title
 
 	fmt.Fprintf(&r.buf, "<header class=\"downstage-title-page\"%s>\n", r.sourceAttr(tp.NodeRange()))
 
@@ -154,6 +158,10 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 	case ast.SectionDramatisPersonae:
 		return r.renderDramatisPersonae(s)
 	default: // SectionGeneric
+		if render.IsLegacyTopLevelDramatisPersonae(s) {
+			r.pushSection(false)
+			return nil
+		}
 		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
 			r.pushSection(false)
 			return nil

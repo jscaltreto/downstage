@@ -17,12 +17,6 @@ func computeFoldingRanges(doc *ast.Document, _ []*parser.ParseError, content str
 	lineCount := strings.Count(content, "\n") + 1
 	var ranges []protocol.FoldingRange
 
-	if doc.TitlePage != nil {
-		if folding, ok := buildFoldingRange(doc.TitlePage.Range, lineCount, protocol.RegionFoldingRange); ok {
-			ranges = append(ranges, folding)
-		}
-	}
-
 	for _, node := range doc.Body {
 		ranges = append(ranges, foldingRangesForNode(node, lineCount)...)
 	}
@@ -35,6 +29,11 @@ func foldingRangesForNode(node ast.Node, lineCount int) []protocol.FoldingRange 
 
 	switch v := node.(type) {
 	case *ast.Section:
+		if v.Metadata != nil {
+			if folding, ok := buildFoldingRange(v.Metadata.Range, lineCount, protocol.RegionFoldingRange); ok {
+				ranges = append(ranges, folding)
+			}
+		}
 		if folding, ok := buildFoldingRange(v.Range, lineCount, protocol.RegionFoldingRange); ok {
 			ranges = append(ranges, folding)
 		}

@@ -172,6 +172,11 @@ func walkNode(nr NodeRenderer, node ast.Node) error {
 		return nr.EndVerseBlock(n)
 
 	case *ast.Section:
+		if docTP := SectionTitlePage(n); docTP != nil {
+			if err := nr.RenderTitlePage(docTP); err != nil {
+				return err
+			}
+		}
 		if err := nr.BeginSection(n); err != nil {
 			return err
 		}

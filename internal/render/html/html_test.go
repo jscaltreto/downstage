@@ -65,6 +65,38 @@ func TestRender_TitlePage(t *testing.T) {
 	assert.Contains(t, out, "</header>")
 }
 
+func TestRender_TopLevelSectionMetadataAsTitlePage(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Author", Value: "Jane Doe"},
+						{Key: "Subtitle", Value: "A Drama"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionAct,
+						Level:  2,
+						Number: "I",
+					},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<title>My Play</title>")
+	assert.Contains(t, out, "<header class=\"downstage-title-page\">")
+	assert.Contains(t, out, "<h1>My Play</h1>")
+	assert.Contains(t, out, "<p class=\"subtitle\">A Drama</p>")
+	assert.Contains(t, out, "<p class=\"author\">Jane Doe</p>")
+}
+
 func TestRender_DialogueWithFormatting(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{

@@ -124,11 +124,16 @@ func checkUnknownCharacters(index *documentIndex) []protocol.Diagnostic {
 
 	var diags []protocol.Diagnostic
 	for _, ref := range index.dialogues {
+		scope := index.characterScopeForSection(ref.play)
+		if scope.dp == nil {
+			continue
+		}
+
 		name := strings.ToUpper(ref.dialogue.Character)
 		if name == "" {
 			continue
 		}
-		if _, ok := index.knownCharacters[name]; ok {
+		if _, ok := scope.known[name]; ok {
 			continue
 		}
 		if collectiveCues[name] {
@@ -141,7 +146,7 @@ func checkUnknownCharacters(index *documentIndex) []protocol.Diagnostic {
 				if up == "" || collectiveCues[up] {
 					continue
 				}
-				if _, ok := index.knownCharacters[up]; ok {
+				if _, ok := scope.known[up]; ok {
 					continue
 				}
 				diags = append(diags, unknownCharacterDiag(ref.dialogue.NameRange(), part))

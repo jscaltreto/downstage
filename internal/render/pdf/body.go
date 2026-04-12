@@ -21,6 +21,9 @@ func (r *pdfRenderer) BeginSection(s *ast.Section) error {
 		renderDramatisPersonae(&r.pdfBase, s, r.bodyW*0.15)
 		return nil
 	default: // SectionGeneric
+		if render.IsLegacyTopLevelDramatisPersonae(s) {
+			return nil
+		}
 		// Skip play title heading if title page already rendered it
 		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
 			return nil
@@ -35,7 +38,9 @@ func (r *pdfRenderer) BeginSection(s *ast.Section) error {
 			r.pdf.Ln(r.lineHeight)
 			return nil
 		}
-		r.pdf.AddPage()
+		if !r.consumePendingTitlePageBodyPage() {
+			r.pdf.AddPage()
+		}
 		if s.Title != "" {
 			r.setStyle("B")
 			r.centeredText(strings.ToUpper(s.Title))
@@ -72,7 +77,9 @@ func (r *pdfRenderer) beginAct(s *ast.Section) error {
 	// (the play title parsed as an Act) are skipped when a title
 	// page already rendered them.
 	if s.Number != "" {
-		r.pdf.AddPage()
+		if !r.consumePendingTitlePageBodyPage() {
+			r.pdf.AddPage()
+		}
 	} else {
 		if r.hasTitlePage {
 			return nil
@@ -99,8 +106,10 @@ func (r *pdfRenderer) beginAct(s *ast.Section) error {
 }
 
 func (r *pdfRenderer) beginScene(s *ast.Section) error {
-	r.ensureSpace(r.lineHeight * 3)
-	r.pdf.Ln(r.lineHeight)
+	if !r.consumePendingTitlePageBodyPage() {
+		r.ensureSpace(r.lineHeight * 3)
+		r.pdf.Ln(r.lineHeight)
+	}
 
 	var heading string
 	switch {

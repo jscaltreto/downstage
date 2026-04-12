@@ -18,6 +18,7 @@ func computeCodeActions(
 	if doc == nil || len(diagnostics) == 0 {
 		return []protocol.CodeAction{}
 	}
+	index := newDocumentIndex(doc)
 
 	actions := make([]protocol.CodeAction, 0, len(diagnostics))
 	seenCharacters := make(map[string]struct{})
@@ -27,24 +28,15 @@ func computeCodeActions(
 	seenSceneEdits := make(map[string]struct{})
 	var hasMisnumberedAct, hasMisnumberedScene bool
 
-	var (
-		dp      = ast.FindDramatisPersonae(doc.Body)
-		edit    protocol.TextEdit
-		hasEdit bool
-	)
-	if dp != nil {
-		edit, hasEdit = dramatisPersonaeInsertEdit(doc, content)
-	}
-
 	for _, diagnostic := range diagnostics {
 		switch diagnostic.Code {
 		case diagnosticCodeUnknownCharacter:
-			if !hasEdit {
-				continue
-			}
-
 			character := diagnosticCharacterName(diagnostic)
 			if character == "" {
+				continue
+			}
+			textEdit, hasEdit := dramatisPersonaeInsertEdit(doc, index, content, int(diagnostic.Range.Start.Line))
+			if !hasEdit {
 				continue
 			}
 
@@ -54,8 +46,7 @@ func computeCodeActions(
 			}
 			seenCharacters[key] = struct{}{}
 
-			textEdit := edit
-			prefix := strings.TrimSuffix(edit.NewText, "\n")
+			prefix := strings.TrimSuffix(textEdit.NewText, "\n")
 			textEdit.NewText = prefix + character + "\n"
 
 			actions = append(actions, protocol.CodeAction{
@@ -231,8 +222,11 @@ func diagnosticStringData(diagnostic protocol.Diagnostic, key string) string {
 	}
 }
 
-func dramatisPersonaeInsertEdit(doc *ast.Document, content string) (protocol.TextEdit, bool) {
-	dp := ast.FindDramatisPersonae(doc.Body)
+func dramatisPersonaeInsertEdit(doc *ast.Document, index *documentIndex, content string, line int) (protocol.TextEdit, bool) {
+	if index == nil {
+		index = newDocumentIndex(doc)
+	}
+	dp := index.characterScopeForLine(doc, line).dp
 	if dp == nil {
 		return protocol.TextEdit{}, false
 	}

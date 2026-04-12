@@ -249,10 +249,10 @@ func (l *lexer) emit(typ token.Type, literal, sourceLine string, line, colStart,
 }
 
 // isCharacterName returns true if s looks like an ALL CAPS character name.
-// Must be 2+ characters, contain at least one letter, and consist only of
+// Must be 1+ characters, contain at least one letter, and consist only of
 // uppercase letters, digits, spaces, periods, commas, hyphens, and apostrophes.
 func isCharacterName(s string) bool {
-	if len(s) < 2 {
+	if len(s) < 1 {
 		return false
 	}
 	hasLetter := false

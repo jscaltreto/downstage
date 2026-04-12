@@ -7,6 +7,8 @@ import (
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/parser"
 	"github.com/jscaltreto/downstage/internal/token"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.lsp.dev/protocol"
 )
 
@@ -48,7 +50,9 @@ func TestBuildDiagnostics_ParserErrors(t *testing.T) {
 }
 
 func TestComputeDiagnostics_MatchesBuildDiagnostics(t *testing.T) {
-	content := `# Dramatis Personae
+	content := `# Play
+
+## Dramatis Personae
 
 HAMLET
 
@@ -128,6 +132,45 @@ func TestBuildDiagnostics_NoDramatisPersonaeSuppressesUnknownCharacter(t *testin
 	if len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics without dramatis personae, got %d", len(diags))
 	}
+}
+
+func TestBuildDiagnostics_ScopedDramatisPersonaeDoesNotBleedAcrossCompilation(t *testing.T) {
+	content := `# First Play
+
+## Dramatis Personae
+ALICE - Lead
+
+## ACT I
+
+### SCENE 1
+
+HAMLET
+Hello.
+
+# Second Play
+
+## Dramatis Personae
+HAMLET - Prince
+
+## ACT I
+
+### SCENE 1
+
+HAMLET
+Hello.`
+
+	doc, errs := parser.Parse([]byte(content))
+	require.Empty(t, errs)
+
+	diags := buildDiagnostics(doc, errs)
+	var unknown []protocol.Diagnostic
+	for _, diag := range diags {
+		if diag.Code == diagnosticCodeUnknownCharacter {
+			unknown = append(unknown, diag)
+		}
+	}
+	require.Len(t, unknown, 1)
+	assert.Equal(t, "unknown character: HAMLET (add to Dramatis Personae)", unknown[0].Message)
 }
 
 func TestBuildDiagnostics_KnownCharacter(t *testing.T) {

@@ -15,23 +15,25 @@ const pointsToMM = 0.3528 // 1 pt in mm
 
 // pdfBase holds shared state and helpers for all PDF-based renderers.
 type pdfBase struct {
-	cfg            render.Config
-	pdf            *fpdf.Fpdf
-	w              io.Writer
-	pageW          float64
-	pageH          float64
-	marginL        float64
-	marginR        float64
-	marginT        float64
-	marginB        float64
-	bodyW          float64 // pageW - marginL - marginR
-	fontStyle      string  // tracks current accumulated style
-	styleStack     []string
-	dirDepth       int     // nesting depth of InlineDirectionNodes
-	hasTitlePage   bool    // whether a title page was rendered
-	hasBody        bool    // whether the document has body content after front matter
-	lineHeight     float64 // vertical line spacing in mm
-	titlePageTitle string
+	cfg                      render.Config
+	pdf                      *fpdf.Fpdf
+	w                        io.Writer
+	pageW                    float64
+	pageH                    float64
+	marginL                  float64
+	marginR                  float64
+	marginT                  float64
+	marginB                  float64
+	bodyW                    float64 // pageW - marginL - marginR
+	fontStyle                string  // tracks current accumulated style
+	styleStack               []string
+	dirDepth                 int     // nesting depth of InlineDirectionNodes
+	hasTitlePage             bool    // whether a title page was rendered
+	hasBody                  bool    // whether the document has body content after front matter
+	lineHeight               float64 // vertical line spacing in mm
+	titlePageTitle           string
+	titlePagesSeen           int
+	pendingTitlePageBodyPage bool
 
 	// Body block adjacency tracking
 	prevWasStageDirection bool
@@ -102,6 +104,32 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 	b.pdf.AddPage()
 	b.fontStyle = ""
 	b.styleStack = b.styleStack[:0]
+	b.titlePagesSeen = 0
+	b.pendingTitlePageBodyPage = false
+}
+
+func (b *pdfBase) beginTitlePage() {
+	if b.titlePagesSeen > 0 && !b.pendingTitlePageBodyPage {
+		b.pdf.AddPage()
+	}
+	b.pendingTitlePageBodyPage = false
+	b.titlePagesSeen++
+}
+
+func (b *pdfBase) finishTitlePage() {
+	if !b.hasBody {
+		return
+	}
+	b.pdf.AddPage()
+	b.pendingTitlePageBodyPage = true
+}
+
+func (b *pdfBase) consumePendingTitlePageBodyPage() bool {
+	if !b.pendingTitlePageBodyPage {
+		return false
+	}
+	b.pendingTitlePageBodyPage = false
+	return true
 }
 
 // --- Inline rendering (shared by all PDF renderers) ---

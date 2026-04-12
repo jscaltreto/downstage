@@ -2,106 +2,264 @@
   "TitlePage": null,
   "Body": [
     {
-      "Left": {
-        "Character": "BRICK",
-        "Parenthetical": "",
-        "Lines": [
+      "Kind": 0,
+      "Level": 1,
+      "Title": "Test",
+      "Number": "",
+      "Metadata": {
+        "Entries": [
           {
-            "Content": [
-              {
-                "Value": "Screw retirement.",
-                "Range": {
-                  "Start": {
-                    "Line": 1,
-                    "Column": 0,
-                    "Offset": 6
-                  },
-                  "End": {
-                    "Line": 1,
-                    "Column": 17,
-                    "Offset": 23
-                  }
-                }
-              }
-            ],
-            "IsVerse": false,
+            "Key": "Title",
+            "Value": "Test",
             "Range": {
               "Start": {
                 "Line": 1,
                 "Column": 0,
-                "Offset": 6
+                "Offset": 7
               },
               "End": {
                 "Line": 1,
-                "Column": 17,
-                "Offset": 23
+                "Column": 11,
+                "Offset": 18
               }
             }
           }
         ],
         "Range": {
           "Start": {
-            "Line": 0,
+            "Line": 1,
             "Column": 0,
-            "Offset": 0
+            "Offset": 7
           },
           "End": {
             "Line": 1,
-            "Column": 17,
-            "Offset": 23
+            "Column": 11,
+            "Offset": 18
           }
         }
       },
-      "Right": {
-        "Character": "STEEL",
-        "Parenthetical": "",
-        "Lines": [
-          {
-            "Content": [
-              {
-                "Value": "Screw retirement.",
-                "Range": {
-                  "Start": {
-                    "Line": 4,
-                    "Column": 0,
-                    "Offset": 33
-                  },
-                  "End": {
-                    "Line": 4,
-                    "Column": 17,
-                    "Offset": 50
-                  }
+      "Children": [
+        {
+          "Kind": 3,
+          "Level": 2,
+          "Title": "Dramatis Personae",
+          "Number": "",
+          "Children": null,
+          "Characters": [
+            {
+              "Name": "BRICK",
+              "Aliases": null,
+              "Description": "One half of the pair",
+              "Range": {
+                "Start": {
+                  "Line": 5,
+                  "Column": 0,
+                  "Offset": 42
+                },
+                "End": {
+                  "Line": 5,
+                  "Column": 28,
+                  "Offset": 70
                 }
               }
-            ],
-            "IsVerse": false,
-            "Range": {
-              "Start": {
-                "Line": 4,
-                "Column": 0,
-                "Offset": 33
-              },
-              "End": {
-                "Line": 4,
-                "Column": 17,
-                "Offset": 50
+            },
+            {
+              "Name": "STEEL",
+              "Aliases": null,
+              "Description": "The other half of the pair",
+              "Range": {
+                "Start": {
+                  "Line": 6,
+                  "Column": 0,
+                  "Offset": 71
+                },
+                "End": {
+                  "Line": 6,
+                  "Column": 34,
+                  "Offset": 105
+                }
               }
             }
+          ],
+          "Groups": null,
+          "Lines": null,
+          "Range": {
+            "Start": {
+              "Line": 3,
+              "Column": 0,
+              "Offset": 20
+            },
+            "End": {
+              "Line": 7,
+              "Column": 0,
+              "Offset": 106
+            }
           }
-        ],
-        "Range": {
-          "Start": {
-            "Line": 3,
-            "Column": 0,
-            "Offset": 25
-          },
-          "End": {
-            "Line": 4,
-            "Column": 17,
-            "Offset": 50
+        },
+        {
+          "Kind": 1,
+          "Level": 2,
+          "Title": "",
+          "Number": "I",
+          "Children": [
+            {
+              "Kind": 2,
+              "Level": 3,
+              "Title": "",
+              "Number": "1",
+              "Children": [
+                {
+                  "Left": {
+                    "Character": "BRICK",
+                    "Parenthetical": "",
+                    "Lines": [
+                      {
+                        "Content": [
+                          {
+                            "Value": "Screw retirement.",
+                            "Range": {
+                              "Start": {
+                                "Line": 13,
+                                "Column": 0,
+                                "Offset": 136
+                              },
+                              "End": {
+                                "Line": 13,
+                                "Column": 17,
+                                "Offset": 153
+                              }
+                            }
+                          }
+                        ],
+                        "IsVerse": false,
+                        "Range": {
+                          "Start": {
+                            "Line": 13,
+                            "Column": 0,
+                            "Offset": 136
+                          },
+                          "End": {
+                            "Line": 13,
+                            "Column": 17,
+                            "Offset": 153
+                          }
+                        }
+                      }
+                    ],
+                    "Range": {
+                      "Start": {
+                        "Line": 12,
+                        "Column": 0,
+                        "Offset": 130
+                      },
+                      "End": {
+                        "Line": 13,
+                        "Column": 17,
+                        "Offset": 153
+                      }
+                    }
+                  },
+                  "Right": {
+                    "Character": "STEEL",
+                    "Parenthetical": "",
+                    "Lines": [
+                      {
+                        "Content": [
+                          {
+                            "Value": "Screw retirement.",
+                            "Range": {
+                              "Start": {
+                                "Line": 16,
+                                "Column": 0,
+                                "Offset": 163
+                              },
+                              "End": {
+                                "Line": 16,
+                                "Column": 17,
+                                "Offset": 180
+                              }
+                            }
+                          }
+                        ],
+                        "IsVerse": false,
+                        "Range": {
+                          "Start": {
+                            "Line": 16,
+                            "Column": 0,
+                            "Offset": 163
+                          },
+                          "End": {
+                            "Line": 16,
+                            "Column": 17,
+                            "Offset": 180
+                          }
+                        }
+                      }
+                    ],
+                    "Range": {
+                      "Start": {
+                        "Line": 15,
+                        "Column": 0,
+                        "Offset": 155
+                      },
+                      "End": {
+                        "Line": 16,
+                        "Column": 17,
+                        "Offset": 180
+                      }
+                    }
+                  },
+                  "Range": {
+                    "Start": {
+                      "Line": 12,
+                      "Column": 0,
+                      "Offset": 130
+                    },
+                    "End": {
+                      "Line": 16,
+                      "Column": 17,
+                      "Offset": 180
+                    }
+                  }
+                }
+              ],
+              "Characters": null,
+              "Groups": null,
+              "Lines": null,
+              "Range": {
+                "Start": {
+                  "Line": 10,
+                  "Column": 0,
+                  "Offset": 117
+                },
+                "End": {
+                  "Line": 17,
+                  "Column": 0,
+                  "Offset": 181
+                }
+              }
+            }
+          ],
+          "Characters": null,
+          "Groups": null,
+          "Lines": null,
+          "Range": {
+            "Start": {
+              "Line": 8,
+              "Column": 0,
+              "Offset": 107
+            },
+            "End": {
+              "Line": 17,
+              "Column": 0,
+              "Offset": 181
+            }
           }
         }
-      },
+      ],
+      "Characters": null,
+      "Groups": null,
+      "Lines": null,
       "Range": {
         "Start": {
           "Line": 0,
@@ -109,9 +267,9 @@
           "Offset": 0
         },
         "End": {
-          "Line": 4,
-          "Column": 17,
-          "Offset": 50
+          "Line": 17,
+          "Column": 0,
+          "Offset": 181
         }
       }
     }
@@ -123,9 +281,9 @@
       "Offset": 0
     },
     "End": {
-      "Line": 6,
+      "Line": 18,
       "Column": 0,
-      "Offset": 51
+      "Offset": 181
     }
   }
 }

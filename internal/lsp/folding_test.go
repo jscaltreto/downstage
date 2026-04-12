@@ -15,10 +15,9 @@ func TestComputeFoldingRanges_NilDocument(t *testing.T) {
 }
 
 func TestComputeFoldingRanges_TitlePageSectionsSongAndBlockComment(t *testing.T) {
-	content := `Title: Play
+	content := `# Play
+Title: Play
 Author: Example
-
-# Play
 
 ## ACT I
 
@@ -43,12 +42,12 @@ comment
 		t.Fatalf("expected 6 folding ranges, got %d", len(ranges))
 	}
 
-	assertFoldingRange(t, ranges[0], 0, 1, protocol.RegionFoldingRange)
-	assertFoldingRange(t, ranges[1], 3, 16, protocol.RegionFoldingRange)
-	assertFoldingRange(t, ranges[2], 5, 16, protocol.RegionFoldingRange)
-	assertFoldingRange(t, ranges[3], 7, 16, protocol.RegionFoldingRange)
-	assertFoldingRange(t, ranges[4], 9, 11, protocol.RegionFoldingRange)
-	assertFoldingRange(t, ranges[5], 13, 16, protocol.CommentFoldingRange)
+	assertFoldingRange(t, ranges[0], 1, 2, protocol.RegionFoldingRange)
+	assertFoldingRange(t, ranges[1], 0, 15, protocol.RegionFoldingRange)
+	assertFoldingRange(t, ranges[2], 4, 15, protocol.RegionFoldingRange)
+	assertFoldingRange(t, ranges[3], 6, 15, protocol.RegionFoldingRange)
+	assertFoldingRange(t, ranges[4], 8, 10, protocol.RegionFoldingRange)
+	assertFoldingRange(t, ranges[5], 12, 15, protocol.CommentFoldingRange)
 }
 
 func TestComputeFoldingRanges_SkipsSingleLineNodes(t *testing.T) {

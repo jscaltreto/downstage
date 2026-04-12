@@ -8,10 +8,12 @@ import (
 )
 
 func TestComputeCodeActions_AddUnknownCharacterToDramatisPersonae(t *testing.T) {
-	content := `# Dramatis Personae
+	content := `# Play
+
+## Dramatis Personae
 HAMLET
 
-# Play
+## ACT I
 
 GHOST
 Boo.`
@@ -45,15 +47,17 @@ Boo.`
 	if edits[0].NewText != "GHOST\n" {
 		t.Fatalf("expected insertion for character entry, got %q", edits[0].NewText)
 	}
-	if edits[0].Range.Start.Line != 2 {
+	if edits[0].Range.Start.Line != 4 {
 		t.Fatalf("expected insert on line 2, got %d", edits[0].Range.Start.Line)
 	}
 }
 
 func TestComputeCodeActions_EmptyDramatisPersonaeAddsSpacedEntry(t *testing.T) {
-	content := `# Dramatis Personae
+	content := `# Play
 
-# Play
+## Dramatis Personae
+
+## ACT I
 
 GHOST
 Boo.`
@@ -172,7 +176,11 @@ func TestComputeCodeActions_NumberUnnumberedSceneHeading(t *testing.T) {
 }
 
 func TestComputeCodeActions_NumberSceneHeadingWithSubtitle(t *testing.T) {
-	content := `### SCENE: The Kitchen`
+	content := `# Play
+
+## ACT I
+
+### SCENE: The Kitchen`
 
 	doc, errs := parser.Parse([]byte(content))
 	if len(errs) > 0 {

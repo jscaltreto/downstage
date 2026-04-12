@@ -96,9 +96,11 @@ func (p *parser) skipToNextBlank() {
 func (p *parser) parseDocument() *ast.Document {
 	doc := &ast.Document{}
 
-	// Title page: everything before first heading or structural element
 	if p.at(token.TitleKey) || p.at(token.TitleValue) {
-		doc.TitlePage = p.parseTitlePage()
+		legacy := p.parseTitlePage()
+		if legacy != nil {
+			p.addError("document-level metadata is a V1 pattern; add a top-level # heading and move metadata under it", legacy.Range)
+		}
 	}
 
 	p.skipBlanksAndComments()
@@ -164,20 +166,30 @@ func (p *parser) parseTitlePage() *ast.TitlePage {
 
 func (p *parser) parseBody() []ast.Node {
 	var nodes []ast.Node
-	prevContinuation := token.EOF
 
 	for !p.at(token.EOF) {
-		hadBlanks := p.at(token.Blank)
 		p.skipBlanks()
 		if p.at(token.EOF) {
 			break
 		}
 
-		node := p.parseBodyElement()
-		if node != nil {
-			prevContinuation = markContinuation(node, prevContinuation, hadBlanks)
-			nodes = append(nodes, node)
-			nodes = p.makeDualDialogue(nodes)
+		switch p.peek().Type {
+		case token.HeadingH1:
+			node := p.parseSection(1)
+			if node != nil {
+				nodes = append(nodes, node)
+			}
+		case token.LineComment:
+			nodes = append(nodes, p.parseLineComment())
+		case token.BlockCommentStart:
+			nodes = append(nodes, p.parseBlockComment())
+		case token.PageBreak:
+			tok := p.advance()
+			nodes = append(nodes, &ast.PageBreak{Range: tok.Range})
+		default:
+			tok := p.peek()
+			p.addError("top-level content must begin with a # heading", tok.Range)
+			p.skipToNextBlank()
 		}
 	}
 
@@ -377,6 +389,39 @@ func (p *parser) hasSubHeading(level int) bool {
 	return false
 }
 
+func (p *parser) hasStructuralBodyContent(level int) bool {
+	saved := p.pos
+	defer func() { p.pos = saved }()
+
+	for !p.at(token.EOF) && !p.atHeadingAtOrAboveLevel(level) {
+		if p.atAny(token.Blank, token.LineComment, token.BlockCommentStart) {
+			p.advance()
+			continue
+		}
+		if p.atAny(
+			token.CharacterName,
+			token.ForcedCharacter,
+			token.DualDialogueChar,
+			token.StageDirection,
+			token.Callout,
+			token.SongStart,
+			token.Verse,
+			token.PageBreak,
+			token.ForcedHeading,
+		) {
+			return true
+		}
+		if level < 3 && p.at(headingTokenForLevel(level+1)) {
+			return true
+		}
+		if level < 2 && p.at(headingTokenForLevel(level+2)) {
+			return true
+		}
+		p.advance()
+	}
+	return false
+}
+
 // atHeadingLevel returns true if the current token is a heading at or above the given level.
 func (p *parser) atHeadingAtOrAboveLevel(level int) bool {
 	switch level {
@@ -393,6 +438,10 @@ func (p *parser) atHeadingAtOrAboveLevel(level int) bool {
 
 func inferSectionKind(title string, level int, insideAct bool) ast.SectionKind {
 	upper := strings.ToUpper(strings.TrimSpace(title))
+
+	if level == 1 {
+		return ast.SectionGeneric
+	}
 
 	normalized := strings.ToLower(strings.TrimSpace(title))
 	switch normalized {
@@ -453,6 +502,13 @@ func (p *parser) parseSection(level int) *ast.Section {
 func (p *parser) parseSectionInContext(level int, insideAct bool) *ast.Section {
 	headingTok := p.advance()
 	kind := inferSectionKind(headingTok.Literal, level, insideAct)
+	if level == 1 {
+		normalized := strings.ToLower(strings.TrimSpace(headingTok.Literal))
+		switch normalized {
+		case "dramatis personae", "cast of characters", "characters":
+			p.addError("top-level Dramatis Personae is a V1 pattern; move it under the owning # section as ## Dramatis Personae", headingTok.Range)
+		}
+	}
 
 	section := &ast.Section{
 		Kind:  kind,
@@ -478,6 +534,10 @@ func (p *parser) parseSectionInContext(level int, insideAct bool) *ast.Section {
 	}
 
 	p.skipBlanks()
+	if level == 1 {
+		section.Metadata = p.parseSectionMetadata()
+		p.skipBlanks()
+	}
 
 	switch kind {
 	case ast.SectionDramatisPersonae:
@@ -499,14 +559,14 @@ func (p *parser) parseSectionInContext(level int, insideAct bool) *ast.Section {
 }
 
 // parseDPContent fills Characters and Groups for a Dramatis Personae section.
-// Stops at the next H1 heading or EOF.
+// Stops at the next heading at or above the section level, or EOF.
 func (p *parser) parseDPContent(section *ast.Section) {
 	var currentGroup *ast.CharacterGroup
-	var lastChar *ast.Character
+	groupLevel := section.Level + 1
 
-	for !p.at(token.HeadingH1) && !p.at(token.EOF) {
+	for !p.at(token.EOF) && !p.atHeadingAtOrAboveLevel(section.Level) {
 		switch p.peek().Type {
-		case token.HeadingH2:
+		case headingTokenForLevel(groupLevel):
 			// Sub-heading becomes a character group
 			tok := p.advance()
 			if currentGroup != nil {
@@ -516,52 +576,38 @@ func (p *parser) parseDPContent(section *ast.Section) {
 				Name:  tok.Literal,
 				Range: tok.Range,
 			}
-			lastChar = nil
 			p.skipBlanks()
 
 		case token.CharacterName:
 			// ALL-CAPS name, possibly with description on same line
 			tok := p.advance()
+			if hasUnsupportedDPDash(tok.Literal) {
+				p.addError("character descriptions in Dramatis Personae must use ASCII ` - `", tok.Range)
+			}
 			ch := parseCharacterEntry(tok)
 			if currentGroup != nil {
 				currentGroup.Characters = append(currentGroup.Characters, ch)
 				currentGroup.Range.End = tok.Range.End
-				lastChar = &currentGroup.Characters[len(currentGroup.Characters)-1]
 			} else {
 				section.Characters = append(section.Characters, ch)
-				lastChar = &section.Characters[len(section.Characters)-1]
 			}
 			section.Range.End = tok.Range.End
 
 		case token.CharacterAlias:
 			tok := p.advance()
-			name, aliases := parseAliasSpec(strings.Trim(tok.Literal, "[]"))
-			if lastChar == nil {
-				p.addError("character alias must follow a character entry", tok.Range)
-				continue
-			}
-			if name != "" && !strings.EqualFold(strings.TrimSpace(lastChar.Name), name) {
-				p.addError("character alias does not match previous character", tok.Range)
-				continue
-			}
-			lastChar.Aliases = appendUniqueAliases(lastChar.Aliases, aliases...)
-			lastChar.Range.End = tok.Range.End
-			if currentGroup != nil {
-				currentGroup.Range.End = tok.Range.End
-			}
-			section.Range.End = tok.Range.End
+			p.addError("standalone character alias syntax is not supported; use NAME/ALIAS inline", tok.Range)
 
 		case token.Text:
-			// Could be "Name — Description" or other text
 			tok := p.advance()
+			if hasUnsupportedDPDash(tok.Literal) {
+				p.addError("character descriptions in Dramatis Personae must use ASCII ` - `", tok.Range)
+			}
 			ch := parseCharacterEntry(tok)
 			if currentGroup != nil {
 				currentGroup.Characters = append(currentGroup.Characters, ch)
 				currentGroup.Range.End = tok.Range.End
-				lastChar = &currentGroup.Characters[len(currentGroup.Characters)-1]
 			} else {
 				section.Characters = append(section.Characters, ch)
-				lastChar = &section.Characters[len(section.Characters)-1]
 			}
 			section.Range.End = tok.Range.End
 
@@ -583,6 +629,87 @@ func (p *parser) parseDPContent(section *ast.Section) {
 	if currentGroup != nil {
 		section.Groups = append(section.Groups, *currentGroup)
 	}
+}
+
+func (p *parser) parseSectionMetadata() *ast.TitlePage {
+	if !p.atAny(token.Text, token.Verse) {
+		return nil
+	}
+
+	saved := p.pos
+	tp := &ast.TitlePage{}
+	start := token.Range{}
+
+	for !p.at(token.EOF) {
+		if p.at(token.Blank) || p.atAny(token.HeadingH1, token.HeadingH2, token.HeadingH3, token.PageBreak) {
+			break
+		}
+		if !p.atAny(token.Text, token.Verse) {
+			break
+		}
+
+		raw := p.peek().Literal
+		if key, value, ok := parseMetadataEntry(raw); ok {
+			tok := p.advance()
+			if len(tp.Entries) == 0 {
+				start = tok.Range
+			}
+			tp.Entries = append(tp.Entries, ast.KeyValue{
+				Key:   key,
+				Value: value,
+				Range: tok.Range,
+			})
+			continue
+		}
+
+		if value, ok := parseMetadataContinuation(raw); ok {
+			if len(tp.Entries) == 0 {
+				p.pos = saved
+				return nil
+			}
+			tok := p.advance()
+			last := &tp.Entries[len(tp.Entries)-1]
+			if last.Value != "" {
+				last.Value += "\n"
+			}
+			last.Value += value
+			last.Range.End = tok.Range.End
+			continue
+		}
+
+		break
+	}
+
+	if len(tp.Entries) == 0 {
+		p.pos = saved
+		return nil
+	}
+
+	tp.Range = start
+	tp.Range.End = tp.Entries[len(tp.Entries)-1].Range.End
+	return tp
+}
+
+func parseMetadataEntry(raw string) (key, value string, ok bool) {
+	idx := strings.Index(raw, ":")
+	if idx <= 0 {
+		return "", "", false
+	}
+	key = strings.TrimSpace(raw[:idx])
+	if key == "" {
+		return "", "", false
+	}
+	return key, strings.TrimSpace(raw[idx+1:]), true
+}
+
+func parseMetadataContinuation(raw string) (string, bool) {
+	if raw == "" {
+		return "", false
+	}
+	if raw[0] != ' ' && raw[0] != '\t' {
+		return "", false
+	}
+	return strings.TrimSpace(raw), true
 }
 
 // parseActContent fills Children for an act section with scenes and content.
@@ -664,7 +791,7 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 	// Scan ahead to determine if this section contains structural sub-headings.
 	// If so, text/stage directions are structural content (Children).
 	// If not, they're prose lines (Lines) with paragraph reflow.
-	hasStructuralContent := p.hasSubHeading(level)
+	hasStructuralContent := p.hasStructuralBodyContent(level)
 	prevContinuation := token.EOF
 
 	for !p.at(token.EOF) && !p.atHeadingAtOrAboveLevel(level) {
@@ -721,8 +848,13 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 		}
 
 		if p.at(token.Blank) {
-			// Preserve blank lines as empty section lines (paragraph breaks)
 			tok := p.advance()
+			if hasStructuralContent {
+				_ = tok
+				prevContinuation = token.EOF
+				continue
+			}
+			// Preserve blank lines as empty section lines (paragraph breaks)
 			section.AppendLine(ast.SectionLine{Range: tok.Range})
 			prevContinuation = token.EOF
 			continue
@@ -744,21 +876,17 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 
 func parseCharacterEntry(tok token.Token) ast.Character {
 	ch := ast.Character{Range: tok.Range}
-	// Format: "NAME — Description" or "NAME - Description" or just "NAME"
-	// Try separators in order: em-dash, en-dash, spaced hyphen
 	namePart := tok.Literal
-	if idx := strings.Index(tok.Literal, "—"); idx >= 0 {
-		namePart = strings.TrimSpace(tok.Literal[:idx])
-		ch.Description = strings.TrimSpace(tok.Literal[idx+len("—"):])
-	} else if idx := strings.Index(tok.Literal, "–"); idx >= 0 {
-		namePart = strings.TrimSpace(tok.Literal[:idx])
-		ch.Description = strings.TrimSpace(tok.Literal[idx+len("–"):])
-	} else if idx := strings.Index(tok.Literal, " - "); idx >= 0 {
+	if idx := strings.Index(tok.Literal, " - "); idx >= 0 {
 		namePart = strings.TrimSpace(tok.Literal[:idx])
 		ch.Description = strings.TrimSpace(tok.Literal[idx+3:])
 	}
 	ch.Name, ch.Aliases = parseAliasSpec(strings.TrimSpace(namePart))
 	return ch
+}
+
+func hasUnsupportedDPDash(raw string) bool {
+	return strings.Contains(raw, " — ") || strings.Contains(raw, " – ")
 }
 
 func (p *parser) parseDialogue() *ast.Dialogue {

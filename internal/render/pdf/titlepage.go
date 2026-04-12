@@ -7,6 +7,8 @@ import (
 )
 
 func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
+	r.beginTitlePage()
+
 	var title, subtitle, author string
 	var other []ast.KeyValue
 
@@ -22,6 +24,9 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 			other = append(other, kv)
 		}
 	}
+
+	r.hasTitlePage = true
+	r.titlePageTitle = title
 
 	// Center vertically: place title roughly at 35% down the page
 	titleY := r.pageH * 0.35
@@ -60,8 +65,6 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 
 	r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize)
 	r.fontStyle = ""
-	if r.hasBody {
-		r.pdf.AddPage()
-	}
+	r.finishTitlePage()
 	return nil
 }

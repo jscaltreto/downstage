@@ -51,9 +51,10 @@ func (r *condensedRenderer) condensedSmallGap() float64 {
 
 func (r *condensedRenderer) BeginDocument(doc *ast.Document, w io.Writer) error {
 	r.w = w
-	r.hasTitlePage = doc.TitlePage != nil
-	r.hasBody = len(doc.Body) > 0
-	r.titlePageTitle = titlePageTitle(doc.TitlePage)
+	tp := render.DocumentTitlePage(doc)
+	r.hasTitlePage = tp != nil
+	r.hasBody = render.DocumentHasRenderableBody(doc)
+	r.titlePageTitle = titlePageTitle(tp)
 	r.initCondensedPDF()
 	return nil
 }
@@ -105,6 +106,8 @@ func (r *condensedRenderer) initCondensedPDF() {
 // --- Front matter ---
 
 func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
+	r.beginTitlePage()
+
 	var title, subtitle, author string
 	var other []ast.KeyValue
 
@@ -120,6 +123,9 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 			other = append(other, kv)
 		}
 	}
+
+	r.hasTitlePage = true
+	r.titlePageTitle = title
 
 	titleY := r.pageH * 0.30
 
@@ -156,9 +162,7 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 
 	r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize)
 	r.fontStyle = ""
-	if r.hasBody {
-		r.pdf.AddPage()
-	}
+	r.finishTitlePage()
 	return nil
 }
 
@@ -175,6 +179,9 @@ func (r *condensedRenderer) BeginSection(s *ast.Section) error {
 		renderDramatisPersonae(&r.pdfBase, s, 0)
 		return nil
 	default: // SectionGeneric
+		if render.IsLegacyTopLevelDramatisPersonae(s) {
+			return nil
+		}
 		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
 			return nil
 		}
@@ -219,7 +226,9 @@ func (r *condensedRenderer) EndSectionLine(sl *ast.SectionLine) error {
 
 func (r *condensedRenderer) beginAct(s *ast.Section) error {
 	if s.Number != "" {
-		r.pdf.AddPage()
+		if !r.consumePendingTitlePageBodyPage() {
+			r.pdf.AddPage()
+		}
 	} else {
 		if r.hasTitlePage {
 			return nil
@@ -246,8 +255,12 @@ func (r *condensedRenderer) beginAct(s *ast.Section) error {
 }
 
 func (r *condensedRenderer) beginScene(s *ast.Section) error {
-	r.ensureSpace(r.lineHeight * 3)
-	r.pdf.Ln(r.lineHeight)
+	if r.consumePendingTitlePageBodyPage() {
+		// Fresh body page after a title page does not need extra leading space.
+	} else {
+		r.ensureSpace(r.lineHeight * 3)
+		r.pdf.Ln(r.lineHeight)
+	}
 
 	var heading string
 	switch {

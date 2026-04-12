@@ -1,17 +1,15 @@
 {
   "Play Skeleton": {
     "prefix": "play",
-    "description": "Insert a basic Downstage play skeleton with title page, cast, act, and scene",
+    "description": "Insert a basic Downstage play skeleton with section metadata, cast, act, and scene",
     "body": [
-      "Title: ${1:Title}",
+      "# ${1:Title}",
       "Author: ${2:Author}",
       "Date: ${3:${CURRENT_YEAR}}",
       "",
-      "# Dramatis Personae",
+      "## Dramatis Personae",
       "",
-      "${4:PROTAGONIST} — ${5:Description}",
-      "",
-      "# ${1:Title}",
+      "${4:PROTAGONIST} - ${5:Description}",
       "",
       "## ACT I",
       "",

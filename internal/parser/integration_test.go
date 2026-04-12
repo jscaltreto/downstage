@@ -76,6 +76,28 @@ func collectSections(t *testing.T, doc *ast.Document, kind ast.SectionKind) []*a
 	return filtered
 }
 
+func firstTopLevelSection(t *testing.T, doc *ast.Document) *ast.Section {
+	t.Helper()
+	for _, node := range doc.Body {
+		if section, ok := node.(*ast.Section); ok && section.Level == 1 {
+			return section
+		}
+	}
+	t.Fatal("expected at least one top-level section")
+	return nil
+}
+
+func metadataMap(section *ast.Section) map[string]string {
+	if section == nil || section.Metadata == nil {
+		return nil
+	}
+	values := make(map[string]string, len(section.Metadata.Entries))
+	for _, entry := range section.Metadata.Entries {
+		values[entry.Key] = entry.Value
+	}
+	return values
+}
+
 // --- No-panic tests ---
 
 func TestAllTestdataFilesNoPanic(t *testing.T) {
@@ -107,26 +129,16 @@ func TestAllTestdataFilesNoPanic(t *testing.T) {
 
 func TestFullPlay(t *testing.T) {
 	doc, errs := parser.Parse(readTestdata(t, "full_play.ds"))
-	// The full_play.ds file contains comments before the dramatis personae
-	// block, which causes the parser to not recognize it as such. It also
-	// has an unnumbered SONG which produces a trailing SongEnd error.
-	// We verify the parser still produces a useful document despite these.
-	_ = errs
+	assert.Empty(t, errs)
 
-	// Title page
-	require.NotNil(t, doc.TitlePage)
-	entries := doc.TitlePage.Entries
-	require.True(t, len(entries) >= 5, "expected at least 5 title page entries, got %d", len(entries))
-	assert.Equal(t, "Title", entries[0].Key)
-	assert.Equal(t, "The Last Curtain Call", entries[0].Value)
-	// Check a few specific entries exist
-	entryKeys := make(map[string]string)
-	for _, e := range entries {
-		entryKeys[e.Key] = e.Value
-	}
-	assert.Contains(t, entryKeys, "Author")
-	assert.Contains(t, entryKeys, "Date")
-	assert.Contains(t, entryKeys, "Draft")
+	play := firstTopLevelSection(t, doc)
+	require.Equal(t, "The Last Curtain Call", play.Title)
+	meta := metadataMap(play)
+	require.NotNil(t, meta)
+	assert.Equal(t, "A Drama in Two Acts", meta["Subtitle"])
+	assert.Equal(t, "Eleanor Vance", meta["Author"])
+	assert.Equal(t, "2025", meta["Date"])
+	assert.Equal(t, "Third Draft", meta["Draft"])
 
 	// Body has Act sections
 	acts := collectSections(t, doc, ast.SectionAct)
@@ -185,9 +197,8 @@ func TestMinimalPlay(t *testing.T) {
 	doc, errs := parser.Parse(readTestdata(t, "minimal.ds"))
 	assert.Empty(t, errs)
 
-	require.NotNil(t, doc.TitlePage)
-	assert.Equal(t, "Title", doc.TitlePage.Entries[0].Key)
-	assert.Equal(t, "Minimal Play", doc.TitlePage.Entries[0].Value)
+	play := firstTopLevelSection(t, doc)
+	assert.Equal(t, "Minimal Play", play.Title)
 
 	require.NotEmpty(t, doc.Body)
 	dialogues := collectTyped[*ast.Dialogue](t, doc)
@@ -200,11 +211,10 @@ func TestIntegrationTitlePageOnly(t *testing.T) {
 	doc, errs := parser.Parse(readTestdata(t, "title_page_only.ds"))
 	assert.Empty(t, errs)
 
-	require.NotNil(t, doc.TitlePage)
-	assert.True(t, len(doc.TitlePage.Entries) >= 3, "expected multiple entries, got %d", len(doc.TitlePage.Entries))
-
-	// Body should be empty — no play content
-	assert.Empty(t, doc.Body, "expected empty body for title-page-only file")
+	section := firstTopLevelSection(t, doc)
+	require.NotNil(t, section.Metadata)
+	assert.True(t, len(section.Metadata.Entries) >= 3, "expected multiple entries, got %d", len(section.Metadata.Entries))
+	assert.Empty(t, section.Children, "expected no body content for title-page-only section")
 }
 
 // --- no_title_page.ds ---
@@ -403,12 +413,11 @@ func TestIntegrationExamplePlay(t *testing.T) {
 	doc, errs := parser.Parse(readTestdata(t, "example.ds"))
 	assert.Empty(t, errs, "example play should parse without errors: %v", errs)
 
-	// Title page
-	require.NotNil(t, doc.TitlePage)
-	assert.Equal(t, "The Example Play", doc.TitlePage.Entries[0].Value)
+	play := firstTopLevelSection(t, doc)
+	assert.Equal(t, "The Example Play", play.Title)
 
 	// Dramatis personae
-	dp := ast.FindDramatisPersonae(doc.Body)
+	dp := ast.FindDramatisPersonaeInSection(play)
 	require.NotNil(t, dp, "expected Dramatis Personae section")
 	allChars := dp.AllCharacters()
 	assert.True(t, len(allChars) >= 3, "expected at least 3 characters")

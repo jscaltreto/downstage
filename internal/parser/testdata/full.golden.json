@@ -1,437 +1,212 @@
 {
-  "TitlePage": {
-    "Entries": [
-      {
-        "Key": "Title",
-        "Value": "The Complete Example",
-        "Range": {
-          "Start": {
-            "Line": 0,
-            "Column": 0,
-            "Offset": 0
+  "TitlePage": null,
+  "Body": [
+    {
+      "Kind": 0,
+      "Level": 1,
+      "Title": "The Complete Example",
+      "Number": "",
+      "Metadata": {
+        "Entries": [
+          {
+            "Key": "Author",
+            "Value": "Test Writer",
+            "Range": {
+              "Start": {
+                "Line": 1,
+                "Column": 0,
+                "Offset": 23
+              },
+              "End": {
+                "Line": 1,
+                "Column": 19,
+                "Offset": 42
+              }
+            }
           },
-          "End": {
-            "Line": 0,
-            "Column": 27,
-            "Offset": 27
+          {
+            "Key": "Draft",
+            "Value": "Second",
+            "Range": {
+              "Start": {
+                "Line": 2,
+                "Column": 0,
+                "Offset": 43
+              },
+              "End": {
+                "Line": 2,
+                "Column": 13,
+                "Offset": 56
+              }
+            }
           }
-        }
-      },
-      {
-        "Key": "Author",
-        "Value": "Test Writer",
+        ],
         "Range": {
           "Start": {
             "Line": 1,
             "Column": 0,
-            "Offset": 28
-          },
-          "End": {
-            "Line": 1,
-            "Column": 19,
-            "Offset": 47
-          }
-        }
-      },
-      {
-        "Key": "Draft",
-        "Value": "Second",
-        "Range": {
-          "Start": {
-            "Line": 2,
-            "Column": 0,
-            "Offset": 48
+            "Offset": 23
           },
           "End": {
             "Line": 2,
             "Column": 13,
-            "Offset": 61
+            "Offset": 56
           }
         }
-      }
-    ],
-    "Range": {
-      "Start": {
-        "Line": 0,
-        "Column": 0,
-        "Offset": 0
       },
-      "End": {
-        "Line": 2,
-        "Column": 13,
-        "Offset": 61
-      }
-    }
-  },
-  "Body": [
-    {
-      "Kind": 3,
-      "Level": 1,
-      "Title": "Dramatis Personae",
-      "Number": "",
-      "Children": null,
-      "Characters": null,
-      "Groups": [
+      "Children": [
         {
-          "Name": "The Court",
-          "Characters": [
+          "Kind": 3,
+          "Level": 2,
+          "Title": "Dramatis Personae",
+          "Number": "",
+          "Children": null,
+          "Characters": null,
+          "Groups": [
             {
-              "Name": "KING LEAR",
-              "Aliases": null,
-              "Description": "King of Britain",
-              "Range": {
-                "Start": {
-                  "Line": 6,
-                  "Column": 0,
-                  "Offset": 96
+              "Name": "The Court",
+              "Characters": [
+                {
+                  "Name": "KING LEAR",
+                  "Aliases": null,
+                  "Description": "King of Britain",
+                  "Range": {
+                    "Start": {
+                      "Line": 6,
+                      "Column": 0,
+                      "Offset": 93
+                    },
+                    "End": {
+                      "Line": 6,
+                      "Column": 27,
+                      "Offset": 120
+                    }
+                  }
                 },
-                "End": {
-                  "Line": 6,
-                  "Column": 27,
-                  "Offset": 125
+                {
+                  "Name": "CORDELIA",
+                  "Aliases": null,
+                  "Description": "His youngest daughter",
+                  "Range": {
+                    "Start": {
+                      "Line": 7,
+                      "Column": 0,
+                      "Offset": 121
+                    },
+                    "End": {
+                      "Line": 7,
+                      "Column": 32,
+                      "Offset": 153
+                    }
+                  }
                 }
-              }
-            },
-            {
-              "Name": "CORDELIA",
-              "Aliases": null,
-              "Description": "His youngest daughter",
+              ],
               "Range": {
                 "Start": {
-                  "Line": 7,
+                  "Line": 5,
                   "Column": 0,
-                  "Offset": 126
+                  "Offset": 79
                 },
                 "End": {
                   "Line": 7,
                   "Column": 32,
-                  "Offset": 160
+                  "Offset": 153
                 }
               }
-            }
-          ],
-          "Range": {
-            "Start": {
-              "Line": 5,
-              "Column": 0,
-              "Offset": 83
             },
-            "End": {
-              "Line": 7,
-              "Column": 32,
-              "Offset": 160
-            }
-          }
-        },
-        {
-          "Name": "The Earls",
-          "Characters": [
             {
-              "Name": "KENT",
-              "Aliases": null,
-              "Description": "A loyal earl",
+              "Name": "The Earls",
+              "Characters": [
+                {
+                  "Name": "KENT",
+                  "Aliases": null,
+                  "Description": "A loyal earl",
+                  "Range": {
+                    "Start": {
+                      "Line": 10,
+                      "Column": 0,
+                      "Offset": 169
+                    },
+                    "End": {
+                      "Line": 10,
+                      "Column": 19,
+                      "Offset": 188
+                    }
+                  }
+                }
+              ],
               "Range": {
                 "Start": {
-                  "Line": 10,
+                  "Line": 9,
                   "Column": 0,
-                  "Offset": 175
+                  "Offset": 155
                 },
                 "End": {
                   "Line": 10,
                   "Column": 19,
-                  "Offset": 196
+                  "Offset": 188
                 }
               }
             }
           ],
+          "Lines": null,
           "Range": {
             "Start": {
-              "Line": 9,
+              "Line": 4,
               "Column": 0,
-              "Offset": 162
+              "Offset": 58
             },
             "End": {
-              "Line": 10,
-              "Column": 19,
-              "Offset": 196
+              "Line": 11,
+              "Column": 0,
+              "Offset": 189
             }
           }
-        }
-      ],
-      "Lines": null,
-      "Range": {
-        "Start": {
-          "Line": 4,
-          "Column": 0,
-          "Offset": 63
         },
-        "End": {
-          "Line": 11,
-          "Column": 0,
-          "Offset": 197
-        }
-      }
-    },
-    {
-      "Kind": 1,
-      "Level": 1,
-      "Title": "",
-      "Number": "ONE",
-      "Children": [
         {
-          "Kind": 2,
+          "Kind": 1,
           "Level": 2,
           "Title": "",
-          "Number": "1",
+          "Number": "I",
           "Children": [
             {
-              "Content": [
+              "Kind": 2,
+              "Level": 3,
+              "Title": "",
+              "Number": "1",
+              "Children": [
                 {
-                  "Value": "A dark heath. Thunder and lightning.",
+                  "Content": [
+                    {
+                      "Value": "A dark heath. Thunder and lightning.",
+                      "Range": {
+                        "Start": {
+                          "Line": 16,
+                          "Column": 0,
+                          "Offset": 213
+                        },
+                        "End": {
+                          "Line": 16,
+                          "Column": 38,
+                          "Offset": 251
+                        }
+                      }
+                    }
+                  ],
+                  "Continuation": false,
                   "Range": {
                     "Start": {
                       "Line": 16,
                       "Column": 0,
-                      "Offset": 221
+                      "Offset": 213
                     },
                     "End": {
                       "Line": 16,
                       "Column": 38,
-                      "Offset": 259
-                    }
-                  }
-                }
-              ],
-              "Continuation": false,
-              "Range": {
-                "Start": {
-                  "Line": 16,
-                  "Column": 0,
-                  "Offset": 221
-                },
-                "End": {
-                  "Line": 16,
-                  "Column": 38,
-                  "Offset": 259
-                }
-              }
-            },
-            {
-              "Character": "KING LEAR",
-              "Parenthetical": "",
-              "Lines": [
-                {
-                  "Content": [
-                    {
-                      "Value": "Blow, winds, and crack your cheeks!",
-                      "Range": {
-                        "Start": {
-                          "Line": 19,
-                          "Column": 0,
-                          "Offset": 271
-                        },
-                        "End": {
-                          "Line": 19,
-                          "Column": 35,
-                          "Offset": 306
-                        }
-                      }
-                    }
-                  ],
-                  "IsVerse": false,
-                  "Range": {
-                    "Start": {
-                      "Line": 19,
-                      "Column": 0,
-                      "Offset": 271
-                    },
-                    "End": {
-                      "Line": 19,
-                      "Column": 35,
-                      "Offset": 306
+                      "Offset": 251
                     }
                   }
                 },
-                {
-                  "Content": [
-                    {
-                      "Value": "Rage, blow!",
-                      "Range": {
-                        "Start": {
-                          "Line": 20,
-                          "Column": 2,
-                          "Offset": 309
-                        },
-                        "End": {
-                          "Line": 20,
-                          "Column": 13,
-                          "Offset": 320
-                        }
-                      }
-                    }
-                  ],
-                  "IsVerse": true,
-                  "Range": {
-                    "Start": {
-                      "Line": 20,
-                      "Column": 0,
-                      "Offset": 307
-                    },
-                    "End": {
-                      "Line": 20,
-                      "Column": 13,
-                      "Offset": 320
-                    }
-                  }
-                },
-                {
-                  "Content": [
-                    {
-                      "Value": "You cataracts and hurricanoes, spout!",
-                      "Range": {
-                        "Start": {
-                          "Line": 21,
-                          "Column": 2,
-                          "Offset": 323
-                        },
-                        "End": {
-                          "Line": 21,
-                          "Column": 39,
-                          "Offset": 360
-                        }
-                      }
-                    }
-                  ],
-                  "IsVerse": true,
-                  "Range": {
-                    "Start": {
-                      "Line": 21,
-                      "Column": 0,
-                      "Offset": 321
-                    },
-                    "End": {
-                      "Line": 21,
-                      "Column": 39,
-                      "Offset": 360
-                    }
-                  }
-                }
-              ],
-              "Range": {
-                "Start": {
-                  "Line": 18,
-                  "Column": 0,
-                  "Offset": 261
-                },
-                "End": {
-                  "Line": 21,
-                  "Column": 39,
-                  "Offset": 360
-                }
-              }
-            },
-            {
-              "Content": [
-                {
-                  "Value": "He tears at his robes.",
-                  "Range": {
-                    "Start": {
-                      "Line": 23,
-                      "Column": 0,
-                      "Offset": 362
-                    },
-                    "End": {
-                      "Line": 23,
-                      "Column": 24,
-                      "Offset": 386
-                    }
-                  }
-                }
-              ],
-              "Continuation": false,
-              "Range": {
-                "Start": {
-                  "Line": 23,
-                  "Column": 0,
-                  "Offset": 362
-                },
-                "End": {
-                  "Line": 23,
-                  "Column": 24,
-                  "Offset": 386
-                }
-              }
-            },
-            {
-              "Text": "A moment of silence",
-              "Block": false,
-              "Range": {
-                "Start": {
-                  "Line": 25,
-                  "Column": 0,
-                  "Offset": 388
-                },
-                "End": {
-                  "Line": 25,
-                  "Column": 22,
-                  "Offset": 410
-                }
-              }
-            },
-            {
-              "Character": "CORDELIA",
-              "Parenthetical": "(gently)",
-              "Lines": [
-                {
-                  "Content": [
-                    {
-                      "Value": "Father, please come inside.",
-                      "Range": {
-                        "Start": {
-                          "Line": 29,
-                          "Column": 0,
-                          "Offset": 430
-                        },
-                        "End": {
-                          "Line": 29,
-                          "Column": 27,
-                          "Offset": 457
-                        }
-                      }
-                    }
-                  ],
-                  "IsVerse": false,
-                  "Range": {
-                    "Start": {
-                      "Line": 29,
-                      "Column": 0,
-                      "Offset": 430
-                    },
-                    "End": {
-                      "Line": 29,
-                      "Column": 27,
-                      "Offset": 457
-                    }
-                  }
-                }
-              ],
-              "Range": {
-                "Start": {
-                  "Line": 27,
-                  "Column": 0,
-                  "Offset": 412
-                },
-                "End": {
-                  "Line": 29,
-                  "Column": 27,
-                  "Offset": 457
-                }
-              }
-            },
-            {
-              "Number": "1",
-              "Title": "The Storm",
-              "Content": [
                 {
                   "Character": "KING LEAR",
                   "Parenthetical": "",
@@ -439,49 +214,49 @@
                     {
                       "Content": [
                         {
-                          "Value": "The storm rages on,",
+                          "Value": "Blow, winds, and crack your cheeks!",
                           "Range": {
                             "Start": {
-                              "Line": 33,
-                              "Column": 2,
-                              "Offset": 488
+                              "Line": 19,
+                              "Column": 0,
+                              "Offset": 263
                             },
                             "End": {
-                              "Line": 33,
-                              "Column": 21,
-                              "Offset": 507
+                              "Line": 19,
+                              "Column": 35,
+                              "Offset": 298
                             }
                           }
                         }
                       ],
-                      "IsVerse": true,
+                      "IsVerse": false,
                       "Range": {
                         "Start": {
-                          "Line": 33,
+                          "Line": 19,
                           "Column": 0,
-                          "Offset": 486
+                          "Offset": 263
                         },
                         "End": {
-                          "Line": 33,
-                          "Column": 21,
-                          "Offset": 507
+                          "Line": 19,
+                          "Column": 35,
+                          "Offset": 298
                         }
                       }
                     },
                     {
                       "Content": [
                         {
-                          "Value": "The wind howls and moans.",
+                          "Value": "Rage, blow!",
                           "Range": {
                             "Start": {
-                              "Line": 34,
+                              "Line": 20,
                               "Column": 2,
-                              "Offset": 510
+                              "Offset": 301
                             },
                             "End": {
-                              "Line": 34,
-                              "Column": 27,
-                              "Offset": 535
+                              "Line": 20,
+                              "Column": 13,
+                              "Offset": 312
                             }
                           }
                         }
@@ -489,129 +264,362 @@
                       "IsVerse": true,
                       "Range": {
                         "Start": {
-                          "Line": 34,
+                          "Line": 20,
                           "Column": 0,
-                          "Offset": 508
+                          "Offset": 299
+                        },
+                        "End": {
+                          "Line": 20,
+                          "Column": 13,
+                          "Offset": 312
+                        }
+                      }
+                    },
+                    {
+                      "Content": [
+                        {
+                          "Value": "You cataracts and hurricanoes, spout!",
+                          "Range": {
+                            "Start": {
+                              "Line": 21,
+                              "Column": 2,
+                              "Offset": 315
+                            },
+                            "End": {
+                              "Line": 21,
+                              "Column": 39,
+                              "Offset": 352
+                            }
+                          }
+                        }
+                      ],
+                      "IsVerse": true,
+                      "Range": {
+                        "Start": {
+                          "Line": 21,
+                          "Column": 0,
+                          "Offset": 313
+                        },
+                        "End": {
+                          "Line": 21,
+                          "Column": 39,
+                          "Offset": 352
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 18,
+                      "Column": 0,
+                      "Offset": 253
+                    },
+                    "End": {
+                      "Line": 21,
+                      "Column": 39,
+                      "Offset": 352
+                    }
+                  }
+                },
+                {
+                  "Content": [
+                    {
+                      "Value": "He tears at his robes.",
+                      "Range": {
+                        "Start": {
+                          "Line": 23,
+                          "Column": 0,
+                          "Offset": 354
+                        },
+                        "End": {
+                          "Line": 23,
+                          "Column": 24,
+                          "Offset": 378
+                        }
+                      }
+                    }
+                  ],
+                  "Continuation": false,
+                  "Range": {
+                    "Start": {
+                      "Line": 23,
+                      "Column": 0,
+                      "Offset": 354
+                    },
+                    "End": {
+                      "Line": 23,
+                      "Column": 24,
+                      "Offset": 378
+                    }
+                  }
+                },
+                {
+                  "Text": "A moment of silence",
+                  "Block": false,
+                  "Range": {
+                    "Start": {
+                      "Line": 25,
+                      "Column": 0,
+                      "Offset": 380
+                    },
+                    "End": {
+                      "Line": 25,
+                      "Column": 22,
+                      "Offset": 402
+                    }
+                  }
+                },
+                {
+                  "Character": "CORDELIA",
+                  "Parenthetical": "(gently)",
+                  "Lines": [
+                    {
+                      "Content": [
+                        {
+                          "Value": "Father, please come inside.",
+                          "Range": {
+                            "Start": {
+                              "Line": 29,
+                              "Column": 0,
+                              "Offset": 422
+                            },
+                            "End": {
+                              "Line": 29,
+                              "Column": 27,
+                              "Offset": 449
+                            }
+                          }
+                        }
+                      ],
+                      "IsVerse": false,
+                      "Range": {
+                        "Start": {
+                          "Line": 29,
+                          "Column": 0,
+                          "Offset": 422
+                        },
+                        "End": {
+                          "Line": 29,
+                          "Column": 27,
+                          "Offset": 449
+                        }
+                      }
+                    }
+                  ],
+                  "Range": {
+                    "Start": {
+                      "Line": 27,
+                      "Column": 0,
+                      "Offset": 404
+                    },
+                    "End": {
+                      "Line": 29,
+                      "Column": 27,
+                      "Offset": 449
+                    }
+                  }
+                },
+                {
+                  "Number": "1",
+                  "Title": "The Storm",
+                  "Content": [
+                    {
+                      "Character": "KING LEAR",
+                      "Parenthetical": "",
+                      "Lines": [
+                        {
+                          "Content": [
+                            {
+                              "Value": "The storm rages on,",
+                              "Range": {
+                                "Start": {
+                                  "Line": 33,
+                                  "Column": 2,
+                                  "Offset": 480
+                                },
+                                "End": {
+                                  "Line": 33,
+                                  "Column": 21,
+                                  "Offset": 499
+                                }
+                              }
+                            }
+                          ],
+                          "IsVerse": true,
+                          "Range": {
+                            "Start": {
+                              "Line": 33,
+                              "Column": 0,
+                              "Offset": 478
+                            },
+                            "End": {
+                              "Line": 33,
+                              "Column": 21,
+                              "Offset": 499
+                            }
+                          }
+                        },
+                        {
+                          "Content": [
+                            {
+                              "Value": "The wind howls and moans.",
+                              "Range": {
+                                "Start": {
+                                  "Line": 34,
+                                  "Column": 2,
+                                  "Offset": 502
+                                },
+                                "End": {
+                                  "Line": 34,
+                                  "Column": 27,
+                                  "Offset": 527
+                                }
+                              }
+                            }
+                          ],
+                          "IsVerse": true,
+                          "Range": {
+                            "Start": {
+                              "Line": 34,
+                              "Column": 0,
+                              "Offset": 500
+                            },
+                            "End": {
+                              "Line": 34,
+                              "Column": 27,
+                              "Offset": 527
+                            }
+                          }
+                        }
+                      ],
+                      "Range": {
+                        "Start": {
+                          "Line": 32,
+                          "Column": 0,
+                          "Offset": 468
                         },
                         "End": {
                           "Line": 34,
                           "Column": 27,
-                          "Offset": 535
+                          "Offset": 527
                         }
                       }
                     }
                   ],
                   "Range": {
                     "Start": {
-                      "Line": 32,
+                      "Line": 31,
                       "Column": 0,
-                      "Offset": 476
+                      "Offset": 451
                     },
                     "End": {
-                      "Line": 34,
-                      "Column": 27,
-                      "Offset": 535
+                      "Line": 35,
+                      "Column": 8,
+                      "Offset": 536
+                    }
+                  }
+                },
+                {
+                  "Range": {
+                    "Start": {
+                      "Line": 37,
+                      "Column": 0,
+                      "Offset": 538
+                    },
+                    "End": {
+                      "Line": 37,
+                      "Column": 3,
+                      "Offset": 541
                     }
                   }
                 }
               ],
+              "Characters": null,
+              "Groups": null,
+              "Lines": null,
               "Range": {
                 "Start": {
-                  "Line": 31,
+                  "Line": 14,
                   "Column": 0,
-                  "Offset": 459
+                  "Offset": 200
                 },
                 "End": {
-                  "Line": 35,
-                  "Column": 8,
-                  "Offset": 544
+                  "Line": 38,
+                  "Column": 0,
+                  "Offset": 542
                 }
               }
             },
             {
-              "Range": {
-                "Start": {
-                  "Line": 37,
-                  "Column": 0,
-                  "Offset": 546
-                },
-                "End": {
-                  "Line": 37,
-                  "Column": 3,
-                  "Offset": 549
-                }
-              }
-            }
-          ],
-          "Characters": null,
-          "Groups": null,
-          "Lines": null,
-          "Range": {
-            "Start": {
-              "Line": 14,
-              "Column": 0,
-              "Offset": 209
-            },
-            "End": {
-              "Line": 38,
-              "Column": 0,
-              "Offset": 550
-            }
-          }
-        },
-        {
-          "Kind": 2,
-          "Level": 2,
-          "Title": "",
-          "Number": "2",
-          "Children": [
-            {
-              "Character": "KENT",
-              "Parenthetical": "",
-              "Lines": [
+              "Kind": 2,
+              "Level": 3,
+              "Title": "",
+              "Number": "2",
+              "Children": [
                 {
-                  "Content": [
+                  "Character": "KENT",
+                  "Parenthetical": "",
+                  "Lines": [
                     {
-                      "Value": "My lord, I bring news.",
+                      "Content": [
+                        {
+                          "Value": "My lord, I bring news.",
+                          "Range": {
+                            "Start": {
+                              "Line": 42,
+                              "Column": 0,
+                              "Offset": 561
+                            },
+                            "End": {
+                              "Line": 42,
+                              "Column": 22,
+                              "Offset": 583
+                            }
+                          }
+                        }
+                      ],
+                      "IsVerse": false,
                       "Range": {
                         "Start": {
                           "Line": 42,
                           "Column": 0,
-                          "Offset": 568
+                          "Offset": 561
                         },
                         "End": {
                           "Line": 42,
                           "Column": 22,
-                          "Offset": 590
+                          "Offset": 583
                         }
                       }
                     }
                   ],
-                  "IsVerse": false,
                   "Range": {
                     "Start": {
-                      "Line": 42,
+                      "Line": 41,
                       "Column": 0,
-                      "Offset": 568
+                      "Offset": 556
                     },
                     "End": {
                       "Line": 42,
                       "Column": 22,
-                      "Offset": 590
+                      "Offset": 583
                     }
                   }
                 }
               ],
+              "Characters": null,
+              "Groups": null,
+              "Lines": null,
               "Range": {
                 "Start": {
-                  "Line": 41,
+                  "Line": 39,
                   "Column": 0,
-                  "Offset": 563
+                  "Offset": 543
                 },
                 "End": {
-                  "Line": 42,
-                  "Column": 22,
-                  "Offset": 590
+                  "Line": 43,
+                  "Column": 0,
+                  "Offset": 584
                 }
               }
             }
@@ -621,14 +629,14 @@
           "Lines": null,
           "Range": {
             "Start": {
-              "Line": 39,
+              "Line": 12,
               "Column": 0,
-              "Offset": 551
+              "Offset": 190
             },
             "End": {
               "Line": 43,
               "Column": 0,
-              "Offset": 591
+              "Offset": 584
             }
           }
         }
@@ -638,14 +646,14 @@
       "Lines": null,
       "Range": {
         "Start": {
-          "Line": 12,
+          "Line": 0,
           "Column": 0,
-          "Offset": 198
+          "Offset": 0
         },
         "End": {
           "Line": 43,
           "Column": 0,
-          "Offset": 591
+          "Offset": 584
         }
       }
     }
@@ -659,7 +667,7 @@
     "End": {
       "Line": 44,
       "Column": 0,
-      "Offset": 591
+      "Offset": 584
     }
   }
 }

@@ -1,83 +1,84 @@
 {
-  "TitlePage": {
-    "Entries": [
-      {
-        "Key": "Title",
-        "Value": "Structured Play",
-        "Range": {
-          "Start": {
-            "Line": 0,
-            "Column": 0,
-            "Offset": 0
-          },
-          "End": {
-            "Line": 0,
-            "Column": 22,
-            "Offset": 22
-          }
-        }
-      }
-    ],
-    "Range": {
-      "Start": {
-        "Line": 0,
-        "Column": 0,
-        "Offset": 0
-      },
-      "End": {
-        "Line": 0,
-        "Column": 22,
-        "Offset": 22
-      }
-    }
-  },
+  "TitlePage": null,
   "Body": [
-    {
-      "Kind": 3,
-      "Level": 1,
-      "Title": "Dramatis Personae",
-      "Number": "",
-      "Children": null,
-      "Characters": [
-        {
-          "Name": "ALICE",
-          "Aliases": null,
-          "Description": "The protagonist",
-          "Range": {
-            "Start": {
-              "Line": 4,
-              "Column": 0,
-              "Offset": 45
-            },
-            "End": {
-              "Line": 4,
-              "Column": 23,
-              "Offset": 70
-            }
-          }
-        }
-      ],
-      "Groups": null,
-      "Lines": null,
-      "Range": {
-        "Start": {
-          "Line": 2,
-          "Column": 0,
-          "Offset": 24
-        },
-        "End": {
-          "Line": 5,
-          "Column": 0,
-          "Offset": 71
-        }
-      }
-    },
     {
       "Kind": 0,
       "Level": 1,
       "Title": "Structured Play",
       "Number": "",
+      "Metadata": {
+        "Entries": [
+          {
+            "Key": "Title",
+            "Value": "Structured Play",
+            "Range": {
+              "Start": {
+                "Line": 1,
+                "Column": 0,
+                "Offset": 18
+              },
+              "End": {
+                "Line": 1,
+                "Column": 22,
+                "Offset": 40
+              }
+            }
+          }
+        ],
+        "Range": {
+          "Start": {
+            "Line": 1,
+            "Column": 0,
+            "Offset": 18
+          },
+          "End": {
+            "Line": 1,
+            "Column": 22,
+            "Offset": 40
+          }
+        }
+      },
       "Children": [
+        {
+          "Kind": 3,
+          "Level": 2,
+          "Title": "Dramatis Personae",
+          "Number": "",
+          "Children": null,
+          "Characters": [
+            {
+              "Name": "ALICE",
+              "Aliases": null,
+              "Description": "The protagonist",
+              "Range": {
+                "Start": {
+                  "Line": 5,
+                  "Column": 0,
+                  "Offset": 64
+                },
+                "End": {
+                  "Line": 5,
+                  "Column": 23,
+                  "Offset": 87
+                }
+              }
+            }
+          ],
+          "Groups": null,
+          "Lines": null,
+          "Range": {
+            "Start": {
+              "Line": 3,
+              "Column": 0,
+              "Offset": 42
+            },
+            "End": {
+              "Line": 6,
+              "Column": 0,
+              "Offset": 88
+            }
+          }
+        },
         {
           "Kind": 1,
           "Level": 2,
@@ -100,14 +101,14 @@
                           "Value": "First act, first scene.",
                           "Range": {
                             "Start": {
-                              "Line": 13,
+                              "Line": 12,
                               "Column": 0,
-                              "Offset": 120
+                              "Offset": 118
                             },
                             "End": {
-                              "Line": 13,
+                              "Line": 12,
                               "Column": 23,
-                              "Offset": 143
+                              "Offset": 141
                             }
                           }
                         }
@@ -115,28 +116,28 @@
                       "IsVerse": false,
                       "Range": {
                         "Start": {
-                          "Line": 13,
+                          "Line": 12,
                           "Column": 0,
-                          "Offset": 120
+                          "Offset": 118
                         },
                         "End": {
-                          "Line": 13,
+                          "Line": 12,
                           "Column": 23,
-                          "Offset": 143
+                          "Offset": 141
                         }
                       }
                     }
                   ],
                   "Range": {
                     "Start": {
-                      "Line": 12,
+                      "Line": 11,
                       "Column": 0,
-                      "Offset": 114
+                      "Offset": 112
                     },
                     "End": {
-                      "Line": 13,
+                      "Line": 12,
                       "Column": 23,
-                      "Offset": 143
+                      "Offset": 141
                     }
                   }
                 }
@@ -146,14 +147,14 @@
               "Lines": null,
               "Range": {
                 "Start": {
-                  "Line": 10,
+                  "Line": 9,
                   "Column": 0,
-                  "Offset": 101
+                  "Offset": 99
                 },
                 "End": {
-                  "Line": 14,
+                  "Line": 13,
                   "Column": 0,
-                  "Offset": 144
+                  "Offset": 142
                 }
               }
             },
@@ -173,14 +174,14 @@
                           "Value": "First act, second scene.",
                           "Range": {
                             "Start": {
-                              "Line": 18,
+                              "Line": 17,
                               "Column": 0,
-                              "Offset": 164
+                              "Offset": 162
                             },
                             "End": {
-                              "Line": 18,
+                              "Line": 17,
                               "Column": 24,
-                              "Offset": 188
+                              "Offset": 186
                             }
                           }
                         }
@@ -188,28 +189,28 @@
                       "IsVerse": false,
                       "Range": {
                         "Start": {
-                          "Line": 18,
+                          "Line": 17,
                           "Column": 0,
-                          "Offset": 164
+                          "Offset": 162
                         },
                         "End": {
-                          "Line": 18,
+                          "Line": 17,
                           "Column": 24,
-                          "Offset": 188
+                          "Offset": 186
                         }
                       }
                     }
                   ],
                   "Range": {
                     "Start": {
-                      "Line": 17,
+                      "Line": 16,
                       "Column": 0,
-                      "Offset": 158
+                      "Offset": 156
                     },
                     "End": {
-                      "Line": 18,
+                      "Line": 17,
                       "Column": 24,
-                      "Offset": 188
+                      "Offset": 186
                     }
                   }
                 }
@@ -219,14 +220,14 @@
               "Lines": null,
               "Range": {
                 "Start": {
-                  "Line": 15,
+                  "Line": 14,
                   "Column": 0,
-                  "Offset": 145
+                  "Offset": 143
                 },
                 "End": {
-                  "Line": 19,
+                  "Line": 18,
                   "Column": 0,
-                  "Offset": 189
+                  "Offset": 187
                 }
               }
             }
@@ -236,14 +237,14 @@
           "Lines": null,
           "Range": {
             "Start": {
-              "Line": 8,
+              "Line": 7,
               "Column": 0,
-              "Offset": 91
+              "Offset": 89
             },
             "End": {
-              "Line": 19,
+              "Line": 18,
               "Column": 0,
-              "Offset": 189
+              "Offset": 187
             }
           }
         },
@@ -269,14 +270,14 @@
                           "Value": "Second act, first scene.",
                           "Range": {
                             "Start": {
-                              "Line": 25,
+                              "Line": 24,
                               "Column": 0,
-                              "Offset": 220
+                              "Offset": 218
                             },
                             "End": {
-                              "Line": 25,
+                              "Line": 24,
                               "Column": 24,
-                              "Offset": 244
+                              "Offset": 242
                             }
                           }
                         }
@@ -284,28 +285,28 @@
                       "IsVerse": false,
                       "Range": {
                         "Start": {
-                          "Line": 25,
+                          "Line": 24,
                           "Column": 0,
-                          "Offset": 220
+                          "Offset": 218
                         },
                         "End": {
-                          "Line": 25,
+                          "Line": 24,
                           "Column": 24,
-                          "Offset": 244
+                          "Offset": 242
                         }
                       }
                     }
                   ],
                   "Range": {
                     "Start": {
-                      "Line": 24,
+                      "Line": 23,
                       "Column": 0,
-                      "Offset": 214
+                      "Offset": 212
                     },
                     "End": {
-                      "Line": 25,
+                      "Line": 24,
                       "Column": 24,
-                      "Offset": 244
+                      "Offset": 242
                     }
                   }
                 }
@@ -315,14 +316,14 @@
               "Lines": null,
               "Range": {
                 "Start": {
-                  "Line": 22,
+                  "Line": 21,
                   "Column": 0,
-                  "Offset": 201
+                  "Offset": 199
                 },
                 "End": {
-                  "Line": 26,
+                  "Line": 25,
                   "Column": 0,
-                  "Offset": 245
+                  "Offset": 243
                 }
               }
             }
@@ -332,14 +333,14 @@
           "Lines": null,
           "Range": {
             "Start": {
-              "Line": 20,
+              "Line": 19,
               "Column": 0,
-              "Offset": 190
+              "Offset": 188
             },
             "End": {
-              "Line": 26,
+              "Line": 25,
               "Column": 0,
-              "Offset": 245
+              "Offset": 243
             }
           }
         }
@@ -349,14 +350,14 @@
       "Lines": null,
       "Range": {
         "Start": {
-          "Line": 6,
+          "Line": 0,
           "Column": 0,
-          "Offset": 72
+          "Offset": 0
         },
         "End": {
-          "Line": 26,
+          "Line": 25,
           "Column": 0,
-          "Offset": 245
+          "Offset": 243
         }
       }
     }
@@ -368,9 +369,9 @@
       "Offset": 0
     },
     "End": {
-      "Line": 27,
+      "Line": 26,
       "Column": 0,
-      "Offset": 245
+      "Offset": 243
     }
   }
 }

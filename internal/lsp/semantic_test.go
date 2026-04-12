@@ -262,7 +262,13 @@ func TestComputeSemanticTokens_InlineFormattingUsesNodeRange(t *testing.T) {
 }
 
 func TestExtractTokens_DualDialogueExcludesCaret(t *testing.T) {
-	doc, errs := parser.Parse([]byte(`HAMLET
+	doc, errs := parser.Parse([]byte(`# Play
+
+## ACT I
+
+### SCENE 1
+
+HAMLET
 Hello.
 
 OPHELIA ^
@@ -271,9 +277,12 @@ Hi.`))
 		t.Fatalf("unexpected parse errors: %v", errs)
 	}
 
-	dual, ok := doc.Body[0].(*ast.DualDialogue)
+	play := doc.Body[0].(*ast.Section)
+	act := play.Children[0].(*ast.Section)
+	scene := act.Children[0].(*ast.Section)
+	dual, ok := scene.Children[0].(*ast.DualDialogue)
 	if !ok {
-		t.Fatalf("expected dual dialogue, got %T", doc.Body[0])
+		t.Fatalf("expected dual dialogue, got %T", scene.Children[0])
 	}
 
 	tokens := extractTokens(dual.Right)
