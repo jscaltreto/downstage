@@ -2,7 +2,14 @@ import "./main.css";
 import { createApp } from "vue";
 import AppWeb from "./AppWeb.vue";
 import { initWasm } from "./wasm";
-import type { EditorEnv, SavedDraft, ParseError, WasmDiagnostic } from "./core/types";
+import type {
+  EditorEnv,
+  SavedDraft,
+  ParseError,
+  WasmDiagnostic,
+  LSPCompletionList,
+  LSPCodeActionsResult,
+} from "./core/types";
 
 declare const __APP_VERSION__: string;
 
@@ -31,6 +38,19 @@ class WebEnv implements EditorEnv {
 
   async diagnostics(source: string): Promise<{ diagnostics: WasmDiagnostic[] }> {
     return window.downstage.diagnostics(source);
+  }
+
+  async completion(source: string, line: number, col: number): Promise<LSPCompletionList> {
+    return window.downstage.completion(source, line, col);
+  }
+
+  async codeActions(
+    source: string,
+    line: number,
+    col: number,
+    codes?: string[],
+  ): Promise<LSPCodeActionsResult> {
+    return window.downstage.codeActions(source, line, col, codes);
   }
 
   async semanticTokens(source: string): Promise<Uint32Array> {

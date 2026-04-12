@@ -11,6 +11,8 @@ declare global {
     downstage: {
       parse(source: string): { errors: ParseError[] };
       diagnostics(source: string): { diagnostics: WasmDiagnostic[] };
+      completion(source: string, line: number, col: number): LSPCompletionList;
+      codeActions(source: string, line: number, col: number, codes?: string[]): LSPCodeActionsResult;
       renderHTML(source: string, style?: string): string;
       renderPDF(source: string, style?: string): Uint8Array;
       semanticTokens(source: string): Uint32Array;
@@ -35,6 +37,53 @@ export interface WasmDiagnostic {
   endLine: number;
   endCol: number;
   code?: string;
+}
+
+export interface LSPPosition {
+  line: number;
+  character: number;
+}
+
+export interface LSPRange {
+  start: LSPPosition;
+  end: LSPPosition;
+}
+
+export interface LSPTextEdit {
+  range: LSPRange;
+  newText: string;
+}
+
+export interface LSPCompletionItem {
+  label: string;
+  kind?: number;
+  detail?: string;
+  filterText?: string;
+  sortText?: string;
+  insertText?: string;
+  textEdit?: LSPTextEdit;
+}
+
+export interface LSPCompletionList {
+  isIncomplete: boolean;
+  items: LSPCompletionItem[];
+}
+
+export interface LSPWorkspaceEdit {
+  changes?: Record<string, LSPTextEdit[]>;
+}
+
+export interface LSPCodeAction {
+  title: string;
+  kind?: string;
+  isPreferred?: boolean;
+  diagnostics?: unknown[];
+  edit?: LSPWorkspaceEdit;
+}
+
+export interface LSPCodeActionsResult {
+  uri: string;
+  actions: LSPCodeAction[];
 }
 
 import wasmExecUrl from "../build/wasm_exec.js?url";
@@ -115,6 +164,19 @@ export function parse(source: string) {
 
 export function diagnostics(source: string) {
   return window.downstage.diagnostics(source);
+}
+
+export function completion(source: string, line: number, col: number): LSPCompletionList {
+  return window.downstage.completion(source, line, col);
+}
+
+export function codeActions(
+  source: string,
+  line: number,
+  col: number,
+  codes?: string[],
+): LSPCodeActionsResult {
+  return window.downstage.codeActions(source, line, col, codes);
 }
 
 export function renderHTML(source: string, style?: string): string {

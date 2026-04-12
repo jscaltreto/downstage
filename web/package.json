@@ -8,6 +8,7 @@
     "dev": "vite"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/lang-markdown": "^6.3.2",
     "@codemirror/language": "^6.10.8",

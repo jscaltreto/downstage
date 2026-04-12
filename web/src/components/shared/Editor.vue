@@ -201,13 +201,69 @@ function toggleStyle() {
 
 <style>
 .cm-editor { height: 100%; outline: none !important; }
-.cm-gutters { 
+.cm-gutters {
     background-color: transparent !important;
     color: var(--color-text-muted) !important;
-    border-right: 1px solid var(--border-color) !important; 
+    border-right: 1px solid var(--border-color) !important;
 }
 .dark .cm-activeLine { background-color: rgba(255, 255, 255, 0.05) !important; }
 .cm-activeLine { background-color: rgba(0, 0, 0, 0.03) !important; }
+
+.dark .cm-tooltip.cm-tooltip-autocomplete > ul > li {
+    color: var(--color-text-muted);
+}
+.dark .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+    background: var(--color-brass-500);
+    color: var(--color-ember-950);
+}
+.dark .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail {
+    color: var(--color-ember-900);
+}
+
+.cm-tooltip-lint .cm-diagnostic {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+    padding: 0.5rem 0.65rem;
+    max-width: 420px;
+}
+.cm-tooltip-lint .cm-diagnosticText {
+    white-space: normal;
+    line-height: 1.35;
+}
+.cm-tooltip-lint .cm-diagnosticAction {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0.25rem 0.55rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--color-toolbar-bg);
+    color: var(--color-accent);
+    font-size: 0.85em;
+    font-weight: 500;
+    cursor: pointer;
+    align-self: flex-start;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.cm-tooltip-lint .cm-diagnosticAction:hover {
+    background: var(--color-accent);
+    color: var(--color-page-bg);
+    border-color: var(--color-accent);
+}
+.cm-tooltip-lint .cm-diagnosticAction::before {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    flex-shrink: 0;
+    background-color: currentColor;
+    -webkit-mask: var(--cm-lightbulb) no-repeat center / contain;
+    mask: var(--cm-lightbulb) no-repeat center / contain;
+    --cm-lightbulb: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-2 -2 28 28' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 14c.2-1 .7-1.7 1.5-2.5 1.1-1 2.5-2.2 2.5-4.5A6 6 0 0 0 7 7c0 2.3 1.4 3.5 2.5 4.5.8.8 1.3 1.5 1.5 2.5'/><path d='M9 18h6'/><path d='M10 22h4'/></svg>");
+}
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

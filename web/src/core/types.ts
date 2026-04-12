@@ -16,6 +16,52 @@ export interface WasmDiagnostic {
   code?: string;
 }
 
+export interface LSPPosition {
+  line: number;
+  character: number;
+}
+
+export interface LSPRange {
+  start: LSPPosition;
+  end: LSPPosition;
+}
+
+export interface LSPTextEdit {
+  range: LSPRange;
+  newText: string;
+}
+
+export interface LSPCompletionItem {
+  label: string;
+  kind?: number;
+  detail?: string;
+  filterText?: string;
+  sortText?: string;
+  insertText?: string;
+  textEdit?: LSPTextEdit;
+}
+
+export interface LSPCompletionList {
+  isIncomplete: boolean;
+  items: LSPCompletionItem[];
+}
+
+export interface LSPWorkspaceEdit {
+  changes?: Record<string, LSPTextEdit[]>;
+}
+
+export interface LSPCodeAction {
+  title: string;
+  kind?: string;
+  isPreferred?: boolean;
+  edit?: LSPWorkspaceEdit;
+}
+
+export interface LSPCodeActionsResult {
+  uri: string;
+  actions: LSPCodeAction[];
+}
+
 export interface SavedDraft {
   id: string;
   title: string;
@@ -27,6 +73,8 @@ export interface EditorEnv {
   // Parsing and Diagnostics
   parse(source: string): Promise<{ errors: ParseError[] }>;
   diagnostics(source: string): Promise<{ diagnostics: WasmDiagnostic[] }>;
+  completion(source: string, line: number, col: number): Promise<LSPCompletionList>;
+  codeActions(source: string, line: number, col: number, codes?: string[]): Promise<LSPCodeActionsResult>;
   semanticTokens(source: string): Promise<Uint32Array>;
   tokenTypeNames(): Promise<string[]>;
 
