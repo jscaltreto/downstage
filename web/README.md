@@ -1,9 +1,9 @@
 # Downstage Web Editor
 
 A browser-based Downstage editor with live preview, syntax highlighting,
-browser-local draft storage, an Open Draft picker, and PDF export. The entire parsing and
-rendering pipeline runs client-side via
-WebAssembly — no server required.
+LSP-powered autocomplete and quick-fix code actions, browser-local draft
+storage, an Open Draft picker, and PDF export. The entire parsing and
+rendering pipeline runs client-side via WebAssembly — no server required.
 
 ## Draft Storage
 
@@ -80,7 +80,9 @@ The WASM module exposes a global `downstage` object:
 | Function | Input | Output |
 |----------|-------|--------|
 | `parse(source)` | Downstage source string | `{errors: [{message, line, col, endLine, endCol}]}` |
-| `diagnostics(source)` | Downstage source string | `{diagnostics: [{message, severity, line, col, endLine, endCol, code?}]}` |
+| `diagnostics(source)` | Downstage source string | `{diagnostics: [{message, severity, line, col, endLine, endCol, code?, quickFixes?}]}` |
+| `completion(source, line, col)` | Source + 0-based LSP position | LSP `CompletionList` (`{isIncomplete, items[]}`) |
+| `codeActions(source, line, col, codes?)` | Source + 0-based LSP position + optional diagnostic-code filter | `{uri, actions: LSPCodeAction[]}` |
 | `renderHTML(source, style?)` | Source + optional style (`"standard"`/Manuscript or `"condensed"`/Acting Edition) | HTML string |
 | `renderPDF(source, style?)` | Source + optional style | `Uint8Array` (PDF bytes) |
 | `semanticTokens(source)` | Source string | `Uint32Array` (delta-encoded LSP tokens) |

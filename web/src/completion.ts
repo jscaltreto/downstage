@@ -14,7 +14,7 @@ const kindToType: Record<number, string> = {
   14: "keyword",
 };
 
-function toCompletion(item: LSPCompletionItem): Completion {
+export function toCompletion(item: LSPCompletionItem): Completion {
   const label = item.label;
   return {
     label,

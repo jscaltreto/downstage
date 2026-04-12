@@ -14,6 +14,7 @@ export interface WasmDiagnostic {
   endLine: number;
   endCol: number;
   code?: string;
+  quickFixes?: string[];
 }
 
 export interface LSPPosition {

@@ -41,14 +41,17 @@ type parseErrorJSON struct {
 	EndCol  int    `json:"endCol"`
 }
 
+const codeActionsURI protocol.DocumentURI = "inmemory://document.ds"
+
 type diagnosticJSON struct {
-	Message  string `json:"message"`
-	Severity string `json:"severity"`
-	Line     int    `json:"line"`
-	Col      int    `json:"col"`
-	EndLine  int    `json:"endLine"`
-	EndCol   int    `json:"endCol"`
-	Code     string `json:"code,omitempty"`
+	Message    string   `json:"message"`
+	Severity   string   `json:"severity"`
+	Line       int      `json:"line"`
+	Col        int      `json:"col"`
+	EndLine    int      `json:"endLine"`
+	EndCol     int      `json:"endCol"`
+	Code       string   `json:"code,omitempty"`
+	QuickFixes []string `json:"quickFixes,omitempty"`
 }
 
 func parse(_ js.Value, args []js.Value) any {
@@ -86,13 +89,31 @@ func diagnostics(_ js.Value, args []js.Value) any {
 			EndCol:   int(diag.Range.End.Character),
 			Code:     diagnosticCode(diag.Code),
 		}
+
+		actions := lsp.ComputeCodeActions(doc, source, codeActionsURI, []protocol.Diagnostic{diag}, diags)
+		titles := actionTitles(actions)
+		if len(titles) > 0 {
+			out[i].QuickFixes = titles
+		}
 	}
 
 	data, _ := json.Marshal(map[string]any{"diagnostics": out})
 	return js.Global().Get("JSON").Call("parse", string(data))
 }
 
-const codeActionsURI protocol.DocumentURI = "inmemory://document.ds"
+func actionTitles(actions []protocol.CodeAction) []string {
+	titles := make([]string, 0, len(actions))
+	for _, a := range actions {
+		if a.Edit == nil {
+			continue
+		}
+		if edits := a.Edit.Changes[codeActionsURI]; len(edits) == 0 {
+			continue
+		}
+		titles = append(titles, a.Title)
+	}
+	return titles
+}
 
 func completion(_ js.Value, args []js.Value) any {
 	source := args[0].String()
