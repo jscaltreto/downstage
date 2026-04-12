@@ -1,0 +1,351 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --downstage-break-color: rgba(0, 0, 0, 0.18);
+  --downstage-break-spacing: 2em;
+}
+
+body {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12pt;
+  line-height: 1.5;
+  color: #000;
+  background: #fff;
+}
+
+.downstage-document {
+  max-width: 8.5in;
+  margin: 0 auto;
+  padding: 1in;
+}
+
+/* Title Page */
+.downstage-title-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  text-align: center;
+  page-break-after: always;
+  padding-bottom: var(--downstage-break-spacing);
+  border-bottom: 1px dashed var(--downstage-break-color);
+  margin-bottom: var(--downstage-break-spacing);
+}
+.downstage-title-page h1 {
+  font-size: 20pt;
+  text-transform: uppercase;
+  margin-bottom: 0.5em;
+}
+.downstage-title-page .subtitle {
+  font-style: italic;
+  font-size: 14pt;
+  margin-bottom: 1em;
+}
+.downstage-title-page .author {
+  font-size: 14pt;
+  margin-bottom: 0.5em;
+}
+.downstage-title-page .metadata {
+  margin-top: auto;
+  font-size: 10pt;
+}
+.downstage-title-page .metadata dt { display: inline; font-weight: bold; }
+.downstage-title-page .metadata dt::after { content: ": "; }
+.downstage-title-page .metadata dd { display: inline; margin: 0; }
+.downstage-title-page .metadata div { margin-bottom: 0.25em; }
+
+.downstage-subplay {
+  page-break-before: always;
+}
+.downstage-subplay-header {
+  text-align: center;
+  margin-bottom: 2em;
+}
+.downstage-subplay-header h1 {
+  font-size: 18pt;
+  text-transform: uppercase;
+  margin-bottom: 0.75em;
+}
+.downstage-subplay-metadata {
+  font-size: 10pt;
+}
+.downstage-subplay-author-label,
+.downstage-subplay-author {
+  font-size: 10pt;
+}
+.downstage-subplay-author-label {
+  margin-bottom: 0.25em;
+}
+.downstage-subplay-author {
+  margin-bottom: 0.25em;
+}
+.downstage-subplay-metadata dt { display: inline; font-weight: bold; }
+.downstage-subplay-metadata dt::after { content: ": "; }
+.downstage-subplay-metadata dd { display: inline; margin: 0; }
+.downstage-subplay-metadata div { margin-bottom: 0.25em; }
+
+/* Dramatis Personae */
+.downstage-dramatis-personae {
+  page-break-after: always;
+  margin-bottom: var(--downstage-break-spacing);
+  padding-bottom: var(--downstage-break-spacing);
+  border-bottom: 1px dashed var(--downstage-break-color);
+}
+.downstage-dramatis-personae-inline {
+  page-break-after: auto;
+  padding-bottom: 0;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.downstage-dramatis-personae > h2 {
+  text-align: center;
+  font-size: 14pt;
+  text-transform: uppercase;
+  margin-bottom: 1.5em;
+}
+.downstage-dramatis-personae dl { margin-left: 8%; }
+.downstage-dramatis-personae dt { font-weight: bold; display: inline; }
+.downstage-dramatis-personae dd { display: inline; margin: 0; }
+.downstage-dramatis-personae dd::before { content: " \2014\00a0"; }
+.downstage-dramatis-personae .character-entry { margin-bottom: 0.25em; }
+.downstage-character-group-name {
+  text-align: center;
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+/* Acts & Scenes */
+.downstage-act {
+  margin-top: 2em;
+}
+/* Every act except the first one starts on a fresh PDF page. */
+.downstage-act + .downstage-act,
+.downstage-scene + .downstage-act {
+  border-top: 1px dashed var(--downstage-break-color);
+  padding-top: var(--downstage-break-spacing);
+  margin-top: var(--downstage-break-spacing);
+}
+.downstage-act > h2 {
+  text-align: center;
+  text-transform: uppercase;
+  text-decoration: underline;
+  font-size: 14pt;
+  margin-bottom: 1.5em;
+}
+.downstage-scene {
+  margin-top: 1.5em;
+}
+/* First act/scene inside an inline-play subplay starts on a fresh PDF page,
+   matching consumePendingInlinePlayFirstBodyPage in the PDF renderer. */
+.downstage-subplay > .downstage-act:first-of-type,
+.downstage-subplay > .downstage-scene:first-of-type {
+  border-top: 1px dashed var(--downstage-break-color);
+  padding-top: var(--downstage-break-spacing);
+  margin-top: var(--downstage-break-spacing);
+}
+.downstage-scene > h3 {
+  text-align: center;
+  text-transform: uppercase;
+  font-size: 12pt;
+  margin-bottom: 1em;
+}
+
+/* Generic Sections */
+.downstage-section > h1,
+.downstage-section > h2,
+.downstage-section > h3 {
+  text-align: center;
+  text-transform: uppercase;
+  margin-bottom: 1.5em;
+}
+.downstage-section > h1 { font-size: 20pt; }
+.downstage-section > h2 { font-size: 14pt; }
+.downstage-section > h3 { font-size: 12pt; }
+.downstage-section > p { margin-bottom: 0; }
+
+.downstage-forced-heading {
+  text-align: center;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+/* Dialogue */
+.downstage-dialogue {
+  margin-top: 1em;
+  margin-bottom: 0;
+}
+.downstage-character {
+  text-align: center;
+  text-transform: uppercase;
+  font-weight: bold;
+  margin-bottom: 0;
+}
+.downstage-parenthetical {
+  text-align: center;
+  font-style: italic;
+  font-weight: normal;
+  margin-bottom: 0;
+}
+.downstage-line {
+  margin: 0 8%;
+}
+.downstage-line.downstage-verse {
+  margin-left: calc(8% + 2em);
+}
+.downstage-dialogue-break {
+  margin-top: 1em;
+}
+
+/* Dual Dialogue */
+.downstage-dual-dialogue {
+  display: flex;
+  gap: 1em;
+  margin-top: 1em;
+}
+.downstage-dual-dialogue > .downstage-dialogue {
+  flex: 1;
+  margin-top: 0;
+}
+.downstage-dual-dialogue .downstage-line {
+  margin-left: 0;
+  margin-right: 0;
+}
+.downstage-dual-dialogue .downstage-line.downstage-verse {
+  margin-left: 2em;
+}
+
+/* Stage Direction */
+.downstage-stage-direction {
+  font-style: italic;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+.downstage-stage-direction:has(+ .downstage-continuation) {
+  margin-bottom: 0;
+}
+.downstage-stage-direction.downstage-continuation {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.downstage-stage-direction + .downstage-stage-direction:not(.downstage-continuation) {
+  margin-top: 1em;
+}
+
+/* Callout */
+.downstage-callout {
+  font-weight: bold;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  margin-left: 2em;
+}
+.downstage-callout:has(+ .downstage-continuation) {
+  margin-bottom: 0;
+}
+.downstage-callout.downstage-continuation {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.downstage-callout + .downstage-callout:not(.downstage-continuation) {
+  margin-top: 1em;
+}
+
+/* Song */
+.downstage-song {
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+}
+.downstage-song > h4 {
+  text-align: center;
+  text-transform: uppercase;
+  font-weight: bold;
+  margin-bottom: 0.5em;
+}
+.downstage-song-end {
+  text-align: center;
+  font-weight: bold;
+  margin-top: 0.5em;
+}
+
+/* Verse */
+.downstage-verse-block {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+.downstage-verse-line {
+  margin-left: calc(8% + 2em);
+  margin-bottom: 0;
+}
+
+/* Page Break */
+.downstage-page-break {
+  border: none;
+  border-top: 1px dashed var(--downstage-break-color);
+  page-break-after: always;
+  margin: var(--downstage-break-spacing) 0;
+}
+
+.downstage-subplay {
+  padding-top: var(--downstage-break-spacing);
+  border-top: 1px dashed var(--downstage-break-color);
+}
+/* The title page already draws a break, so suppress the subplay's own rule
+   when it immediately follows one to avoid a doubled dashed line. */
+.downstage-title-page + .downstage-subplay {
+  border-top: none;
+  padding-top: 0;
+}
+
+/* Inline */
+.downstage-inline-direction {
+  font-style: italic;
+}
+
+/* Section line spacing */
+.downstage-section-break { margin-top: 1.5em; }
+
+@media print {
+  .downstage-document { padding: 0; max-width: none; }
+  .downstage-title-page {
+    min-height: 100vh;
+    page-break-after: always;
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+  .downstage-dramatis-personae {
+    page-break-after: always;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .downstage-dramatis-personae-inline { page-break-after: auto; }
+  .downstage-act,
+  .downstage-act + .downstage-act,
+  .downstage-scene + .downstage-act {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+  .downstage-subplay {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+  }
+  .downstage-subplay > .downstage-act:first-of-type,
+  .downstage-subplay > .downstage-scene:first-of-type {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+  .downstage-dialogue { orphans: 3; widows: 2; }
+  .downstage-song { page-break-inside: avoid; }
+  .downstage-page-break {
+    page-break-after: always;
+    height: 0;
+    margin: 0;
+    border-top: none;
+  }
+}
