@@ -93,9 +93,9 @@ async function upgradeV1Document() {
 
         v1DismissedForDraftId.value = null;
         showV1Modal.value = false;
+        // Parent updates props.content; the watch below syncs the engine and
+        // schedules a re-render, so no direct engine/render calls here.
         emit('update:content', result.source);
-        engine?.setContent(result.source);
-        scheduleRender(result.source, props.style);
     } finally {
         isUpgradingV1.value = false;
     }
