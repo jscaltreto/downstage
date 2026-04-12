@@ -17,6 +17,7 @@ const (
 	diagnosticCodeUnnumberedScene  = "unnumbered-scene"
 	diagnosticCodeMisnumberedAct   = "misnumbered-act"
 	diagnosticCodeMisnumberedScene = "misnumbered-scene"
+	diagnosticCodeV1Document       = "v1-document"
 )
 
 // collectiveCues are conventional ensemble cue names that should not
@@ -102,6 +103,9 @@ func buildDiagnosticsWithIndex(doc *ast.Document, errors []*parser.ParseError, i
 			Message:  e.Message,
 		})
 	}
+	if diag := v1DocumentDiagnostic(errors); diag != nil {
+		diags = append(diags, *diag)
+	}
 
 	// Add warnings for unknown character names.
 	if doc != nil {
@@ -114,6 +118,36 @@ func buildDiagnosticsWithIndex(doc *ast.Document, errors []*parser.ParseError, i
 	}
 
 	return diags
+}
+
+func v1DocumentDiagnostic(errors []*parser.ParseError) *protocol.Diagnostic {
+	var first *parser.ParseError
+	for _, err := range errors {
+		if !isV1ParseError(err) {
+			continue
+		}
+		first = err
+		break
+	}
+	if first == nil {
+		return nil
+	}
+
+	return &protocol.Diagnostic{
+		Range:    toLSPRange(first.Range),
+		Severity: protocol.DiagnosticSeverityError,
+		Code:     diagnosticCodeV1Document,
+		Source:   "downstage",
+		Message:  "this looks like a V1 Downstage document; update it to V2 to continue working",
+	}
+}
+
+func isV1ParseError(err *parser.ParseError) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Message, "document-level metadata is a V1 pattern") ||
+		strings.Contains(err.Message, "top-level Dramatis Personae is a V1 pattern")
 }
 
 // checkUnknownCharacters warns when dialogue references a character not in dramatis personae.

@@ -84,6 +84,27 @@ Hello.`
 	}
 }
 
+func TestBuildDiagnostics_AddsV1DocumentDiagnostic(t *testing.T) {
+	content := `Title: Hamlet
+Author: William Shakespeare
+
+# Hamlet`
+
+	doc, errs := parser.Parse([]byte(content))
+	diags := buildDiagnostics(doc, errs)
+
+	var found bool
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeV1Document {
+			continue
+		}
+		found = true
+		assert.Equal(t, "this looks like a V1 Downstage document; update it to V2 to continue working", diag.Message)
+		assert.Equal(t, protocol.DiagnosticSeverityError, diag.Severity)
+	}
+	assert.True(t, found, "expected v1-document diagnostic")
+}
+
 func TestBuildDiagnostics_UnknownCharacter(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{

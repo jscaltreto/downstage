@@ -27,6 +27,7 @@ export interface EditorEnv {
   // Parsing and Diagnostics
   parse(source: string): Promise<{ errors: ParseError[] }>;
   diagnostics(source: string): Promise<{ diagnostics: WasmDiagnostic[] }>;
+  upgradeV1(source: string): Promise<{ source: string; changed: boolean }>;
   semanticTokens(source: string): Promise<Uint32Array>;
   tokenTypeNames(): Promise<string[]>;
 

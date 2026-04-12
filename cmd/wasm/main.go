@@ -8,6 +8,7 @@ import (
 	"syscall/js"
 
 	"github.com/jscaltreto/downstage/internal/lsp"
+	"github.com/jscaltreto/downstage/internal/migrate"
 	"github.com/jscaltreto/downstage/internal/parser"
 	"github.com/jscaltreto/downstage/internal/render"
 	htmlrender "github.com/jscaltreto/downstage/internal/render/html"
@@ -20,6 +21,7 @@ func main() {
 
 	ds.Set("parse", js.FuncOf(parse))
 	ds.Set("diagnostics", js.FuncOf(diagnostics))
+	ds.Set("upgradeV1", js.FuncOf(upgradeV1))
 	ds.Set("renderHTML", js.FuncOf(renderHTML))
 	ds.Set("renderPDF", js.FuncOf(renderPDF))
 	ds.Set("semanticTokens", js.FuncOf(semanticTokens))
@@ -87,6 +89,17 @@ func diagnostics(_ js.Value, args []js.Value) any {
 	}
 
 	data, _ := json.Marshal(map[string]any{"diagnostics": out})
+	return js.Global().Get("JSON").Call("parse", string(data))
+}
+
+func upgradeV1(_ js.Value, args []js.Value) any {
+	source := args[0].String()
+	upgraded, changed := migrate.UpgradeV1ToV2(source)
+
+	data, _ := json.Marshal(map[string]any{
+		"source":  upgraded,
+		"changed": changed,
+	})
 	return js.Global().Get("JSON").Call("parse", string(data))
 }
 

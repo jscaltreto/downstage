@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jscaltreto/downstage/internal/parser"
@@ -49,6 +50,49 @@ Boo.`
 	}
 	if edits[0].Range.Start.Line != 4 {
 		t.Fatalf("expected insert on line 2, got %d", edits[0].Range.Start.Line)
+	}
+}
+
+func TestComputeCodeActions_UpdateScriptToV2(t *testing.T) {
+	content := `Title: Hamlet
+Author: William Shakespeare
+
+# Dramatis Personae
+
+HAMLET — Prince of Denmark
+
+# Hamlet
+
+HAMLET
+To be.`
+
+	doc, errs := parser.Parse([]byte(content))
+	diagnostics := buildDiagnostics(doc, errs)
+
+	var v1Diagnostics []protocol.Diagnostic
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code == diagnosticCodeV1Document {
+			v1Diagnostics = append(v1Diagnostics, diagnostic)
+		}
+	}
+	if len(v1Diagnostics) != 1 {
+		t.Fatalf("expected 1 v1 diagnostic, got %d", len(v1Diagnostics))
+	}
+
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), v1Diagnostics, diagnostics)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action, got %d", len(actions))
+	}
+	if actions[0].Title != "Update script to V2" {
+		t.Fatalf("unexpected action title: %q", actions[0].Title)
+	}
+
+	edits := actions[0].Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(edits) != 1 {
+		t.Fatalf("expected 1 text edit, got %d", len(edits))
+	}
+	if !strings.Contains(edits[0].NewText, "## Dramatis Personae") {
+		t.Fatalf("expected V2 rewrite, got %q", edits[0].NewText)
 	}
 }
 

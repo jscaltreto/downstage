@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/jscaltreto/downstage/internal/ast"
+	"github.com/jscaltreto/downstage/internal/migrate"
 	"go.lsp.dev/protocol"
 )
 
@@ -30,6 +31,23 @@ func computeCodeActions(
 
 	for _, diagnostic := range diagnostics {
 		switch diagnostic.Code {
+		case diagnosticCodeV1Document:
+			upgraded, changed := migrate.UpgradeV1ToV2(content)
+			if !changed {
+				continue
+			}
+
+			actions = append(actions, protocol.CodeAction{
+				Title:       "Update script to V2",
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {fullDocumentEdit(content, upgraded)},
+					},
+				},
+			})
 		case diagnosticCodeUnknownCharacter:
 			character := diagnosticCharacterName(diagnostic)
 			if character == "" {
@@ -193,6 +211,25 @@ func numberingEdit(diagnostic protocol.Diagnostic) *protocol.TextEdit {
 	}
 }
 
+func fullDocumentEdit(content string, replacement string) protocol.TextEdit {
+	lines := strings.Split(content, "\n")
+	endLine := len(lines) - 1
+	endChar := 0
+	if endLine >= 0 {
+		endChar = len(lines[endLine])
+	}
+	return protocol.TextEdit{
+		Range: protocol.Range{
+			Start: protocol.Position{Line: 0, Character: 0},
+			End: protocol.Position{
+				Line:      uint32(maxInt(endLine, 0)),
+				Character: uint32(maxInt(endChar, 0)),
+			},
+		},
+		NewText: replacement,
+	}
+}
+
 func diagnosticCharacterName(diagnostic protocol.Diagnostic) string {
 	return diagnosticStringData(diagnostic, "character")
 }
@@ -262,4 +299,11 @@ func dpHasNoEntries(dp *ast.Section) bool {
 		return true
 	}
 	return len(dp.Characters) == 0 && len(dp.Groups) == 0
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

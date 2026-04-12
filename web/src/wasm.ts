@@ -11,6 +11,7 @@ declare global {
     downstage: {
       parse(source: string): { errors: ParseError[] };
       diagnostics(source: string): { diagnostics: WasmDiagnostic[] };
+      upgradeV1(source: string): { source: string; changed: boolean };
       renderHTML(source: string, style?: string): string;
       renderPDF(source: string, style?: string): Uint8Array;
       semanticTokens(source: string): Uint32Array;
@@ -115,6 +116,10 @@ export function parse(source: string) {
 
 export function diagnostics(source: string) {
   return window.downstage.diagnostics(source);
+}
+
+export function upgradeV1(source: string) {
+  return window.downstage.upgradeV1(source);
 }
 
 export function renderHTML(source: string, style?: string): string {
