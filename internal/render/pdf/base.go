@@ -39,6 +39,11 @@ type pdfBase struct {
 	pendingInlinePlayFirstBodyPage bool
 	inlinePlaySections             map[*ast.Section]bool
 	activeTopLevelSection          *ast.Section
+	// outlineActSeen tracks whether the current top-level play has already
+	// emitted an Act bookmark. Scenes that appear without an enclosing Act
+	// must be emitted at the play's level so they don't end up attached to
+	// a stale level-0 ancestor in the PDF outline.
+	outlineActSeen bool
 
 	// Body block adjacency tracking
 	prevWasStageDirection bool

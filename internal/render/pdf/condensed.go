@@ -118,6 +118,7 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	r.titlePageTitle = title
 
 	if t := strings.TrimSpace(title); t != "" {
+		r.outlineActSeen = false
 		r.pdf.Bookmark(t, 0, -1)
 	}
 

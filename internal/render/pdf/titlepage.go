@@ -16,6 +16,7 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	r.titlePageTitle = title
 
 	if t := strings.TrimSpace(title); t != "" {
+		r.outlineActSeen = false
 		r.pdf.Bookmark(t, 0, -1)
 	}
 
@@ -68,6 +69,7 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 
 	displayTitle := strings.TrimSpace(render.SectionDisplayTitle(section))
 	if displayTitle != "" {
+		b.outlineActSeen = false
 		b.pdf.Bookmark(displayTitle, 0, -1)
 	}
 
@@ -95,7 +97,10 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 
 // bookmarkSection records an outline entry for the given section at the
 // current cursor position. Sections that don't map cleanly to an outline
-// level (forced headings, prose sections) are skipped.
+// level (forced headings, prose sections) are skipped. Scenes drop to the
+// play's child level when the play has no acts, so fpdf's parent lookup
+// (which searches for the most recent shallower bookmark) doesn't stitch
+// them onto the wrong branch.
 func bookmarkSection(b *pdfBase, s *ast.Section) {
 	if s == nil || b.pdf == nil {
 		return
@@ -104,11 +109,22 @@ func bookmarkSection(b *pdfBase, s *ast.Section) {
 	if label == "" {
 		return
 	}
-	level := sectionOutlineLevel(s)
-	if level < 0 {
-		return
+	switch s.Kind {
+	case ast.SectionGeneric:
+		if s.Level == 1 {
+			b.outlineActSeen = false
+			b.pdf.Bookmark(label, 0, -1)
+		}
+	case ast.SectionAct:
+		b.outlineActSeen = true
+		b.pdf.Bookmark(label, 1, -1)
+	case ast.SectionScene:
+		level := 1
+		if b.outlineActSeen {
+			level = 2
+		}
+		b.pdf.Bookmark(label, level, -1)
 	}
-	b.pdf.Bookmark(label, level, -1)
 }
 
 func sectionOutlineLabel(s *ast.Section) string {
@@ -123,20 +139,6 @@ func sectionOutlineLabel(s *ast.Section) string {
 		}
 	}
 	return ""
-}
-
-func sectionOutlineLevel(s *ast.Section) int {
-	switch s.Kind {
-	case ast.SectionGeneric:
-		if s.Level == 1 {
-			return 0
-		}
-	case ast.SectionAct:
-		return 1
-	case ast.SectionScene:
-		return 2
-	}
-	return -1
 }
 
 func buildOutlineHeader(keyword, number, title string) string {

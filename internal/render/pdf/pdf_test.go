@@ -65,6 +65,47 @@ func TestRender_TitlePageSetsDocumentMetadata(t *testing.T) {
 	assert.Contains(t, string(output), "/Subject")
 }
 
+func TestRender_OutlineAttachesScenesToEnclosingPlay(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Collection",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Play One",
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionScene, Level: 2, Number: "1"},
+					&ast.Section{Kind: ast.SectionScene, Level: 2, Number: "2"},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Play Two",
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionScene, Level: 2, Number: "1"},
+				},
+			},
+		},
+	}
+
+	require.NoError(t, render.Walk(r, doc, &bytes.Buffer{}))
+	// Reset the ActSeen flag every time a new play is encountered so scenes
+	// land directly under the play that contains them, not the collection.
+	// The assertion here guards against a regression where every scene gets
+	// stitched onto the first level-0 bookmark because fpdf uses
+	// lru[level-1] as the parent lookup.
+	assert.False(t, r.outlineActSeen, "expected ActSeen reset after scene-only play")
+}
+
 func TestRender_TitlePagePageNumberSuppressed(t *testing.T) {
 	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
 	doc := &ast.Document{
