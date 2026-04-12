@@ -7,16 +7,15 @@ order: 19
 codeLang: downstage
 codeLabel: downstage
 code: |-
-  Title: The Last Curtain Call
-  Author: Eleanor Vance
-
-  # Dramatis Personae
-
-  MARGARET — An aging actress, once famous
-  JAMES/JIM — Her estranged son
-  CLAIRE — The new director
-
   # The Last Curtain Call
+  Author: Eleanor Vance
+  Draft: First
+
+  ## Dramatis Personae
+
+  MARGARET - An aging actress, once famous
+  JAMES/JIM - Her estranged son
+  CLAIRE - The new director
 
   ## ACT I
 

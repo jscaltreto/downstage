@@ -3,13 +3,14 @@ import { onMounted, onUnmounted, ref, watch, inject, nextTick } from 'vue';
 import { 
     Bold, Italic, Underline, MessageSquare, ChevronRight, 
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
-    Sun, Moon, ScrollText, BookOpenText
+    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, RefreshCw
 } from 'lucide-vue-next';
 import { Engine } from '../../core/engine';
 import type { Store } from '../../core/store';
 import type { EditorEnv } from '../../core/types';
 import PreviewFrame from './PreviewFrame.vue';
 import ToolbarButton from './ToolbarButton.vue';
+import BaseModal from './BaseModal.vue';
 
 const props = defineProps<{
   env: EditorEnv;
@@ -21,6 +22,7 @@ const emit = defineEmits<{
   (e: 'update:content', value: string): void;
   (e: 'update:style', value: string): void;
   (e: 'toggle-help'): void;
+  (e: 'migration-state-change', value: boolean): void;
 }>();
 
 const store = inject<Store>('store')!;
@@ -30,9 +32,19 @@ const renderedHtml = ref("");
 let engine: Engine | null = null;
 
 const previewVisible = ref(localStorage.getItem("downstage-editor-preview-hidden") !== "true");
+const v1DocumentDetected = ref(false);
+const showV1Modal = ref(false);
+const v1DismissedForDraftId = ref<string | null>(null);
+const isUpgradingV1 = ref(false);
 
 let lastRenderRequestId = 0;
 let renderTimer: number | null = null;
+const v1DiagnosticCode = "v1-document";
+
+function setV1DocumentDetected(detected: boolean) {
+    v1DocumentDetected.value = detected;
+    emit('migration-state-change', detected);
+}
 
 async function scheduleRender(content: string, style: string) {
     if (!previewVisible.value) return;
@@ -42,14 +54,58 @@ async function scheduleRender(content: string, style: string) {
     renderTimer = window.setTimeout(async () => {
         renderTimer = null;
         const requestId = ++lastRenderRequestId;
+        const { diagnostics } = await props.env.diagnostics(content);
+        if (requestId !== lastRenderRequestId) return;
+
+        const hasV1Diagnostic = diagnostics.some((diagnostic) => diagnostic.code === v1DiagnosticCode);
+        setV1DocumentDetected(hasV1Diagnostic);
+
+        if (hasV1Diagnostic) {
+            renderedHtml.value = "";
+            if (v1DismissedForDraftId.value !== store.state.activeDraftId) {
+                showV1Modal.value = true;
+            }
+            return;
+        }
+
+        showV1Modal.value = false;
+        v1DismissedForDraftId.value = null;
+
         const html = await props.env.renderHTML(content, style);
-        
-        // Only update if this is still the latest request
         if (requestId === lastRenderRequestId) {
             renderedHtml.value = html;
         }
     }, 300);
 }
+
+async function upgradeV1Document() {
+    if (isUpgradingV1.value) return;
+
+    const currentContent = engine?.getContent() || props.content;
+    isUpgradingV1.value = true;
+    try {
+        const result = await props.env.upgradeV1(currentContent);
+        if (!result.changed) {
+            showV1Modal.value = false;
+            v1DismissedForDraftId.value = store.state.activeDraftId;
+            return;
+        }
+
+        v1DismissedForDraftId.value = null;
+        showV1Modal.value = false;
+        emit('update:content', result.source);
+        engine?.setContent(result.source);
+        scheduleRender(result.source, props.style);
+    } finally {
+        isUpgradingV1.value = false;
+    }
+}
+
+function dismissV1Modal() {
+    showV1Modal.value = false;
+    v1DismissedForDraftId.value = store.state.activeDraftId;
+}
+
 onMounted(async () => {
   await nextTick();
 
@@ -65,9 +121,7 @@ onMounted(async () => {
       iframeEl
     );
     engine.init(props.content, store.state.isDark);
-    props.env.renderHTML(props.content, props.style).then(h => {
-        renderedHtml.value = h;
-    });
+    scheduleRender(props.content, props.style);
   }
 });
 
@@ -84,6 +138,11 @@ watch(() => props.content, (newContent) => {
   if (engine && engine.getContent() !== newContent) {
     engine.setContent(newContent);
   }
+  scheduleRender(newContent, props.style);
+});
+
+watch(() => store.state.activeDraftId, () => {
+  showV1Modal.value = false;
 });
 
 watch(() => props.style, (newStyle) => {
@@ -183,7 +242,38 @@ function toggleStyle() {
                 </button>
             </div>
             <div class="flex-1 bg-white relative font-sans">
-                <PreviewFrame ref="previewFrameComponent" :html="renderedHtml" />
+                <div
+                    v-if="v1DocumentDetected"
+                    class="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-[linear-gradient(180deg,#f8efe2_0%,#fff8f1_100%)] px-8 text-center text-ember-950"
+                >
+                    <div class="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15 text-amber-700">
+                        <AlertTriangle class="h-7 w-7" />
+                    </div>
+                    <div class="max-w-md space-y-2">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">V1 Document</p>
+                        <h3 class="font-serif text-2xl font-bold leading-tight">Preview is disabled until this script is upgraded.</h3>
+                        <p class="text-sm leading-relaxed text-ember-900/75">
+                            This document matches the old Downstage V1 format. Rendering is unreliable in V2, so update the script before using preview or export.
+                        </p>
+                    </div>
+                    <div class="flex flex-col gap-3 sm:flex-row">
+                        <button
+                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-brass-500 px-4 py-2.5 text-sm font-bold text-ember-950 transition-colors hover:bg-brass-400 disabled:opacity-60"
+                            :disabled="isUpgradingV1"
+                            @click="upgradeV1Document"
+                        >
+                            <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isUpgradingV1 }" />
+                            {{ isUpgradingV1 ? 'Updating…' : 'Update Script to V2' }}
+                        </button>
+                        <button
+                            class="rounded-lg border border-ember-950/10 px-4 py-2.5 text-sm font-bold text-ember-950/80 transition-colors hover:bg-ember-950/5"
+                            @click="showV1Modal = true"
+                        >
+                            Why?
+                        </button>
+                    </div>
+                </div>
+                <PreviewFrame v-else ref="previewFrameComponent" :html="renderedHtml" />
             </div>
         </div>
 
@@ -197,6 +287,47 @@ function toggleStyle() {
         </button>
     </div>
   </div>
+
+  <BaseModal
+    :open="showV1Modal"
+    kicker="Migration Required"
+    title="This looks like a V1 Downstage document"
+    message="V1 scripts do not render correctly in the current editor. Update the document to V2 to keep using preview and export safely."
+    @close="dismissV1Modal"
+  >
+    <div class="flex flex-col gap-5 py-1">
+        <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <div class="flex items-start gap-3">
+                <div class="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
+                    <AlertTriangle class="h-5 w-5 text-amber-500" />
+                </div>
+                <div class="space-y-2">
+                    <p class="text-sm font-bold text-text-main">Preview and PDF export are blocked for V1 documents.</p>
+                    <p class="text-sm leading-relaxed text-text-muted">
+                        The editor can update the old title-page and Dramatis Personae structure for you. You can keep editing raw text if you want, but preview will stay disabled until the file is upgraded.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-3 pt-1 sm:flex-row">
+            <button
+                class="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-bold text-text-main transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                @click="dismissV1Modal"
+            >
+                Keep Raw Editing
+            </button>
+            <button
+                class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brass-500 px-4 py-2.5 text-sm font-bold text-black transition-colors hover:bg-brass-400 disabled:opacity-60"
+                :disabled="isUpgradingV1"
+                @click="upgradeV1Document"
+            >
+                <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isUpgradingV1 }" />
+                {{ isUpgradingV1 ? 'Updating…' : 'Update Script to V2' }}
+            </button>
+        </div>
+    </div>
+  </BaseModal>
 </template>
 
 <style>

@@ -11,6 +11,10 @@ export interface State {
   appVersion: string;
 }
 
+function extractDocumentTitle(content: string) {
+  return content.match(/^#\s+(.+)$/m)?.[1]?.trim() || "Untitled Play";
+}
+
 export class Store {
   public state: State;
 
@@ -66,7 +70,7 @@ export class Store {
     const draft = this.state.drafts.find(d => d.id === this.state.activeDraftId);
     if (!draft) return;
     draft.content = content;
-    draft.title = content.match(/^Title:\s*(.+)$/m)?.[1]?.trim() || "Untitled Play";
+    draft.title = extractDocumentTitle(content);
     draft.updatedAt = new Date().toISOString();
     await this.env.saveDrafts(this.state.drafts);
   }
