@@ -1087,6 +1087,7 @@ func (p *parser) parseSong() *ast.Song {
 
 	if p.at(token.SongEnd) {
 		endTok := p.advance()
+		song.SetEndRange(endTok.Range)
 		song.Range.End = endTok.Range.End
 	} else {
 		p.addError("unterminated SONG block", startTok.Range)

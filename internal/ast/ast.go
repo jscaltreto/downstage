@@ -370,14 +370,22 @@ var _ Node = (*Song)(nil)
 
 // Song represents a song section.
 type Song struct {
-	Number  string
-	Title   string
-	Content []Node
-	Range   token.Range
+	Number   string
+	Title    string
+	Content  []Node
+	Range    token.Range
+	endRange token.Range
 }
 
 func (s *Song) NodeRange() token.Range { return s.Range }
 func (s *Song) nodeType() string       { return "Song" }
+
+// EndRange returns the source range of the closing "SONG END" marker, or a
+// zero range when the song was unterminated.
+func (s *Song) EndRange() token.Range { return s.endRange }
+func (s *Song) SetEndRange(r token.Range) {
+	s.endRange = r
+}
 
 // --- VerseBlock ---
 

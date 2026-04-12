@@ -71,6 +71,66 @@ func TestComputeSemanticTokens_Nil(t *testing.T) {
 	}
 }
 
+func TestComputeSemanticTokens_DramatisPersonaeHighlightsNames(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+HAMLET/HAM - Prince of Denmark
+HORATIO
+`
+
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	tokens := ComputeSemanticTokens(doc, errs)
+	// Every 5 uint32s == one token. Third slot (length) and fourth slot
+	// (tokenType) identify the payload.
+	var sawName bool
+	for i := 0; i+4 < len(tokens); i += 5 {
+		if tokens[i+3] == uint32(tokenTypeType) && tokens[i+2] == uint32(utf16Len("HAMLET/HAM")) {
+			sawName = true
+		}
+	}
+	if !sawName {
+		t.Fatalf("expected semantic token of type %d for HAMLET/HAM", tokenTypeType)
+	}
+}
+
+func TestComputeSemanticTokens_SongEndKeyword(t *testing.T) {
+	src := `# Play
+
+## ACT I
+
+### SCENE 1
+
+SONG 1: Tune
+
+HAMLET
+  tra la la
+
+SONG END
+`
+
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	tokens := ComputeSemanticTokens(doc, errs)
+	keywordCount := 0
+	for i := 0; i+4 < len(tokens); i += 5 {
+		if tokens[i+3] == uint32(tokenTypeKeyword) {
+			keywordCount++
+		}
+	}
+	if keywordCount < 2 {
+		t.Fatalf("expected keyword tokens for both SONG start and SONG END, got %d", keywordCount)
+	}
+}
+
 func TestComputeSemanticTokens_WithDialogue(t *testing.T) {
 	dialogue := &ast.Dialogue{
 		Character: "HAMLET",
