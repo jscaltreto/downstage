@@ -1070,6 +1070,50 @@ func TestGoldenFiles(t *testing.T) {
 	}
 }
 
+func TestCommentBetweenHeadingAndMetadata(t *testing.T) {
+	input := `# Play
+// leading note
+Author: Me
+
+HAMLET
+Hello.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	section, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.NotNil(t, section.Metadata)
+	require.Len(t, section.Metadata.Entries, 1)
+	assert.Equal(t, "Author", section.Metadata.Entries[0].Key)
+	assert.Equal(t, "Me", section.Metadata.Entries[0].Value)
+}
+
+func TestStageDirectionSurvivesProseSection(t *testing.T) {
+	input := `# Preface
+
+> A quiet prelude.
+
+Just a line of prose.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	section, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+
+	var foundStageDirection bool
+	for _, child := range section.Children {
+		if sd, ok := child.(*ast.StageDirection); ok {
+			foundStageDirection = true
+			assert.NotEmpty(t, sd.Content)
+		}
+	}
+	assert.True(t, foundStageDirection, "expected `>` line to remain a StageDirection node")
+}
+
 // findDialogue recursively searches body nodes for a Dialogue node.
 func findDialogue(nodes []ast.Node, result **ast.Dialogue) {
 	for _, n := range nodes {

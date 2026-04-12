@@ -2,7 +2,6 @@ package parser
 
 import (
 	"strings"
-	"unicode/utf16"
 
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/lexer"
@@ -621,7 +620,10 @@ func (p *parser) parseDPContent(section *ast.Section) {
 			p.parseBlockComment()
 
 		default:
-			// Consume unknown tokens inside DP
+			// Drop tokens we can't interpret as a DP entry (e.g. stray verse
+			// lines, unexpected headings at the wrong level). Advancing keeps
+			// us making forward progress; the surrounding surfaces will flag
+			// anything semantically important elsewhere.
 			p.advance()
 		}
 	}
@@ -632,11 +634,17 @@ func (p *parser) parseDPContent(section *ast.Section) {
 }
 
 func (p *parser) parseSectionMetadata() *ast.TitlePage {
+	saved := p.pos
+	// Comments and blanks between the heading and the metadata block are
+	// transparent — consume them to find the first metadata line. If no
+	// metadata is present we restore position so the caller sees them as
+	// regular section content.
+	p.skipBlanksAndComments()
 	if !p.atAny(token.Text, token.Verse) {
+		p.pos = saved
 		return nil
 	}
 
-	saved := p.pos
 	tp := &ast.TitlePage{}
 	start := token.Range{}
 
@@ -810,9 +818,10 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 		}
 
 		// Structural content and text go into Children by default.
-		// Only Text tokens become Lines (prose reflow) if this section has
-		// no structural sub-headings — i.e., it's a leaf generic section.
-		if p.atAny(token.Text, token.StageDirection) && !hasStructuralContent {
+		// Only Text tokens become Lines (prose reflow) in leaf generic
+		// sections — StageDirections keep their semantics and stay as Children
+		// so the `>` prefix survives rendering.
+		if p.at(token.Text) && !hasStructuralContent {
 			tok := p.advance()
 			line := ast.SectionLine{
 				Content: parseInlineContent(tok.Literal, tok.Range),
@@ -905,7 +914,7 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 	}
 
 	// Check for parenthetical right after character name: (text)
-	if p.at(token.Text) || p.at(token.Dialogue) {
+	if p.at(token.Text) {
 		lit := strings.TrimSpace(p.peek().Literal)
 		if strings.HasPrefix(lit, "(") && strings.HasSuffix(lit, ")") {
 			pTok := p.advance()
@@ -950,7 +959,7 @@ loop:
 		}
 
 		switch p.peek().Type {
-		case token.Text, token.Dialogue:
+		case token.Text:
 			if len(dlg.Lines) >= maxDialogueLines {
 				p.addError("dialogue exceeds maximum line count", p.peek().Range)
 				p.skipDialogueContent()
@@ -1331,7 +1340,7 @@ func (p *parser) skipDialogueContent() {
 		}
 
 		switch p.peek().Type {
-		case token.Text, token.Dialogue, token.Verse, token.StageDirection, token.LineComment:
+		case token.Text, token.Verse, token.StageDirection, token.LineComment:
 			p.advance()
 		default:
 			return
@@ -1408,5 +1417,5 @@ func appendText(nodes []ast.Inline, text string, r token.Range) []ast.Inline {
 }
 
 func utf16Len(s string) int {
-	return len(utf16.Encode([]rune(s)))
+	return token.UTF16Len(s)
 }
