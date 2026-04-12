@@ -14,6 +14,11 @@ func computeCompletion(doc *ast.Document, _ []*parser.ParseError, content string
 	return computeCompletionWithIndex(doc, newDocumentIndex(doc), content, pos)
 }
 
+// ComputeCompletion returns the completion list surfaced by the Downstage LSP.
+func ComputeCompletion(doc *ast.Document, errs []*parser.ParseError, content string, pos protocol.Position) *protocol.CompletionList {
+	return computeCompletion(doc, errs, content, pos)
+}
+
 func computeCompletionWithIndex(doc *ast.Document, index *documentIndex, content string, pos protocol.Position) *protocol.CompletionList {
 	if doc == nil {
 		return emptyCompletionList()

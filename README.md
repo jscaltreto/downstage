@@ -115,6 +115,8 @@ SONG END
   - Go-to-definition (jump to character's dramatis personae entry)
   - Context-aware completion for character cues
   - Diagnostics (parse errors, unknown character warnings)
+  - Code actions (quick fixes for unknown characters and unnumbered or
+    misnumbered acts/scenes)
 - Neovim integration out of the box (0.11+)
 - CLI tools for parsing and validation
 
@@ -239,7 +241,8 @@ Extension Development Host.
 
 [**Start writing**](https://www.getdownstage.com/editor/) in the Web Editor, a
 modern browser-based editor built with Vue 3, Tailwind CSS v4, and CodeMirror 6.
-It features live preview, adaptive syntax highlighting, and PDF export. No
+It features live preview, adaptive syntax highlighting, completions and
+quick-fix code actions sourced from the Downstage LSP, and PDF export. No
 install required; the entire pipeline runs client-side via WebAssembly.
 
 For local development:
