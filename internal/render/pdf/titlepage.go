@@ -16,7 +16,6 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	r.titlePageTitle = title
 
 	if t := strings.TrimSpace(title); t != "" {
-		r.outlineActSeen = false
 		r.pdf.Bookmark(t, 0, -1)
 	}
 
@@ -69,7 +68,6 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 
 	displayTitle := strings.TrimSpace(render.SectionDisplayTitle(section))
 	if displayTitle != "" {
-		b.outlineActSeen = false
 		b.pdf.Bookmark(displayTitle, 0, -1)
 	}
 
@@ -96,11 +94,10 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 }
 
 // bookmarkSection records an outline entry for the given section at the
-// current cursor position. Sections that don't map cleanly to an outline
-// level (forced headings, prose sections) are skipped. Scenes drop to the
-// play's child level when the play has no acts, so fpdf's parent lookup
-// (which searches for the most recent shallower bookmark) doesn't stitch
-// them onto the wrong branch.
+// current cursor position. Levels are precomputed from the AST so that
+// scenes always attach to their real parent in the source, regardless
+// of ordering within a mixed play (scenes-then-acts, acts-then-scenes,
+// or interleaved).
 func bookmarkSection(b *pdfBase, s *ast.Section) {
 	if s == nil || b.pdf == nil {
 		return
@@ -109,22 +106,53 @@ func bookmarkSection(b *pdfBase, s *ast.Section) {
 	if label == "" {
 		return
 	}
-	switch s.Kind {
-	case ast.SectionGeneric:
-		if s.Level == 1 {
-			b.outlineActSeen = false
-			b.pdf.Bookmark(label, 0, -1)
-		}
-	case ast.SectionAct:
-		b.outlineActSeen = true
-		b.pdf.Bookmark(label, 1, -1)
-	case ast.SectionScene:
-		level := 1
-		if b.outlineActSeen {
-			level = 2
-		}
-		b.pdf.Bookmark(label, level, -1)
+	level, ok := b.outlineLevels[s]
+	if !ok {
+		return
 	}
+	b.pdf.Bookmark(label, level, -1)
+}
+
+// buildOutlineLevels walks the AST once and assigns each structural
+// section a PDF outline level based on its ancestors: level-1 generic
+// sections (plays) are 0, acts are 1, and scenes are 2 when they live
+// inside an act or 1 when they're direct children of a play.
+func buildOutlineLevels(doc *ast.Document) map[*ast.Section]int {
+	levels := make(map[*ast.Section]int)
+	if doc == nil {
+		return levels
+	}
+	var walk func(nodes []ast.Node, insideAct bool)
+	walk = func(nodes []ast.Node, insideAct bool) {
+		for _, node := range nodes {
+			switch v := node.(type) {
+			case *ast.Section:
+				switch v.Kind {
+				case ast.SectionGeneric:
+					if v.Level == 1 {
+						levels[v] = 0
+					}
+					walk(v.Children, false)
+				case ast.SectionAct:
+					levels[v] = 1
+					walk(v.Children, true)
+				case ast.SectionScene:
+					if insideAct {
+						levels[v] = 2
+					} else {
+						levels[v] = 1
+					}
+					walk(v.Children, insideAct)
+				default:
+					walk(v.Children, insideAct)
+				}
+			case *ast.Song:
+				walk(v.Content, insideAct)
+			}
+		}
+	}
+	walk(doc.Body, false)
+	return levels
 }
 
 func sectionOutlineLabel(s *ast.Section) string {

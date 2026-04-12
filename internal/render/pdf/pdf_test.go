@@ -65,45 +65,26 @@ func TestRender_TitlePageSetsDocumentMetadata(t *testing.T) {
 	assert.Contains(t, string(output), "/Subject")
 }
 
-func TestRender_OutlineAttachesScenesToEnclosingPlay(t *testing.T) {
-	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
-	doc := &ast.Document{
-		Body: []ast.Node{
-			&ast.Section{
-				Kind:  ast.SectionGeneric,
-				Level: 1,
-				Title: "Collection",
-				Metadata: &ast.TitlePage{
-					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
-				},
-			},
-			&ast.Section{
-				Kind:  ast.SectionGeneric,
-				Level: 1,
-				Title: "Play One",
-				Children: []ast.Node{
-					&ast.Section{Kind: ast.SectionScene, Level: 2, Number: "1"},
-					&ast.Section{Kind: ast.SectionScene, Level: 2, Number: "2"},
-				},
-			},
-			&ast.Section{
-				Kind:  ast.SectionGeneric,
-				Level: 1,
-				Title: "Play Two",
-				Children: []ast.Node{
-					&ast.Section{Kind: ast.SectionScene, Level: 2, Number: "1"},
-				},
-			},
-		},
-	}
+func TestRender_OutlineLevelsFromAST(t *testing.T) {
+	playA := &ast.Section{Kind: ast.SectionGeneric, Level: 1, Title: "A"}
+	scene1 := &ast.Section{Kind: ast.SectionScene, Level: 2, Number: "1"}
+	actI := &ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"}
+	nestedScene := &ast.Section{Kind: ast.SectionScene, Level: 3, Number: "2"}
+	trailingScene := &ast.Section{Kind: ast.SectionScene, Level: 2, Number: "3"}
+	actI.Children = []ast.Node{nestedScene}
+	playA.Children = []ast.Node{scene1, actI, trailingScene}
 
-	require.NoError(t, render.Walk(r, doc, &bytes.Buffer{}))
-	// Reset the ActSeen flag every time a new play is encountered so scenes
-	// land directly under the play that contains them, not the collection.
-	// The assertion here guards against a regression where every scene gets
-	// stitched onto the first level-0 bookmark because fpdf uses
-	// lru[level-1] as the parent lookup.
-	assert.False(t, r.outlineActSeen, "expected ActSeen reset after scene-only play")
+	doc := &ast.Document{Body: []ast.Node{playA}}
+	levels := buildOutlineLevels(doc)
+
+	assert.Equal(t, 0, levels[playA])
+	assert.Equal(t, 1, levels[actI])
+	// Scene before the act and scene after the act are both direct
+	// children of the play (not nested in an act), so both map to level 1.
+	assert.Equal(t, 1, levels[scene1])
+	assert.Equal(t, 1, levels[trailingScene])
+	// A scene actually nested inside an act stays at level 2.
+	assert.Equal(t, 2, levels[nestedScene])
 }
 
 func TestRender_TitlePagePageNumberSuppressed(t *testing.T) {
