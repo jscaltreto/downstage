@@ -42,6 +42,43 @@ func TestRender_TitlePageOnly(t *testing.T) {
 	assert.Equal(t, 1, r.pdf.PageNo())
 }
 
+func TestRender_TitlePageSetsDocumentMetadata(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "Hamlet"},
+				{Key: "Subtitle", Value: "Prince of Denmark"},
+				{Key: "Author", Value: "William Shakespeare"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	require.NoError(t, render.Walk(r, doc, &buf))
+	// fpdf writes the document info dictionary in the trailer section;
+	// check the raw bytes contain the expected entries.
+	output := buf.Bytes()
+	assert.Contains(t, string(output), "/Creator")
+	assert.Contains(t, string(output), "/Title")
+	assert.Contains(t, string(output), "/Author")
+	assert.Contains(t, string(output), "/Subject")
+}
+
+func TestRender_TitlePagePageNumberSuppressed(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{{Key: "Title", Value: "Play"}},
+		},
+		Body: []ast.Node{
+			&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+		},
+	}
+	require.NoError(t, render.Walk(r, doc, &bytes.Buffer{}))
+	assert.True(t, r.titlePagePages[1], "expected page 1 to be marked as a title page")
+}
+
 func TestRender_TitlePageSupportsMultipleAuthors(t *testing.T) {
 	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
 	doc := &ast.Document{

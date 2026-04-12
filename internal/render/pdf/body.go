@@ -111,6 +111,8 @@ func (r *pdfRenderer) beginAct(s *ast.Section) error {
 		r.pdf.Ln(r.lineHeight * 2)
 	}
 
+	bookmarkSection(&r.pdfBase, s)
+
 	var heading string
 	switch {
 	case s.Number != "" && s.Title != "":
@@ -133,6 +135,8 @@ func (r *pdfRenderer) beginScene(s *ast.Section) error {
 		r.ensureSpace(r.lineHeight * 3)
 		r.pdf.Ln(r.lineHeight)
 	}
+
+	bookmarkSection(&r.pdfBase, s)
 
 	var heading string
 	switch {

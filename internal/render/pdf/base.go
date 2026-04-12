@@ -33,6 +33,7 @@ type pdfBase struct {
 	lineHeight                     float64 // vertical line spacing in mm
 	titlePageTitle                 string
 	titlePagesSeen                 int
+	titlePagePages                 map[int]bool
 	pendingTitlePageBodyPage       bool
 	pendingDramatisBodyPage        bool
 	pendingInlinePlayFirstBodyPage bool
@@ -96,14 +97,11 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 	}
 	b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize)
 
-	// Page numbers
+	// Page numbers. Title pages still count toward the page total but
+	// don't show a number themselves.
 	b.pdf.AliasNbPages("")
-	b.pdf.SetFooterFunc(func() {
-		b.pdf.SetY(-b.marginB + 5)
-		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize-2)
-		b.renderPageNumberFooter(fmt.Sprintf("%d", b.pdf.PageNo()), 10)
-		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize)
-	})
+	b.titlePagePages = make(map[int]bool)
+	b.installPageNumberFooter(5, 10)
 
 	b.pdf.AddPage()
 	b.fontStyle = ""
@@ -116,12 +114,27 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 	b.activeTopLevelSection = nil
 }
 
+func (b *pdfBase) installPageNumberFooter(offset, height float64) {
+	b.pdf.SetFooterFunc(func() {
+		if b.titlePagePages[b.pdf.PageNo()] {
+			return
+		}
+		b.pdf.SetY(-b.marginB + offset)
+		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize-2)
+		b.renderPageNumberFooter(fmt.Sprintf("%d", b.pdf.PageNo()), height)
+		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize)
+	})
+}
+
 func (b *pdfBase) beginTitlePage() {
 	if b.titlePagesSeen > 0 && !b.pendingTitlePageBodyPage {
 		b.pdf.AddPage()
 	}
 	b.pendingTitlePageBodyPage = false
 	b.titlePagesSeen++
+	if b.titlePagePages != nil {
+		b.titlePagePages[b.pdf.PageNo()] = true
+	}
 }
 
 func (b *pdfBase) finishTitlePage() {

@@ -47,6 +47,12 @@ body {
   font-size: 11pt;
   margin-bottom: 0.5em;
 }
+.downstage-title-page .author + .author {
+  margin-top: -0.25em;
+}
+.downstage-subplay-author + .downstage-subplay-author {
+  margin-top: -0.1em;
+}
 .downstage-title-page .metadata {
   margin-top: auto;
   font-size: 9pt;

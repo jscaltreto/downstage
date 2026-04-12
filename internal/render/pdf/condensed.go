@@ -56,6 +56,7 @@ func (r *condensedRenderer) BeginDocument(doc *ast.Document, w io.Writer) error 
 	r.hasBody = render.DocumentHasRenderableBody(doc)
 	r.titlePageTitle = titlePageTitle(tp)
 	r.initCondensedPDF()
+	applyDocumentMetadata(&r.pdfBase, tp)
 	r.inlinePlaySections = make(map[*ast.Section]bool)
 	for _, section := range render.PlayableTopLevelSections(doc) {
 		if render.IsInlinePlaySection(doc, section) {
@@ -96,14 +97,11 @@ func (r *condensedRenderer) initCondensedPDF() {
 	}
 	r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize)
 
-	// Page numbers
+	// Page numbers. Title pages still count toward the page total but
+	// don't show a number themselves.
 	r.pdf.AliasNbPages("")
-	r.pdf.SetFooterFunc(func() {
-		r.pdf.SetY(-r.marginB + 3)
-		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize-2)
-		r.renderPageNumberFooter(fmt.Sprintf("%d", r.pdf.PageNo()), 8)
-		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize)
-	})
+	r.titlePagePages = make(map[int]bool)
+	r.installPageNumberFooter(3, 8)
 
 	r.pdf.AddPage()
 	r.fontStyle = ""
@@ -118,6 +116,10 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 
 	r.hasTitlePage = true
 	r.titlePageTitle = title
+
+	if t := strings.TrimSpace(title); t != "" {
+		r.pdf.Bookmark(t, 0, -1)
+	}
 
 	titleY := r.pageH * 0.30
 
@@ -138,16 +140,15 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize+1)
 		r.pdf.Ln(r.lineHeight * 2)
 		r.centeredWrappedText("by", r.lineHeight)
-		r.pdf.Ln(r.lineHeight)
+		r.pdf.Ln(r.lineHeight * 0.5)
 		for _, author := range authors {
 			r.centeredWrappedText(author, r.lineHeight)
-			r.pdf.Ln(r.lineHeight)
 		}
 	}
 
 	if len(other) > 0 {
-		r.pdf.SetY(r.pageH * 0.70)
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize-1)
+		placeBottomBlock(&r.pdfBase, len(other))
 		for _, kv := range other {
 			r.centeredWrappedText(kv.Key+": "+kv.Value, r.lineHeight)
 		}
@@ -255,6 +256,8 @@ func (r *condensedRenderer) beginAct(s *ast.Section) error {
 		r.pdf.Ln(r.lineHeight)
 	}
 
+	bookmarkSection(&r.pdfBase, s)
+
 	var heading string
 	switch {
 	case s.Number != "" && s.Title != "":
@@ -279,6 +282,8 @@ func (r *condensedRenderer) beginScene(s *ast.Section) error {
 		r.ensureSpace(r.lineHeight * 3)
 		r.pdf.Ln(r.lineHeight)
 	}
+
+	bookmarkSection(&r.pdfBase, s)
 
 	var heading string
 	switch {
