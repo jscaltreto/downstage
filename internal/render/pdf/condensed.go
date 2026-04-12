@@ -56,6 +56,12 @@ func (r *condensedRenderer) BeginDocument(doc *ast.Document, w io.Writer) error 
 	r.hasBody = render.DocumentHasRenderableBody(doc)
 	r.titlePageTitle = titlePageTitle(tp)
 	r.initCondensedPDF()
+	r.inlinePlaySections = make(map[*ast.Section]bool)
+	for _, section := range render.PlayableTopLevelSections(doc) {
+		if render.IsInlinePlaySection(doc, section) {
+			r.inlinePlaySections[section] = true
+		}
+	}
 	return nil
 }
 
@@ -108,21 +114,7 @@ func (r *condensedRenderer) initCondensedPDF() {
 func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	r.beginTitlePage()
 
-	var title, subtitle, author string
-	var other []ast.KeyValue
-
-	for _, kv := range tp.Entries {
-		switch strings.ToLower(kv.Key) {
-		case "title":
-			title = kv.Value
-		case "subtitle":
-			subtitle = kv.Value
-		case "author":
-			author = kv.Value
-		default:
-			other = append(other, kv)
-		}
-	}
+	title, subtitle, authors, other := partitionTitlePageEntries(tp)
 
 	r.hasTitlePage = true
 	r.titlePageTitle = title
@@ -132,31 +124,32 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	if title != "" {
 		r.pdf.SetY(titleY)
 		r.pdf.SetFont(r.cfg.FontFamily, "B", r.cfg.FontSize+6)
-		r.centeredText(strings.ToUpper(title))
+		r.centeredWrappedText(strings.ToUpper(title), r.lineHeight)
 		r.pdf.Ln(r.lineHeight)
 	}
 
 	if subtitle != "" {
 		r.pdf.SetFont(r.cfg.FontFamily, "I", r.cfg.FontSize+1)
-		r.pdf.Ln(r.lineHeight)
-		r.centeredText(subtitle)
+		r.centeredWrappedText(subtitle, r.lineHeight)
 		r.pdf.Ln(r.lineHeight)
 	}
 
-	if author != "" {
+	if len(authors) > 0 {
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize+1)
 		r.pdf.Ln(r.lineHeight * 2)
-		r.centeredText("by")
+		r.centeredWrappedText("by", r.lineHeight)
 		r.pdf.Ln(r.lineHeight)
-		r.centeredText(author)
-		r.pdf.Ln(r.lineHeight)
+		for _, author := range authors {
+			r.centeredWrappedText(author, r.lineHeight)
+			r.pdf.Ln(r.lineHeight)
+		}
 	}
 
 	if len(other) > 0 {
 		r.pdf.SetY(r.pageH * 0.70)
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize-1)
 		for _, kv := range other {
-			r.centeredText(kv.Key + ": " + kv.Value)
+			r.centeredWrappedText(kv.Key+": "+kv.Value, r.lineHeight)
 		}
 	}
 
@@ -176,13 +169,32 @@ func (r *condensedRenderer) BeginSection(s *ast.Section) error {
 	case ast.SectionScene:
 		return r.beginScene(s)
 	case ast.SectionDramatisPersonae:
+		if r.activeTopLevelSection != nil && r.inlinePlaySections[r.activeTopLevelSection] {
+			renderDramatisPersonae(&r.pdfBase, s, 0)
+			return nil
+		}
+		if !r.consumePendingTitlePageBodyPage() {
+			r.consumePendingDramatisBodyPage()
+		}
 		renderDramatisPersonae(&r.pdfBase, s, 0)
+		r.finishDramatisPersonaePage()
 		return nil
 	default: // SectionGeneric
 		if render.IsLegacyTopLevelDramatisPersonae(s) {
 			return nil
 		}
+		if s.Level == 1 {
+			r.activeTopLevelSection = s
+		}
 		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
+			return nil
+		}
+		if s.Level == 1 && r.inlinePlaySections[s] {
+			if !r.consumePendingTitlePageBodyPage() && !r.consumePendingDramatisBodyPage() && !r.isFreshInitialPage() {
+				r.pdf.AddPage()
+			}
+			renderInlinePlayHeader(&r.pdfBase, s, r.cfg.FontSize+6, r.cfg.FontSize-1)
+			r.beginInlinePlaySection()
 			return nil
 		}
 		if s.Level == 0 {
@@ -194,7 +206,9 @@ func (r *condensedRenderer) BeginSection(s *ast.Section) error {
 			r.pdf.Ln(r.lineHeight)
 			return nil
 		}
-		r.pdf.AddPage()
+		if !r.consumePendingDramatisBodyPage() && !r.consumePendingInlinePlayFirstBodyPage() {
+			r.pdf.AddPage()
+		}
 		if s.Title != "" {
 			r.setStyle("B")
 			r.centeredText(strings.ToUpper(s.Title))
@@ -205,8 +219,12 @@ func (r *condensedRenderer) BeginSection(s *ast.Section) error {
 	}
 }
 
-func (r *condensedRenderer) EndSection(_ *ast.Section) error {
+func (r *condensedRenderer) EndSection(s *ast.Section) error {
 	r.resetBodyBlockState()
+	if s.Level == 1 {
+		r.activeTopLevelSection = nil
+		r.pendingInlinePlayFirstBodyPage = false
+	}
 	return nil
 }
 
@@ -226,7 +244,7 @@ func (r *condensedRenderer) EndSectionLine(sl *ast.SectionLine) error {
 
 func (r *condensedRenderer) beginAct(s *ast.Section) error {
 	if s.Number != "" {
-		if !r.consumePendingTitlePageBodyPage() {
+		if !r.consumePendingTitlePageBodyPage() && !r.consumePendingDramatisBodyPage() && !r.consumePendingInlinePlayFirstBodyPage() {
 			r.pdf.AddPage()
 		}
 	} else {
@@ -255,7 +273,7 @@ func (r *condensedRenderer) beginAct(s *ast.Section) error {
 }
 
 func (r *condensedRenderer) beginScene(s *ast.Section) error {
-	if r.consumePendingTitlePageBodyPage() {
+	if r.consumePendingTitlePageBodyPage() || r.consumePendingDramatisBodyPage() || r.consumePendingInlinePlayFirstBodyPage() {
 		// Fresh body page after a title page does not need extra leading space.
 	} else {
 		r.ensureSpace(r.lineHeight * 3)

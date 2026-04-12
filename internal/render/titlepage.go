@@ -6,21 +6,72 @@ import (
 	"github.com/jscaltreto/downstage/internal/ast"
 )
 
-func SectionTitlePage(section *ast.Section) *ast.TitlePage {
-	if section == nil || section.Metadata == nil || section.Level != 1 {
+func PlayableTopLevelSections(doc *ast.Document) []*ast.Section {
+	if doc == nil {
 		return nil
 	}
 
-	entries := make([]ast.KeyValue, 0, len(section.Metadata.Entries)+1)
-	hasTitle := false
-	for _, entry := range section.Metadata.Entries {
-		if strings.EqualFold(strings.TrimSpace(entry.Key), "title") {
-			hasTitle = true
+	sections := make([]*ast.Section, 0)
+	for _, node := range doc.Body {
+		section, ok := node.(*ast.Section)
+		if !ok || section.Level != 1 {
+			continue
 		}
-		entries = append(entries, entry)
+		if sectionHasPlayableContent(section) {
+			sections = append(sections, section)
+		}
+	}
+	return sections
+}
+
+func IsInlinePlaySection(doc *ast.Document, section *ast.Section) bool {
+	if section == nil || section.Level != 1 {
+		return false
+	}
+	if !sectionHasPlayableContent(section) {
+		return false
+	}
+	topLevelCount := 0
+	if doc != nil {
+		for _, node := range doc.Body {
+			candidate, ok := node.(*ast.Section)
+			if !ok || candidate.Level != 1 {
+				continue
+			}
+			topLevelCount++
+			if topLevelCount > 1 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func SectionTitlePage(doc *ast.Document, section *ast.Section) *ast.TitlePage {
+	if section == nil || section.Level != 1 || strings.TrimSpace(section.Title) == "" || IsInlinePlaySection(doc, section) {
+		return nil
+	}
+	if section.Metadata == nil && !sectionHasPlayableContent(section) {
+		return nil
 	}
 
-	if !hasTitle && strings.TrimSpace(section.Title) != "" {
+	metadataEntries := 0
+	if section.Metadata != nil {
+		metadataEntries = len(section.Metadata.Entries)
+	}
+
+	entries := make([]ast.KeyValue, 0, metadataEntries+1)
+	hasTitle := false
+	if section.Metadata != nil {
+		for _, entry := range section.Metadata.Entries {
+			if strings.EqualFold(strings.TrimSpace(entry.Key), "title") {
+				hasTitle = true
+			}
+			entries = append(entries, entry)
+		}
+	}
+
+	if !hasTitle {
 		entries = append([]ast.KeyValue{{
 			Key:   "Title",
 			Value: section.Title,
@@ -46,7 +97,7 @@ func DocumentTitlePage(doc *ast.Document) *ast.TitlePage {
 		if !ok {
 			continue
 		}
-		if tp := SectionTitlePage(section); tp != nil {
+		if tp := SectionTitlePage(doc, section); tp != nil {
 			return tp
 		}
 	}
@@ -62,10 +113,33 @@ func DocumentHasRenderableBody(doc *ast.Document) bool {
 		if !ok {
 			return true
 		}
-		if section.Level == 1 && section.Metadata != nil && len(section.Children) == 0 && len(section.Lines) == 0 {
+		if section.Level == 1 && !sectionHasPlayableContent(section) {
 			continue
 		}
 		return true
+	}
+	return false
+}
+
+func sectionHasPlayableContent(section *ast.Section) bool {
+	if section == nil || section.Level != 1 {
+		return false
+	}
+	for _, child := range section.Children {
+		switch node := child.(type) {
+		case *ast.Section:
+			switch node.Kind {
+			case ast.SectionDramatisPersonae, ast.SectionAct, ast.SectionScene:
+				return true
+			}
+			if node.Level == 0 {
+				return true
+			}
+		case *ast.Comment:
+			continue
+		default:
+			return true
+		}
 	}
 	return false
 }

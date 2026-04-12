@@ -335,6 +335,31 @@ func TestComputeCompletionWithIndex_SuggestsNextActFromCache(t *testing.T) {
 	}
 }
 
+func TestComputeCompletion_H2HeadingSuggestsNextActWithinCurrentPlay(t *testing.T) {
+	content := `# Compilation
+
+# Sub Play 1
+
+## ACT I
+
+# Sub Play 2
+
+## AC`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	result := computeCompletionWithIndex(doc, newDocumentIndex(doc), content, protocol.Position{Line: 8, Character: 5})
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 heading completion, got %d", len(result.Items))
+	}
+	if result.Items[0].Label != "## ACT I" {
+		t.Fatalf("expected next act heading to reset within play, got %q", result.Items[0].Label)
+	}
+}
+
 func TestDocumentIndex_SortsSceneSpeakerCuesByLine(t *testing.T) {
 	index := &documentIndex{
 		sceneSpeakers: map[*ast.Section][]sceneSpeakerCue{},

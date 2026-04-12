@@ -79,7 +79,7 @@ func Walk(nr NodeRenderer, doc *ast.Document, w io.Writer) error {
 		}
 	}
 	for _, node := range doc.Body {
-		if err := walkNode(nr, node); err != nil {
+		if err := walkNode(nr, doc, node); err != nil {
 			return err
 		}
 	}
@@ -87,16 +87,16 @@ func Walk(nr NodeRenderer, doc *ast.Document, w io.Writer) error {
 	return nr.EndDocument(doc)
 }
 
-func walkNode(nr NodeRenderer, node ast.Node) error {
+func walkNode(nr NodeRenderer, doc *ast.Document, node ast.Node) error {
 	switch n := node.(type) {
 	case *ast.DualDialogue:
 		if err := nr.BeginDualDialogue(n); err != nil {
 			return err
 		}
-		if err := walkNode(nr, n.Left); err != nil {
+		if err := walkNode(nr, doc, n.Left); err != nil {
 			return err
 		}
-		if err := walkNode(nr, n.Right); err != nil {
+		if err := walkNode(nr, doc, n.Right); err != nil {
 			return err
 		}
 		return nr.EndDualDialogue(n)
@@ -148,7 +148,7 @@ func walkNode(nr NodeRenderer, node ast.Node) error {
 			return err
 		}
 		for _, child := range n.Content {
-			if err := walkNode(nr, child); err != nil {
+			if err := walkNode(nr, doc, child); err != nil {
 				return err
 			}
 		}
@@ -172,7 +172,7 @@ func walkNode(nr NodeRenderer, node ast.Node) error {
 		return nr.EndVerseBlock(n)
 
 	case *ast.Section:
-		if docTP := SectionTitlePage(n); docTP != nil {
+		if docTP := SectionTitlePage(doc, n); docTP != nil {
 			if err := nr.RenderTitlePage(docTP); err != nil {
 				return err
 			}
@@ -182,7 +182,7 @@ func walkNode(nr NodeRenderer, node ast.Node) error {
 		}
 		for _, item := range n.OrderedItems() {
 			if item.Node != nil {
-				if err := walkNode(nr, item.Node); err != nil {
+				if err := walkNode(nr, doc, item.Node); err != nil {
 					return err
 				}
 				continue

@@ -65,6 +65,22 @@ func TestRender_TitlePage(t *testing.T) {
 	assert.Contains(t, out, "</header>")
 }
 
+func TestRender_TitlePageSupportsMultipleAuthors(t *testing.T) {
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "My Play"},
+				{Key: "Author", Value: "Jane Doe"},
+				{Key: "Author", Value: "John Smith"},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, "<p class=\"author\">Jane Doe</p>")
+	assert.Contains(t, out, "<p class=\"author\">John Smith</p>")
+}
+
 func TestRender_TopLevelSectionMetadataAsTitlePage(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{
@@ -95,6 +111,105 @@ func TestRender_TopLevelSectionMetadataAsTitlePage(t *testing.T) {
 	assert.Contains(t, out, "<h1>My Play</h1>")
 	assert.Contains(t, out, "<p class=\"subtitle\">A Drama</p>")
 	assert.Contains(t, out, "<p class=\"author\">Jane Doe</p>")
+}
+
+func TestRender_TopLevelSectionWithoutMetadataStillUsesTitlePage(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Play",
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionAct,
+						Level:  2,
+						Number: "I",
+					},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<title>My Play</title>")
+	assert.Contains(t, out, "<header class=\"downstage-title-page\">")
+	assert.Contains(t, out, "<h1>My Play</h1>")
+}
+
+func TestRender_CompilationSubplaysUseInlineHeaders(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Compilation",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "First Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Jane Doe"}},
+				},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:  ast.SectionDramatisPersonae,
+						Level: 2,
+						Characters: []ast.Character{
+							{Name: "ALICE"},
+						},
+					},
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<header class=\"downstage-title-page\">")
+	assert.Contains(t, out, "<section class=\"downstage-subplay\">")
+	assert.Contains(t, out, "<header class=\"downstage-subplay-header\">")
+	assert.Contains(t, out, "<h1>First Play</h1>")
+	assert.Contains(t, out, "<p class=\"downstage-subplay-author\">Jane Doe</p>")
+	assert.Contains(t, out, "downstage-dramatis-personae downstage-dramatis-personae-inline")
+	assert.NotContains(t, out, "<title>First Play</title>")
+}
+
+func TestRender_CompilationSubplaySupportsMultipleAuthors(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Compilation",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Editor", Value: "Person"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "First Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Author", Value: "Jane Doe"},
+						{Key: "Author", Value: "John Smith"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<p class=\"downstage-subplay-author\">Jane Doe</p>")
+	assert.Contains(t, out, "<p class=\"downstage-subplay-author\">John Smith</p>")
 }
 
 func TestRender_DialogueWithFormatting(t *testing.T) {

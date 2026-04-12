@@ -406,7 +406,8 @@ func appendRemainingDPNames(doc *ast.Document, line int, names []string) []strin
 
 func nextActHeading(index *documentIndex, line int) string {
 	count := 0
-	for _, act := range index.acts {
+	play := nearestSectionBeforeLine(index.topLevelSections, line)
+	for _, act := range index.actsByPlay[play] {
 		if act.Range.Start.Line < line {
 			count++
 		}

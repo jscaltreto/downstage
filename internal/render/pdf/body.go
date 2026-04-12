@@ -18,14 +18,33 @@ func (r *pdfRenderer) BeginSection(s *ast.Section) error {
 	case ast.SectionScene:
 		return r.beginScene(s)
 	case ast.SectionDramatisPersonae:
+		if r.activeTopLevelSection != nil && r.inlinePlaySections[r.activeTopLevelSection] {
+			renderDramatisPersonae(&r.pdfBase, s, r.bodyW*0.15)
+			return nil
+		}
+		if !r.consumePendingTitlePageBodyPage() {
+			r.consumePendingDramatisBodyPage()
+		}
 		renderDramatisPersonae(&r.pdfBase, s, r.bodyW*0.15)
+		r.finishDramatisPersonaePage()
 		return nil
 	default: // SectionGeneric
 		if render.IsLegacyTopLevelDramatisPersonae(s) {
 			return nil
 		}
+		if s.Level == 1 {
+			r.activeTopLevelSection = s
+		}
 		// Skip play title heading if title page already rendered it
 		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
+			return nil
+		}
+		if s.Level == 1 && r.inlinePlaySections[s] {
+			if !r.consumePendingTitlePageBodyPage() && !r.consumePendingDramatisBodyPage() && !r.isFreshInitialPage() {
+				r.pdf.AddPage()
+			}
+			renderInlinePlayHeader(&r.pdfBase, s, r.cfg.FontSize+8, r.cfg.FontSize)
+			r.beginInlinePlaySection()
 			return nil
 		}
 		if s.Level == 0 {
@@ -38,7 +57,7 @@ func (r *pdfRenderer) BeginSection(s *ast.Section) error {
 			r.pdf.Ln(r.lineHeight)
 			return nil
 		}
-		if !r.consumePendingTitlePageBodyPage() {
+		if !r.consumePendingTitlePageBodyPage() && !r.consumePendingDramatisBodyPage() {
 			r.pdf.AddPage()
 		}
 		if s.Title != "" {
@@ -51,8 +70,12 @@ func (r *pdfRenderer) BeginSection(s *ast.Section) error {
 	}
 }
 
-func (r *pdfRenderer) EndSection(_ *ast.Section) error {
+func (r *pdfRenderer) EndSection(s *ast.Section) error {
 	r.resetBodyBlockState()
+	if s.Level == 1 {
+		r.activeTopLevelSection = nil
+		r.pendingInlinePlayFirstBodyPage = false
+	}
 	return nil
 }
 
@@ -77,7 +100,7 @@ func (r *pdfRenderer) beginAct(s *ast.Section) error {
 	// (the play title parsed as an Act) are skipped when a title
 	// page already rendered them.
 	if s.Number != "" {
-		if !r.consumePendingTitlePageBodyPage() {
+		if !r.consumePendingTitlePageBodyPage() && !r.consumePendingDramatisBodyPage() && !r.consumePendingInlinePlayFirstBodyPage() {
 			r.pdf.AddPage()
 		}
 	} else {
@@ -106,7 +129,7 @@ func (r *pdfRenderer) beginAct(s *ast.Section) error {
 }
 
 func (r *pdfRenderer) beginScene(s *ast.Section) error {
-	if !r.consumePendingTitlePageBodyPage() {
+	if !r.consumePendingTitlePageBodyPage() && !r.consumePendingDramatisBodyPage() && !r.consumePendingInlinePlayFirstBodyPage() {
 		r.ensureSpace(r.lineHeight * 3)
 		r.pdf.Ln(r.lineHeight)
 	}

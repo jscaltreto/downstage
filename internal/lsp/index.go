@@ -21,8 +21,12 @@ type sceneSpeakerCue struct {
 type documentIndex struct {
 	acts                   []*ast.Section
 	scenes                 []*ast.Section
+	topLevelSections       []*ast.Section
+	actNumbers             map[*ast.Section]int
 	sceneActs              map[*ast.Section]*ast.Section
 	sceneNumbers           map[*ast.Section]int
+	actPlays               map[*ast.Section]*ast.Section
+	actsByPlay             map[*ast.Section][]*ast.Section
 	characterCueLines      map[int]struct{}
 	documentCharacterNames []string
 	knownCharacters        map[string]struct{}
@@ -38,9 +42,12 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		characterCueLines: make(map[int]struct{}),
 		knownCharacters:   make(map[string]struct{}),
 		characterScopes:   make(map[*ast.Section]characterScope),
+		actNumbers:        make(map[*ast.Section]int),
 		sceneSpeakers:     make(map[*ast.Section][]sceneSpeakerCue),
 		sceneActs:         make(map[*ast.Section]*ast.Section),
 		sceneNumbers:      make(map[*ast.Section]int),
+		actPlays:          make(map[*ast.Section]*ast.Section),
+		actsByPlay:        make(map[*ast.Section][]*ast.Section),
 	}
 	if doc == nil {
 		return index
@@ -91,8 +98,9 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		}
 	}
 
+	actCountsByPlay := make(map[*ast.Section]int)
 	sceneCountsByAct := make(map[*ast.Section]int)
-	sceneCountOutsideActs := 0
+	sceneCountsByPlay := make(map[*ast.Section]int)
 
 	var walkNode func(ast.Node, *ast.Section, *ast.Section, *ast.Section)
 	walkNode = func(node ast.Node, currentTopLevel *ast.Section, currentAct *ast.Section, currentScene *ast.Section) {
@@ -116,10 +124,18 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		case *ast.Section:
 			if v.Level == 1 {
 				currentTopLevel = v
+				currentAct = nil
+				currentScene = nil
+				index.topLevelSections = append(index.topLevelSections, v)
 			}
 			if v.Kind == ast.SectionAct {
 				index.acts = append(index.acts, v)
+				actCountsByPlay[currentTopLevel]++
+				index.actNumbers[v] = actCountsByPlay[currentTopLevel]
+				index.actPlays[v] = currentTopLevel
+				index.actsByPlay[currentTopLevel] = append(index.actsByPlay[currentTopLevel], v)
 				currentAct = v
+				currentScene = nil
 			}
 			if v.Kind == ast.SectionScene {
 				index.scenes = append(index.scenes, v)
@@ -128,8 +144,8 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 					sceneCountsByAct[currentAct]++
 					index.sceneNumbers[v] = sceneCountsByAct[currentAct]
 				} else {
-					sceneCountOutsideActs++
-					index.sceneNumbers[v] = sceneCountOutsideActs
+					sceneCountsByPlay[currentTopLevel]++
+					index.sceneNumbers[v] = sceneCountsByPlay[currentTopLevel]
 				}
 				currentScene = v
 			}
@@ -153,6 +169,9 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 	sort.Slice(index.scenes, func(i, j int) bool {
 		return index.scenes[i].Range.Start.Line < index.scenes[j].Range.Start.Line
 	})
+	sort.Slice(index.topLevelSections, func(i, j int) bool {
+		return index.topLevelSections[i].Range.Start.Line < index.topLevelSections[j].Range.Start.Line
+	})
 	for scene, cues := range index.sceneSpeakers {
 		sort.Slice(cues, func(i, j int) bool {
 			return cues[i].line < cues[j].line
@@ -168,7 +187,11 @@ func (idx *documentIndex) sceneForLine(line int) *ast.Section {
 }
 
 func (idx *documentIndex) actForLine(line int) *ast.Section {
-	return nearestSectionBeforeLine(idx.acts, line)
+	play := nearestSectionBeforeLine(idx.topLevelSections, line)
+	if acts := idx.actsByPlay[play]; len(acts) > 0 {
+		return nearestSectionBeforeLine(acts, line)
+	}
+	return nil
 }
 
 func (idx *documentIndex) isCharacterCueLine(line int) bool {

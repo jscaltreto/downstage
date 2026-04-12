@@ -50,10 +50,43 @@ body {
 .downstage-title-page .metadata dd { display: inline; margin: 0; }
 .downstage-title-page .metadata div { margin-bottom: 0.25em; }
 
+.downstage-subplay {
+  page-break-before: always;
+}
+.downstage-subplay-header {
+  text-align: center;
+  margin-bottom: 2em;
+}
+.downstage-subplay-header h1 {
+  font-size: 18pt;
+  text-transform: uppercase;
+  margin-bottom: 0.75em;
+}
+.downstage-subplay-metadata {
+  font-size: 10pt;
+}
+.downstage-subplay-author-label,
+.downstage-subplay-author {
+  font-size: 10pt;
+}
+.downstage-subplay-author-label {
+  margin-bottom: 0.25em;
+}
+.downstage-subplay-author {
+  margin-bottom: 0.25em;
+}
+.downstage-subplay-metadata dt { display: inline; font-weight: bold; }
+.downstage-subplay-metadata dt::after { content: ": "; }
+.downstage-subplay-metadata dd { display: inline; margin: 0; }
+.downstage-subplay-metadata div { margin-bottom: 0.25em; }
+
 /* Dramatis Personae */
 .downstage-dramatis-personae {
   page-break-after: always;
   margin-bottom: 2em;
+}
+.downstage-dramatis-personae-inline {
+  page-break-after: auto;
 }
 .downstage-dramatis-personae > h2 {
   text-align: center;
@@ -102,6 +135,9 @@ body {
   text-transform: uppercase;
   margin-bottom: 1.5em;
 }
+.downstage-section > h1 { font-size: 20pt; }
+.downstage-section > h2 { font-size: 14pt; }
+.downstage-section > h3 { font-size: 12pt; }
 .downstage-section > p { margin-bottom: 0; }
 
 .downstage-forced-heading {
@@ -236,7 +272,10 @@ body {
   .downstage-document { padding: 0; max-width: none; }
   .downstage-title-page { min-height: 100vh; page-break-after: always; }
   .downstage-dramatis-personae { page-break-after: always; }
+  .downstage-dramatis-personae-inline { page-break-after: auto; }
   .downstage-act { page-break-before: always; }
+  .downstage-subplay { page-break-before: always; }
+  .downstage-subplay > .downstage-scene:first-of-type { page-break-before: always; }
   .downstage-dialogue { orphans: 3; widows: 2; }
   .downstage-song { page-break-inside: avoid; }
   .downstage-page-break { page-break-after: always; height: 0; margin: 0; }
@@ -294,10 +333,43 @@ body {
 .downstage-title-page .metadata dd { display: inline; margin: 0; }
 .downstage-title-page .metadata div { margin-bottom: 0.2em; }
 
+.downstage-subplay {
+  page-break-before: always;
+}
+.downstage-subplay-header {
+  text-align: center;
+  margin-bottom: 1.5em;
+}
+.downstage-subplay-header h1 {
+  font-size: 14pt;
+  text-transform: uppercase;
+  margin-bottom: 0.5em;
+}
+.downstage-subplay-metadata {
+  font-size: 8.5pt;
+}
+.downstage-subplay-author-label,
+.downstage-subplay-author {
+  font-size: 8.5pt;
+}
+.downstage-subplay-author-label {
+  margin-bottom: 0.2em;
+}
+.downstage-subplay-author {
+  margin-bottom: 0.2em;
+}
+.downstage-subplay-metadata dt { display: inline; font-weight: bold; }
+.downstage-subplay-metadata dt::after { content: ": "; }
+.downstage-subplay-metadata dd { display: inline; margin: 0; }
+.downstage-subplay-metadata div { margin-bottom: 0.2em; }
+
 /* Dramatis Personae */
 .downstage-dramatis-personae {
   page-break-after: always;
   margin-bottom: 1.5em;
+}
+.downstage-dramatis-personae-inline {
+  page-break-after: auto;
 }
 .downstage-dramatis-personae > h2 {
   text-align: center;
@@ -345,6 +417,9 @@ body {
   text-transform: uppercase;
   margin-bottom: 1em;
 }
+.downstage-section > h1 { font-size: 16pt; }
+.downstage-section > h2 { font-size: 11pt; }
+.downstage-section > h3 { font-size: 10pt; }
 .downstage-section > p { margin-bottom: 0; }
 
 .downstage-forced-heading {
@@ -474,7 +549,10 @@ body {
   .downstage-document { padding: 0; max-width: none; }
   .downstage-title-page { min-height: 100vh; page-break-after: always; }
   .downstage-dramatis-personae { page-break-after: always; }
+  .downstage-dramatis-personae-inline { page-break-after: auto; }
   .downstage-act { page-break-before: always; }
+  .downstage-subplay { page-break-before: always; }
+  .downstage-subplay > .downstage-scene:first-of-type { page-break-before: always; }
   .downstage-dialogue { orphans: 3; widows: 2; }
   .downstage-song { page-break-inside: avoid; }
   .downstage-page-break { page-break-after: always; height: 0; margin: 0; }

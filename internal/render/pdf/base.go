@@ -15,25 +15,29 @@ const pointsToMM = 0.3528 // 1 pt in mm
 
 // pdfBase holds shared state and helpers for all PDF-based renderers.
 type pdfBase struct {
-	cfg                      render.Config
-	pdf                      *fpdf.Fpdf
-	w                        io.Writer
-	pageW                    float64
-	pageH                    float64
-	marginL                  float64
-	marginR                  float64
-	marginT                  float64
-	marginB                  float64
-	bodyW                    float64 // pageW - marginL - marginR
-	fontStyle                string  // tracks current accumulated style
-	styleStack               []string
-	dirDepth                 int     // nesting depth of InlineDirectionNodes
-	hasTitlePage             bool    // whether a title page was rendered
-	hasBody                  bool    // whether the document has body content after front matter
-	lineHeight               float64 // vertical line spacing in mm
-	titlePageTitle           string
-	titlePagesSeen           int
-	pendingTitlePageBodyPage bool
+	cfg                            render.Config
+	pdf                            *fpdf.Fpdf
+	w                              io.Writer
+	pageW                          float64
+	pageH                          float64
+	marginL                        float64
+	marginR                        float64
+	marginT                        float64
+	marginB                        float64
+	bodyW                          float64 // pageW - marginL - marginR
+	fontStyle                      string  // tracks current accumulated style
+	styleStack                     []string
+	dirDepth                       int     // nesting depth of InlineDirectionNodes
+	hasTitlePage                   bool    // whether a title page was rendered
+	hasBody                        bool    // whether the document has body content after front matter
+	lineHeight                     float64 // vertical line spacing in mm
+	titlePageTitle                 string
+	titlePagesSeen                 int
+	pendingTitlePageBodyPage       bool
+	pendingDramatisBodyPage        bool
+	pendingInlinePlayFirstBodyPage bool
+	inlinePlaySections             map[*ast.Section]bool
+	activeTopLevelSection          *ast.Section
 
 	// Body block adjacency tracking
 	prevWasStageDirection bool
@@ -106,6 +110,10 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 	b.styleStack = b.styleStack[:0]
 	b.titlePagesSeen = 0
 	b.pendingTitlePageBodyPage = false
+	b.pendingDramatisBodyPage = false
+	b.pendingInlinePlayFirstBodyPage = false
+	b.inlinePlaySections = nil
+	b.activeTopLevelSection = nil
 }
 
 func (b *pdfBase) beginTitlePage() {
@@ -130,6 +138,36 @@ func (b *pdfBase) consumePendingTitlePageBodyPage() bool {
 	}
 	b.pendingTitlePageBodyPage = false
 	return true
+}
+
+func (b *pdfBase) finishDramatisPersonaePage() {
+	b.pendingDramatisBodyPage = true
+}
+
+func (b *pdfBase) consumePendingDramatisBodyPage() bool {
+	if !b.pendingDramatisBodyPage {
+		return false
+	}
+	b.pendingDramatisBodyPage = false
+	b.pdf.AddPage()
+	return true
+}
+
+func (b *pdfBase) beginInlinePlaySection() {
+	b.pendingInlinePlayFirstBodyPage = true
+}
+
+func (b *pdfBase) consumePendingInlinePlayFirstBodyPage() bool {
+	if !b.pendingInlinePlayFirstBodyPage {
+		return false
+	}
+	b.pendingInlinePlayFirstBodyPage = false
+	b.pdf.AddPage()
+	return true
+}
+
+func (b *pdfBase) isFreshInitialPage() bool {
+	return b.pdf != nil && b.pdf.PageNo() == 1 && b.titlePagesSeen == 0 && b.pdf.GetY() == b.marginT
 }
 
 // --- Inline rendering (shared by all PDF renderers) ---
@@ -360,6 +398,11 @@ func (b *pdfBase) ensureSpace(mm float64) {
 
 func (b *pdfBase) centeredText(text string) {
 	b.pdf.CellFormat(b.bodyW, b.lineHeight, text, "", 1, "C", false, 0, "")
+}
+
+func (b *pdfBase) centeredWrappedText(text string, lineHeight float64) {
+	b.pdf.SetX(b.marginL)
+	b.pdf.MultiCell(b.bodyW, lineHeight, text, "", "C", false)
 }
 
 func (b *pdfBase) renderPageNumberFooter(text string, height float64) {

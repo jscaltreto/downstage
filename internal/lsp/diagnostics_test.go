@@ -589,6 +589,44 @@ func TestBuildDiagnostics_MisnumberedScenesWarnAndResetByAct(t *testing.T) {
 	}
 }
 
+func TestBuildDiagnostics_MisnumberedActsResetByTopLevelPlay(t *testing.T) {
+	content := `# Compilation
+
+# Sub Play 1
+
+## ACT I
+
+# Sub Play 2
+
+## ACT II`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+
+	var replacements []string
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeMisnumberedAct {
+			continue
+		}
+		data, ok := diag.Data.(map[string]string)
+		if !ok {
+			t.Fatalf("unexpected diagnostic data: %#v", diag.Data)
+		}
+		replacements = append(replacements, data["replacement"])
+	}
+
+	if len(replacements) != 1 {
+		t.Fatalf("expected 1 misnumbered act diagnostic, got %d", len(replacements))
+	}
+	if replacements[0] != "## ACT I" {
+		t.Fatalf("unexpected replacement: %q", replacements[0])
+	}
+}
+
 func TestBuildDiagnostics_MisnumberedScenesOutsideActsUseDocumentOrder(t *testing.T) {
 	content := `# Play
 

@@ -32,6 +32,12 @@ func (r *pdfRenderer) BeginDocument(doc *ast.Document, w io.Writer) error {
 	r.hasBody = render.DocumentHasRenderableBody(doc)
 	r.titlePageTitle = titlePageTitle(tp)
 	r.initPDF(loadBundledFont, defaultFontFamily)
+	r.inlinePlaySections = make(map[*ast.Section]bool)
+	for _, section := range render.PlayableTopLevelSections(doc) {
+		if render.IsInlinePlaySection(doc, section) {
+			r.inlinePlaySections[section] = true
+		}
+	}
 	return nil
 }
 

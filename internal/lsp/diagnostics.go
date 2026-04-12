@@ -196,12 +196,13 @@ func checkUnknownCharacters(index *documentIndex) []protocol.Diagnostic {
 func checkUnnumberedSections(index *documentIndex) []protocol.Diagnostic {
 	var diags []protocol.Diagnostic
 
-	for actNumber, act := range index.acts {
-		if d := unnumberedActDiagnostic(act, actNumber+1); d != nil {
+	for _, act := range index.acts {
+		actNumber := index.actNumbers[act]
+		if d := unnumberedActDiagnostic(act, actNumber); d != nil {
 			diags = append(diags, *d)
 			continue
 		}
-		if d := misnumberedActDiagnostic(act, actNumber+1); d != nil {
+		if d := misnumberedActDiagnostic(act, actNumber); d != nil {
 			diags = append(diags, *d)
 		}
 	}
