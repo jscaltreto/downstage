@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/jscaltreto/downstage/compare/v0.4.1...v0.5.0) (2026-04-12)
+
+
+### Features
+
+* **web:** add first-run welcome modal ([#126](https://github.com/jscaltreto/downstage/issues/126)) ([1cd4535](https://github.com/jscaltreto/downstage/commit/1cd453598956d2dfcaba0f17db9f198282ea5af8))
+* **web:** refactor editor with Vue and Tailwind ([#123](https://github.com/jscaltreto/downstage/issues/123)) ([e69b68c](https://github.com/jscaltreto/downstage/commit/e69b68c3f376bed215105173e903d61384a998a5))
+
+
+### Bug Fixes
+
+* **pdf:** paginate dialogue continuations ([#110](https://github.com/jscaltreto/downstage/issues/110)) ([6b86063](https://github.com/jscaltreto/downstage/commit/6b86063ef9b6f2fa1e2827c0dc19001e51e3609a))
+* tighten condensed layout and formatting ([#120](https://github.com/jscaltreto/downstage/issues/120)) ([96e3c02](https://github.com/jscaltreto/downstage/commit/96e3c025edbf030e9e43eeffa42387de0cc8ba81))
+
 ## [0.4.1](https://github.com/jscaltreto/downstage/compare/v0.4.0...v0.4.1) (2026-04-05)
 
 
