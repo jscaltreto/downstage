@@ -36,7 +36,7 @@ func (r *pdfRenderer) BeginSection(s *ast.Section) error {
 			r.activeTopLevelSection = s
 		}
 		// Skip play title heading if title page already rendered it
-		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
+		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(render.SectionDisplayTitle(s)), r.titlePageTitle) {
 			return nil
 		}
 		if s.Level == 1 && r.inlinePlaySections[s] {

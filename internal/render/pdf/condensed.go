@@ -186,7 +186,7 @@ func (r *condensedRenderer) BeginSection(s *ast.Section) error {
 		if s.Level == 1 {
 			r.activeTopLevelSection = s
 		}
-		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
+		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(render.SectionDisplayTitle(s)), r.titlePageTitle) {
 			return nil
 		}
 		if s.Level == 1 && r.inlinePlaySections[s] {

@@ -162,7 +162,7 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 		if s.Level == 1 {
 			r.activePlay = s
 		}
-		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
+		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(render.SectionDisplayTitle(s)), r.titlePageTitle) {
 			r.pushSection(false)
 			return nil
 		}
@@ -170,7 +170,7 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 			r.pushSection(true)
 			fmt.Fprintf(&r.buf, "<section class=\"downstage-subplay\"%s>\n", r.sourceAttr(s.NodeRange()))
 			r.buf.WriteString("<header class=\"downstage-subplay-header\">\n")
-			fmt.Fprintf(&r.buf, "<h1>%s</h1>\n", html.EscapeString(s.Title))
+			fmt.Fprintf(&r.buf, "<h1>%s</h1>\n", html.EscapeString(render.SectionDisplayTitle(s)))
 			r.renderSubplayMetadata(s.Metadata)
 			r.buf.WriteString("</header>\n")
 			return nil

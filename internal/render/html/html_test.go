@@ -179,6 +179,64 @@ func TestRender_CompilationSubplaysUseInlineHeaders(t *testing.T) {
 	assert.NotContains(t, out, "<title>First Play</title>")
 }
 
+func TestRender_SubplayHeaderPrefersMetadataTitle(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Collection",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Hamlet draft",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Title", Value: "Hamlet"},
+						{Key: "Author", Value: "Shakespeare"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<h1>Hamlet</h1>")
+	assert.NotContains(t, out, "<h1>Hamlet draft</h1>")
+}
+
+func TestRender_SinglePlayTitleMetadataSuppressesHeadingDuplication(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Hamlet draft",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Title", Value: "Hamlet"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<h1>Hamlet</h1>")
+	// Heading text must not leak into the body as a second h1.
+	assert.Equal(t, 1, strings.Count(out, "<h1>"), "expected only the title-page h1")
+}
+
 func TestRender_CompilationSubplaySupportsMultipleAuthors(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{

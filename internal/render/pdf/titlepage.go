@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/jscaltreto/downstage/internal/ast"
+	"github.com/jscaltreto/downstage/internal/render"
 )
 
 func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
@@ -63,7 +64,7 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 	_, _, authors, other := partitionTitlePageEntries(section.Metadata)
 
 	b.pdf.SetFont(b.cfg.FontFamily, "B", titleSize)
-	b.centeredWrappedText(strings.ToUpper(strings.TrimSpace(section.Title)), b.lineHeight)
+	b.centeredWrappedText(strings.ToUpper(strings.TrimSpace(render.SectionDisplayTitle(section))), b.lineHeight)
 	b.pdf.Ln(b.lineHeight * 2)
 
 	b.pdf.SetFont(b.cfg.FontFamily, "", metadataSize)

@@ -85,6 +85,25 @@ func SectionTitlePage(doc *ast.Document, section *ast.Section) *ast.TitlePage {
 	}
 }
 
+// SectionDisplayTitle returns the title used to display a section in rendered
+// output. When Metadata carries an explicit `Title:` entry it wins over the
+// heading text, matching SPEC §4.
+func SectionDisplayTitle(section *ast.Section) string {
+	if section == nil {
+		return ""
+	}
+	if section.Metadata != nil {
+		for _, entry := range section.Metadata.Entries {
+			if strings.EqualFold(strings.TrimSpace(entry.Key), "title") {
+				if v := strings.TrimSpace(entry.Value); v != "" {
+					return v
+				}
+			}
+		}
+	}
+	return section.Title
+}
+
 func DocumentTitlePage(doc *ast.Document) *ast.TitlePage {
 	if doc == nil {
 		return nil
