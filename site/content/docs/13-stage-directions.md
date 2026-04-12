@@ -9,12 +9,16 @@ examplePairs:
     lang: downstage
     label: downstage
     code: |-
+      # Play
+
       > The lights dim.
       >> Midwinter. The room has not been heated for days.
   - text: Inline parentheticals inside dialogue stay part of the speech block.
     lang: downstage
     label: downstage
     code: |-
+      # Play
+
       HAMLET
       To be (pause) or not to be.
 ---
