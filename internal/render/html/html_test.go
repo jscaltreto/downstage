@@ -302,6 +302,19 @@ func TestRender_ForcedPageBreakHasVisibleRule(t *testing.T) {
 	assert.Contains(t, out, "border-top: 1px dashed var(--downstage-break-color)")
 }
 
+func TestRender_CompilationBreaksMatchPDF(t *testing.T) {
+	// When a title-page-only section precedes a subplay, only one visible
+	// rule should appear — the title page's bottom border. The subplay's
+	// top border rule is suppressed via `.downstage-title-page + .downstage-subplay`.
+	// When the subplay contains an inline DP followed by a scene, the scene
+	// itself draws the break (matching PDF's deferred page advance into the
+	// first body element of the subplay).
+	out := renderHTML(t, &ast.Document{})
+	assert.Contains(t, out, ".downstage-title-page + .downstage-subplay")
+	assert.Contains(t, out, ".downstage-subplay > .downstage-act:first-of-type")
+	assert.Contains(t, out, ".downstage-subplay > .downstage-scene:first-of-type")
+}
+
 func TestRender_DialogueWithFormatting(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{

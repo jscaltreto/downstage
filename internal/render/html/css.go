@@ -99,6 +99,7 @@ body {
   page-break-after: auto;
   padding-bottom: 0;
   border-bottom: none;
+  margin-bottom: 0;
 }
 .downstage-dramatis-personae > h2 {
   text-align: center;
@@ -122,6 +123,13 @@ body {
 .downstage-act {
   margin-top: 2em;
 }
+/* Every act except the first one starts on a fresh PDF page. */
+.downstage-act + .downstage-act,
+.downstage-scene + .downstage-act {
+  border-top: 1px dashed var(--downstage-break-color);
+  padding-top: var(--downstage-break-spacing);
+  margin-top: var(--downstage-break-spacing);
+}
 .downstage-act > h2 {
   text-align: center;
   text-transform: uppercase;
@@ -131,6 +139,14 @@ body {
 }
 .downstage-scene {
   margin-top: 1.5em;
+}
+/* First act/scene inside an inline-play subplay starts on a fresh PDF page,
+   matching consumePendingInlinePlayFirstBodyPage in the PDF renderer. */
+.downstage-subplay > .downstage-act:first-of-type,
+.downstage-subplay > .downstage-scene:first-of-type {
+  border-top: 1px dashed var(--downstage-break-color);
+  padding-top: var(--downstage-break-spacing);
+  margin-top: var(--downstage-break-spacing);
 }
 .downstage-scene > h3 {
   text-align: center;
@@ -277,6 +293,12 @@ body {
   padding-top: var(--downstage-break-spacing);
   border-top: 1px dashed var(--downstage-break-color);
 }
+/* The title page already draws a break, so suppress the subplay's own rule
+   when it immediately follows one to avoid a doubled dashed line. */
+.downstage-title-page + .downstage-subplay {
+  border-top: none;
+  padding-top: 0;
+}
 
 /* Inline */
 .downstage-inline-direction {
@@ -301,13 +323,26 @@ body {
     padding-bottom: 0;
   }
   .downstage-dramatis-personae-inline { page-break-after: auto; }
-  .downstage-act { page-break-before: always; }
+  .downstage-act,
+  .downstage-act + .downstage-act,
+  .downstage-scene + .downstage-act {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
   .downstage-subplay {
     page-break-before: always;
     border-top: none;
     padding-top: 0;
   }
-  .downstage-subplay > .downstage-scene:first-of-type { page-break-before: always; }
+  .downstage-subplay > .downstage-act:first-of-type,
+  .downstage-subplay > .downstage-scene:first-of-type {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
   .downstage-dialogue { orphans: 3; widows: 2; }
   .downstage-song { page-break-inside: avoid; }
   .downstage-page-break {
@@ -419,6 +454,7 @@ body {
   page-break-after: auto;
   padding-bottom: 0;
   border-bottom: none;
+  margin-bottom: 0;
 }
 .downstage-dramatis-personae > h2 {
   text-align: center;
@@ -442,6 +478,12 @@ body {
 .downstage-act {
   margin-top: 1.5em;
 }
+.downstage-act + .downstage-act,
+.downstage-scene + .downstage-act {
+  border-top: 1px dashed var(--downstage-break-color);
+  padding-top: var(--downstage-break-spacing);
+  margin-top: var(--downstage-break-spacing);
+}
 .downstage-act > h2 {
   text-align: center;
   text-transform: uppercase;
@@ -450,6 +492,12 @@ body {
 }
 .downstage-scene {
   margin-top: 1em;
+}
+.downstage-subplay > .downstage-act:first-of-type,
+.downstage-subplay > .downstage-scene:first-of-type {
+  border-top: 1px dashed var(--downstage-break-color);
+  padding-top: var(--downstage-break-spacing);
+  margin-top: var(--downstage-break-spacing);
 }
 .downstage-scene > h3 {
   text-align: center;
@@ -591,6 +639,10 @@ body {
   padding-top: var(--downstage-break-spacing);
   border-top: 1px dashed var(--downstage-break-color);
 }
+.downstage-title-page + .downstage-subplay {
+  border-top: none;
+  padding-top: 0;
+}
 
 /* Inline */
 .downstage-inline-direction {
@@ -615,13 +667,26 @@ body {
     padding-bottom: 0;
   }
   .downstage-dramatis-personae-inline { page-break-after: auto; }
-  .downstage-act { page-break-before: always; }
+  .downstage-act,
+  .downstage-act + .downstage-act,
+  .downstage-scene + .downstage-act {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
   .downstage-subplay {
     page-break-before: always;
     border-top: none;
     padding-top: 0;
   }
-  .downstage-subplay > .downstage-scene:first-of-type { page-break-before: always; }
+  .downstage-subplay > .downstage-act:first-of-type,
+  .downstage-subplay > .downstage-scene:first-of-type {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
   .downstage-dialogue { orphans: 3; widows: 2; }
   .downstage-song { page-break-inside: avoid; }
   .downstage-page-break {
