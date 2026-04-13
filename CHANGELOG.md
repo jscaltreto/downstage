@@ -12,6 +12,25 @@
 * scoped V2 document model and migration ([#131](https://github.com/jscaltreto/downstage/issues/131)) ([04fedd9](https://github.com/jscaltreto/downstage/commit/04fedd9ee46f66e359a810f4c40b0b39e920887e))
 * **web:** wire LSP completions and code actions into editor ([#129](https://github.com/jscaltreto/downstage/issues/129)) ([0da00bd](https://github.com/jscaltreto/downstage/commit/0da00bd03755a78a6c9236358fe58a939bdc873f))
 
+
+### Bug Fixes
+
+* **ci:** drop release-please package-name so merged release PRs tag ([#136](https://github.com/jscaltreto/downstage/issues/136)) ([d700647](https://github.com/jscaltreto/downstage/commit/d7006476f3efa4e58dd39571bbab20d0847ef44e))
+* **ci:** drop separate-pull-requests so release PR merge can tag ([#140](https://github.com/jscaltreto/downstage/issues/140)) ([f9aaa8e](https://github.com/jscaltreto/downstage/commit/f9aaa8e00322766fb6b9c2f643ca7d011a6b30c9))
+* **ci:** restore release-please baseline and surface component in PR title ([#138](https://github.com/jscaltreto/downstage/issues/138)) ([514199b](https://github.com/jscaltreto/downstage/commit/514199b813aaec3624307aee27bd4a5543e82fe1))
+
+## [0.6.0](https://github.com/jscaltreto/downstage/compare/v0.5.0...v0.6.0) (2026-04-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* V1 documents no longer render without migration.
+
+### Features
+
+* scoped V2 document model and migration ([#131](https://github.com/jscaltreto/downstage/issues/131)) ([04fedd9](https://github.com/jscaltreto/downstage/commit/04fedd9ee46f66e359a810f4c40b0b39e920887e))
+* **web:** wire LSP completions and code actions into editor ([#129](https://github.com/jscaltreto/downstage/issues/129)) ([0da00bd](https://github.com/jscaltreto/downstage/commit/0da00bd03755a78a6c9236358fe58a939bdc873f))
+
 ## [0.5.0](https://github.com/jscaltreto/downstage/compare/v0.4.1...v0.5.0) (2026-04-12)
 
 
