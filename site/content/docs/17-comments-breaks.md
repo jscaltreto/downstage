@@ -9,8 +9,6 @@ examplePairs:
     lang: downstage
     label: downstage
     code: |-
-      # Play
-
       // A line comment
 
       /* A block comment
@@ -19,10 +17,6 @@ examplePairs:
     lang: downstage
     label: downstage
     code: |-
-      # Play
-
-      ## ACT I
-
       ### SCENE 1
 
       ===

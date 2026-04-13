@@ -9,8 +9,6 @@ examplePairs:
     lang: downstage
     label: downstage
     code: |-
-      # Play
-
       ## ACT I
       ## ACT 2
       ## ACT: Finale
@@ -18,8 +16,6 @@ examplePairs:
     lang: downstage
     label: downstage
     code: |-
-      # Play
-
       ## ACT I
 
       ### SCENE 1

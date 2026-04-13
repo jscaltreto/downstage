@@ -9,16 +9,12 @@ examplePairs:
     lang: downstage
     label: downstage
     code: |-
-      # Play
-
       @horatio
       My lord, I came to see your father's funeral.
   - text: <code>.Heading</code> forces a structural heading.
     lang: downstage
     label: downstage
     code: |-
-      # Play
-
       .The Next Evening
 ---
 When the parser would otherwise classify a line incorrectly, force it.
