@@ -179,7 +179,7 @@ function toggleStyle() {
             
             <div class="w-px h-4 bg-black/10 dark:bg-white/10 mx-1"></div>
             
-            <ToolbarButton @click="handleFormat('cue')" title="Character Cue"><template #icon><MessageSquare class="w-4 h-4" /></template></ToolbarButton>
+            <ToolbarButton @click="handleFormat('cue')" title="Dialogue"><template #icon><MessageSquare class="w-4 h-4" /></template></ToolbarButton>
             <ToolbarButton @click="handleFormat('direction')" title="Stage Direction"><template #icon><ChevronRight class="w-4 h-4" /></template></ToolbarButton>
             <ToolbarButton @click="handleFormat('act')" title="Act Heading"><template #icon><GalleryVerticalEnd class="w-4 h-4" /></template></ToolbarButton>
             <ToolbarButton @click="handleFormat('scene')" title="Scene Heading"><template #icon><GalleryVertical class="w-4 h-4 opacity-70" /></template></ToolbarButton>
