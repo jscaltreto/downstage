@@ -115,15 +115,16 @@ It's just the beginning.
 onMounted(async () => {
   await store.init();
 
-  // Restore URL content if present (handling UTF-8 correctly). Shown as a
-  // pending placeholder so idle "just exploring" visits don't litter the
-  // drafts list; it promotes to a real draft on first edit.
+  // Restore URL content if present (handling UTF-8 correctly). A shared
+  // ?content= link is an explicit intent to work with that content, so
+  // promote it to a saved draft right away — otherwise a reload before
+  // first edit would silently drop the share.
   const params = new URLSearchParams(window.location.search);
   const urlContent = params.get("content");
   if (urlContent) {
     try {
         const decoded = decodeURIComponent(escape(atob(urlContent)));
-        showPendingPlaceholder("Imported Play", decoded);
+        await createDraft("Imported Play", decoded);
         toastManager.value?.addToast("Imported content from URL", "success");
         window.history.replaceState({}, '', window.location.pathname);
     } catch (e) {
@@ -288,8 +289,8 @@ function schedulePersist() {
 }
 
 watch(activeContent, (newContent) => {
-    // Promote an unsaved placeholder (New Play, initial Example, ?content=)
-    // into a real draft the first time the user edits it.
+    // Promote an unsaved placeholder (New Play, initial Example) into a
+    // real draft the first time the user edits it.
     if (pendingDraft.value && newContent !== pendingDraft.value.content) {
         const placeholder = pendingDraft.value;
         pendingDraft.value = null;
