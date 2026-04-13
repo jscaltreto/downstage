@@ -32,10 +32,18 @@ The heading level determines the structure:
 
 Headings are structural, not presentational. Tooling SHOULD treat each `#` section as an independent top-level scope for metadata, dramatis personae, and numbering.
 
-A minimal valid document can be as simple as:
+A top-level `#` heading is REQUIRED only when the document carries metadata, Dramatis Personae, or acts/scenes — that is, when there is something that needs a scope. Body-only fragments are valid without one:
+
+```
+ALICE
+Hello, world!
+```
+
+A complete play with a title page and scope-owning metadata uses a heading:
 
 ```
 # A Play
+Author: You
 
 ALICE
 Hello, world!

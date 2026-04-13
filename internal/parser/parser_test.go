@@ -66,14 +66,18 @@ ALICE - A curious young woman
 	assert.Contains(t, errs[0].Message, "top-level Dramatis Personae is a V1 pattern")
 }
 
-func TestV2TopLevelContentRequiresHeading(t *testing.T) {
+func TestV2BodyOnlyDocumentIsAccepted(t *testing.T) {
 	input := `ALICE
 Hello.`
 
 	doc, errs := Parse([]byte(input))
 	require.NotNil(t, doc)
-	require.NotEmpty(t, errs)
-	assert.Contains(t, errs[0].Message, "top-level content must begin with a # heading")
+	require.Empty(t, errs, "body-only documents without metadata are valid V2")
+
+	require.Len(t, doc.Body, 1)
+	dlg, ok := doc.Body[0].(*ast.Dialogue)
+	require.True(t, ok)
+	assert.Equal(t, "ALICE", dlg.Character)
 }
 
 func TestV2ScopedDramatisPersonae(t *testing.T) {
@@ -222,9 +226,12 @@ func TestBodyOnlyDocument(t *testing.T) {
 	input := "ALICE\nHello, world!"
 
 	doc, errs := Parse([]byte(input))
-	require.NotEmpty(t, errs)
+	require.Empty(t, errs)
 	assert.Nil(t, doc.TitlePage)
-	assert.Empty(t, doc.Body)
+	require.Len(t, doc.Body, 1)
+	dlg, ok := doc.Body[0].(*ast.Dialogue)
+	require.True(t, ok)
+	assert.Equal(t, "ALICE", dlg.Character)
 }
 
 func TestDialogueWithVerse(t *testing.T) {

@@ -169,8 +169,10 @@ func (p *parser) parseTitlePage() *ast.TitlePage {
 
 func (p *parser) parseBody() []ast.Node {
 	var nodes []ast.Node
+	prevContinuation := token.EOF
 
 	for !p.at(token.EOF) {
+		hadBlanks := p.at(token.Blank)
 		p.skipBlanks()
 		if p.at(token.EOF) {
 			break
@@ -182,6 +184,7 @@ func (p *parser) parseBody() []ast.Node {
 			if node != nil {
 				nodes = append(nodes, node)
 			}
+			prevContinuation = token.EOF
 		case token.LineComment:
 			nodes = append(nodes, p.parseLineComment())
 		case token.BlockCommentStart:
@@ -189,10 +192,17 @@ func (p *parser) parseBody() []ast.Node {
 		case token.PageBreak:
 			tok := p.advance()
 			nodes = append(nodes, &ast.PageBreak{Range: tok.Range})
+			prevContinuation = token.EOF
 		default:
-			tok := p.peek()
-			p.addError("top-level content must begin with a # heading", tok.Range)
-			p.skipToNextBlank()
+			// Body-only document: accept dialogue, stage directions, songs,
+			// etc. directly. Metadata is still required to live under a `#`
+			// heading (V1 document-level metadata is flagged separately).
+			elem := p.parseBodyElement()
+			if elem != nil {
+				prevContinuation = markContinuation(elem, prevContinuation, hadBlanks)
+				nodes = append(nodes, elem)
+				nodes = p.makeDualDialogue(nodes)
+			}
 		}
 	}
 
