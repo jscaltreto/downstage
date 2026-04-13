@@ -123,7 +123,10 @@ for (const button of tryButtons) {
     const encoded = btoa(unescape(encodeURIComponent(source)));
     const editorBase = document.documentElement.dataset.editorBase ?? "/editor/";
     const url = new URL(editorBase, window.location.origin);
-    url.searchParams.set("content", encoded);
+    // ?try= signals "user is just exploring a snippet"; the editor keeps
+    // it in memory until the first edit instead of saving it as a draft.
+    // ?content= is reserved for actually-shared links, which do save.
+    url.searchParams.set("try", encoded);
     window.open(url.toString(), "_blank");
   });
 }

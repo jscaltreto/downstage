@@ -115,20 +115,30 @@ It's just the beginning.
 onMounted(async () => {
   await store.init();
 
-  // Restore URL content if present (handling UTF-8 correctly). A shared
-  // ?content= link is an explicit intent to work with that content, so
-  // promote it to a saved draft right away — otherwise a reload before
-  // first edit would silently drop the share.
+  // Restore URL content if present (handling UTF-8 correctly). Two modes:
+  //  - ?content=<b64>  shared/received link, promote to a saved draft
+  //    right away so a reload before first edit doesn't drop the share.
+  //  - ?try=<b64>      the syntax guide's "Try it" button; user is just
+  //    exploring a snippet, so keep it as a pending placeholder until the
+  //    first edit, and leave the URL alone so reload re-hydrates it.
   const params = new URLSearchParams(window.location.search);
-  const urlContent = params.get("content");
-  if (urlContent) {
+  const sharedContent = params.get("content");
+  const trySnippet = params.get("try");
+  if (sharedContent) {
     try {
-        const decoded = decodeURIComponent(escape(atob(urlContent)));
+        const decoded = decodeURIComponent(escape(atob(sharedContent)));
         await createDraft("Imported Play", decoded);
         toastManager.value?.addToast("Imported content from URL", "success");
         window.history.replaceState({}, '', window.location.pathname);
     } catch (e) {
-        console.error("Failed to decode URL content", e);
+        console.error("Failed to decode shared URL content", e);
+    }
+  } else if (trySnippet) {
+    try {
+        const decoded = decodeURIComponent(escape(atob(trySnippet)));
+        showPendingPlaceholder("Snippet", decoded);
+    } catch (e) {
+        console.error("Failed to decode snippet URL content", e);
     }
   } else if (store.state.activeDraftId) {
     const draft = store.state.drafts.find(d => d.id === store.state.activeDraftId);
@@ -289,8 +299,8 @@ function schedulePersist() {
 }
 
 watch(activeContent, (newContent) => {
-    // Promote an unsaved placeholder (New Play, initial Example) into a
-    // real draft the first time the user edits it.
+    // Promote an unsaved placeholder (New Play, initial Example, "Try it"
+    // snippet) into a real draft the first time the user edits it.
     if (pendingDraft.value && newContent !== pendingDraft.value.content) {
         const placeholder = pendingDraft.value;
         pendingDraft.value = null;
