@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/jscaltreto/downstage/compare/v0.5.0...v0.6.0) (2026-04-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* V1 documents no longer render without migration.
+
+### Features
+
+* scoped V2 document model and migration ([#131](https://github.com/jscaltreto/downstage/issues/131)) ([04fedd9](https://github.com/jscaltreto/downstage/commit/04fedd9ee46f66e359a810f4c40b0b39e920887e))
+* **web:** wire LSP completions and code actions into editor ([#129](https://github.com/jscaltreto/downstage/issues/129)) ([0da00bd](https://github.com/jscaltreto/downstage/commit/0da00bd03755a78a6c9236358fe58a939bdc873f))
+
 ## [0.5.0](https://github.com/jscaltreto/downstage/compare/v0.4.1...v0.5.0) (2026-04-12)
 
 
