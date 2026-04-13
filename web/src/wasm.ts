@@ -1,5 +1,13 @@
 /// <reference types="vite/client" />
 
+import type {
+  ParseError,
+  WasmDiagnostic,
+  LSPCompletionList,
+  LSPCodeActionsResult,
+  SpellcheckContext,
+} from "./core/types";
+
 declare class Go {
   importObject: WebAssembly.Imports;
   run(instance: WebAssembly.Instance): Promise<void>;
@@ -11,6 +19,7 @@ declare global {
     downstage: {
       parse(source: string): { errors: ParseError[] };
       diagnostics(source: string): { diagnostics: WasmDiagnostic[] };
+      spellcheckContext(source: string): SpellcheckContext;
       upgradeV1(source: string): { source: string; changed: boolean };
       completion(source: string, line: number, col: number): LSPCompletionList;
       codeActions(source: string, line: number, col: number, codes?: string[]): LSPCodeActionsResult;
@@ -20,72 +29,6 @@ declare global {
       tokenTypeNames: string[];
     };
   }
-}
-
-export interface ParseError {
-  message: string;
-  line: number;
-  col: number;
-  endLine: number;
-  endCol: number;
-}
-
-export interface WasmDiagnostic {
-  message: string;
-  severity: "error" | "warning" | "info" | "hint";
-  line: number;
-  col: number;
-  endLine: number;
-  endCol: number;
-  code?: string;
-  quickFixes?: string[];
-}
-
-export interface LSPPosition {
-  line: number;
-  character: number;
-}
-
-export interface LSPRange {
-  start: LSPPosition;
-  end: LSPPosition;
-}
-
-export interface LSPTextEdit {
-  range: LSPRange;
-  newText: string;
-}
-
-export interface LSPCompletionItem {
-  label: string;
-  kind?: number;
-  detail?: string;
-  filterText?: string;
-  sortText?: string;
-  insertText?: string;
-  textEdit?: LSPTextEdit;
-}
-
-export interface LSPCompletionList {
-  isIncomplete: boolean;
-  items: LSPCompletionItem[];
-}
-
-export interface LSPWorkspaceEdit {
-  changes?: Record<string, LSPTextEdit[]>;
-}
-
-export interface LSPCodeAction {
-  title: string;
-  kind?: string;
-  isPreferred?: boolean;
-  diagnostics?: unknown[];
-  edit?: LSPWorkspaceEdit;
-}
-
-export interface LSPCodeActionsResult {
-  uri: string;
-  actions: LSPCodeAction[];
 }
 
 import wasmExecUrl from "../build/wasm_exec.js?url";

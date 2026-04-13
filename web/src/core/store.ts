@@ -66,8 +66,49 @@ export class Store {
     this.state.theme = theme;
   }
 
+  activeDraft() {
+    return this.state.drafts.find((draft) => draft.id === this.state.activeDraftId) || null;
+  }
+
+  async addSpellAllowlistWord(word: string) {
+    const draft = this.activeDraft();
+    if (!draft) return false;
+
+    const trimmed = word.trim();
+    if (!trimmed) return false;
+
+    const key = trimmed.toLocaleLowerCase();
+    if (draft.spellAllowlist.some((existing) => existing.toLocaleLowerCase() === key)) {
+      return false;
+    }
+
+    draft.spellAllowlist.push(trimmed);
+    draft.spellAllowlist.sort((a, b) => a.localeCompare(b));
+    draft.updatedAt = new Date().toISOString();
+    await this.env.saveDrafts(this.state.drafts);
+    return true;
+  }
+
+  async removeSpellAllowlistWord(word: string) {
+    const draft = this.activeDraft();
+    if (!draft) return false;
+
+    const key = word.trim().toLocaleLowerCase();
+    const nextWords = draft.spellAllowlist.filter(
+      (existing) => existing.toLocaleLowerCase() !== key,
+    );
+    if (nextWords.length === draft.spellAllowlist.length) {
+      return false;
+    }
+
+    draft.spellAllowlist = nextWords;
+    draft.updatedAt = new Date().toISOString();
+    await this.env.saveDrafts(this.state.drafts);
+    return true;
+  }
+
   async saveActiveDraft(content: string) {
-    const draft = this.state.drafts.find(d => d.id === this.state.activeDraftId);
+    const draft = this.activeDraft();
     if (!draft) return;
     draft.content = content;
     draft.title = extractDocumentTitle(content);

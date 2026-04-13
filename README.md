@@ -241,8 +241,9 @@ Extension Development Host.
 [**Start writing**](https://www.getdownstage.com/editor/) in the Web Editor, a
 modern browser-based editor built with Vue 3, Tailwind CSS v4, and CodeMirror 6.
 It features live preview, adaptive syntax highlighting, completions and
-quick-fix code actions sourced from the Downstage LSP, and PDF export. No
-install required; the entire pipeline runs client-side via WebAssembly.
+quick-fix code actions sourced from the Downstage LSP, spellcheck with a
+per-script dictionary, and PDF export. No install required; the entire
+pipeline runs client-side via WebAssembly.
 
 For local development:
 

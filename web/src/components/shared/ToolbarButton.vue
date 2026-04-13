@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { useSlots } from 'vue';
+import { computed, useSlots } from 'vue';
+import { Comment, Text } from 'vue';
 
 defineProps<{
   disabled?: boolean;
@@ -9,7 +10,16 @@ defineProps<{
 }>();
 
 const slots = useSlots();
-const hasText = !!slots.default;
+const hasText = computed(() => {
+  const content = slots.default?.() || [];
+  return content.some((node) => {
+    if (node.type === Comment) return false;
+    if (node.type === Text) {
+      return String(node.children ?? '').trim().length > 0;
+    }
+    return true;
+  });
+});
 </script>
 
 <template>

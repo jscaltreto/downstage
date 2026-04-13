@@ -1,8 +1,16 @@
+import { StateEffect } from "@codemirror/state";
 import { linter, type Action, type Diagnostic } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
 import type { Text } from "@codemirror/state";
-import type { EditorEnv, LSPTextEdit, WasmDiagnostic } from "./core/types";
+import type { EditorEnv, LSPTextEdit, SpellcheckContext, WasmDiagnostic } from "./core/types";
 import { offsetFromLSP } from "./lsp-offsets";
+import { getSpellDiagnostics, type SpellcheckCallbacks } from "./spellcheck";
+
+// Dispatched by refreshDiagnostics() when spellcheck-related external state
+// changes (warmup completes, user toggles spellcheck, dictionary edited).
+// Picked up by the linter's needsRefresh hook so the linter knows to re-run
+// even though the doc didn't change.
+export const spellcheckRefreshEffect = StateEffect.define<null>();
 
 export function applyLSPEdits(view: EditorView, edits: LSPTextEdit[]) {
   if (!edits.length) return;
@@ -76,13 +84,48 @@ export function toDiagnostics(
   return result;
 }
 
-export function createDownstageLinter(env: EditorEnv) {
+export function createDownstageLinter(
+  env: EditorEnv,
+  spellcheckEnabled: () => boolean,
+  callbacks: SpellcheckCallbacks,
+) {
   return linter(
     async (view) => {
       const source = view.state.doc.toString();
-      const { diagnostics: sourceDiagnostics } = await env.diagnostics(source);
-      return toDiagnostics(env, view.state.doc, sourceDiagnostics);
+      const diagnosticsPromise = env.diagnostics(source);
+      const spellContextPromise = spellcheckEnabled()
+        ? env.spellcheckContext(source)
+        : Promise.resolve<SpellcheckContext>({ allowWords: [], ignoredRanges: [] });
+      const [{ diagnostics: sourceDiagnostics }, spellContext] = await Promise.all([
+        diagnosticsPromise,
+        spellContextPromise,
+      ]);
+      const diagnostics = toDiagnostics(env, view.state.doc, sourceDiagnostics);
+
+      if (!spellcheckEnabled()) {
+        return diagnostics;
+      }
+
+      const spellDiagnostics = await getSpellDiagnostics(view.state.doc, spellContext, callbacks);
+      return diagnostics.concat(spellDiagnostics);
     },
-    { delay: 300 },
+    {
+      delay: 300,
+      // Re-run when our refresh effect lands, even if the doc didn't change.
+      // forceLinting() alone is not enough: it only runs the lint when the
+      // plugin already has work pending. needsRefresh tells the plugin
+      // there IS work to do.
+      needsRefresh: (update) => update.transactions.some((tr) =>
+        tr.effects.some((effect) => effect.is(spellcheckRefreshEffect)),
+      ),
+    },
   );
+}
+
+// Trigger a re-lint when external state (spellcheck toggle, dictionary edit,
+// warmup completion) changed without a doc change. The linter's own `delay`
+// (300ms) coalesces rapid back-to-back refreshes so we don't need a
+// separate debounce here.
+export function refreshDiagnostics(view: EditorView) {
+  view.dispatch({ effects: spellcheckRefreshEffect.of(null) });
 }
