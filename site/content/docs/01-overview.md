@@ -17,7 +17,7 @@ cards:
     text: Plain text makes it easy to compare drafts, review changes, and keep a readable history in Git.
 callout:
   title: "Plain-English version:"
-  text: if you like writing in a simple text file but still want manuscript output and helpful tooling, Downstage is for you.
+  text: if you want a dead-simple, intuitive format but still want beautifully-rendered manuscript and acting edition PDFs and helpful tooling, Downstage is for you.
 ---
 Downstage is a plain-text format for stage plays with a few small tools around
 it. You write one `.ds` file, and the same file can be checked for mistakes,

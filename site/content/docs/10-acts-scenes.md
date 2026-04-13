@@ -12,7 +12,7 @@ examplePairs:
       ## ACT I
       ## ACT 2
       ## ACT: Finale
-  - text: Scenes are usually written as <code>###</code> headings, though a non-act <code>##</code> heading inside an act also becomes a scene.
+  - text: Scenes are usually written as <code>###</code> headings when they belong to an act.
     lang: downstage
     label: downstage
     code: |-

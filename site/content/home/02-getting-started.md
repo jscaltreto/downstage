@@ -13,5 +13,4 @@ actions:
     href: /editor/
     kind: secondary
 ---
-Start Here if you want the easiest way to choose between the Web Editor, VS
-Code, and the command line.
+Start Here to learn the tools and discover the quickest way to get started writing with Downstage.
