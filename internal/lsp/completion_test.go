@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 
@@ -9,12 +10,42 @@ import (
 	"go.lsp.dev/protocol"
 )
 
+func TestComputeCompletion_AliasesAppearInSuggestions(t *testing.T) {
+	content := `# Play
+
+## Dramatis Personae
+HAMLET/HAM
+HORATIO
+
+## ACT I
+
+### SCENE 1
+
+HA`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	result := computeCompletion(doc, errs, content, protocol.Position{Line: 10, Character: 2})
+	labels := make([]string, 0, len(result.Items))
+	for _, item := range result.Items {
+		labels = append(labels, item.Label)
+	}
+	sort.Strings(labels)
+	expected := []string{"HAM", "HAMLET"}
+	if !reflect.DeepEqual(labels, expected) {
+		t.Fatalf("expected HAM and HAMLET suggestions, got %v", labels)
+	}
+}
+
 func TestComputeCompletion_CharacterCueContext(t *testing.T) {
-	content := `# Dramatis Personae
+	content := `# Play
+
+## Dramatis Personae
 HAMLET
 OPHELIA
-
-# Play
 
 ## ACT I
 
@@ -41,10 +72,10 @@ HA`
 }
 
 func TestComputeCompletion_DialogueLineReturnsNothing(t *testing.T) {
-	content := `# Dramatis Personae
-HAMLET
+	content := `# Play
 
-# Play
+## Dramatis Personae
+HAMLET
 
 ## ACT I
 
@@ -65,10 +96,10 @@ The sto`
 }
 
 func TestComputeCompletion_ForcedCharacterCue(t *testing.T) {
-	content := `# Dramatis Personae
-HAMLET
+	content := `# Play
 
-# Play
+## Dramatis Personae
+HAMLET
 
 ## ACT I
 
@@ -91,7 +122,9 @@ HAMLET
 }
 
 func TestComputeCompletion_DramatisPersonaeReturnsNothing(t *testing.T) {
-	content := `# Dramatis Personae
+	content := `# Play
+
+## Dramatis Personae
 HA`
 
 	doc, errs := parser.Parse([]byte(content))
@@ -99,18 +132,18 @@ HA`
 		t.Fatalf("unexpected parse errors: %v", errs)
 	}
 
-	result := computeCompletion(doc, errs, content, protocol.Position{Line: 1, Character: 2})
+	result := computeCompletion(doc, errs, content, protocol.Position{Line: 3, Character: 2})
 	if len(result.Items) != 0 {
 		t.Fatalf("expected no completion items in dramatis personae, got %d", len(result.Items))
 	}
 }
 
 func TestSceneCompletionCandidates_RankSpeakersByRecencyWithLastSpeakerLast(t *testing.T) {
-	content := `# Dramatis Personae
+	content := `# Play
+
+## Dramatis Personae
 ADAM
 EVE
-
-# Play
 
 ## ACT I
 
@@ -147,11 +180,11 @@ S`
 }
 
 func TestComputeCompletion_UsesSortTextToPreserveSceneOrder(t *testing.T) {
-	content := `# Dramatis Personae
+	content := `# Play
+
+## Dramatis Personae
 ADAM
 EVE
-
-# Play
 
 ## ACT I
 
@@ -197,28 +230,27 @@ func TestComputeCompletion_H1HeadingSuggestsDramatisPersonae(t *testing.T) {
 	}
 
 	result := computeCompletion(doc, errs, content, protocol.Position{Line: 0, Character: 4})
-	if len(result.Items) != 1 {
-		t.Fatalf("expected 1 heading completion, got %d", len(result.Items))
-	}
-	if result.Items[0].Label != "# Dramatis Personae" {
-		t.Fatalf("expected dramatis personae heading, got %q", result.Items[0].Label)
+	if len(result.Items) != 0 {
+		t.Fatalf("expected no H1 heading completions, got %d", len(result.Items))
 	}
 }
 
-func TestComputeCompletion_H1HeadingSkipsDramatisPersonaeWhenAlreadyPresent(t *testing.T) {
-	content := `# Dramatis Personae
-HAMLET
+func TestComputeCompletion_H2HeadingSuggestsDramatisPersonaeWhenMissing(t *testing.T) {
+	content := `# Play
 
-# Dr`
+## Dr`
 
 	doc, errs := parser.Parse([]byte(content))
 	if len(errs) > 0 {
 		t.Fatalf("unexpected parse errors: %v", errs)
 	}
 
-	result := computeCompletion(doc, errs, content, protocol.Position{Line: 3, Character: 4})
-	if len(result.Items) != 0 {
-		t.Fatalf("expected no duplicate dramatis personae completion, got %d", len(result.Items))
+	result := computeCompletion(doc, errs, content, protocol.Position{Line: 2, Character: 5})
+	if len(result.Items) == 0 {
+		t.Fatal("expected heading completions")
+	}
+	if result.Items[0].Label != "## Dramatis Personae" {
+		t.Fatalf("expected dramatis personae heading, got %q", result.Items[0].Label)
 	}
 }
 
@@ -269,10 +301,10 @@ func TestComputeCompletion_H3HeadingSuggestsNextSceneWithinAct(t *testing.T) {
 }
 
 func TestDocumentIndex_CachesActsScenesAndCueLines(t *testing.T) {
-	content := `# Dramatis Personae
-HAMLET
+	content := `# Play
 
-# Play
+## Dramatis Personae
+HAMLET
 
 ## ACT I
 
@@ -331,6 +363,31 @@ func TestComputeCompletionWithIndex_SuggestsNextActFromCache(t *testing.T) {
 	}
 	if result.Items[0].Label != "## ACT II" {
 		t.Fatalf("expected next act heading from cached acts, got %q", result.Items[0].Label)
+	}
+}
+
+func TestComputeCompletion_H2HeadingSuggestsNextActWithinCurrentPlay(t *testing.T) {
+	content := `# Compilation
+
+# Sub Play 1
+
+## ACT I
+
+# Sub Play 2
+
+## AC`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	result := computeCompletionWithIndex(doc, newDocumentIndex(doc), content, protocol.Position{Line: 8, Character: 5})
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 heading completion, got %d", len(result.Items))
+	}
+	if result.Items[0].Label != "## ACT I" {
+		t.Fatalf("expected next act heading to reset within play, got %q", result.Items[0].Label)
 	}
 }
 

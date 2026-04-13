@@ -16,5 +16,5 @@ writing: rendering, validation, and editor support around the same readable
 source format.
 
 Downstage was created by [Jake Scaltreto](https://github.com/jscaltreto), a
-software developer and playwright who wanted a better way to write plays than
-fighting a word processor.
+software developer and playwright who wanted to stop fighting a word processor and
+focus on writing plays.

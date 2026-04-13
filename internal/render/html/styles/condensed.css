@@ -1,0 +1,352 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --downstage-break-color: rgba(0, 0, 0, 0.18);
+  --downstage-break-spacing: 1.5em;
+}
+
+body {
+  font-family: Georgia, "Times New Roman", Times, serif;
+  font-size: 10pt;
+  line-height: 1.4;
+  color: #000;
+  background: #fff;
+  --downstage-condensed-small-gap: 0.15em;
+}
+
+.downstage-document {
+  max-width: 5.5in;
+  margin: 0 auto;
+  padding: 0.5in;
+}
+
+/* Title Page */
+.downstage-title-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+  page-break-after: always;
+  padding-bottom: var(--downstage-break-spacing);
+  border-bottom: 1px dashed var(--downstage-break-color);
+  margin-bottom: var(--downstage-break-spacing);
+}
+.downstage-title-page h1 {
+  font-size: 16pt;
+  text-transform: uppercase;
+  margin-bottom: 0.5em;
+}
+.downstage-title-page .subtitle {
+  font-style: italic;
+  font-size: 11pt;
+  margin-bottom: 0.75em;
+}
+.downstage-title-page .author {
+  font-size: 11pt;
+  margin-bottom: 0.5em;
+}
+.downstage-title-page .author + .author {
+  margin-top: -0.25em;
+}
+.downstage-subplay-author + .downstage-subplay-author {
+  margin-top: -0.1em;
+}
+.downstage-title-page .metadata {
+  margin-top: auto;
+  font-size: 9pt;
+}
+.downstage-title-page .metadata dt { display: inline; font-weight: bold; }
+.downstage-title-page .metadata dt::after { content: ": "; }
+.downstage-title-page .metadata dd { display: inline; margin: 0; }
+.downstage-title-page .metadata div { margin-bottom: 0.2em; }
+
+.downstage-subplay {
+  page-break-before: always;
+}
+.downstage-subplay-header {
+  text-align: center;
+  margin-bottom: 1.5em;
+}
+.downstage-subplay-header h1 {
+  font-size: 14pt;
+  text-transform: uppercase;
+  margin-bottom: 0.5em;
+}
+.downstage-subplay-metadata {
+  font-size: 8.5pt;
+}
+.downstage-subplay-subtitle {
+  font-style: italic;
+  font-size: 9pt;
+  margin-bottom: 0.4em;
+}
+.downstage-subplay-author-label,
+.downstage-subplay-author {
+  font-size: 8.5pt;
+}
+.downstage-subplay-author-label {
+  margin-bottom: 0.2em;
+}
+.downstage-subplay-author {
+  margin-bottom: 0.2em;
+}
+.downstage-subplay-metadata dt { display: inline; font-weight: bold; }
+.downstage-subplay-metadata dt::after { content: ": "; }
+.downstage-subplay-metadata dd { display: inline; margin: 0; }
+.downstage-subplay-metadata div { margin-bottom: 0.2em; }
+
+/* Dramatis Personae */
+.downstage-dramatis-personae {
+  page-break-after: always;
+  margin-bottom: var(--downstage-break-spacing);
+  padding-bottom: var(--downstage-break-spacing);
+  border-bottom: 1px dashed var(--downstage-break-color);
+}
+.downstage-dramatis-personae-inline {
+  page-break-after: auto;
+  padding-bottom: 0;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.downstage-dramatis-personae > h2 {
+  text-align: center;
+  font-size: 11pt;
+  text-transform: uppercase;
+  margin-bottom: 1em;
+}
+.downstage-dramatis-personae dl { margin-left: 0; }
+.downstage-dramatis-personae dt { font-weight: bold; display: inline; }
+.downstage-dramatis-personae dd { display: inline; margin: 0; }
+.downstage-dramatis-personae dd::before { content: " \2014\00a0"; }
+.downstage-dramatis-personae .character-entry { margin-bottom: 0.2em; }
+.downstage-character-group-name {
+  text-align: center;
+  font-weight: bold;
+  margin-top: 0.75em;
+  margin-bottom: 0.25em;
+}
+
+/* Acts & Scenes */
+.downstage-act {
+  margin-top: 1.5em;
+}
+.downstage-act + .downstage-act,
+.downstage-scene + .downstage-act {
+  border-top: 1px dashed var(--downstage-break-color);
+  padding-top: var(--downstage-break-spacing);
+  margin-top: var(--downstage-break-spacing);
+}
+.downstage-act > h2 {
+  text-align: center;
+  text-transform: uppercase;
+  font-size: 11pt;
+  margin-bottom: 1em;
+}
+.downstage-scene {
+  margin-top: 1em;
+}
+.downstage-subplay > .downstage-act:first-of-type,
+.downstage-subplay > .downstage-scene:first-of-type {
+  border-top: 1px dashed var(--downstage-break-color);
+  padding-top: var(--downstage-break-spacing);
+  margin-top: var(--downstage-break-spacing);
+}
+.downstage-scene > h3 {
+  text-align: center;
+  text-transform: uppercase;
+  font-size: 10pt;
+  margin-bottom: 0.75em;
+}
+
+/* Generic Sections */
+.downstage-section > h1,
+.downstage-section > h2,
+.downstage-section > h3 {
+  text-align: center;
+  text-transform: uppercase;
+  margin-bottom: 1em;
+}
+.downstage-section > h1 { font-size: 16pt; }
+.downstage-section > h2 { font-size: 11pt; }
+.downstage-section > h3 { font-size: 10pt; }
+.downstage-section > p { margin-bottom: 0; }
+
+.downstage-forced-heading {
+  text-align: center;
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+
+/* Dialogue — condensed: inline character name */
+.downstage-dialogue {
+  margin-top: 0.5em;
+  margin-bottom: 0;
+}
+.downstage-character {
+  text-transform: uppercase;
+  font-weight: bold;
+  display: inline;
+  margin-bottom: 0;
+}
+.downstage-character::after { content: ". "; }
+.downstage-parenthetical {
+  font-style: italic;
+  display: inline;
+}
+.downstage-line {
+  display: inline;
+  margin: 0;
+}
+.downstage-line.downstage-verse {
+  display: block;
+  margin-left: 2em;
+}
+.downstage-line-break { display: block; }
+.downstage-dialogue-break { display: block; margin-top: var(--downstage-condensed-small-gap); }
+
+/* Dual Dialogue */
+.downstage-dual-dialogue {
+  display: flex;
+  gap: 0.5em;
+  margin-top: 0.5em;
+}
+.downstage-dual-dialogue > .downstage-dialogue {
+  flex: 1;
+  margin-top: 0;
+}
+
+/* Stage Direction */
+.downstage-stage-direction {
+  font-style: italic;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  margin-left: 1em;
+}
+.downstage-stage-direction:has(+ .downstage-continuation) {
+  margin-bottom: 0;
+}
+.downstage-stage-direction.downstage-continuation {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.downstage-stage-direction + .downstage-stage-direction:not(.downstage-continuation) {
+  margin-top: var(--downstage-condensed-small-gap);
+}
+
+/* Callout */
+.downstage-callout {
+  font-weight: bold;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  margin-left: 2em;
+}
+.downstage-callout:has(+ .downstage-continuation) {
+  margin-bottom: 0;
+}
+.downstage-callout.downstage-continuation {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.downstage-callout + .downstage-callout:not(.downstage-continuation) {
+  margin-top: var(--downstage-condensed-small-gap);
+}
+
+/* Song */
+.downstage-song {
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+.downstage-song > h4 {
+  text-align: center;
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 10pt;
+  margin-bottom: 0.25em;
+}
+.downstage-song-end {
+  text-align: center;
+  font-weight: bold;
+  margin-top: 0.25em;
+}
+
+/* Verse */
+.downstage-verse-block {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+.downstage-verse-line {
+  margin-left: 2em;
+  margin-bottom: 0;
+}
+
+/* Page Break */
+.downstage-page-break {
+  border: none;
+  border-top: 1px dashed var(--downstage-break-color);
+  page-break-after: always;
+  margin: var(--downstage-break-spacing) 0;
+}
+
+.downstage-subplay {
+  padding-top: var(--downstage-break-spacing);
+  border-top: 1px dashed var(--downstage-break-color);
+}
+.downstage-title-page + .downstage-subplay {
+  border-top: none;
+  padding-top: 0;
+}
+
+/* Inline */
+.downstage-inline-direction {
+  font-style: italic;
+}
+
+/* Section line spacing */
+.downstage-section-break { margin-top: 1em; }
+
+@media print {
+  .downstage-document { padding: 0; max-width: none; }
+  .downstage-title-page {
+    min-height: 100vh;
+    page-break-after: always;
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+  .downstage-dramatis-personae {
+    page-break-after: always;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .downstage-dramatis-personae-inline { page-break-after: auto; }
+  .downstage-act,
+  .downstage-act + .downstage-act,
+  .downstage-scene + .downstage-act {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+  .downstage-subplay {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+  }
+  .downstage-subplay > .downstage-act:first-of-type,
+  .downstage-subplay > .downstage-scene:first-of-type {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+  .downstage-dialogue { orphans: 3; widows: 2; }
+  .downstage-song { page-break-inside: avoid; }
+  .downstage-page-break {
+    page-break-after: always;
+    height: 0;
+    margin: 0;
+    border-top: none;
+  }
+}

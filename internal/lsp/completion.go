@@ -244,18 +244,25 @@ func characterCompletionCandidates(doc *ast.Document, index *documentIndex, cont
 	if !index.isCharacterCueLine(line) {
 		return nil
 	}
+	scope := index.characterScopeForLine(doc, line)
+	if len(scope.names) > 0 {
+		return scope.names
+	}
 	return index.documentCharacterNames
 }
 
 func headingCompletionCandidates(doc *ast.Document, index *documentIndex, line, level int) []string {
 	switch level {
 	case 1:
-		if index.hasDramatisPersonae {
-			return nil
-		}
-		return []string{"Dramatis Personae"}
+		return nil
 	case 2:
-		return []string{nextActHeading(index, line)}
+		section := topLevelSectionForLine(doc, line)
+		candidates := make([]string, 0, 2)
+		if scope := index.characterScopeForSection(section); section != nil && scope.dp == nil {
+			candidates = append(candidates, "Dramatis Personae")
+		}
+		candidates = append(candidates, nextActHeading(index, line))
+		return candidates
 	case 3:
 		return []string{nextSceneHeading(index, line)}
 	default:
@@ -275,7 +282,7 @@ func sceneCompletionCandidates(doc *ast.Document, index *documentIndex, content 
 
 	speakers := index.sceneSpeakersBeforeLine(scene, line)
 	ranked := rankRecentSpeakers(speakers)
-	return appendRemainingDPNames(doc, ranked), true
+	return appendRemainingDPNames(doc, line, ranked), true
 }
 
 func documentCharacterNames(doc *ast.Document) []string {
@@ -298,6 +305,9 @@ func documentCharacterNames(doc *ast.Document) []string {
 	if dp := ast.FindDramatisPersonae(doc.Body); dp != nil {
 		for _, ch := range dp.AllCharacters() {
 			add(ch.Name)
+			for _, alias := range ch.Aliases {
+				add(alias)
+			}
 		}
 	}
 
@@ -373,24 +383,31 @@ func rankRecentSpeakers(speakers []string) []string {
 	return append(ranked, lastSpeaker)
 }
 
-func appendRemainingDPNames(doc *ast.Document, names []string) []string {
+func appendRemainingDPNames(doc *ast.Document, line int, names []string) []string {
 	seen := make(map[string]struct{}, len(names))
 	for _, name := range names {
 		seen[strings.ToUpper(strings.TrimSpace(name))] = struct{}{}
 	}
 
-	if dp := ast.FindDramatisPersonae(doc.Body); dp != nil {
+	add := func(raw string) {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			return
+		}
+		key := strings.ToUpper(name)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		names = append(names, name)
+	}
+
+	if dp := scopedDramatisPersonae(doc, line); dp != nil {
 		for _, ch := range dp.AllCharacters() {
-			name := strings.TrimSpace(ch.Name)
-			if name == "" {
-				continue
+			add(ch.Name)
+			for _, alias := range ch.Aliases {
+				add(alias)
 			}
-			key := strings.ToUpper(name)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			names = append(names, name)
 		}
 	}
 
@@ -399,7 +416,8 @@ func appendRemainingDPNames(doc *ast.Document, names []string) []string {
 
 func nextActHeading(index *documentIndex, line int) string {
 	count := 0
-	for _, act := range index.acts {
+	play := nearestSectionBeforeLine(index.topLevelSections, line)
+	for _, act := range index.actsByPlay[play] {
 		if act.Range.Start.Line < line {
 			count++
 		}

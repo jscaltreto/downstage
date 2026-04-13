@@ -74,6 +74,7 @@ export interface EditorEnv {
   // Parsing and Diagnostics
   parse(source: string): Promise<{ errors: ParseError[] }>;
   diagnostics(source: string): Promise<{ diagnostics: WasmDiagnostic[] }>;
+  upgradeV1(source: string): Promise<{ source: string; changed: boolean }>;
   completion(source: string, line: number, col: number): Promise<LSPCompletionList>;
   codeActions(source: string, line: number, col: number, codes?: string[]): Promise<LSPCodeActionsResult>;
   semanticTokens(source: string): Promise<Uint32Array>;

@@ -37,21 +37,20 @@ npm run serve:site
 ## Quick Example
 
 ```
-Title: The Example Play
+# The Example Play
 Author: Jane Smith
 Date: 2025
+Draft: First
 
-# Dramatis Personae
+## Dramatis Personae
 
-HAMLET — Prince of Denmark
-HORATIO — Friend to Hamlet
+HAMLET - Prince of Denmark
+HORATIO - Friend to Hamlet
 
-## Courtiers
+### Courtiers
 
-ROSENCRANTZ — A courtier
-GUILDENSTERN — A courtier
-
-# The Example Play
+ROSENCRANTZ - A courtier
+GUILDENSTERN - A courtier
 
 ## ACT I
 
@@ -257,11 +256,11 @@ See [`web/README.md`](web/README.md) for details.
 
 ## Language Overview
 
-A Downstage document has three sections:
+A Downstage document is organized around top-level `#` sections:
 
-1. **Title Page** — optional `Key: Value` metadata lines at the start of the document, with indented continuation lines allowed
-2. **Dramatis Personae** — A `# Dramatis Personae`, `# Cast of Characters`, or `# Characters` heading followed by character names and descriptions, optionally organized into groups with `##` subheadings.
-3. **Body** — The play itself: acts (`## ACT`), scenes (`### SCENE`), dialogue (ALL CAPS character name followed by speech text), stage directions (`>` prefixed lines), callouts (`>>` prefixed lines), verse (indented 2+ spaces), songs, and comments.
+1. **Play Header** — each play starts with `# Title`, followed by optional `Key: Value` metadata lines such as `Author:` or `Draft:`
+2. **Dramatis Personae** — an optional `## Dramatis Personae`, `## Cast of Characters`, or `## Characters` section inside that play, with character entries and optional `###` subgroup headings
+3. **Body** — the play itself: acts (`## ACT`), scenes (`### SCENE`), dialogue (ALL CAPS character name followed by speech text), stage directions (`>` prefixed lines), callouts (`>>` prefixed lines), verse (indented 2+ spaces), songs, and comments
 
 ### Dual Dialogue
 

@@ -1,8 +1,6 @@
 package ast
 
 import (
-	"unicode/utf16"
-
 	"github.com/jscaltreto/downstage/internal/token"
 )
 
@@ -73,6 +71,7 @@ type Section struct {
 	Level        int              // 1 (#), 2 (##), 3 (###)
 	Title        string           // heading text (e.g. "ACT I", "Playwright's Notes")
 	Number       string           // act/scene number (e.g. "I", "1") — empty for generic
+	Metadata     *TitlePage       `json:",omitempty"` // optional metadata directly under a top-level section heading
 	Children     []Node           // nested sections + content (dialogue, directions, songs, etc.)
 	Characters   []Character      // populated only for SectionDramatisPersonae
 	Groups       []CharacterGroup // populated only for SectionDramatisPersonae
@@ -85,10 +84,14 @@ type Section struct {
 func (s *Section) NodeRange() token.Range { return s.Range }
 func (s *Section) nodeType() string       { return "Section" }
 func (s *Section) HeadingRange() token.Range {
-	if s.headingRange.Start == (token.Position{}) && s.headingRange.End == (token.Position{}) {
+	if isZeroRange(s.headingRange) {
 		return s.Range
 	}
 	return s.headingRange
+}
+
+func isZeroRange(r token.Range) bool {
+	return r.Start == (token.Position{}) && r.End == (token.Position{})
 }
 func (s *Section) SetHeadingRange(r token.Range) { s.headingRange = r }
 
@@ -210,12 +213,45 @@ type CharacterGroup struct {
 
 // FindDramatisPersonae searches the body for a SectionDramatisPersonae node.
 func FindDramatisPersonae(body []Node) *Section {
-	for _, node := range body {
-		if s, ok := node.(*Section); ok && s.Kind == SectionDramatisPersonae {
+	return FindDramatisPersonaeInNodes(body)
+}
+
+func FindDramatisPersonaeInNodes(nodes []Node) *Section {
+	for _, node := range nodes {
+		s, ok := node.(*Section)
+		if !ok {
+			continue
+		}
+		if s.Kind == SectionDramatisPersonae {
 			return s
+		}
+		if child := FindDramatisPersonaeInNodes(s.Children); child != nil {
+			return child
 		}
 	}
 	return nil
+}
+
+func FindDramatisPersonaeInSection(section *Section) *Section {
+	if section == nil {
+		return nil
+	}
+	return FindDramatisPersonaeInNodes(section.Children)
+}
+
+func FindTopLevelSection(body []Node, line int) *Section {
+	var last *Section
+	for _, node := range body {
+		s, ok := node.(*Section)
+		if !ok || s.Level != 1 {
+			continue
+		}
+		if s.Range.Start.Line > line {
+			break
+		}
+		last = s
+	}
+	return last
 }
 
 // AllCharacters returns all characters from a DramatisPersonae section,
@@ -250,10 +286,10 @@ type Dialogue struct {
 func (d *Dialogue) NodeRange() token.Range { return d.Range }
 func (d *Dialogue) nodeType() string       { return "Dialogue" }
 func (d *Dialogue) NameRange() token.Range {
-	if d.nameRange.Start == (token.Position{}) && d.nameRange.End == (token.Position{}) {
+	if isZeroRange(d.nameRange) {
 		r := d.Range
 		r.End = r.Start
-		r.End.Column += len(utf16.Encode([]rune(d.Character)))
+		r.End.Column += token.UTF16Len(d.Character)
 		r.End.Offset += len(d.Character)
 		return r
 	}
@@ -334,14 +370,22 @@ var _ Node = (*Song)(nil)
 
 // Song represents a song section.
 type Song struct {
-	Number  string
-	Title   string
-	Content []Node
-	Range   token.Range
+	Number   string
+	Title    string
+	Content  []Node
+	Range    token.Range
+	endRange token.Range
 }
 
 func (s *Song) NodeRange() token.Range { return s.Range }
 func (s *Song) nodeType() string       { return "Song" }
+
+// EndRange returns the source range of the closing "SONG END" marker, or a
+// zero range when the song was unterminated.
+func (s *Song) EndRange() token.Range { return s.endRange }
+func (s *Song) SetEndRange(r token.Range) {
+	s.endRange = r
+}
 
 // --- VerseBlock ---
 

@@ -21,8 +21,7 @@ func computeHover(doc *ast.Document, _ []*parser.ParseError, pos protocol.Positi
 		return nil
 	}
 
-	// Look up the character in dramatis personae.
-	dp := ast.FindDramatisPersonae(doc.Body)
+	dp := scopedDramatisPersonae(doc, int(pos.Line))
 	if dp == nil {
 		return nil
 	}

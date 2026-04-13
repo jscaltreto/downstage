@@ -68,10 +68,14 @@ func TestComputeDefinition_NotOnCharacter(t *testing.T) {
 }
 
 func TestComputeDefinition_DualDialogueRangeExcludesCaret(t *testing.T) {
-	doc, errs := parser.Parse([]byte(`# Dramatis Personae
+	doc, errs := parser.Parse([]byte(`# Play
+
+## Dramatis Personae
 HAMLET
 
-# Play
+## ACT I
+
+### SCENE 1
 
 HAMLET ^
 Hello.`))
@@ -80,12 +84,12 @@ Hello.`))
 	}
 
 	uri := protocol.DocumentURI("file:///test.ds")
-	assertNil := computeDefinition(doc, nil, uri, protocol.Position{Line: 5, Character: 7})
+	assertNil := computeDefinition(doc, nil, uri, protocol.Position{Line: 9, Character: 7})
 	if assertNil != nil {
 		t.Fatal("expected no definition when cursor is on the trailing caret")
 	}
 
-	loc := computeDefinition(doc, nil, uri, protocol.Position{Line: 5, Character: 5})
+	loc := computeDefinition(doc, nil, uri, protocol.Position{Line: 9, Character: 5})
 	if loc == nil {
 		t.Fatal("expected definition on the character name")
 	}

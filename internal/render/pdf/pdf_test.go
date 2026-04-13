@@ -42,6 +42,330 @@ func TestRender_TitlePageOnly(t *testing.T) {
 	assert.Equal(t, 1, r.pdf.PageNo())
 }
 
+func TestRender_TitlePageSetsDocumentMetadata(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "Hamlet"},
+				{Key: "Subtitle", Value: "Prince of Denmark"},
+				{Key: "Author", Value: "William Shakespeare"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	require.NoError(t, render.Walk(r, doc, &buf))
+	// fpdf writes the document info dictionary in the trailer section;
+	// check the raw bytes contain the expected entries.
+	output := buf.Bytes()
+	assert.Contains(t, string(output), "/Creator")
+	assert.Contains(t, string(output), "/Title")
+	assert.Contains(t, string(output), "/Author")
+	assert.Contains(t, string(output), "/Subject")
+}
+
+func TestRender_OutlineLevelsFromAST(t *testing.T) {
+	playA := &ast.Section{Kind: ast.SectionGeneric, Level: 1, Title: "A"}
+	scene1 := &ast.Section{Kind: ast.SectionScene, Level: 2, Number: "1"}
+	actI := &ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"}
+	nestedScene := &ast.Section{Kind: ast.SectionScene, Level: 3, Number: "2"}
+	trailingScene := &ast.Section{Kind: ast.SectionScene, Level: 2, Number: "3"}
+	actI.Children = []ast.Node{nestedScene}
+	playA.Children = []ast.Node{scene1, actI, trailingScene}
+
+	doc := &ast.Document{Body: []ast.Node{playA}}
+	levels := buildOutlineLevels(doc)
+
+	assert.Equal(t, 0, levels[playA])
+	assert.Equal(t, 1, levels[actI])
+	// Scene before the act and scene after the act are both direct
+	// children of the play (not nested in an act), so both map to level 1.
+	assert.Equal(t, 1, levels[scene1])
+	assert.Equal(t, 1, levels[trailingScene])
+	// A scene actually nested inside an act stays at level 2.
+	assert.Equal(t, 2, levels[nestedScene])
+}
+
+func TestRender_TitlePagePageNumberSuppressed(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{{Key: "Title", Value: "Play"}},
+		},
+		Body: []ast.Node{
+			&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+		},
+	}
+	require.NoError(t, render.Walk(r, doc, &bytes.Buffer{}))
+	assert.True(t, r.titlePagePages[1], "expected page 1 to be marked as a title page")
+}
+
+func TestRender_TitlePageSupportsMultipleAuthors(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "My Play"},
+				{Key: "Author", Value: "Jane Doe"},
+				{Key: "Author", Value: "John Smith"},
+				{Key: "Draft", Value: "A very long draft line that should wrap rather than run off the page when rendered on the title page."},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	assert.Equal(t, 1, r.pdf.PageNo())
+}
+
+func TestRender_TopLevelSectionMetadataAsTitlePage(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Author", Value: "Test Author"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionAct,
+						Level:  2,
+						Number: "I",
+					},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	assert.Equal(t, 2, r.pdf.PageNo())
+}
+
+func TestRender_TopLevelSectionWithoutMetadataStillUsesTitlePage(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Play",
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionAct,
+						Level:  2,
+						Number: "I",
+					},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	assert.Equal(t, 2, r.pdf.PageNo())
+}
+
+func TestRender_DramatisPersonaeGetsOwnPageBeforeAct(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Author", Value: "Test Author"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:  ast.SectionDramatisPersonae,
+						Level: 2,
+						Title: "Dramatis Personae",
+						Characters: []ast.Character{
+							{Name: "ALICE"},
+							{Name: "BOB"},
+						},
+					},
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	assert.Equal(t, 3, r.pdf.PageNo())
+}
+
+func TestRender_CondensedDramatisPersonaeGetsOwnPageBeforeAct(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Author", Value: "Test Author"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:  ast.SectionDramatisPersonae,
+						Level: 2,
+						Title: "Dramatis Personae",
+						Characters: []ast.Character{
+							{Name: "ALICE"},
+							{Name: "BOB"},
+						},
+					},
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	assert.Equal(t, 3, r.pdf.PageNo())
+}
+
+func TestRender_CompilationSubplayStaysInlineAfterHeader(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Compilation",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "First Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Jane Doe"}},
+				},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:  ast.SectionDramatisPersonae,
+						Level: 2,
+						Characters: []ast.Character{
+							{Name: "ALICE"},
+						},
+					},
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	assert.Equal(t, 3, r.pdf.PageNo())
+}
+
+func TestRender_CondensedCompilationSubplayStaysInlineAfterHeader(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Compilation",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "First Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Jane Doe"}},
+				},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:  ast.SectionDramatisPersonae,
+						Level: 2,
+						Characters: []ast.Character{
+							{Name: "ALICE"},
+						},
+					},
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	assert.Equal(t, 3, r.pdf.PageNo())
+}
+
+func TestRender_CompilationSubplaysStartOnFreshPages(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "First Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "One"}},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Second Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Two"}},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	assert.Equal(t, 4, r.pdf.PageNo())
+}
+
 func TestRender_DialogueWithFormatting(t *testing.T) {
 	r := NewRenderer(render.DefaultConfig())
 	doc := &ast.Document{

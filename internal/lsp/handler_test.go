@@ -385,10 +385,9 @@ func TestHandleFoldingRange_ReturnsComputedRanges(t *testing.T) {
 	dm := newDocumentManager(parserFunc(parser.Parse))
 	h := newHandler(dm, testLogger())
 	uri := protocol.DocumentURI("file:///test.ds")
-	content := `Title: Play
+	content := `# Play
+Title: Play
 Author: Example
-
-# Play
 
 ## ACT I
 
@@ -426,8 +425,8 @@ SONG END`
 	if len(got) == 0 {
 		t.Fatal("expected folding ranges")
 	}
-	if got[0].StartLine != 0 || got[0].EndLine != 1 {
-		t.Fatalf("unexpected title page folding range: %+v", got[0])
+	if got[0].StartLine != 1 || got[0].EndLine != 2 {
+		t.Fatalf("unexpected metadata folding range: %+v", got[0])
 	}
 }
 

@@ -65,6 +65,288 @@ func TestRender_TitlePage(t *testing.T) {
 	assert.Contains(t, out, "</header>")
 }
 
+func TestRender_TitlePageSupportsMultipleAuthors(t *testing.T) {
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "My Play"},
+				{Key: "Author", Value: "Jane Doe"},
+				{Key: "Author", Value: "John Smith"},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, "<p class=\"author\">Jane Doe</p>")
+	assert.Contains(t, out, "<p class=\"author\">John Smith</p>")
+}
+
+func TestRender_TopLevelSectionMetadataAsTitlePage(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Author", Value: "Jane Doe"},
+						{Key: "Subtitle", Value: "A Drama"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionAct,
+						Level:  2,
+						Number: "I",
+					},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<title>My Play</title>")
+	assert.Contains(t, out, "<header class=\"downstage-title-page\">")
+	assert.Contains(t, out, "<h1>My Play</h1>")
+	assert.Contains(t, out, "<p class=\"subtitle\">A Drama</p>")
+	assert.Contains(t, out, "<p class=\"author\">Jane Doe</p>")
+}
+
+func TestRender_TopLevelSectionWithoutMetadataStillUsesTitlePage(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Play",
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionAct,
+						Level:  2,
+						Number: "I",
+					},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<title>My Play</title>")
+	assert.Contains(t, out, "<header class=\"downstage-title-page\">")
+	assert.Contains(t, out, "<h1>My Play</h1>")
+}
+
+func TestRender_CompilationSubplaysUseInlineHeaders(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "My Compilation",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "First Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Jane Doe"}},
+				},
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:  ast.SectionDramatisPersonae,
+						Level: 2,
+						Characters: []ast.Character{
+							{Name: "ALICE"},
+						},
+					},
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<header class=\"downstage-title-page\">")
+	assert.Contains(t, out, "<section class=\"downstage-subplay\">")
+	assert.Contains(t, out, "<header class=\"downstage-subplay-header\">")
+	assert.Contains(t, out, "<h1>First Play</h1>")
+	assert.Contains(t, out, "<p class=\"downstage-subplay-author\">Jane Doe</p>")
+	assert.Contains(t, out, "downstage-dramatis-personae downstage-dramatis-personae-inline")
+	assert.NotContains(t, out, "<title>First Play</title>")
+}
+
+func TestRender_SubplayHeaderPrefersMetadataTitle(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Collection",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Hamlet draft",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Title", Value: "Hamlet"},
+						{Key: "Author", Value: "Shakespeare"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<h1>Hamlet</h1>")
+	assert.NotContains(t, out, "<h1>Hamlet draft</h1>")
+}
+
+func TestRender_SinglePlayTitleMetadataSuppressesHeadingDuplication(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Hamlet draft",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Title", Value: "Hamlet"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<h1>Hamlet</h1>")
+	// Heading text must not leak into the body as a second h1.
+	assert.Equal(t, 1, strings.Count(out, "<h1>"), "expected only the title-page h1")
+}
+
+func TestRender_SubplayRendersSubtitle(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Collection",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Act of Kindness",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Subtitle", Value: "A short tragedy"},
+						{Key: "Author", Value: "Jane Doe"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionScene, Level: 2, Number: "1"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, `<p class="downstage-subplay-subtitle">A short tragedy</p>`)
+}
+
+func TestRender_CompilationSubplaySupportsMultipleAuthors(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Compilation",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Editor", Value: "Person"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "First Play",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Author", Value: "Jane Doe"},
+						{Key: "Author", Value: "John Smith"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionAct, Level: 2, Number: "I"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<p class=\"downstage-subplay-author\">Jane Doe</p>")
+	assert.Contains(t, out, "<p class=\"downstage-subplay-author\">John Smith</p>")
+}
+
+func TestRender_DramatisPersonaeIncludesAliases(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionDramatisPersonae,
+				Level: 2,
+				Characters: []ast.Character{
+					{Name: "HAMLET", Aliases: []string{"HAM"}, Description: "Prince of Denmark"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, "<dt>HAMLET/HAM</dt>")
+	assert.Contains(t, out, "<dd>Prince of Denmark</dd>")
+}
+
+func TestRender_DramatisPersonaeEmDashSeparatorPreservesTrailingSpace(t *testing.T) {
+	// The CSS escape "\2014 " swallows a single trailing space. The fix uses
+	// a non-breaking space after the em-dash; guard that in the stylesheet
+	// so a regression in css.go fails loudly.
+	out := renderHTML(t, &ast.Document{})
+	assert.Contains(t, out, `content: " \2014\00a0"`)
+}
+
+func TestRender_ForcedPageBreakHasVisibleRule(t *testing.T) {
+	out := renderHTML(t, &ast.Document{})
+	assert.Contains(t, out, ".downstage-page-break")
+	assert.Contains(t, out, "border-top: 1px dashed var(--downstage-break-color)")
+}
+
+func TestRender_CompilationBreaksMatchPDF(t *testing.T) {
+	// When a title-page-only section precedes a subplay, only one visible
+	// rule should appear — the title page's bottom border. The subplay's
+	// top border rule is suppressed via `.downstage-title-page + .downstage-subplay`.
+	// When the subplay contains an inline DP followed by a scene, the scene
+	// itself draws the break (matching PDF's deferred page advance into the
+	// first body element of the subplay).
+	out := renderHTML(t, &ast.Document{})
+	assert.Contains(t, out, ".downstage-title-page + .downstage-subplay")
+	assert.Contains(t, out, ".downstage-subplay > .downstage-act:first-of-type")
+	assert.Contains(t, out, ".downstage-subplay > .downstage-scene:first-of-type")
+}
+
 func TestRender_DialogueWithFormatting(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{

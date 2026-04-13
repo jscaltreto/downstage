@@ -5,9 +5,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"syscall/js"
 
 	"github.com/jscaltreto/downstage/internal/lsp"
+	"github.com/jscaltreto/downstage/internal/migrate"
 	"github.com/jscaltreto/downstage/internal/parser"
 	"github.com/jscaltreto/downstage/internal/render"
 	htmlrender "github.com/jscaltreto/downstage/internal/render/html"
@@ -20,6 +22,7 @@ func main() {
 
 	ds.Set("parse", js.FuncOf(parse))
 	ds.Set("diagnostics", js.FuncOf(diagnostics))
+	ds.Set("upgradeV1", js.FuncOf(upgradeV1))
 	ds.Set("completion", js.FuncOf(completion))
 	ds.Set("codeActions", js.FuncOf(codeActions))
 	ds.Set("renderHTML", js.FuncOf(renderHTML))
@@ -139,7 +142,7 @@ func codeActions(_ js.Value, args []js.Value) any {
 	col := args[2].Int()
 
 	var codeFilter map[string]struct{}
-	if len(args) > 3 && args[3].Type() == js.TypeObject {
+	if len(args) > 3 && isJSArray(args[3]) {
 		codeFilter = make(map[string]struct{})
 		length := args[3].Length()
 		for i := 0; i < length; i++ {
@@ -179,9 +182,23 @@ func codeActions(_ js.Value, args []js.Value) any {
 	return js.Global().Get("JSON").Call("parse", string(data))
 }
 
+func upgradeV1(_ js.Value, args []js.Value) any {
+	source := args[0].String()
+	upgraded, changed := migrate.UpgradeV1ToV2(source)
+
+	data, _ := json.Marshal(map[string]any{
+		"source":  upgraded,
+		"changed": changed,
+	})
+	return js.Global().Get("JSON").Call("parse", string(data))
+}
+
 func renderHTML(_ js.Value, args []js.Value) any {
 	source := args[0].String()
-	doc, _ := parser.Parse([]byte(source))
+	doc, errs := parser.Parse([]byte(source))
+	if hasV1ParseError(errs) {
+		return ""
+	}
 
 	cfg := render.DefaultConfig()
 	cfg.SourceAnchors = true
@@ -199,7 +216,10 @@ func renderHTML(_ js.Value, args []js.Value) any {
 
 func renderPDF(_ js.Value, args []js.Value) any {
 	source := args[0].String()
-	doc, _ := parser.Parse([]byte(source))
+	doc, errs := parser.Parse([]byte(source))
+	if hasV1ParseError(errs) {
+		return js.Null()
+	}
 
 	cfg := render.DefaultConfig()
 	if len(args) > 1 && args[1].String() == "condensed" {
@@ -222,6 +242,27 @@ func renderPDF(_ js.Value, args []js.Value) any {
 	arr := js.Global().Get("Uint8Array").New(len(data))
 	js.CopyBytesToJS(arr, data)
 	return arr
+}
+
+func isJSArray(v js.Value) bool {
+	if v.Type() != js.TypeObject {
+		return false
+	}
+	return js.Global().Get("Array").Call("isArray", v).Bool()
+}
+
+func hasV1ParseError(errs []*parser.ParseError) bool {
+	for _, e := range errs {
+		if e == nil {
+			continue
+		}
+		msg := e.Message
+		if strings.Contains(msg, "document-level metadata is a V1 pattern") ||
+			strings.Contains(msg, "top-level Dramatis Personae is a V1 pattern") {
+			return true
+		}
+	}
+	return false
 }
 
 func semanticTokens(_ js.Value, args []js.Value) any {

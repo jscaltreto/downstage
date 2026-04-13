@@ -7,6 +7,7 @@ import (
 
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/parser"
+	"github.com/jscaltreto/downstage/internal/token"
 	"go.lsp.dev/protocol"
 )
 
@@ -48,19 +49,6 @@ func ComputeSemanticTokens(doc *ast.Document, _ []*parser.ParseError) []uint32 {
 
 	var tokens []rawToken
 
-	// Title page entries: key is property, value spans the line.
-	if tp := doc.TitlePage; tp != nil {
-		for _, entry := range tp.Entries {
-			r := entry.Range
-			tokens = append(tokens, rawToken{
-				line:      r.Start.Line,
-				startChar: r.Start.Column,
-				length:    utf16Len(entry.Key),
-				tokenType: tokenTypeProperty,
-			})
-		}
-	}
-
 	// Body nodes
 	for _, n := range doc.Body {
 		tokens = append(tokens, extractTokens(n)...)
@@ -74,6 +62,17 @@ func extractTokens(n ast.Node) []rawToken {
 
 	switch v := n.(type) {
 	case *ast.Section:
+		if v.Metadata != nil {
+			for _, entry := range v.Metadata.Entries {
+				r := entry.Range
+				tokens = append(tokens, rawToken{
+					line:      r.Start.Line,
+					startChar: r.Start.Column,
+					length:    utf16Len(entry.Key),
+					tokenType: tokenTypeProperty,
+				})
+			}
+		}
 		header := sectionHeaderText(v)
 		if header != "" {
 			startChar := v.Range.Start.Column
@@ -86,6 +85,16 @@ func extractTokens(n ast.Node) []rawToken {
 				length:    utf16Len(header),
 				tokenType: tokenTypeNamespace,
 			})
+		}
+		if v.Kind == ast.SectionDramatisPersonae {
+			for _, ch := range v.Characters {
+				tokens = append(tokens, characterEntryToken(ch))
+			}
+			for _, group := range v.Groups {
+				for _, ch := range group.Characters {
+					tokens = append(tokens, characterEntryToken(ch))
+				}
+			}
 		}
 		for _, child := range v.Children {
 			tokens = append(tokens, extractTokens(child)...)
@@ -158,6 +167,15 @@ func extractTokens(n ast.Node) []rawToken {
 		for _, child := range v.Content {
 			tokens = append(tokens, extractTokens(child)...)
 		}
+		end := v.EndRange()
+		if end.Start != (token.Position{}) || end.End != (token.Position{}) {
+			tokens = append(tokens, rawToken{
+				line:      end.Start.Line,
+				startChar: end.Start.Column,
+				length:    utf16Len("SONG END"),
+				tokenType: tokenTypeKeyword,
+			})
+		}
 
 	case *ast.Comment:
 		r := v.Range
@@ -186,6 +204,23 @@ func sectionHeaderText(section *ast.Section) string {
 		return section.Title
 	default:
 		return section.Title
+	}
+}
+
+// characterEntryToken produces the highlight span that covers the
+// NAME or NAME/ALIAS portion of a DP entry.
+func characterEntryToken(ch ast.Character) rawToken {
+	display := ch.Name
+	for _, alias := range ch.Aliases {
+		if alias = strings.TrimSpace(alias); alias != "" {
+			display += "/" + alias
+		}
+	}
+	return rawToken{
+		line:      ch.Range.Start.Line,
+		startChar: ch.Range.Start.Column,
+		length:    utf16Len(display),
+		tokenType: tokenTypeType,
 	}
 }
 
@@ -315,13 +350,5 @@ func sortTokens(tokens []rawToken) {
 }
 
 func utf16Len(s string) int {
-	n := 0
-	for _, r := range s {
-		if r > 0xFFFF {
-			n += 2
-		} else {
-			n++
-		}
-	}
-	return n
+	return token.UTF16Len(s)
 }

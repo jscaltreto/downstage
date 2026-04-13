@@ -17,6 +17,7 @@ const (
 	diagnosticCodeUnnumberedScene  = "unnumbered-scene"
 	diagnosticCodeMisnumberedAct   = "misnumbered-act"
 	diagnosticCodeMisnumberedScene = "misnumbered-scene"
+	diagnosticCodeV1Document       = "v1-document"
 )
 
 // collectiveCues are conventional ensemble cue names that should not
@@ -95,12 +96,19 @@ func buildDiagnosticsWithIndex(doc *ast.Document, errors []*parser.ParseError, i
 
 	// Convert parser errors to diagnostics.
 	for _, e := range errors {
-		diags = append(diags, protocol.Diagnostic{
+		diag := protocol.Diagnostic{
 			Range:    toLSPRange(e.Range),
 			Severity: protocol.DiagnosticSeverityError,
 			Source:   "downstage",
 			Message:  e.Message,
-		})
+		}
+		if e.Code != "" {
+			diag.Code = e.Code
+		}
+		diags = append(diags, diag)
+	}
+	if diag := v1DocumentDiagnostic(errors); diag != nil {
+		diags = append(diags, *diag)
 	}
 
 	// Add warnings for unknown character names.
@@ -116,6 +124,36 @@ func buildDiagnosticsWithIndex(doc *ast.Document, errors []*parser.ParseError, i
 	return diags
 }
 
+func v1DocumentDiagnostic(errors []*parser.ParseError) *protocol.Diagnostic {
+	var first *parser.ParseError
+	for _, err := range errors {
+		if !isV1ParseError(err) {
+			continue
+		}
+		first = err
+		break
+	}
+	if first == nil {
+		return nil
+	}
+
+	return &protocol.Diagnostic{
+		Range:    toLSPRange(first.Range),
+		Severity: protocol.DiagnosticSeverityError,
+		Code:     diagnosticCodeV1Document,
+		Source:   "downstage",
+		Message:  "this looks like a V1 Downstage document; update it to V2 to continue working",
+	}
+}
+
+func isV1ParseError(err *parser.ParseError) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Message, "document-level metadata is a V1 pattern") ||
+		strings.Contains(err.Message, "top-level Dramatis Personae is a V1 pattern")
+}
+
 // checkUnknownCharacters warns when dialogue references a character not in dramatis personae.
 func checkUnknownCharacters(index *documentIndex) []protocol.Diagnostic {
 	if !index.hasDramatisPersonae {
@@ -124,11 +162,16 @@ func checkUnknownCharacters(index *documentIndex) []protocol.Diagnostic {
 
 	var diags []protocol.Diagnostic
 	for _, ref := range index.dialogues {
+		scope := index.characterScopeForSection(ref.play)
+		if scope.dp == nil {
+			continue
+		}
+
 		name := strings.ToUpper(ref.dialogue.Character)
 		if name == "" {
 			continue
 		}
-		if _, ok := index.knownCharacters[name]; ok {
+		if _, ok := scope.known[name]; ok {
 			continue
 		}
 		if collectiveCues[name] {
@@ -141,7 +184,7 @@ func checkUnknownCharacters(index *documentIndex) []protocol.Diagnostic {
 				if up == "" || collectiveCues[up] {
 					continue
 				}
-				if _, ok := index.knownCharacters[up]; ok {
+				if _, ok := scope.known[up]; ok {
 					continue
 				}
 				diags = append(diags, unknownCharacterDiag(ref.dialogue.NameRange(), part))
@@ -157,12 +200,13 @@ func checkUnknownCharacters(index *documentIndex) []protocol.Diagnostic {
 func checkUnnumberedSections(index *documentIndex) []protocol.Diagnostic {
 	var diags []protocol.Diagnostic
 
-	for actNumber, act := range index.acts {
-		if d := unnumberedActDiagnostic(act, actNumber+1); d != nil {
+	for _, act := range index.acts {
+		actNumber := index.actNumbers[act]
+		if d := unnumberedActDiagnostic(act, actNumber); d != nil {
 			diags = append(diags, *d)
 			continue
 		}
-		if d := misnumberedActDiagnostic(act, actNumber+1); d != nil {
+		if d := misnumberedActDiagnostic(act, actNumber); d != nil {
 			diags = append(diags, *d)
 		}
 	}

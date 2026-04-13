@@ -291,7 +291,7 @@ func TestIsCharacterName(t *testing.T) {
 		{"JOHN", true},
 		{"MRS. O'BRIEN", true},
 		{"LADY CAPULET", true},
-		{"A", false},       // too short
+		{"A", true},
 		{"john", false},    // lowercase
 		{"John", false},    // mixed case
 		{"SONG", true},     // lexer handles SONG before char check

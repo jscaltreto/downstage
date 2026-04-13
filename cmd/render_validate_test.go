@@ -63,7 +63,7 @@ func TestRunValidateReturnsError(t *testing.T) {
 
 func TestRunRenderRejectsHTMLOnlyPDFFlags(t *testing.T) {
 	input := t.TempDir() + "/play.ds"
-	if err := os.WriteFile(input, []byte("ALICE\nHello."), 0o644); err != nil {
+	if err := os.WriteFile(input, []byte("# Play\n\nALICE\nHello."), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -91,7 +91,7 @@ func TestRunRenderStdoutAcceptsPDF(t *testing.T) {
 	resetRenderFlags()
 
 	input := t.TempDir() + "/play.ds"
-	if err := os.WriteFile(input, []byte("Title: Test\n\nALICE\nHello.\n"), 0o644); err != nil {
+	if err := os.WriteFile(input, []byte("# Test\n\nALICE\nHello.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

@@ -16,6 +16,6 @@ cards:
   - title: Portable
     text: It works on macOS, Windows, Linux, and in the Web Editor without locking your script to one device.
 ---
-If [Fountain](https://fountain.io/) feels too screenwriting-shaped and a word
-processor keeps nudging you into layout work, Downstage gives you a plain-text
-workflow built for plays.
+If word processors keep nudging you into layout work, and screenwriting-focused text formats such as
+[Fountain](https://fountain.io/) are not *quite* the right shape,
+Downstage gives you a plain-text workflow built for plays.

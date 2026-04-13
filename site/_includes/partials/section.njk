@@ -61,7 +61,7 @@
       <div class="grid min-w-0 gap-4">
         {% asyncEach item in section.data.examplePairs %}
           <div class="min-w-0">
-            {% if item.text %}<p class="mt-2 text-base leading-7 text-parchment-300">{{ item.text | safe }}</p>{% endif %}
+            {% if item.text %}<p class="example-pair-text mt-2 text-base leading-7 text-parchment-300">{{ item.text | safe }}</p>{% endif %}
             {% renderCodeBlock item.code, (item.lang or "text"), (item.label or item.lang or "text") %}
           </div>
         {% endeach %}

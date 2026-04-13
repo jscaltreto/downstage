@@ -16,5 +16,5 @@ cards:
   - title: Revision history
     text: Because the script is plain text, Git can compare drafts and preserve every revision cleanly.
 ---
-If [Fountain](https://fountain.io/) feels too screenplay-shaped and word processors
+If screenwriting-focused formats such as [Fountain](https://fountain.io/) aren't the right shape for the stage, and word processors
 keep pulling you into formatting chores, Downstage keeps the focus on the play.

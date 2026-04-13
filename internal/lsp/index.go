@@ -10,6 +10,7 @@ import (
 type dialogueRef struct {
 	dialogue *ast.Dialogue
 	scene    *ast.Section
+	play     *ast.Section
 }
 
 type sceneSpeakerCue struct {
@@ -20,11 +21,17 @@ type sceneSpeakerCue struct {
 type documentIndex struct {
 	acts                   []*ast.Section
 	scenes                 []*ast.Section
+	topLevelSections       []*ast.Section
+	actNumbers             map[*ast.Section]int
 	sceneActs              map[*ast.Section]*ast.Section
 	sceneNumbers           map[*ast.Section]int
+	actPlays               map[*ast.Section]*ast.Section
+	actsByPlay             map[*ast.Section][]*ast.Section
 	characterCueLines      map[int]struct{}
 	documentCharacterNames []string
 	knownCharacters        map[string]struct{}
+	characterScopes        map[*ast.Section]characterScope
+	legacyCharacterScope   characterScope
 	dialogues              []dialogueRef
 	sceneSpeakers          map[*ast.Section][]sceneSpeakerCue
 	hasDramatisPersonae    bool
@@ -34,9 +41,13 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 	index := &documentIndex{
 		characterCueLines: make(map[int]struct{}),
 		knownCharacters:   make(map[string]struct{}),
+		characterScopes:   make(map[*ast.Section]characterScope),
+		actNumbers:        make(map[*ast.Section]int),
 		sceneSpeakers:     make(map[*ast.Section][]sceneSpeakerCue),
 		sceneActs:         make(map[*ast.Section]*ast.Section),
 		sceneNumbers:      make(map[*ast.Section]int),
+		actPlays:          make(map[*ast.Section]*ast.Section),
+		actsByPlay:        make(map[*ast.Section][]*ast.Section),
 	}
 	if doc == nil {
 		return index
@@ -56,30 +67,52 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		index.documentCharacterNames = append(index.documentCharacterNames, name)
 	}
 
-	if dp := ast.FindDramatisPersonae(doc.Body); dp != nil {
-		index.hasDramatisPersonae = true
-		for _, ch := range dp.AllCharacters() {
-			addDocumentCharacter(ch.Name)
-			index.knownCharacters[strings.ToUpper(ch.Name)] = struct{}{}
-			for _, alias := range ch.Aliases {
-				alias = strings.TrimSpace(alias)
-				if alias == "" {
-					continue
-				}
-				index.knownCharacters[strings.ToUpper(alias)] = struct{}{}
+	for _, node := range doc.Body {
+		section, ok := node.(*ast.Section)
+		if !ok || section.Level != 1 {
+			continue
+		}
+		scope := newCharacterScope(ast.FindDramatisPersonaeInSection(section))
+		if scope.dp != nil {
+			index.characterScopes[section] = scope
+			index.hasDramatisPersonae = true
+			for _, name := range scope.names {
+				addDocumentCharacter(name)
+			}
+			for key := range scope.known {
+				index.knownCharacters[key] = struct{}{}
 			}
 		}
 	}
 
-	sceneCountsByAct := make(map[*ast.Section]int)
-	sceneCountOutsideActs := 0
+	// When no top-level section owns a Dramatis Personae the document is
+	// either V1-shaped (doc-level DP) or DP-free. In that case fall back to a
+	// document-wide scope. In compilations where at least one play has a DP,
+	// plays without one intentionally get no scope — that keeps scoping rules
+	// self-contained per play rather than leaking names across the collection.
+	if len(index.characterScopes) == 0 {
+		index.legacyCharacterScope = newCharacterScope(ast.FindDramatisPersonae(doc.Body))
+	}
+	if index.legacyCharacterScope.dp != nil {
+		index.hasDramatisPersonae = true
+		for _, name := range index.legacyCharacterScope.names {
+			addDocumentCharacter(name)
+		}
+		for key := range index.legacyCharacterScope.known {
+			index.knownCharacters[key] = struct{}{}
+		}
+	}
 
-	var walkNode func(ast.Node, *ast.Section, *ast.Section)
-	walkNode = func(node ast.Node, currentAct *ast.Section, currentScene *ast.Section) {
+	actCountsByPlay := make(map[*ast.Section]int)
+	sceneCountsByAct := make(map[*ast.Section]int)
+	sceneCountsByPlay := make(map[*ast.Section]int)
+
+	var walkNode func(ast.Node, *ast.Section, *ast.Section, *ast.Section)
+	walkNode = func(node ast.Node, currentTopLevel *ast.Section, currentAct *ast.Section, currentScene *ast.Section) {
 		switch v := node.(type) {
 		case *ast.Dialogue:
 			index.characterCueLines[v.NameRange().Start.Line] = struct{}{}
-			ref := dialogueRef{dialogue: v, scene: currentScene}
+			ref := dialogueRef{dialogue: v, scene: currentScene, play: currentTopLevel}
 			index.dialogues = append(index.dialogues, ref)
 			if len(v.Lines) > 0 {
 				addDocumentCharacter(v.Character)
@@ -91,12 +124,23 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 				})
 			}
 		case *ast.DualDialogue:
-			walkNode(v.Left, currentAct, currentScene)
-			walkNode(v.Right, currentAct, currentScene)
+			walkNode(v.Left, currentTopLevel, currentAct, currentScene)
+			walkNode(v.Right, currentTopLevel, currentAct, currentScene)
 		case *ast.Section:
+			if v.Level == 1 {
+				currentTopLevel = v
+				currentAct = nil
+				currentScene = nil
+				index.topLevelSections = append(index.topLevelSections, v)
+			}
 			if v.Kind == ast.SectionAct {
 				index.acts = append(index.acts, v)
+				actCountsByPlay[currentTopLevel]++
+				index.actNumbers[v] = actCountsByPlay[currentTopLevel]
+				index.actPlays[v] = currentTopLevel
+				index.actsByPlay[currentTopLevel] = append(index.actsByPlay[currentTopLevel], v)
 				currentAct = v
+				currentScene = nil
 			}
 			if v.Kind == ast.SectionScene {
 				index.scenes = append(index.scenes, v)
@@ -105,23 +149,23 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 					sceneCountsByAct[currentAct]++
 					index.sceneNumbers[v] = sceneCountsByAct[currentAct]
 				} else {
-					sceneCountOutsideActs++
-					index.sceneNumbers[v] = sceneCountOutsideActs
+					sceneCountsByPlay[currentTopLevel]++
+					index.sceneNumbers[v] = sceneCountsByPlay[currentTopLevel]
 				}
 				currentScene = v
 			}
 			for _, child := range v.Children {
-				walkNode(child, currentAct, currentScene)
+				walkNode(child, currentTopLevel, currentAct, currentScene)
 			}
 		case *ast.Song:
 			for _, child := range v.Content {
-				walkNode(child, currentAct, currentScene)
+				walkNode(child, currentTopLevel, currentAct, currentScene)
 			}
 		}
 	}
 
 	for _, node := range doc.Body {
-		walkNode(node, nil, nil)
+		walkNode(node, nil, nil, nil)
 	}
 
 	sort.Slice(index.acts, func(i, j int) bool {
@@ -129,6 +173,9 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 	})
 	sort.Slice(index.scenes, func(i, j int) bool {
 		return index.scenes[i].Range.Start.Line < index.scenes[j].Range.Start.Line
+	})
+	sort.Slice(index.topLevelSections, func(i, j int) bool {
+		return index.topLevelSections[i].Range.Start.Line < index.topLevelSections[j].Range.Start.Line
 	})
 	for scene, cues := range index.sceneSpeakers {
 		sort.Slice(cues, func(i, j int) bool {
@@ -145,12 +192,29 @@ func (idx *documentIndex) sceneForLine(line int) *ast.Section {
 }
 
 func (idx *documentIndex) actForLine(line int) *ast.Section {
-	return nearestSectionBeforeLine(idx.acts, line)
+	play := nearestSectionBeforeLine(idx.topLevelSections, line)
+	if acts := idx.actsByPlay[play]; len(acts) > 0 {
+		return nearestSectionBeforeLine(acts, line)
+	}
+	return nil
 }
 
 func (idx *documentIndex) isCharacterCueLine(line int) bool {
 	_, ok := idx.characterCueLines[line]
 	return ok
+}
+
+func (idx *documentIndex) characterScopeForSection(section *ast.Section) characterScope {
+	if section != nil {
+		if scope, ok := idx.characterScopes[section]; ok && scope.dp != nil {
+			return scope
+		}
+	}
+	return idx.legacyCharacterScope
+}
+
+func (idx *documentIndex) characterScopeForLine(doc *ast.Document, line int) characterScope {
+	return idx.characterScopeForSection(topLevelSectionForLine(doc, line))
 }
 
 func (idx *documentIndex) sceneSpeakersBeforeLine(scene *ast.Section, line int) []string {

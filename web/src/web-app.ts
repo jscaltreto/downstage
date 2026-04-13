@@ -1,7 +1,7 @@
 import "./main.css";
 import { createApp } from "vue";
 import AppWeb from "./AppWeb.vue";
-import { initWasm } from "./wasm";
+import { initWasm, upgradeV1 as upgradeV1Wasm } from "./wasm";
 import type {
   EditorEnv,
   SavedDraft,
@@ -38,6 +38,10 @@ class WebEnv implements EditorEnv {
 
   async diagnostics(source: string): Promise<{ diagnostics: WasmDiagnostic[] }> {
     return window.downstage.diagnostics(source);
+  }
+
+  async upgradeV1(source: string): Promise<{ source: string; changed: boolean }> {
+    return upgradeV1Wasm(source);
   }
 
   async completion(source: string, line: number, col: number): Promise<LSPCompletionList> {

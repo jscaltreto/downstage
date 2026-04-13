@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/jscaltreto/downstage/internal/ast"
+	"github.com/jscaltreto/downstage/internal/migrate"
+	"github.com/jscaltreto/downstage/internal/parser"
 	"go.lsp.dev/protocol"
 )
 
@@ -29,6 +31,7 @@ func computeCodeActions(
 	if doc == nil || len(diagnostics) == 0 {
 		return []protocol.CodeAction{}
 	}
+	index := newDocumentIndex(doc)
 
 	actions := make([]protocol.CodeAction, 0, len(diagnostics))
 	seenCharacters := make(map[string]struct{})
@@ -38,24 +41,64 @@ func computeCodeActions(
 	seenSceneEdits := make(map[string]struct{})
 	var hasMisnumberedAct, hasMisnumberedScene bool
 
-	var (
-		dp      = ast.FindDramatisPersonae(doc.Body)
-		edit    protocol.TextEdit
-		hasEdit bool
-	)
-	if dp != nil {
-		edit, hasEdit = dramatisPersonaeInsertEdit(doc, content)
-	}
-
 	for _, diagnostic := range diagnostics {
 		switch diagnostic.Code {
-		case diagnosticCodeUnknownCharacter:
-			if !hasEdit {
+		case parser.ErrCodeDPUnicodeDash:
+			edit := replaceUnicodeDashEdit(content, diagnostic.Range)
+			if edit == nil {
+				continue
+			}
+			actions = append(actions, protocol.CodeAction{
+				Title:       "Replace Unicode dash with ASCII ` - `",
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {*edit},
+					},
+				},
+			})
+		case parser.ErrCodeDPStandaloneAlias:
+			edit := inlineStandaloneAliasEdit(content, diagnostic.Range)
+			if edit == nil {
+				continue
+			}
+			actions = append(actions, protocol.CodeAction{
+				Title:       "Rewrite alias as inline NAME/ALIAS",
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {*edit},
+					},
+				},
+			})
+		case diagnosticCodeV1Document:
+			upgraded, changed := migrate.UpgradeV1ToV2(content)
+			if !changed {
 				continue
 			}
 
+			actions = append(actions, protocol.CodeAction{
+				Title:       "Update script to V2",
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {fullDocumentEdit(content, upgraded)},
+					},
+				},
+			})
+		case diagnosticCodeUnknownCharacter:
 			character := diagnosticCharacterName(diagnostic)
 			if character == "" {
+				continue
+			}
+			textEdit, hasEdit := dramatisPersonaeInsertEdit(doc, index, content, int(diagnostic.Range.Start.Line))
+			if !hasEdit {
 				continue
 			}
 
@@ -65,8 +108,7 @@ func computeCodeActions(
 			}
 			seenCharacters[key] = struct{}{}
 
-			textEdit := edit
-			prefix := strings.TrimSuffix(edit.NewText, "\n")
+			prefix := strings.TrimSuffix(textEdit.NewText, "\n")
 			textEdit.NewText = prefix + character + "\n"
 
 			actions = append(actions, protocol.CodeAction{
@@ -213,6 +255,25 @@ func numberingEdit(diagnostic protocol.Diagnostic) *protocol.TextEdit {
 	}
 }
 
+func fullDocumentEdit(content string, replacement string) protocol.TextEdit {
+	lines := strings.Split(content, "\n")
+	endLine := len(lines) - 1
+	endChar := 0
+	if endLine >= 0 {
+		endChar = len(lines[endLine])
+	}
+	return protocol.TextEdit{
+		Range: protocol.Range{
+			Start: protocol.Position{Line: 0, Character: 0},
+			End: protocol.Position{
+				Line:      uint32(maxInt(endLine, 0)),
+				Character: uint32(maxInt(endChar, 0)),
+			},
+		},
+		NewText: replacement,
+	}
+}
+
 func diagnosticCharacterName(diagnostic protocol.Diagnostic) string {
 	return diagnosticStringData(diagnostic, "character")
 }
@@ -242,8 +303,11 @@ func diagnosticStringData(diagnostic protocol.Diagnostic, key string) string {
 	}
 }
 
-func dramatisPersonaeInsertEdit(doc *ast.Document, content string) (protocol.TextEdit, bool) {
-	dp := ast.FindDramatisPersonae(doc.Body)
+func dramatisPersonaeInsertEdit(doc *ast.Document, index *documentIndex, content string, line int) (protocol.TextEdit, bool) {
+	if index == nil {
+		index = newDocumentIndex(doc)
+	}
+	dp := index.characterScopeForLine(doc, line).dp
 	if dp == nil {
 		return protocol.TextEdit{}, false
 	}
@@ -279,4 +343,60 @@ func dpHasNoEntries(dp *ast.Section) bool {
 		return true
 	}
 	return len(dp.Characters) == 0 && len(dp.Groups) == 0
+}
+
+// replaceUnicodeDashEdit returns a TextEdit that rewrites em-dashes and
+// en-dashes around the DP separator with the ASCII ` - ` form expected
+// by SPEC §5.
+func replaceUnicodeDashEdit(content string, r protocol.Range) *protocol.TextEdit {
+	line, ok := lineAt(content, int(r.Start.Line))
+	if !ok {
+		return nil
+	}
+	replaced := strings.ReplaceAll(line, " \u2014 ", " - ")
+	replaced = strings.ReplaceAll(replaced, " \u2013 ", " - ")
+	if replaced == line {
+		return nil
+	}
+	return &protocol.TextEdit{
+		Range: protocol.Range{
+			Start: protocol.Position{Line: r.Start.Line, Character: 0},
+			End:   protocol.Position{Line: r.Start.Line, Character: uint32(utf16Len(line))},
+		},
+		NewText: replaced,
+	}
+}
+
+// inlineStandaloneAliasEdit rewrites a `[NAME/ALIAS]` line as the
+// bracketless `NAME/ALIAS` form that the V2 parser accepts as a
+// character entry.
+func inlineStandaloneAliasEdit(content string, r protocol.Range) *protocol.TextEdit {
+	line, ok := lineAt(content, int(r.Start.Line))
+	if !ok {
+		return nil
+	}
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "[") || !strings.HasSuffix(trimmed, "]") {
+		return nil
+	}
+	inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trimmed, "["), "]"))
+	if inner == "" {
+		return nil
+	}
+	// Preserve the line's leading whitespace so the edit is minimally invasive.
+	lead := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+	return &protocol.TextEdit{
+		Range: protocol.Range{
+			Start: protocol.Position{Line: r.Start.Line, Character: 0},
+			End:   protocol.Position{Line: r.Start.Line, Character: uint32(utf16Len(line))},
+		},
+		NewText: lead + inner,
+	}
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

@@ -11,6 +11,7 @@ declare global {
     downstage: {
       parse(source: string): { errors: ParseError[] };
       diagnostics(source: string): { diagnostics: WasmDiagnostic[] };
+      upgradeV1(source: string): { source: string; changed: boolean };
       completion(source: string, line: number, col: number): LSPCompletionList;
       codeActions(source: string, line: number, col: number, codes?: string[]): LSPCodeActionsResult;
       renderHTML(source: string, style?: string): string;
@@ -165,6 +166,10 @@ export function parse(source: string) {
 
 export function diagnostics(source: string) {
   return window.downstage.diagnostics(source);
+}
+
+export function upgradeV1(source: string) {
+  return window.downstage.upgradeV1(source);
 }
 
 export function completion(source: string, line: number, col: number): LSPCompletionList {

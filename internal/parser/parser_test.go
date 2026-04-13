@@ -20,33 +20,140 @@ func TestEmptyDocument(t *testing.T) {
 	assert.Empty(t, doc.Body)
 }
 
-func TestTitlePageOnly(t *testing.T) {
+func TestV2TopLevelSectionMetadata(t *testing.T) {
+	input := `# The First Play
+Subtitle: A play in one act
+Author: Your Name
+Date: 2024
+Draft: First
+
+ALICE
+Hello.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	section, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.NotNil(t, section.Metadata)
+	require.Len(t, section.Metadata.Entries, 4)
+	assert.Equal(t, "Subtitle", section.Metadata.Entries[0].Key)
+	assert.Equal(t, "A play in one act", section.Metadata.Entries[0].Value)
+	assert.Equal(t, "Author", section.Metadata.Entries[1].Key)
+	assert.Equal(t, "Your Name", section.Metadata.Entries[1].Value)
+}
+
+func TestV2DocumentLevelMetadataProducesError(t *testing.T) {
+	input := `Title: Old Format
+Author: Someone
+
+# Play`
+
+	_, errs := Parse([]byte(input))
+	require.NotEmpty(t, errs)
+	assert.Contains(t, errs[0].Message, "document-level metadata is a V1 pattern")
+}
+
+func TestV1TopLevelDramatisPersonaeProducesError(t *testing.T) {
+	input := `# Dramatis Personae
+ALICE - A curious young woman
+
+# Play`
+
+	_, errs := Parse([]byte(input))
+	require.NotEmpty(t, errs)
+	assert.Contains(t, errs[0].Message, "top-level Dramatis Personae is a V1 pattern")
+}
+
+func TestV2BodyOnlyDocumentIsAccepted(t *testing.T) {
+	input := `ALICE
+Hello.`
+
+	doc, errs := Parse([]byte(input))
+	require.NotNil(t, doc)
+	require.Empty(t, errs, "body-only documents without metadata are valid V2")
+
+	require.Len(t, doc.Body, 1)
+	dlg, ok := doc.Body[0].(*ast.Dialogue)
+	require.True(t, ok)
+	assert.Equal(t, "ALICE", dlg.Character)
+}
+
+func TestV2ScopedDramatisPersonae(t *testing.T) {
+	input := `# The First Play
+Author: Your Name
+
+## Dramatis Personae
+ALICE/A - A curious young woman
+BOB - Her steadfast companion
+
+## ACT I`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	play := doc.Body[0].(*ast.Section)
+	dp := ast.FindDramatisPersonaeInSection(play)
+	require.NotNil(t, dp)
+	require.Len(t, dp.Characters, 2)
+	assert.Equal(t, "ALICE", dp.Characters[0].Name)
+	assert.Equal(t, []string{"A"}, dp.Characters[0].Aliases)
+	assert.Equal(t, "A curious young woman", dp.Characters[0].Description)
+}
+
+func TestV2StandaloneAliasRejected(t *testing.T) {
+	input := `# The First Play
+
+## Dramatis Personae
+ALICE - A curious young woman
+[ALICE/A]
+`
+
+	doc, errs := Parse([]byte(input))
+	require.NotNil(t, doc)
+	require.NotEmpty(t, errs)
+	assert.Contains(t, errs[0].Message, "standalone character alias syntax is not supported")
+}
+
+func TestV2UnicodeDashInDramatisPersonaeProducesError(t *testing.T) {
+	input := `# Play
+
+## Dramatis Personae
+HAMLET — Prince of Denmark`
+
+	doc, errs := Parse([]byte(input))
+	require.NotNil(t, doc)
+	require.NotEmpty(t, errs)
+	assert.Contains(t, errs[0].Message, "must use ASCII ` - `")
+}
+
+func TestV1TitlePageOnlyProducesError(t *testing.T) {
 	input := `Title: Hamlet
 Author: William Shakespeare
 Draft: First`
 
-	doc, errs := Parse([]byte(input))
-	require.Empty(t, errs)
-	require.NotNil(t, doc.TitlePage)
-	assert.Len(t, doc.TitlePage.Entries, 3)
-	assert.Equal(t, "Title", doc.TitlePage.Entries[0].Key)
-	assert.Equal(t, "Hamlet", doc.TitlePage.Entries[0].Value)
-	assert.Equal(t, "Author", doc.TitlePage.Entries[1].Key)
-	assert.Equal(t, "William Shakespeare", doc.TitlePage.Entries[1].Value)
+	_, errs := Parse([]byte(input))
+	require.NotEmpty(t, errs)
+	assert.Contains(t, errs[0].Message, "document-level metadata is a V1 pattern")
 }
 
 func TestDramatisPersonae(t *testing.T) {
-	input := `# Dramatis Personae
-## The Royals
-KING LEAR — King of Britain
-CORDELIA — Youngest daughter
-## The Earls
-KENT — A loyal earl`
+	input := `# King Lear
+
+## Dramatis Personae
+### The Royals
+KING LEAR - King of Britain
+CORDELIA - Youngest daughter
+### The Earls
+KENT - A loyal earl`
 
 	doc, errs := Parse([]byte(input))
 	require.Empty(t, errs)
 
-	dp := ast.FindDramatisPersonae(doc.Body)
+	play := doc.Body[0].(*ast.Section)
+	dp := ast.FindDramatisPersonaeInSection(play)
 	require.NotNil(t, dp, "expected Dramatis Personae section in body")
 	assert.Len(t, dp.Groups, 2)
 	assert.Equal(t, "The Royals", dp.Groups[0].Name)
@@ -58,14 +165,16 @@ KENT — A loyal earl`
 }
 
 func TestActsAndScenes(t *testing.T) {
-	input := `# Act One
+	input := `# Play
 
-## Scene 1
+## ACT I
+
+### SCENE 1
 
 HAMLET
 To be or not to be.
 
-## Scene 2
+### SCENE 2
 
 HORATIO
 Good my lord.`
@@ -74,8 +183,12 @@ Good my lord.`
 	require.Empty(t, errs)
 	require.Len(t, doc.Body, 1)
 
-	act, ok := doc.Body[0].(*ast.Section)
+	play, ok := doc.Body[0].(*ast.Section)
 	require.True(t, ok, "expected Section, got %T", doc.Body[0])
+	require.Len(t, play.Children, 1)
+
+	act, ok := play.Children[0].(*ast.Section)
+	require.True(t, ok, "expected Act section, got %T", play.Children[0])
 	assert.Equal(t, ast.SectionAct, act.Kind)
 
 	// Count scene children
@@ -116,7 +229,6 @@ func TestBodyOnlyDocument(t *testing.T) {
 	require.Empty(t, errs)
 	assert.Nil(t, doc.TitlePage)
 	require.Len(t, doc.Body, 1)
-
 	dlg, ok := doc.Body[0].(*ast.Dialogue)
 	require.True(t, ok)
 	assert.Equal(t, "ALICE", dlg.Character)
@@ -228,7 +340,9 @@ Once upon a time.`
 }
 
 func TestDualDialogue(t *testing.T) {
-	input := `BRICK
+	input := `# Play
+
+BRICK
 Screw retirement.
 
 STEEL ^
@@ -238,7 +352,11 @@ Screw retirement.`
 	require.Empty(t, errs)
 	require.Len(t, doc.Body, 1)
 
-	dual, ok := doc.Body[0].(*ast.DualDialogue)
+	play, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.Len(t, play.Children, 1)
+
+	dual, ok := play.Children[0].(*ast.DualDialogue)
 	require.True(t, ok, "expected DualDialogue node")
 	assert.Equal(t, "BRICK", dual.Left.Character)
 	assert.Equal(t, "STEEL", dual.Right.Character)
@@ -247,7 +365,9 @@ Screw retirement.`
 }
 
 func TestDualDialogueWithParenthetical(t *testing.T) {
-	input := `BRICK
+	input := `# Play
+
+BRICK
 (angry)
 Screw retirement.
 
@@ -259,14 +379,20 @@ Screw retirement.`
 	require.Empty(t, errs)
 	require.Len(t, doc.Body, 1)
 
-	dual, ok := doc.Body[0].(*ast.DualDialogue)
+	play, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.Len(t, play.Children, 1)
+
+	dual, ok := play.Children[0].(*ast.DualDialogue)
 	require.True(t, ok, "expected DualDialogue node")
 	assert.Equal(t, "(angry)", dual.Left.Parenthetical)
 	assert.Equal(t, "(calmly)", dual.Right.Parenthetical)
 }
 
 func TestDualDialogueForcedCharacter(t *testing.T) {
-	input := `BRICK
+	input := `# Play
+
+BRICK
 Hello.
 
 @narrator ^
@@ -276,14 +402,20 @@ Hello.`
 	require.Empty(t, errs)
 	require.Len(t, doc.Body, 1)
 
-	dual, ok := doc.Body[0].(*ast.DualDialogue)
+	play, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.Len(t, play.Children, 1)
+
+	dual, ok := play.Children[0].(*ast.DualDialogue)
 	require.True(t, ok, "expected DualDialogue node")
 	assert.Equal(t, "BRICK", dual.Left.Character)
 	assert.Equal(t, "narrator", dual.Right.Character)
 }
 
 func TestDualDialogueInScene(t *testing.T) {
-	input := `## ACT I
+	input := `# Play
+
+## ACT I
 
 ### SCENE 1
 
@@ -297,7 +429,11 @@ Hello.`
 	require.Empty(t, errs)
 
 	// Navigate into act > scene > children
-	act, ok := doc.Body[0].(*ast.Section)
+	play, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.NotEmpty(t, play.Children)
+
+	act, ok := play.Children[0].(*ast.Section)
 	require.True(t, ok)
 	require.NotEmpty(t, act.Children)
 
@@ -341,35 +477,33 @@ Hello.`
 	assert.Equal(t, "STEEL", dialogue.Character)
 }
 
-func TestDualDialogueDoesNotPairAcrossGenericSectionProse(t *testing.T) {
-	input := `# Notes
-BRICK
-Hello.
+func TestNestedNotesSectionRemainsProse(t *testing.T) {
+	input := `# My Compilation
+Author: Me
 
-This line stays prose.
-
-STEEL ^
-Hello.`
+## First Production
+My Compilation was first produced in 2026 at the Faketown Fringe Festival in Anytown, US.`
 
 	doc, errs := Parse([]byte(input))
 	require.Empty(t, errs)
 	require.Len(t, doc.Body, 1)
 
-	section, ok := doc.Body[0].(*ast.Section)
-	require.True(t, ok)
-	require.Len(t, section.Children, 2)
+	section := doc.Body[0].(*ast.Section)
+	require.Len(t, section.Children, 1)
 
-	_, ok = section.Children[0].(*ast.Dialogue)
-	require.True(t, ok)
-	_, ok = section.Children[1].(*ast.Dialogue)
-	require.True(t, ok, "expected second dialogue to remain standalone")
+	notes := section.Children[0].(*ast.Section)
+	assert.Equal(t, ast.SectionGeneric, notes.Kind)
+	require.Len(t, notes.Lines, 1)
+	assert.Equal(t, "My Compilation was first produced in 2026 at the Faketown Fringe Festival in Anytown, US.", notes.Lines[0].Content[0].(*ast.TextNode).Value)
 }
 
 func TestInlineCharacterAlias(t *testing.T) {
-	input := `# Dramatis Personae
-JAMES/JIM — Her estranged son
+	input := `# Play
 
-# Play
+## Dramatis Personae
+JAMES/JIM - Her estranged son
+
+## ACT I
 
 JIM
 Hello.`
@@ -377,26 +511,24 @@ Hello.`
 	doc, errs := Parse([]byte(input))
 	require.Empty(t, errs)
 
-	dp := ast.FindDramatisPersonae(doc.Body)
+	play := doc.Body[0].(*ast.Section)
+	dp := ast.FindDramatisPersonaeInSection(play)
 	require.NotNil(t, dp)
 	require.Len(t, dp.Characters, 1)
 	assert.Equal(t, "JAMES", dp.Characters[0].Name)
 	assert.Equal(t, []string{"JIM"}, dp.Characters[0].Aliases)
 }
 
-func TestStandaloneCharacterAlias(t *testing.T) {
-	input := `# Dramatis Personae
-JAMES — Her estranged son
+func TestStandaloneCharacterAliasProducesError(t *testing.T) {
+	input := `# Play
+
+## Dramatis Personae
+JAMES - Her estranged son
 [JAMES/JIM]`
 
-	doc, errs := Parse([]byte(input))
-	require.Empty(t, errs)
-
-	dp := ast.FindDramatisPersonae(doc.Body)
-	require.NotNil(t, dp)
-	require.Len(t, dp.Characters, 1)
-	assert.Equal(t, "JAMES", dp.Characters[0].Name)
-	assert.Equal(t, []string{"JIM"}, dp.Characters[0].Aliases)
+	_, errs := Parse([]byte(input))
+	require.NotEmpty(t, errs)
+	assert.Contains(t, errs[0].Message, "standalone character alias syntax is not supported")
 }
 
 func TestHeadingPrefixesRemainGeneric(t *testing.T) {
@@ -602,14 +734,17 @@ Still here.`
 }
 
 func TestErrorRecovery_CharacterAliasWithoutCharacterEntry(t *testing.T) {
-	input := `# Dramatis Personae
+	input := `# Play
+
+## Dramatis Personae
 [HAMLET/PRINCE]
-HAMLET — Prince of Denmark`
+HAMLET/PRINCE - Prince of Denmark`
 
 	doc, errs := Parse([]byte(input))
 	assert.NotNil(t, doc, "document should not be nil even with errors")
 	assert.NotEmpty(t, errs, "expected parse errors for orphaned character alias")
-	dp := ast.FindDramatisPersonae(doc.Body)
+	play := doc.Body[0].(*ast.Section)
+	dp := ast.FindDramatisPersonaeInSection(play)
 	require.NotNil(t, dp, "expected dramatis personae section to survive recovery")
 	assert.Len(t, dp.Characters, 1, "expected parser to recover and keep subsequent character entries")
 }
@@ -683,17 +818,17 @@ func TestVerseBlock(t *testing.T) {
 }
 
 func TestCompleteDocument(t *testing.T) {
-	input := `Title: A Test Play
+	input := `# A Test Play
 Author: Test Author
 
-# Dramatis Personae
-## Main Characters
-HAMLET — Prince of Denmark
-HORATIO — Friend to Hamlet
+## Dramatis Personae
+### Main Characters
+HAMLET - Prince of Denmark
+HORATIO - Friend to Hamlet
 
-# Act One
+## ACT I
 
-## Scene 1
+### SCENE 1
 
 (The stage is dark.)
 
@@ -708,12 +843,14 @@ To be or not to be,
 
 	doc, errs := Parse([]byte(input))
 	require.Empty(t, errs)
-	require.NotNil(t, doc.TitlePage)
 	require.NotEmpty(t, doc.Body)
 
-	assert.Equal(t, "A Test Play", doc.TitlePage.Entries[0].Value)
+	play := doc.Body[0].(*ast.Section)
+	require.NotNil(t, play.Metadata)
+	assert.Equal(t, "A Test Play", play.Title)
+	assert.Equal(t, "Test Author", play.Metadata.Entries[0].Value)
 
-	dp := ast.FindDramatisPersonae(doc.Body)
+	dp := ast.FindDramatisPersonaeInSection(play)
 	require.NotNil(t, dp, "expected Dramatis Personae in body")
 	assert.Len(t, dp.Groups, 1)
 	assert.Len(t, dp.Groups[0].Characters, 2)
@@ -775,26 +912,22 @@ HAMLET
 	assert.Equal(t, 9, italic.Range.End.Column)
 }
 
-func TestParseTitlePageEntryLimit(t *testing.T) {
+func TestParseV1TitlePageProducesError(t *testing.T) {
 	var builder strings.Builder
-	for i := range maxTitlePageEntries + 1 {
+	for i := range 5 {
 		builder.WriteString("Key")
-		builder.WriteString(strings.Repeat("A", i%5))
+		builder.WriteString(strings.Repeat("A", i))
 		builder.WriteString(": Value\n")
 	}
 
-	doc, errs := Parse([]byte(builder.String()))
-
-	require.NotNil(t, doc)
-	require.NotNil(t, doc.TitlePage)
-	require.Len(t, doc.TitlePage.Entries, maxTitlePageEntries)
+	_, errs := Parse([]byte(builder.String()))
 	require.NotEmpty(t, errs)
-	assert.Equal(t, "title page exceeds maximum entry count", errs[0].Message)
+	assert.Contains(t, errs[0].Message, "document-level metadata is a V1 pattern")
 }
 
 func TestParseDialogueLineLimit(t *testing.T) {
 	var builder strings.Builder
-	builder.WriteString("HAMLET\n")
+	builder.WriteString("# Play\n\nHAMLET\n")
 	for range maxDialogueLines + 1 {
 		builder.WriteString("Line\n")
 	}
@@ -942,6 +1075,50 @@ func TestGoldenFiles(t *testing.T) {
 			assert.JSONEq(t, string(expected), string(actual))
 		})
 	}
+}
+
+func TestCommentBetweenHeadingAndMetadata(t *testing.T) {
+	input := `# Play
+// leading note
+Author: Me
+
+HAMLET
+Hello.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	section, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.NotNil(t, section.Metadata)
+	require.Len(t, section.Metadata.Entries, 1)
+	assert.Equal(t, "Author", section.Metadata.Entries[0].Key)
+	assert.Equal(t, "Me", section.Metadata.Entries[0].Value)
+}
+
+func TestStageDirectionSurvivesProseSection(t *testing.T) {
+	input := `# Preface
+
+> A quiet prelude.
+
+Just a line of prose.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	section, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+
+	var foundStageDirection bool
+	for _, child := range section.Children {
+		if sd, ok := child.(*ast.StageDirection); ok {
+			foundStageDirection = true
+			assert.NotEmpty(t, sd.Content)
+		}
+	}
+	assert.True(t, foundStageDirection, "expected `>` line to remain a StageDirection node")
 }
 
 // findDialogue recursively searches body nodes for a Dialogue node.

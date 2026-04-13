@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jscaltreto/downstage/internal/parser"
@@ -8,10 +9,12 @@ import (
 )
 
 func TestComputeCodeActions_AddUnknownCharacterToDramatisPersonae(t *testing.T) {
-	content := `# Dramatis Personae
+	content := `# Play
+
+## Dramatis Personae
 HAMLET
 
-# Play
+## ACT I
 
 GHOST
 Boo.`
@@ -45,15 +48,120 @@ Boo.`
 	if edits[0].NewText != "GHOST\n" {
 		t.Fatalf("expected insertion for character entry, got %q", edits[0].NewText)
 	}
-	if edits[0].Range.Start.Line != 2 {
+	if edits[0].Range.Start.Line != 4 {
 		t.Fatalf("expected insert on line 2, got %d", edits[0].Range.Start.Line)
 	}
 }
 
-func TestComputeCodeActions_EmptyDramatisPersonaeAddsSpacedEntry(t *testing.T) {
-	content := `# Dramatis Personae
+func TestComputeCodeActions_ReplaceUnicodeDashInDP(t *testing.T) {
+	content := "# Play\n\n## Dramatis Personae\n\nHAMLET — Prince of Denmark\n"
 
-# Play
+	doc, errs := parser.Parse([]byte(content))
+	diagnostics := buildDiagnostics(doc, errs)
+
+	var ctx []protocol.Diagnostic
+	for _, d := range diagnostics {
+		if code, _ := d.Code.(string); code == parser.ErrCodeDPUnicodeDash {
+			ctx = append(ctx, d)
+		}
+	}
+	if len(ctx) != 1 {
+		t.Fatalf("expected 1 unicode-dash diagnostic, got %d", len(ctx))
+	}
+
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///t.ds"), ctx, diagnostics)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action, got %d", len(actions))
+	}
+	if !strings.Contains(actions[0].Title, "Replace Unicode dash") {
+		t.Fatalf("unexpected title: %q", actions[0].Title)
+	}
+
+	edit := actions[0].Edit.Changes[protocol.DocumentURI("file:///t.ds")][0]
+	if edit.NewText != "HAMLET - Prince of Denmark" {
+		t.Fatalf("expected ASCII rewrite, got %q", edit.NewText)
+	}
+}
+
+func TestComputeCodeActions_InlineStandaloneAlias(t *testing.T) {
+	content := "# Play\n\n## Dramatis Personae\n\nHAMLET - Prince\n[HAMLET/HAM]\n"
+
+	doc, errs := parser.Parse([]byte(content))
+	diagnostics := buildDiagnostics(doc, errs)
+
+	var ctx []protocol.Diagnostic
+	for _, d := range diagnostics {
+		if code, _ := d.Code.(string); code == parser.ErrCodeDPStandaloneAlias {
+			ctx = append(ctx, d)
+		}
+	}
+	if len(ctx) != 1 {
+		t.Fatalf("expected 1 standalone-alias diagnostic, got %d", len(ctx))
+	}
+
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///t.ds"), ctx, diagnostics)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action, got %d", len(actions))
+	}
+	if !strings.Contains(actions[0].Title, "Rewrite alias") {
+		t.Fatalf("unexpected title: %q", actions[0].Title)
+	}
+
+	edit := actions[0].Edit.Changes[protocol.DocumentURI("file:///t.ds")][0]
+	if edit.NewText != "HAMLET/HAM" {
+		t.Fatalf("expected bracketless rewrite, got %q", edit.NewText)
+	}
+}
+
+func TestComputeCodeActions_UpdateScriptToV2(t *testing.T) {
+	content := `Title: Hamlet
+Author: William Shakespeare
+
+# Dramatis Personae
+
+HAMLET — Prince of Denmark
+
+# Hamlet
+
+HAMLET
+To be.`
+
+	doc, errs := parser.Parse([]byte(content))
+	diagnostics := buildDiagnostics(doc, errs)
+
+	var v1Diagnostics []protocol.Diagnostic
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code == diagnosticCodeV1Document {
+			v1Diagnostics = append(v1Diagnostics, diagnostic)
+		}
+	}
+	if len(v1Diagnostics) != 1 {
+		t.Fatalf("expected 1 v1 diagnostic, got %d", len(v1Diagnostics))
+	}
+
+	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), v1Diagnostics, diagnostics)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action, got %d", len(actions))
+	}
+	if actions[0].Title != "Update script to V2" {
+		t.Fatalf("unexpected action title: %q", actions[0].Title)
+	}
+
+	edits := actions[0].Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(edits) != 1 {
+		t.Fatalf("expected 1 text edit, got %d", len(edits))
+	}
+	if !strings.Contains(edits[0].NewText, "## Dramatis Personae") {
+		t.Fatalf("expected V2 rewrite, got %q", edits[0].NewText)
+	}
+}
+
+func TestComputeCodeActions_EmptyDramatisPersonaeAddsSpacedEntry(t *testing.T) {
+	content := `# Play
+
+## Dramatis Personae
+
+## ACT I
 
 GHOST
 Boo.`
@@ -172,7 +280,11 @@ func TestComputeCodeActions_NumberUnnumberedSceneHeading(t *testing.T) {
 }
 
 func TestComputeCodeActions_NumberSceneHeadingWithSubtitle(t *testing.T) {
-	content := `### SCENE: The Kitchen`
+	content := `# Play
+
+## ACT I
+
+### SCENE: The Kitchen`
 
 	doc, errs := parser.Parse([]byte(content))
 	if len(errs) > 0 {

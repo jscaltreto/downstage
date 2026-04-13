@@ -7,6 +7,8 @@ import (
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/parser"
 	"github.com/jscaltreto/downstage/internal/token"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.lsp.dev/protocol"
 )
 
@@ -48,7 +50,9 @@ func TestBuildDiagnostics_ParserErrors(t *testing.T) {
 }
 
 func TestComputeDiagnostics_MatchesBuildDiagnostics(t *testing.T) {
-	content := `# Dramatis Personae
+	content := `# Play
+
+## Dramatis Personae
 
 HAMLET
 
@@ -78,6 +82,72 @@ Hello.`
 			t.Fatalf("diagnostic %d code mismatch: got %#v want %#v", i, got[i].Code, want[i].Code)
 		}
 	}
+}
+
+func TestCheckUnknownCharacters_MixedCompilationScopesIndependently(t *testing.T) {
+	content := `# First Play
+
+## Dramatis Personae
+
+ALICE
+
+## ACT I
+
+ALICE
+Hello.
+
+GHOST
+Boo.
+
+# Second Play
+
+## ACT I
+
+BOB
+No DP here, so no unknown-character warning.`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+	var unknownNames []string
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeUnknownCharacter {
+			continue
+		}
+		data, ok := diag.Data.(map[string]string)
+		if !ok {
+			t.Fatalf("diagnostic data missing character map: %#v", diag.Data)
+		}
+		unknownNames = append(unknownNames, data["character"])
+	}
+
+	if len(unknownNames) != 1 || unknownNames[0] != "GHOST" {
+		t.Fatalf("expected only GHOST unknown in first play, got %v", unknownNames)
+	}
+}
+
+func TestBuildDiagnostics_AddsV1DocumentDiagnostic(t *testing.T) {
+	content := `Title: Hamlet
+Author: William Shakespeare
+
+# Hamlet`
+
+	doc, errs := parser.Parse([]byte(content))
+	diags := buildDiagnostics(doc, errs)
+
+	var found bool
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeV1Document {
+			continue
+		}
+		found = true
+		assert.Equal(t, "this looks like a V1 Downstage document; update it to V2 to continue working", diag.Message)
+		assert.Equal(t, protocol.DiagnosticSeverityError, diag.Severity)
+	}
+	assert.True(t, found, "expected v1-document diagnostic")
 }
 
 func TestBuildDiagnostics_UnknownCharacter(t *testing.T) {
@@ -128,6 +198,45 @@ func TestBuildDiagnostics_NoDramatisPersonaeSuppressesUnknownCharacter(t *testin
 	if len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics without dramatis personae, got %d", len(diags))
 	}
+}
+
+func TestBuildDiagnostics_ScopedDramatisPersonaeDoesNotBleedAcrossCompilation(t *testing.T) {
+	content := `# First Play
+
+## Dramatis Personae
+ALICE - Lead
+
+## ACT I
+
+### SCENE 1
+
+HAMLET
+Hello.
+
+# Second Play
+
+## Dramatis Personae
+HAMLET - Prince
+
+## ACT I
+
+### SCENE 1
+
+HAMLET
+Hello.`
+
+	doc, errs := parser.Parse([]byte(content))
+	require.Empty(t, errs)
+
+	diags := buildDiagnostics(doc, errs)
+	var unknown []protocol.Diagnostic
+	for _, diag := range diags {
+		if diag.Code == diagnosticCodeUnknownCharacter {
+			unknown = append(unknown, diag)
+		}
+	}
+	require.Len(t, unknown, 1)
+	assert.Equal(t, "unknown character: HAMLET (add to Dramatis Personae)", unknown[0].Message)
 }
 
 func TestBuildDiagnostics_KnownCharacter(t *testing.T) {
@@ -522,6 +631,44 @@ func TestBuildDiagnostics_MisnumberedScenesWarnAndResetByAct(t *testing.T) {
 	}
 	if replacements[2] != "### SCENE 1: Should Reset" {
 		t.Fatalf("unexpected reset-scene replacement: %q", replacements[2])
+	}
+}
+
+func TestBuildDiagnostics_MisnumberedActsResetByTopLevelPlay(t *testing.T) {
+	content := `# Compilation
+
+# Sub Play 1
+
+## ACT I
+
+# Sub Play 2
+
+## ACT II`
+
+	doc, errs := parser.Parse([]byte(content))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+
+	diags := buildDiagnostics(doc, errs)
+
+	var replacements []string
+	for _, diag := range diags {
+		if diag.Code != diagnosticCodeMisnumberedAct {
+			continue
+		}
+		data, ok := diag.Data.(map[string]string)
+		if !ok {
+			t.Fatalf("unexpected diagnostic data: %#v", diag.Data)
+		}
+		replacements = append(replacements, data["replacement"])
+	}
+
+	if len(replacements) != 1 {
+		t.Fatalf("expected 1 misnumbered act diagnostic, got %d", len(replacements))
+	}
+	if replacements[0] != "## ACT I" {
+		t.Fatalf("unexpected replacement: %q", replacements[0])
 	}
 }
 

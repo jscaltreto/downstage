@@ -1,4 +1,4 @@
-Title: The Last Curtain Call
+# The Last Curtain Call
 Subtitle: A Drama in Two Acts
 Author: Eleanor Vance
 Date: 2025
@@ -14,18 +14,16 @@ Notes: Inspired by true events
    This should be ignored by the parser.
 */
 
-# Dramatis Personae
+## Dramatis Personae
 
-MARGARET — An aging actress, once famous
-JAMES/JIM — Her estranged son, a stagehand [JAMES/JIM]
-CLAIRE — The new director, ambitious and sharp
-HENRY — Stage manager, loyal to Margaret
+MARGARET - An aging actress, once famous
+JAMES/JIM - Her estranged son, a stagehand
+CLAIRE - The new director, ambitious and sharp
+HENRY - Stage manager, loyal to Margaret
 
-## The Crew
-STAGEHAND 1 — A quiet worker
-STAGEHAND 2 — Talkative and nervous
-
-# The Last Curtain Call
+### The Crew
+STAGEHAND 1 - A quiet worker
+STAGEHAND 2 - Talkative and nervous
 
 ## ACT I
 
@@ -209,10 +207,10 @@ famously refused to retire until the age of eighty-seven.
 The Last Curtain Call was first performed at the Ashford Theatre on
 September 15, 2025, with the following cast:
 
-MARGARET — Sarah Thornton
-JAMES — David Okafor
-CLAIRE — Priya Sharma
-HENRY — Michael Chen
+MARGARET - Sarah Thornton
+JAMES - David Okafor
+CLAIRE - Priya Sharma
+HENRY - Michael Chen
 
 Directed by **Anna Kowalski**
 Set Design by *Robert Tanaka*

@@ -79,15 +79,25 @@
         },
         {
           "name": "markup.heading.1.downstage",
-          "match": "^(#)(\\s+)(.*)$",
-          "captures": {
+          "begin": "^(#)(\\s+)(.*)$",
+          "beginCaptures": {
             "1": {
               "name": "punctuation.definition.heading.downstage"
             },
             "3": {
               "name": "entity.name.section.downstage"
             }
-          }
+          },
+          "end": "(?=^(?!(?:[A-Za-z][A-Za-z ]*:\\s*|[ \\t]+\\S)).*$)",
+          "patterns": [
+            {
+              "include": "#metadata"
+            },
+            {
+              "name": "string.unquoted.metadata-value.downstage",
+              "match": "^[ \\t]+.*$"
+            }
+          ]
         }
       ]
     },

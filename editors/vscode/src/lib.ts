@@ -75,15 +75,13 @@ export function validateServerPath(serverPath: string): string {
 }
 
 const newPlayTemplate = [
-	"Title: Your Play",
+	"# Your Play",
 	"Author: Your Name",
 	`Date: ${new Date().getFullYear()}`,
 	"",
-	"# Dramatis Personae",
+	"## Dramatis Personae",
 	"",
 	"PROTAGONIST - Brief description",
-	"",
-	"# Your Play",
 	"",
 	"## ACT I",
 	"",
@@ -96,16 +94,14 @@ const newPlayTemplate = [
 ].join("\n");
 
 const samplePlayTemplate = [
-	"Title: Lanterns After Intermission",
+	"# Lanterns After Intermission",
 	"Author: Downstage",
 	"",
-	"# Dramatis Personae",
+	"## Dramatis Personae",
 	"",
 	"MARA - Stage manager who refuses to panic.",
 	"JULES - Actor with perfect timing and terrible luck.",
 	"THE GHOST LIGHT - Silent, steady company.",
-	"",
-	"# Lanterns After Intermission",
 	"",
 	"## ACT I",
 	"",
@@ -134,7 +130,7 @@ export function getSamplePlayTemplate(): string {
 }
 
 export function findTitleValueSelection(documentText: string): SelectionTarget {
-	const titlePrefix = "Title: ";
+	const titlePrefix = "# ";
 	const titleLine = documentText.split(/\r?\n/u)[0] ?? "";
 	if (!titleLine.startsWith(titlePrefix)) {
 		return { line: 0, character: 0 };

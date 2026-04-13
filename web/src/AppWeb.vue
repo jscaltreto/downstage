@@ -28,6 +28,7 @@ const showQuickReference = ref(false);
 const showWelcome = ref(false);
 const activeContent = ref("");
 const pageStyle = ref("standard");
+const isV1Document = ref(false);
 
 // Toast and Delete state
 const toastManager = ref<InstanceType<typeof ToastManager> | null>(null);
@@ -35,17 +36,19 @@ const draftToDelete = ref<SavedDraft | null>(null);
 
 let persistTimer: number | null = null;
 
-const exampleContent = `Title: The Example Play
+function extractDocumentTitle(content: string) {
+  return content.match(/^#\s+(.+)$/m)?.[1]?.trim() || null;
+}
+
+const exampleContent = `# The Example Play
 Author: Your Name
 Date: 2024
 Draft: First
 
-# Dramatis Personae
+## Dramatis Personae
 
-ALICE — A curious young woman
-BOB — Her steadfast companion
-
-# The Example Play
+ALICE - A curious young woman
+BOB - Her steadfast companion
 
 ## ACT I
 
@@ -180,7 +183,7 @@ function openQuickReferenceFromWelcome() {
 }
 
 function handleNewPlay() {
-  const template = `Title: Untitled Play\nAuthor: Your Name\nDate: ${new Date().getFullYear()}\nDraft: First\n\n# Dramatis Personae\n\nPROTAGONIST — Add your cast here\n\n# Untitled Play\n\n## ACT I\n\n### SCENE 1\n\n> Describe the setting here.\n\nPROTAGONIST\nWrite your opening lines here.\n`;
+  const template = `# Untitled Play\nAuthor: Your Name\nDate: ${new Date().getFullYear()}\nDraft: First\n\n## Dramatis Personae\n\nPROTAGONIST - Add your cast here\n\n## ACT I\n\n### SCENE 1\n\n> Describe the setting here.\n\nPROTAGONIST\nWrite your opening lines here.\n`;
   createDraft("Untitled Play", template);
   toastManager.value?.addToast("Created new play", "success");
 }
@@ -193,7 +196,7 @@ function handleLoadExample() {
 async function handleImport() {
     const imported = await props.env.importLocalFile();
     if (imported) {
-        const title = imported.content.match(/^Title:\s*(.+)$/m)?.[1]?.trim() || imported.name.replace(/\.ds$/, "");
+        const title = extractDocumentTitle(imported.content) || imported.name.replace(/\.ds$/, "");
         await createDraft(title, imported.content);
         toastManager.value?.addToast(`Imported "${title}"`, "success");
         showDrafts.value = false;
@@ -206,7 +209,7 @@ async function handleCopy() {
 }
 
 async function handleSave() {
-    const title = activeContent.value.match(/^Title:\s*(.+)$/m)?.[1]?.trim() || "untitled";
+    const title = extractDocumentTitle(activeContent.value) || "untitled";
     const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.ds`;
     await props.env.saveFile(filename, activeContent.value, [
         { displayName: "Downstage Files (*.ds)", pattern: "*.ds" }
@@ -214,7 +217,12 @@ async function handleSave() {
 }
 
 async function handleExport() {
-    const title = activeContent.value.match(/^Title:\s*(.+)$/m)?.[1]?.trim() || "untitled";
+    if (isV1Document.value) {
+        toastManager.value?.addToast("Upgrade this V1 document to V2 before exporting PDF", "error", 5000);
+        return;
+    }
+
+    const title = extractDocumentTitle(activeContent.value) || "untitled";
     const styleSlug = pageStyle.value === "condensed" ? "acting-edition" : "manuscript";
     const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}.pdf`;
     
@@ -245,7 +253,7 @@ watch(activeContent, (newContent) => {
     const draft = store.state.drafts.find(d => d.id === store.state.activeDraftId);
     if (draft) {
         draft.content = newContent;
-        draft.title = newContent.match(/^Title:\s*(.+)$/m)?.[1]?.trim() || "Untitled Play";
+        draft.title = extractDocumentTitle(newContent) || "Untitled Play";
         draft.updatedAt = new Date().toISOString();
         
         if (persistTimer) clearTimeout(persistTimer);
@@ -284,7 +292,11 @@ watch(showQuickReference, (val) => {
           <ToolbarButton @click="handleLoadExample" title="Load Example Play"><template #icon><FileText class="w-4 h-4" /></template>Example</ToolbarButton>
           <ToolbarButton @click="handleCopy" title="Copy Content"><template #icon><Copy class="w-4 h-4" /></template>Copy</ToolbarButton>
           <ToolbarButton @click="handleSave" title="Save .ds File"><template #icon><Download class="w-4 h-4" /></template>Save .ds</ToolbarButton>
-          <ToolbarButton @click="handleExport" title="Export to PDF"><template #icon><FileOutput class="w-4 h-4" /></template>Export PDF</ToolbarButton>
+          <ToolbarButton
+            @click="handleExport"
+            :disabled="isV1Document"
+            :title="isV1Document ? 'Upgrade this V1 document before exporting PDF' : 'Export to PDF'"
+          ><template #icon><FileOutput class="w-4 h-4" /></template>Export PDF</ToolbarButton>
         </div>
       </div>
     </header>
@@ -324,9 +336,9 @@ watch(showQuickReference, (val) => {
 
           <dl class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
-              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Title Block</dt>
+              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Play Header</dt>
               <dd>
-                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>Title: My Play
+                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code># My Play
 Author: Your Name
 Draft: First</code></pre>
               </dd>
@@ -372,6 +384,7 @@ _underline_</code></pre>
         v-model:content="activeContent"
         v-model:style="pageStyle"
         @toggle-help="showQuickReference = !showQuickReference"
+        @migration-state-change="isV1Document = $event"
       />
     </main>
 

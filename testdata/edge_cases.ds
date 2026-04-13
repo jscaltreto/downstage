@@ -1,12 +1,13 @@
+# Edge Cases
 Title: Edge Cases
 
-# Dramatis Personae
+## Dramatis Personae
 
-ALICE — A character
-ACT — A character whose name looks like a heading keyword
-SCENE — Another confusingly named character
+ALICE - A character
+ACT - A character whose name looks like a heading keyword
+SCENE - Another confusingly named character
 
-# Edge Cases
+## ACT I
 
 ### SCENE 1
 
@@ -56,4 +57,3 @@ Done.
 // Trailing whitespace and empty final lines
 ALICE
 This line has text.
-

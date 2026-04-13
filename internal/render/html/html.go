@@ -27,6 +27,8 @@ type htmlRenderer struct {
 	dirDepth       int
 	hasTitlePage   bool
 	titlePageTitle string
+	inlinePlay     map[*ast.Section]bool
+	activePlay     *ast.Section
 	inDualDialogue bool
 	inParagraph    bool // tracks open <p> in section lines for prose reflow
 	sectionStack   []sectionState
@@ -49,8 +51,16 @@ func (r *htmlRenderer) BeginDocument(doc *ast.Document, w io.Writer) error {
 	r.buf.Reset()
 	r.w = w
 	r.dirDepth = 0
-	r.hasTitlePage = doc.TitlePage != nil
-	r.titlePageTitle = titlePageTitle(doc.TitlePage)
+	tp := render.DocumentTitlePage(doc)
+	r.hasTitlePage = tp != nil
+	r.titlePageTitle = titlePageTitle(tp)
+	r.inlinePlay = make(map[*ast.Section]bool)
+	for _, section := range render.PlayableTopLevelSections(doc) {
+		if render.IsInlinePlaySection(doc, section) {
+			r.inlinePlay[section] = true
+		}
+	}
+	r.activePlay = nil
 	r.inDualDialogue = false
 	r.inParagraph = false
 	r.sectionStack = r.sectionStack[:0]
@@ -71,8 +81,8 @@ func (r *htmlRenderer) BeginDocument(doc *ast.Document, w io.Writer) error {
 	r.buf.WriteString("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
 	fmt.Fprintf(&r.buf, "<title>%s</title>\n", html.EscapeString(title))
 
-	if doc.TitlePage != nil {
-		for _, kv := range doc.TitlePage.Entries {
+	if tp != nil {
+		for _, kv := range tp.Entries {
 			if strings.EqualFold(kv.Key, "author") {
 				fmt.Fprintf(&r.buf, "<meta name=\"author\" content=\"%s\">\n", html.EscapeString(kv.Value))
 			}
@@ -97,21 +107,10 @@ func (r *htmlRenderer) EndDocument(_ *ast.Document) error {
 // --- Front matter ---
 
 func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
-	var title, subtitle, author string
-	var other []ast.KeyValue
+	title, subtitle, authors, other := partitionHTMLTitlePageEntries(tp)
 
-	for _, kv := range tp.Entries {
-		switch strings.ToLower(kv.Key) {
-		case "title":
-			title = kv.Value
-		case "subtitle":
-			subtitle = kv.Value
-		case "author":
-			author = kv.Value
-		default:
-			other = append(other, kv)
-		}
-	}
+	r.hasTitlePage = true
+	r.titlePageTitle = title
 
 	fmt.Fprintf(&r.buf, "<header class=\"downstage-title-page\"%s>\n", r.sourceAttr(tp.NodeRange()))
 
@@ -121,9 +120,11 @@ func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	if subtitle != "" {
 		fmt.Fprintf(&r.buf, "<p class=\"subtitle\">%s</p>\n", html.EscapeString(subtitle))
 	}
-	if author != "" {
+	if len(authors) > 0 {
 		r.buf.WriteString("<p class=\"author\">by</p>\n")
-		fmt.Fprintf(&r.buf, "<p class=\"author\">%s</p>\n", html.EscapeString(author))
+		for _, author := range authors {
+			fmt.Fprintf(&r.buf, "<p class=\"author\">%s</p>\n", html.EscapeString(author))
+		}
 	}
 
 	if len(other) > 0 {
@@ -154,8 +155,24 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 	case ast.SectionDramatisPersonae:
 		return r.renderDramatisPersonae(s)
 	default: // SectionGeneric
-		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(s.Title), r.titlePageTitle) {
+		if render.IsLegacyTopLevelDramatisPersonae(s) {
 			r.pushSection(false)
+			return nil
+		}
+		if s.Level == 1 {
+			r.activePlay = s
+		}
+		if r.hasTitlePage && s.Level == 1 && strings.EqualFold(strings.TrimSpace(render.SectionDisplayTitle(s)), r.titlePageTitle) {
+			r.pushSection(false)
+			return nil
+		}
+		if s.Level == 1 && r.inlinePlay[s] {
+			r.pushSection(true)
+			fmt.Fprintf(&r.buf, "<section class=\"downstage-subplay\"%s>\n", r.sourceAttr(s.NodeRange()))
+			r.buf.WriteString("<header class=\"downstage-subplay-header\">\n")
+			fmt.Fprintf(&r.buf, "<h1>%s</h1>\n", html.EscapeString(render.SectionDisplayTitle(s)))
+			r.renderSubplayMetadata(s.Metadata)
+			r.buf.WriteString("</header>\n")
 			return nil
 		}
 		if s.Level == 0 {
@@ -177,6 +194,9 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 func (r *htmlRenderer) EndSection(s *ast.Section) error {
 	r.closeParagraph()
 	state := r.popSection()
+	if s.Level == 1 {
+		r.activePlay = nil
+	}
 	if s.Level == 0 && s.Kind == ast.SectionGeneric {
 		return nil
 	}
@@ -254,7 +274,11 @@ func (r *htmlRenderer) beginScene(s *ast.Section) error {
 
 func (r *htmlRenderer) renderDramatisPersonae(s *ast.Section) error {
 	r.pushSection(false)
-	fmt.Fprintf(&r.buf, "<section class=\"downstage-dramatis-personae\"%s>\n", r.sourceAttr(s.NodeRange()))
+	className := "downstage-dramatis-personae"
+	if r.activePlay != nil && r.inlinePlay[r.activePlay] {
+		className += " downstage-dramatis-personae-inline"
+	}
+	fmt.Fprintf(&r.buf, "<section class=\"%s\"%s>\n", className, r.sourceAttr(s.NodeRange()))
 	r.buf.WriteString("<h2>DRAMATIS PERSONAE</h2>\n")
 	r.buf.WriteString("<dl>\n")
 
@@ -277,9 +301,66 @@ func (r *htmlRenderer) renderDramatisPersonae(s *ast.Section) error {
 	return nil
 }
 
+func (r *htmlRenderer) renderMetadata(className string, tp *ast.TitlePage) {
+	if tp == nil || len(tp.Entries) == 0 {
+		return
+	}
+
+	r.buf.WriteString("<dl class=\"")
+	r.buf.WriteString(className)
+	r.buf.WriteString("\">\n")
+	for _, kv := range tp.Entries {
+		if strings.EqualFold(kv.Key, "title") {
+			continue
+		}
+		r.buf.WriteString("<div>")
+		fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(kv.Key))
+		fmt.Fprintf(&r.buf, "<dd>%s</dd>", html.EscapeString(kv.Value))
+		r.buf.WriteString("</div>\n")
+	}
+	r.buf.WriteString("</dl>\n")
+}
+
+func (r *htmlRenderer) renderSubplayMetadata(tp *ast.TitlePage) {
+	_, subtitle, authors, other := partitionHTMLTitlePageEntries(tp)
+	if s := strings.TrimSpace(subtitle); s != "" {
+		fmt.Fprintf(&r.buf, "<p class=\"downstage-subplay-subtitle\">%s</p>\n", html.EscapeString(s))
+	}
+	if len(authors) > 0 {
+		r.buf.WriteString("<p class=\"downstage-subplay-author-label\">by</p>\n")
+		for _, author := range authors {
+			fmt.Fprintf(&r.buf, "<p class=\"downstage-subplay-author\">%s</p>\n", html.EscapeString(author))
+		}
+	}
+	if len(other) > 0 {
+		r.renderMetadata("downstage-subplay-metadata", &ast.TitlePage{Entries: other})
+	}
+}
+
+func partitionHTMLTitlePageEntries(tp *ast.TitlePage) (title string, subtitle string, authors []string, other []ast.KeyValue) {
+	if tp == nil {
+		return "", "", nil, nil
+	}
+	for _, kv := range tp.Entries {
+		switch strings.ToLower(strings.TrimSpace(kv.Key)) {
+		case "title":
+			title = kv.Value
+		case "subtitle":
+			subtitle = kv.Value
+		case "author":
+			if strings.TrimSpace(kv.Value) != "" {
+				authors = append(authors, kv.Value)
+			}
+		default:
+			other = append(other, kv)
+		}
+	}
+	return title, subtitle, authors, other
+}
+
 func (r *htmlRenderer) renderCharacterEntry(ch ast.Character) {
 	r.buf.WriteString("<div class=\"character-entry\">")
-	fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(ch.Name))
+	fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(render.CharacterDisplayName(ch)))
 	if ch.Description != "" {
 		fmt.Fprintf(&r.buf, "<dd>%s</dd>", html.EscapeString(ch.Description))
 	}

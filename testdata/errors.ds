@@ -1,10 +1,11 @@
+# Error Recovery Tests
 Title: Error Recovery Tests
 
-# Dramatis Personae
+## Dramatis Personae
 
-ALICE — The only defined character
+ALICE - The only defined character
 
-# Error Recovery Tests
+## ACT I
 
 ### SCENE 1
 
@@ -28,7 +29,7 @@ ALICE
   This song never ends,
   it goes on and on my friends.
 
-// No SONG END marker here — the song is unclosed.
+// No SONG END marker here - the song is unclosed.
 
 ### SCENE 2
 
