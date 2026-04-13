@@ -5,7 +5,6 @@
   "separate-pull-requests": false,
   "packages": {
     ".": {
-      "package-name": "downstage",
       "bump-minor-pre-major": true
     }
   }
