@@ -9,6 +9,7 @@ import type {
   WasmDiagnostic,
   LSPCompletionList,
   LSPCodeActionsResult,
+  SpellcheckContext,
 } from "./core/types";
 
 declare const __APP_VERSION__: string;
@@ -23,8 +24,16 @@ function isValidDraft(obj: any): obj is SavedDraft {
     typeof obj.id === "string" &&
     typeof obj.title === "string" &&
     typeof obj.content === "string" &&
-    typeof obj.updatedAt === "string"
+    typeof obj.updatedAt === "string" &&
+    (!("spellAllowlist" in obj) || Array.isArray(obj.spellAllowlist))
   );
+}
+
+function normalizeDraft(draft: SavedDraft): SavedDraft {
+  return {
+    ...draft,
+    spellAllowlist: Array.isArray(draft.spellAllowlist) ? draft.spellAllowlist : [],
+  };
 }
 
 class WebEnv implements EditorEnv {
@@ -38,6 +47,10 @@ class WebEnv implements EditorEnv {
 
   async diagnostics(source: string): Promise<{ diagnostics: WasmDiagnostic[] }> {
     return window.downstage.diagnostics(source);
+  }
+
+  async spellcheckContext(source: string): Promise<SpellcheckContext> {
+    return window.downstage.spellcheckContext(source);
   }
 
   async upgradeV1(source: string): Promise<{ source: string; changed: boolean }> {
@@ -79,7 +92,7 @@ class WebEnv implements EditorEnv {
       if (!raw) return [];
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter(isValidDraft);
+      return parsed.filter(isValidDraft).map(normalizeDraft);
     } catch (e) {
       console.warn("failed to load drafts from storage:", e);
       return [];

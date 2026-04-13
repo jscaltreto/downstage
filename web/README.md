@@ -2,8 +2,9 @@
 
 A browser-based Downstage editor with live preview, syntax highlighting,
 LSP-powered autocomplete and quick-fix code actions, browser-local draft
-storage, an Open Draft picker, and PDF export. The entire parsing and
-rendering pipeline runs client-side via WebAssembly — no server required.
+storage, script-local spellcheck dictionaries, an Open Draft picker, and PDF
+export. The entire parsing and rendering pipeline runs client-side via
+WebAssembly — no server required.
 
 ## Draft Storage
 
@@ -32,6 +33,7 @@ make web-dev
 - **CodeMirror 6**: Plaintext editor core
 - **Lucide**: Consistent iconography
 - **WebAssembly**: Go-powered parsing and rendering
+- **typo-js + Web Workers**: English spellcheck off the main thread
 
 ## Building
 
@@ -81,9 +83,20 @@ The WASM module exposes a global `downstage` object:
 |----------|-------|--------|
 | `parse(source)` | Downstage source string | `{errors: [{message, line, col, endLine, endCol}]}` |
 | `diagnostics(source)` | Downstage source string | `{diagnostics: [{message, severity, line, col, endLine, endCol, code?, quickFixes?}]}` |
+| `spellcheckContext(source)` | Downstage source string | `{allowWords: string[], ignoredRanges: LSPRange[]}` |
 | `completion(source, line, col)` | Source + 0-based LSP position | LSP `CompletionList` (`{isIncomplete, items[]}`) |
 | `codeActions(source, line, col, codes?)` | Source + 0-based LSP position + optional diagnostic-code filter | `{uri, actions: LSPCodeAction[]}` |
 | `renderHTML(source, style?)` | Source + optional style (`"standard"`/Manuscript or `"condensed"`/Acting Edition) | HTML string |
 | `renderPDF(source, style?)` | Source + optional style | `Uint8Array` (PDF bytes) |
 | `semanticTokens(source)` | Source string | `Uint32Array` (delta-encoded LSP tokens) |
 | `tokenTypeNames` | — | `string[]` (token type legend) |
+
+## Spell Check
+
+The web editor ships with English spellcheck integrated into CodeMirror
+diagnostics. It is enabled by default, can be toggled from the editor
+toolbar, and supports a script-local dictionary for character names,
+invented terms, and other manuscript-specific vocabulary.
+
+Spell suggestions are loaded lazily and the dictionary work runs off the main
+thread so large scripts do not block initial editor load.

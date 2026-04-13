@@ -3,13 +3,15 @@ import { EditorState, Compartment } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { completionKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { createDownstageLinter } from "../diagnostics";
+import { createDownstageLinter, refreshDiagnostics } from "../diagnostics";
 import { createDownstageCompletion } from "../completion";
 import { createDownstageHighlighter } from "../downstage-lang";
 import { createScrollSyncPlugin } from "../scroll-sync";
+import { warmSpellDictionary } from "../spellcheck";
 import type { EditorEnv } from "./types";
 
 const themeCompartment = new Compartment();
+const lintCompartment = new Compartment();
 
 // Simple light theme for CodeMirror
 const lightTheme = EditorView.theme({
@@ -38,15 +40,23 @@ const lightTheme = EditorView.theme({
 
 export class Engine {
   private view: EditorView | null = null;
+  private spellcheckEnabled = false;
+  private spellcheckReady = false;
+  private cancelSpellcheckWarmup: (() => void) | null = null;
 
   constructor(
     private parent: HTMLElement,
     private env: EditorEnv,
     private onDocChange: (content: string) => void,
     private iframe: HTMLIFrameElement,
+    private getUserSpellAllowlist: () => string[],
+    private addUserSpellAllowlistWord: (word: string) => Promise<boolean>,
   ) {}
 
-  init(initialContent: string, isDark: boolean) {
+  init(initialContent: string, isDark: boolean, spellcheckEnabled = false) {
+    this.spellcheckEnabled = spellcheckEnabled;
+    this.spellcheckReady = !spellcheckEnabled;
+
     const customTheme = EditorView.theme({
       "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
         backgroundColor: "rgba(227, 168, 87, 0.4) !important",
@@ -64,10 +74,10 @@ export class Engine {
           history(),
           keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
           themeCompartment.of(isDark ? oneDark : lightTheme),
+          lintCompartment.of(this.createLintExtension()),
           customTheme,
           createDownstageHighlighter(this.env),
           createDownstageCompletion(this.env),
-          createDownstageLinter(this.env),
           createScrollSyncPlugin(this.iframe),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
@@ -79,6 +89,10 @@ export class Engine {
       }),
       parent: this.parent,
     });
+
+    if (spellcheckEnabled) {
+      this.scheduleSpellcheckWarmup();
+    }
   }
 
   applyFormat(action: string) {
@@ -157,6 +171,25 @@ export class Engine {
     });
   }
 
+  setSpellcheckEnabled(enabled: boolean) {
+    this.spellcheckEnabled = enabled;
+    if (!this.view) return;
+
+    if (!enabled) {
+      this.clearSpellcheckWarmup();
+      this.spellcheckReady = false;
+      this.refreshDiagnostics();
+      return;
+    }
+
+    this.scheduleSpellcheckWarmup();
+  }
+
+  refreshDiagnostics() {
+    if (!this.view) return;
+    refreshDiagnostics(this.view);
+  }
+
   setContent(content: string) {
     if (!this.view) return;
     if (this.getContent() === content) return;
@@ -175,6 +208,64 @@ export class Engine {
   }
 
   destroy() {
+    this.clearSpellcheckWarmup();
     this.view?.destroy();
   }
+
+  private createLintExtension() {
+    return createDownstageLinter(this.env, () => this.spellcheckEnabled && this.spellcheckReady, {
+      getUserAllowlist: this.getUserSpellAllowlist,
+      addWord: async (word) => {
+        const added = await this.addUserSpellAllowlistWord(word);
+        if (added) {
+          this.refreshDiagnostics();
+        }
+        return added;
+      },
+    });
+  }
+
+  private scheduleSpellcheckWarmup() {
+    this.clearSpellcheckWarmup();
+    this.spellcheckReady = false;
+
+    let cancelled = false;
+    const activate = async () => {
+      this.cancelSpellcheckWarmup = null;
+      if (cancelled || !this.view || !this.spellcheckEnabled) return;
+
+      // Actually construct the typo-js dictionary here so the first lint
+      // pass doesn't pay the ~50K-line parse cost on the main thread.
+      try {
+        await warmSpellDictionary();
+      } catch {
+        return;
+      }
+      if (cancelled || !this.view || !this.spellcheckEnabled) return;
+
+      this.spellcheckReady = true;
+      this.refreshDiagnostics();
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      const callbackId = window.requestIdleCallback(() => { void activate(); }, { timeout: 500 });
+      this.cancelSpellcheckWarmup = () => {
+        cancelled = true;
+        window.cancelIdleCallback(callbackId);
+      };
+      return;
+    }
+
+    const timerId = globalThis.setTimeout(() => { void activate(); }, 300);
+    this.cancelSpellcheckWarmup = () => {
+      cancelled = true;
+      globalThis.clearTimeout(timerId);
+    };
+  }
+
+  private clearSpellcheckWarmup() {
+    this.cancelSpellcheckWarmup?.();
+    this.cancelSpellcheckWarmup = null;
+  }
+
 }

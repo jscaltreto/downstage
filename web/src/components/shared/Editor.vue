@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch, inject, nextTick } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick } from 'vue';
 import { 
     Bold, Italic, Underline, MessageSquare, ChevronRight, 
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
-    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, RefreshCw
+    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, RefreshCw, SpellCheck, Trash2
 } from 'lucide-vue-next';
 import { Engine } from '../../core/engine';
 import type { Store } from '../../core/store';
@@ -16,6 +16,9 @@ const props = defineProps<{
   env: EditorEnv;
   content: string;
   style: string;
+  getSpellAllowlist: () => string[];
+  addSpellAllowlistWord: (word: string) => Promise<boolean>;
+  removeSpellAllowlistWord: (word: string) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
@@ -32,6 +35,10 @@ const renderedHtml = ref("");
 let engine: Engine | null = null;
 
 const previewVisible = ref(localStorage.getItem("downstage-editor-preview-hidden") !== "true");
+const spellcheckEnabled = ref(localStorage.getItem("downstage-editor-spellcheck-disabled") !== "true");
+const showSpellcheckModal = ref(false);
+const dictionaryWord = ref("");
+const spellAllowlist = computed(() => props.getSpellAllowlist());
 const v1DocumentDetected = ref(false);
 const showV1Modal = ref(false);
 const v1DismissedForDraftId = ref<string | null>(null);
@@ -118,9 +125,11 @@ onMounted(async () => {
         emit('update:content', content);
         scheduleRender(content, props.style);
       },
-      iframeEl
+      iframeEl,
+      () => props.getSpellAllowlist(),
+      (word) => props.addSpellAllowlistWord(word),
     );
-    engine.init(props.content, store.state.isDark);
+    engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     scheduleRender(props.content, props.style);
   }
 });
@@ -158,6 +167,11 @@ watch(previewVisible, (visible) => {
     }
 });
 
+watch(spellcheckEnabled, (enabled) => {
+    localStorage.setItem("downstage-editor-spellcheck-disabled", String(!enabled));
+    engine?.setSpellcheckEnabled(enabled);
+});
+
 function handleFormat(action: string) {
     if (!engine) return;
     engine.applyFormat(action);
@@ -166,6 +180,21 @@ function handleFormat(action: string) {
 function toggleStyle() {
     const nextStyle = props.style === "condensed" ? "standard" : "condensed";
     emit('update:style', nextStyle);
+}
+
+async function addDictionaryWord() {
+    const added = await props.addSpellAllowlistWord(dictionaryWord.value);
+    if (added) {
+        dictionaryWord.value = "";
+        engine?.refreshDiagnostics();
+    }
+}
+
+async function removeDictionaryWord(word: string) {
+    const removed = await props.removeSpellAllowlistWord(word);
+    if (removed) {
+        engine?.refreshDiagnostics();
+    }
 }
 </script>
 
@@ -185,6 +214,21 @@ function toggleStyle() {
             <ToolbarButton @click="handleFormat('scene')" title="Scene Heading"><template #icon><GalleryVertical class="w-4 h-4 opacity-70" /></template></ToolbarButton>
             <ToolbarButton @click="handleFormat('song')" title="Song Block"><template #icon><Music class="w-4 h-4" /></template></ToolbarButton>
             <ToolbarButton @click="handleFormat('page-break')" title="Page Break"><template #icon><FilePlus2 class="w-4 h-4" /></template></ToolbarButton>
+
+            <div class="w-px h-4 bg-black/10 dark:bg-white/10 mx-1"></div>
+
+            <ToolbarButton @click="showSpellcheckModal = true" title="Spell Check">
+                <template #icon>
+                    <span class="relative flex h-4 w-4 items-center justify-center">
+                        <SpellCheck class="h-4 w-4" :class="{ 'opacity-45': !spellcheckEnabled }" />
+                        <span
+                            v-if="!spellcheckEnabled"
+                            class="absolute h-[1.5px] w-5 rotate-[-35deg] rounded-full bg-current"
+                            aria-hidden="true"
+                        ></span>
+                    </span>
+                </template>
+            </ToolbarButton>
         </div>
 
         <div class="flex items-center gap-1.5 border-l border-black/10 dark:border-white/10 pl-2">
@@ -287,6 +331,88 @@ function toggleStyle() {
         </button>
     </div>
   </div>
+
+  <BaseModal
+    :open="showSpellcheckModal"
+    kicker="Writing Tools"
+    title="Spell Check"
+    message="Control spell check and manage custom words for this script only."
+    @close="showSpellcheckModal = false"
+  >
+    <div class="flex flex-col gap-5 py-1">
+        <label class="flex items-center justify-between gap-4 rounded-lg border border-border bg-black/5 px-4 py-3 dark:bg-white/5">
+            <p class="text-sm font-bold text-text-main">Enable Spell Check</p>
+            <button
+                type="button"
+                role="switch"
+                :aria-checked="spellcheckEnabled"
+                class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors"
+                :class="spellcheckEnabled ? 'border-brass-500 bg-brass-500/80' : 'border-border bg-black/10 dark:bg-white/10'"
+                @click="spellcheckEnabled = !spellcheckEnabled"
+            >
+                <span
+                    class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
+                    :class="spellcheckEnabled ? 'translate-x-6' : 'translate-x-1'"
+                ></span>
+            </button>
+        </label>
+
+        <div class="space-y-1">
+            <p class="text-sm font-bold text-text-main">Script Dictionary</p>
+            <p class="text-xs leading-relaxed text-text-muted">
+                Add custom words for this draft. These entries do not affect any other script.
+            </p>
+        </div>
+
+        <form class="flex gap-2" @submit.prevent="addDictionaryWord">
+            <input
+                v-model="dictionaryWord"
+                type="text"
+                class="flex-1 rounded-lg border border-border bg-black/5 px-3 py-2 text-sm text-text-main outline-none transition-colors placeholder:text-text-muted focus:border-brass-500 dark:bg-white/5"
+                placeholder="Add a custom word"
+            />
+            <button
+                type="submit"
+                class="rounded-lg bg-brass-500 px-4 py-2 text-sm font-bold text-ember-950 transition-colors hover:bg-brass-400 disabled:opacity-50"
+                :disabled="dictionaryWord.trim().length === 0"
+            >
+                Add
+            </button>
+        </form>
+
+        <div v-if="spellAllowlist.length === 0" class="rounded-lg border border-dashed border-border bg-black/5 px-4 py-6 text-center text-sm text-text-muted dark:bg-white/5">
+            No custom words yet.
+        </div>
+
+        <div v-else class="flex flex-col gap-2">
+            <div
+                v-for="word in spellAllowlist"
+                :key="word"
+                class="flex items-center justify-between gap-3 rounded-lg border border-border bg-black/5 px-3 py-2 dark:bg-white/5"
+            >
+                <span class="font-mono text-sm text-text-main">{{ word }}</span>
+                <button
+                    type="button"
+                    class="rounded-md p-2 text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+                    :title="`Remove ${word} from this script dictionary`"
+                    @click="removeDictionaryWord(word)"
+                >
+                    <Trash2 class="h-4 w-4" />
+                </button>
+            </div>
+        </div>
+
+        <div class="flex justify-end pt-2">
+            <button
+                type="button"
+                class="rounded-lg border border-border px-4 py-2 text-sm font-bold text-text-main transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                @click="showSpellcheckModal = false"
+            >
+                OK
+            </button>
+        </div>
+    </div>
+  </BaseModal>
 
   <BaseModal
     :open="showV1Modal"
@@ -394,6 +520,23 @@ function toggleStyle() {
     -webkit-mask: var(--cm-lightbulb) no-repeat center / contain;
     mask: var(--cm-lightbulb) no-repeat center / contain;
     --cm-lightbulb: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-2 -2 28 28' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 14c.2-1 .7-1.7 1.5-2.5 1.1-1 2.5-2.2 2.5-4.5A6 6 0 0 0 7 7c0 2.3 1.4 3.5 2.5 4.5.8.8 1.3 1.5 1.5 2.5'/><path d='M9 18h6'/><path d='M10 22h4'/></svg>");
+}
+.cm-tooltip-lint .cm-spellMessage {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.cm-tooltip-lint .cm-spellSuggestions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+}
+.cm-tooltip-lint .cm-spellLoading,
+.cm-tooltip-lint .cm-spellEmpty {
+    font-size: 0.85em;
+    font-style: italic;
+    color: var(--color-text-muted);
 }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }

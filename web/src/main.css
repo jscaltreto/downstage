@@ -101,6 +101,12 @@
 .cm-ds-variable { color: #e36209; }
 .dark .cm-ds-variable { color: var(--color-brass-300); }
 
+.cm-lintRange.cm-spellcheckRange {
+  background-image: none !important;
+  text-decoration: underline wavy #d11;
+  text-decoration-skip-ink: none;
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

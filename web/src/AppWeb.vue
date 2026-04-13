@@ -171,15 +171,32 @@ async function createDraft(title: string, content: string) {
   flushDrafts();
   pendingDraft.value = null;
   const id = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const newDraft = {
+  const newDraft: SavedDraft = {
       id,
       title,
       content,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      spellAllowlist: [],
   };
   store.state.drafts.unshift(newDraft);
   await activateDraft(id);
   await props.env.saveDrafts(store.state.drafts);
+}
+
+async function addSpellAllowlistWord(word: string) {
+    const trimmed = word.trim();
+    if (!trimmed) return false;
+
+    if (!store.activeDraft() && pendingDraft.value) {
+        const title = extractDocumentTitle(activeContent.value) || pendingDraft.value.title;
+        await createDraft(title, activeContent.value);
+    }
+
+    return store.addSpellAllowlistWord(trimmed);
+}
+
+async function removeSpellAllowlistWord(word: string) {
+    return store.removeSpellAllowlistWord(word);
 }
 
 function showPendingPlaceholder(title: string, content: string) {
@@ -310,6 +327,7 @@ watch(activeContent, (newContent) => {
             title: extractDocumentTitle(newContent) || placeholder.title,
             content: newContent,
             updatedAt: new Date().toISOString(),
+            spellAllowlist: [],
         };
         store.state.drafts.unshift(newDraft);
         store.state.activeDraftId = id;
@@ -446,6 +464,9 @@ _underline_</code></pre>
         :env="env"
         v-model:content="activeContent"
         v-model:style="pageStyle"
+        :get-spell-allowlist="() => activeSavedDraft?.spellAllowlist || []"
+        :add-spell-allowlist-word="addSpellAllowlistWord"
+        :remove-spell-allowlist-word="removeSpellAllowlistWord"
         @toggle-help="showQuickReference = !showQuickReference"
         @migration-state-change="isV1Document = $event"
       />
