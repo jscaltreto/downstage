@@ -3,8 +3,10 @@
   "release-type": "go",
   "include-component-in-tag": false,
   "separate-pull-requests": false,
+  "pull-request-title-pattern": "chore${scope}: release ${component} ${version}",
   "packages": {
     ".": {
+      "package-name": "downstage",
       "bump-minor-pre-major": true
     }
   }
