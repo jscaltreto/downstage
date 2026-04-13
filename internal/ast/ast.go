@@ -281,6 +281,12 @@ type Dialogue struct {
 	Range                token.Range
 	nameRange            token.Range
 	parentheticalRange   token.Range
+	// Forced is true when the cue was written with the `@` prefix. The prefix
+	// is stripped from Character, but callers that need to distinguish a
+	// forced cue from a naturally-recognized one (e.g. to suppress the
+	// "unknown character" LSP diagnostic) can read this flag. It is excluded
+	// from JSON so the public `downstage parse` output stays stable.
+	Forced bool `json:"-"`
 }
 
 func (d *Dialogue) NodeRange() token.Range { return d.Range }

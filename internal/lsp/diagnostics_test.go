@@ -181,6 +181,40 @@ func TestBuildDiagnostics_UnknownCharacter(t *testing.T) {
 	}
 }
 
+func TestBuildDiagnostics_ForcedCueSuppressesUnknownCharacter(t *testing.T) {
+	content := `# Play
+
+## Dramatis Personae
+HAMLET - Prince
+
+## ACT I
+
+### SCENE 1
+
+HAMLET
+Hello.
+
+@GUARD
+Who goes there?
+
+GHOST
+Whoo.`
+
+	doc, errs := parser.Parse([]byte(content))
+	require.Empty(t, errs)
+
+	diags := buildDiagnostics(doc, errs)
+	var unknown []protocol.Diagnostic
+	for _, diag := range diags {
+		if diag.Code == diagnosticCodeUnknownCharacter {
+			unknown = append(unknown, diag)
+		}
+	}
+
+	require.Len(t, unknown, 1, "only the non-forced GHOST cue should warn; @GUARD is suppressed")
+	assert.Equal(t, "unknown character: GHOST (add to Dramatis Personae)", unknown[0].Message)
+}
+
 func TestBuildDiagnostics_NoDramatisPersonaeSuppressesUnknownCharacter(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{

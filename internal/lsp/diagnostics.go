@@ -167,6 +167,13 @@ func checkUnknownCharacters(index *documentIndex) []protocol.Diagnostic {
 			continue
 		}
 
+		// Forced cues (`@name`) opt out of DP membership checks. The `@`
+		// marks the cue as intentional even when the character is not
+		// listed in Dramatis Personae.
+		if ref.dialogue.Forced {
+			continue
+		}
+
 		name := strings.ToUpper(ref.dialogue.Character)
 		if name == "" {
 			continue
