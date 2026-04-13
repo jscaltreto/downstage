@@ -7,8 +7,11 @@ Please open an issue on GitHub:
 
 ## Documentation
 
-The Downstage language reference and user guide are available at:
-<https://www.getdownstage.com/docs/>
+The Downstage Syntax Guide (syntax reference) is at:
+<https://www.getdownstage.com/syntax/>
+
+The FAQ covers what Downstage is and why to use it:
+<https://www.getdownstage.com/faq/>
 
 ## Extension Configuration
 

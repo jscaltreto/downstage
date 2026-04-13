@@ -3,7 +3,7 @@ permalink: false
 id: verse
 kicker: "8"
 title: Verse
-order: 14
+order: 9
 codeLang: downstage
 codeLabel: downstage
 code: |-

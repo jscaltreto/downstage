@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { provide, onMounted, ref, watch, onUnmounted } from 'vue';
-import { 
-    Plus, FolderOpen, FileText, Download, Copy, ExternalLink, Trash2, X, FileOutput, Upload
+import { computed, provide, onMounted, ref, watch, onUnmounted } from 'vue';
+import {
+    Plus, FolderOpen, FileText, Download, Copy, ExternalLink, Trash2, X, FileOutput, Upload, AlertTriangle
 } from 'lucide-vue-next';
 import { Store } from './core/store';
 import type { EditorEnv, SavedDraft } from './core/types';
@@ -26,9 +26,15 @@ const isLoaded = ref(false);
 const showDrafts = ref(false);
 const showQuickReference = ref(false);
 const showWelcome = ref(false);
+const showNewPlayConfirm = ref(false);
 const activeContent = ref("");
 const pageStyle = ref("standard");
 const isV1Document = ref(false);
+
+// Placeholder content shown before the user has made their first edit. Not
+// persisted to the drafts list until that first change promotes it to a
+// real draft.
+const pendingDraft = ref<{ title: string; content: string } | null>(null);
 
 // Toast and Delete state
 const toastManager = ref<InstanceType<typeof ToastManager> | null>(null);
@@ -36,11 +42,18 @@ const draftToDelete = ref<SavedDraft | null>(null);
 
 let persistTimer: number | null = null;
 
+const newPlayTemplate = `# Untitled Play\nSubtitle: A Play in One Act\nAuthor: Your Name\nDate: ${new Date().getFullYear()}\nDraft: First\n\n## Dramatis Personae\n\nPROTAGONIST - Add your cast here\n\n## ACT I\n\n### SCENE 1\n\n> Describe the setting here.\n\nPROTAGONIST\nWrite your opening lines here.\n`;
+
+const activeSavedDraft = computed(() =>
+    store.state.drafts.find(d => d.id === store.state.activeDraftId) || null,
+);
+
 function extractDocumentTitle(content: string) {
   return content.match(/^#\s+(.+)$/m)?.[1]?.trim() || null;
 }
 
 const exampleContent = `# The Example Play
+Subtitle: A Play in One Act
 Author: Your Name
 Date: 2024
 Draft: First
@@ -101,32 +114,45 @@ It's just the beginning.
 
 onMounted(async () => {
   await store.init();
-  
-  // Restore URL content if present (handling UTF-8 correctly)
+
+  // Restore URL content if present (handling UTF-8 correctly). Two modes:
+  //  - ?content=<b64>  shared/received link, promote to a saved draft
+  //    right away so a reload before first edit doesn't drop the share.
+  //  - ?try=<b64>      the syntax guide's "Try it" button; user is just
+  //    exploring a snippet, so keep it as a pending placeholder until the
+  //    first edit, and leave the URL alone so reload re-hydrates it.
   const params = new URLSearchParams(window.location.search);
-  const urlContent = params.get("content");
-  if (urlContent) {
+  const sharedContent = params.get("content");
+  const trySnippet = params.get("try");
+  if (sharedContent) {
     try {
-        const decoded = decodeURIComponent(escape(atob(urlContent)));
+        const decoded = decodeURIComponent(escape(atob(sharedContent)));
         await createDraft("Imported Play", decoded);
         toastManager.value?.addToast("Imported content from URL", "success");
-        // Clear param
         window.history.replaceState({}, '', window.location.pathname);
     } catch (e) {
-        console.error("Failed to decode URL content", e);
+        console.error("Failed to decode shared URL content", e);
+    }
+  } else if (trySnippet) {
+    try {
+        const decoded = decodeURIComponent(escape(atob(trySnippet)));
+        showPendingPlaceholder("Snippet", decoded);
+    } catch (e) {
+        console.error("Failed to decode snippet URL content", e);
     }
   } else if (store.state.activeDraftId) {
     const draft = store.state.drafts.find(d => d.id === store.state.activeDraftId);
     if (draft) {
         activeContent.value = draft.content;
     } else if (store.state.drafts.length > 0) {
-        // Fallback to first draft if active draft is missing
         await activateDraft(store.state.drafts[0].id);
     }
   }
 
+  // First-run: show the example script as a pending placeholder. It only
+  // becomes a saved draft if the user actually edits it.
   if (store.state.drafts.length === 0 && !activeContent.value) {
-    await createDraft("The Example Play", exampleContent);
+    showPendingPlaceholder("The Example Play", exampleContent);
   }
 
   showQuickReference.value = localStorage.getItem(quickReferenceStorageKey) === "false";
@@ -143,6 +169,7 @@ onUnmounted(() => {
 
 async function createDraft(title: string, content: string) {
   flushDrafts();
+  pendingDraft.value = null;
   const id = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const newDraft = {
       id,
@@ -155,9 +182,20 @@ async function createDraft(title: string, content: string) {
   await props.env.saveDrafts(store.state.drafts);
 }
 
+function showPendingPlaceholder(title: string, content: string) {
+    // Runtime-only; intentionally do not touch the stored activeDraftId so
+    // that a returning visitor still lands on their last saved draft if they
+    // reload without the ?content= param.
+    flushDrafts();
+    store.state.activeDraftId = null;
+    pendingDraft.value = { title, content };
+    activeContent.value = content;
+}
+
 async function activateDraft(id: string) {
     const draft = store.state.drafts.find(d => d.id === id);
     if (draft) {
+        pendingDraft.value = null;
         store.state.activeDraftId = id;
         activeContent.value = draft.content;
         await props.env.saveActiveDraftId(id);
@@ -183,14 +221,17 @@ function openQuickReferenceFromWelcome() {
 }
 
 function handleNewPlay() {
-  const template = `# Untitled Play\nAuthor: Your Name\nDate: ${new Date().getFullYear()}\nDraft: First\n\n## Dramatis Personae\n\nPROTAGONIST - Add your cast here\n\n## ACT I\n\n### SCENE 1\n\n> Describe the setting here.\n\nPROTAGONIST\nWrite your opening lines here.\n`;
-  createDraft("Untitled Play", template);
-  toastManager.value?.addToast("Created new play", "success");
+  if (activeSavedDraft.value) {
+    showNewPlayConfirm.value = true;
+    return;
+  }
+  applyNewPlay();
 }
 
-function handleLoadExample() {
-    createDraft("The Example Play", exampleContent);
-    toastManager.value?.addToast("Loaded example play", "success");
+function applyNewPlay() {
+  showNewPlayConfirm.value = false;
+  showPendingPlaceholder("Untitled Play", newPlayTemplate);
+  toastManager.value?.addToast("Started a new play", "success");
 }
 
 async function handleImport() {
@@ -241,7 +282,7 @@ async function confirmDeleteDraft() {
         if (store.state.drafts.length > 0) {
             await activateDraft(store.state.drafts[0].id);
         } else {
-            handleNewPlay();
+            applyNewPlay();
         }
     }
     await props.env.saveDrafts(store.state.drafts);
@@ -249,18 +290,40 @@ async function confirmDeleteDraft() {
     toastManager.value?.addToast(`Deleted "${title}"`, "info");
 }
 
+function schedulePersist() {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(() => {
+        persistTimer = null;
+        props.env.saveDrafts(store.state.drafts);
+    }, 250);
+}
+
 watch(activeContent, (newContent) => {
+    // Promote an unsaved placeholder (New Play, initial Example, "Try it"
+    // snippet) into a real draft the first time the user edits it.
+    if (pendingDraft.value && newContent !== pendingDraft.value.content) {
+        const placeholder = pendingDraft.value;
+        pendingDraft.value = null;
+        const id = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const newDraft: SavedDraft = {
+            id,
+            title: extractDocumentTitle(newContent) || placeholder.title,
+            content: newContent,
+            updatedAt: new Date().toISOString(),
+        };
+        store.state.drafts.unshift(newDraft);
+        store.state.activeDraftId = id;
+        props.env.saveActiveDraftId(id);
+        schedulePersist();
+        return;
+    }
+
     const draft = store.state.drafts.find(d => d.id === store.state.activeDraftId);
     if (draft) {
         draft.content = newContent;
         draft.title = extractDocumentTitle(newContent) || "Untitled Play";
         draft.updatedAt = new Date().toISOString();
-        
-        if (persistTimer) clearTimeout(persistTimer);
-        persistTimer = window.setTimeout(() => {
-            persistTimer = null;
-            props.env.saveDrafts(store.state.drafts);
-        }, 250);
+        schedulePersist();
     }
 });
 
@@ -276,20 +339,19 @@ watch(showQuickReference, (val) => {
         <h1 class="font-serif text-xl font-bold text-text-main">
           <a href="/" class="hover:text-brass-500 transition-colors">Downstage</a>
         </h1>
-        <button 
+        <button
           class="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-text-muted hover:bg-black/10 dark:hover:bg-white/10 hover:text-text-main transition-colors font-medium"
-          @click="env.openURL('https://www.getdownstage.com/docs/')"
+          @click="env.openURL('https://www.getdownstage.com/syntax/')"
         >
-          <ExternalLink class="w-3 h-3" /> <span class="hidden md:inline">Docs</span>
+          <ExternalLink class="w-3 h-3" /> <span class="hidden md:inline">Syntax Guide</span>
         </button>
         <span class="hidden lg:inline text-[11px] uppercase tracking-[0.15em] text-text-muted font-bold opacity-60">{{ store.state.appVersion }}</span>
       </div>
 
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2">
-          <ToolbarButton @click="handleNewPlay" title="New Play"><template #icon><Plus class="w-4 h-4" /></template>New Play</ToolbarButton>
-          <ToolbarButton @click="showDrafts = true" title="Open Manuscript"><template #icon><FolderOpen class="w-4 h-4" /></template>Open</ToolbarButton>
-          <ToolbarButton @click="handleLoadExample" title="Load Example Play"><template #icon><FileText class="w-4 h-4" /></template>Example</ToolbarButton>
+          <ToolbarButton @click="handleNewPlay" title="Start a new play"><template #icon><Plus class="w-4 h-4" /></template>New Play</ToolbarButton>
+          <ToolbarButton @click="showDrafts = true" title="Open one of your saved drafts"><template #icon><FolderOpen class="w-4 h-4" /></template>My Drafts</ToolbarButton>
           <ToolbarButton @click="handleCopy" title="Copy Content"><template #icon><Copy class="w-4 h-4" /></template>Copy</ToolbarButton>
           <ToolbarButton @click="handleSave" title="Save .ds File"><template #icon><Download class="w-4 h-4" /></template>Save .ds</ToolbarButton>
           <ToolbarButton
@@ -318,9 +380,9 @@ watch(showQuickReference, (val) => {
                 The basics only. Keep writing, and open the
                 <button
                   class="font-bold text-brass-500 underline decoration-brass-500/40 underline-offset-2 hover:text-brass-400"
-                  @click="env.openURL('https://www.getdownstage.com/docs/')"
+                  @click="env.openURL('https://www.getdownstage.com/syntax/')"
                 >
-                  docs
+                  Syntax Guide
                 </button>
                 for the full spec.
               </p>
@@ -339,6 +401,7 @@ watch(showQuickReference, (val) => {
               <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Play Header</dt>
               <dd>
                 <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code># My Play
+Subtitle: A Play in One Act
 Author: Your Name
 Draft: First</code></pre>
               </dd>
@@ -388,10 +451,10 @@ _underline_</code></pre>
       />
     </main>
 
-    <BaseModal 
-      :open="showDrafts" 
-      title="Open Manuscript" 
-      kicker="Manuscript Library"
+    <BaseModal
+      :open="showDrafts"
+      title="My Drafts"
+      kicker="Drafts saved in this browser"
       @close="showDrafts = false"
     >
       <div class="flex flex-col gap-6">
@@ -437,13 +500,50 @@ _underline_</code></pre>
       </div>
     </BaseModal>
 
-    <DeleteConfirmationModal 
+    <DeleteConfirmationModal
         v-if="draftToDelete"
         :open="!!draftToDelete"
         :item-name="draftToDelete.title"
         @close="draftToDelete = null"
         @confirm="confirmDeleteDraft"
     />
+
+    <BaseModal
+        :open="showNewPlayConfirm"
+        title="Start a new play?"
+        kicker="New Play"
+        @close="showNewPlayConfirm = false"
+    >
+        <div class="flex flex-col items-center text-center py-2">
+          <div class="w-16 h-16 rounded-full bg-brass-500/10 flex items-center justify-center mb-4">
+            <AlertTriangle class="w-8 h-8 text-brass-500" />
+          </div>
+          <p class="text-text-main font-medium mb-2">This will replace what's in the editor.</p>
+          <p class="text-sm text-text-muted mb-8 leading-relaxed">
+            <template v-if="activeSavedDraft">
+              Your current draft <strong class="text-text-main">"{{ activeSavedDraft.title }}"</strong> is still saved.
+            </template>
+            <template v-else>
+              Your current draft is still saved.
+            </template>
+            You can reopen it any time from <strong class="text-text-main">My Drafts</strong>.
+          </p>
+          <div class="flex gap-3 w-full">
+            <button
+              @click="showNewPlayConfirm = false"
+              class="flex-1 px-4 py-2.5 rounded-lg border border-border text-sm font-bold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              @click="applyNewPlay"
+              class="flex-1 px-4 py-2.5 rounded-lg bg-brass-500 text-black text-sm font-bold hover:bg-brass-400 transition-colors shadow-lg"
+            >
+              Start New Play
+            </button>
+          </div>
+        </div>
+    </BaseModal>
 
     <WelcomeModal
         :open="showWelcome"

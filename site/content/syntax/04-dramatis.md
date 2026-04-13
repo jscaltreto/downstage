@@ -3,7 +3,7 @@ permalink: false
 id: dramatis-personae
 kicker: "3"
 title: Dramatis Personae
-order: 9
+order: 4
 codeLang: downstage
 codeLabel: downstage
 callout:

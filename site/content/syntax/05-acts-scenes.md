@@ -3,7 +3,7 @@ permalink: false
 id: acts-scenes
 kicker: "4"
 title: Acts and Scenes
-order: 10
+order: 5
 examplePairs:
   - text: Acts are usually written as <code>##</code> headings.
     lang: downstage

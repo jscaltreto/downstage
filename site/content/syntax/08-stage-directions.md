@@ -3,7 +3,7 @@ permalink: false
 id: stage-directions
 kicker: "7"
 title: Stage Directions
-order: 13
+order: 8
 examplePairs:
   - text: Standalone stage directions start with <code>&gt;</code>. Use <code>&gt;&gt;</code> for bold non-structural callouts inside scene flow.
     lang: downstage

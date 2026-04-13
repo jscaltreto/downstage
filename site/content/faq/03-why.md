@@ -4,7 +4,7 @@ id: why-downstage
 kicker: Why
 title: Why use this instead of a word processor?
 navTitle: Why Downstage
-order: 2
+order: 3
 cardsClass: comparison-grid
 cards:
   - title: Less formatting drift

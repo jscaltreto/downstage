@@ -4,7 +4,7 @@ id: getting-started
 kicker: How
 title: Try a tiny script
 navTitle: Get Started
-order: 3
+order: 4
 steps:
   - title: Use the Web Editor
     text: "If you want the shortest path to a real script page, start in the Web Editor. It runs in the browser and gives you live preview plus PDF export."
@@ -21,10 +21,10 @@ steps:
       - label: Start Writing
         href: /editor/
         kind: primary
-  - title: Use VS Code
+  - title: Use Visual Studio Code
     codeLang: text
     codeLabel: first session
-    text: "If VS Code is already your writing environment, install the extension and stay there."
+    text: "If you already write code in Visual Studio Code, install the Downstage extension and stay in the editor you know. Not a developer? You can skip this one; the Web Editor has everything you need."
     code: |-
       1. Install the Downstage extension
       2. Open or create a .ds file
@@ -48,7 +48,7 @@ steps:
       downstage render my-play.ds
 callout:
   title: "New here?"
-  text: 'Use <a href="../start/">Start Here</a> if you want a quick overview of the Web Editor, VS Code, and command-line options before you dig into the docs.'
+  text: 'Use <a href="../start/">Start Here</a> if you want a quick overview of the Web Editor, plus the Visual Studio Code extension and command-line tools for folks who want them, before you dig into the syntax guide.'
 ---
 You do not need the whole spec before you begin. Start with a tiny script, then
 keep the docs open for the parts you actually need.

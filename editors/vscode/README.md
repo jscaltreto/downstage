@@ -126,7 +126,8 @@ separate release track.
 ## Related
 
 - [Start Here](https://www.getdownstage.com/start/)
-- [Downstage documentation](https://www.getdownstage.com/docs/)
+- [Downstage Syntax Guide](https://www.getdownstage.com/syntax/)
+- [Downstage FAQ](https://www.getdownstage.com/faq/)
 - [GitHub repository](https://github.com/jscaltreto/downstage)
 
 ## Development

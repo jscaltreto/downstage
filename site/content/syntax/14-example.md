@@ -3,7 +3,7 @@ permalink: false
 id: example
 kicker: "13"
 title: Complete Example
-order: 19
+order: 14
 codeLang: downstage
 codeLabel: downstage
 code: |-
