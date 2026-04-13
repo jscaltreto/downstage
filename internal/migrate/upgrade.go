@@ -20,11 +20,11 @@ func UpgradeV1ToV2(source string) (string, bool) {
 		}
 	}
 
-	if len(metadata) == 0 && dpStart < 0 {
+	if len(metadata.entries) == 0 && dpStart < 0 {
 		return source, false
 	}
 
-	title := strings.TrimSpace(metadata["Title"])
+	title := strings.TrimSpace(metadata.get("Title"))
 	output := make([]string, 0, len(lines)+4)
 
 	if firstPlayHeading >= 0 {
@@ -83,8 +83,40 @@ func splitLines(source string) ([]string, bool) {
 	return lines, hadTrailingNewline
 }
 
-func extractLeadingMetadata(lines []string) (int, int, map[string]string) {
-	metadata := make(map[string]string)
+// metadataBlock preserves the source order of the V1 frontmatter so the
+// migration rewrite is deterministic — repeated upgrades of the same doc
+// produce byte-identical output, and user-ordered custom keys survive the
+// rewrite intact.
+type metadataBlock struct {
+	entries []metadataEntry
+}
+
+type metadataEntry struct {
+	key   string
+	value string
+}
+
+func (m *metadataBlock) set(key, value string) {
+	for i := range m.entries {
+		if strings.EqualFold(m.entries[i].key, key) {
+			m.entries[i].value = value
+			return
+		}
+	}
+	m.entries = append(m.entries, metadataEntry{key: key, value: value})
+}
+
+func (m *metadataBlock) get(key string) string {
+	for _, e := range m.entries {
+		if strings.EqualFold(e.key, key) {
+			return e.value
+		}
+	}
+	return ""
+}
+
+func extractLeadingMetadata(lines []string) (int, int, *metadataBlock) {
+	metadata := &metadataBlock{}
 	start := -1
 	i := 0
 	for i < len(lines) {
@@ -114,7 +146,7 @@ func extractLeadingMetadata(lines []string) (int, int, map[string]string) {
 			end++
 		case isMetadataLine(line):
 			key, value := splitMetadataLine(line)
-			metadata[key] = value
+			metadata.set(key, value)
 			end++
 		case isMetadataContinuation(line):
 			end++
@@ -125,25 +157,35 @@ func extractLeadingMetadata(lines []string) (int, int, map[string]string) {
 	return start, end, metadata
 }
 
-func buildMetadataLines(metadata map[string]string, title string) []string {
-	order := []string{"Subtitle", "Author", "Date", "Draft", "Copyright", "Contact", "Notes"}
-	lines := make([]string, 0, len(metadata))
-	for _, key := range order {
-		if strings.EqualFold(key, "Title") {
-			continue
-		}
-		value := strings.TrimSpace(metadata[key])
+// buildMetadataLines emits the migrated frontmatter lines. Well-known keys
+// float to the top in a fixed conventional order; any additional
+// user-supplied keys follow in the order they appeared in the V1 source.
+func buildMetadataLines(metadata *metadataBlock, title string) []string {
+	conventional := []string{"Subtitle", "Author", "Date", "Draft", "Copyright", "Contact", "Notes"}
+	emitted := make(map[string]bool)
+	lines := make([]string, 0, len(metadata.entries))
+
+	for _, key := range conventional {
+		value := strings.TrimSpace(metadata.get(key))
 		if value == "" {
 			continue
 		}
 		lines = append(lines, key+": "+value)
-		delete(metadata, key)
+		emitted[strings.ToUpper(key)] = true
 	}
-	for key, value := range metadata {
-		if strings.EqualFold(key, "Title") || strings.TrimSpace(value) == "" {
+	emitted["TITLE"] = true
+
+	for _, entry := range metadata.entries {
+		up := strings.ToUpper(strings.TrimSpace(entry.key))
+		if emitted[up] {
 			continue
 		}
-		lines = append(lines, key+": "+strings.TrimSpace(value))
+		value := strings.TrimSpace(entry.value)
+		if value == "" {
+			continue
+		}
+		lines = append(lines, entry.key+": "+value)
+		emitted[up] = true
 	}
 	return lines
 }
