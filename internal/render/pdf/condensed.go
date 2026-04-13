@@ -149,7 +149,7 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 
 	if len(other) > 0 {
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize-1)
-		placeBottomBlock(&r.pdfBase, len(other))
+		placeBottomBlock(&r.pdfBase, other)
 		for _, kv := range other {
 			r.centeredWrappedText(kv.Key+": "+kv.Value, r.lineHeight)
 		}

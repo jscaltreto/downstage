@@ -322,7 +322,10 @@ func (r *htmlRenderer) renderMetadata(className string, tp *ast.TitlePage) {
 }
 
 func (r *htmlRenderer) renderSubplayMetadata(tp *ast.TitlePage) {
-	_, _, authors, other := partitionHTMLTitlePageEntries(tp)
+	_, subtitle, authors, other := partitionHTMLTitlePageEntries(tp)
+	if s := strings.TrimSpace(subtitle); s != "" {
+		fmt.Fprintf(&r.buf, "<p class=\"downstage-subplay-subtitle\">%s</p>\n", html.EscapeString(s))
+	}
 	if len(authors) > 0 {
 		r.buf.WriteString("<p class=\"downstage-subplay-author-label\">by</p>\n")
 		for _, author := range authors {

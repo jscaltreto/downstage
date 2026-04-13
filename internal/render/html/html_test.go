@@ -237,6 +237,38 @@ func TestRender_SinglePlayTitleMetadataSuppressesHeadingDuplication(t *testing.T
 	assert.Equal(t, 1, strings.Count(out, "<h1>"), "expected only the title-page h1")
 }
 
+func TestRender_SubplayRendersSubtitle(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Collection",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{{Key: "Author", Value: "Editor"}},
+				},
+			},
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 1,
+				Title: "Act of Kindness",
+				Metadata: &ast.TitlePage{
+					Entries: []ast.KeyValue{
+						{Key: "Subtitle", Value: "A short tragedy"},
+						{Key: "Author", Value: "Jane Doe"},
+					},
+				},
+				Children: []ast.Node{
+					&ast.Section{Kind: ast.SectionScene, Level: 2, Number: "1"},
+				},
+			},
+		},
+	}
+
+	out := renderHTML(t, doc)
+	assert.Contains(t, out, `<p class="downstage-subplay-subtitle">A short tragedy</p>`)
+}
+
 func TestRender_CompilationSubplaySupportsMultipleAuthors(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{

@@ -76,6 +76,11 @@ body {
 .downstage-subplay-metadata {
   font-size: 10pt;
 }
+.downstage-subplay-subtitle {
+  font-style: italic;
+  font-size: 11pt;
+  margin-bottom: 0.5em;
+}
 .downstage-subplay-author-label,
 .downstage-subplay-author {
   font-size: 10pt;

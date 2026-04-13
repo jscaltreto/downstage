@@ -48,7 +48,7 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	// Remaining metadata near the bottom.
 	if len(other) > 0 {
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize)
-		placeBottomBlock(&r.pdfBase, len(other))
+		placeBottomBlock(&r.pdfBase, other)
 		for _, kv := range other {
 			r.centeredWrappedText(kv.Key+": "+kv.Value, r.lineHeight)
 		}
@@ -64,7 +64,7 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 	if section == nil {
 		return
 	}
-	_, _, authors, other := partitionTitlePageEntries(section.Metadata)
+	_, subtitle, authors, other := partitionTitlePageEntries(section.Metadata)
 
 	displayTitle := strings.TrimSpace(render.SectionDisplayTitle(section))
 	if displayTitle != "" {
@@ -73,15 +73,20 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 
 	b.pdf.SetFont(b.cfg.FontFamily, "B", titleSize)
 	b.centeredWrappedText(strings.ToUpper(displayTitle), b.lineHeight)
-	b.pdf.Ln(b.lineHeight * 2)
+	b.pdf.Ln(b.lineHeight)
+
+	if s := strings.TrimSpace(subtitle); s != "" {
+		b.pdf.SetFont(b.cfg.FontFamily, "I", metadataSize)
+		b.centeredWrappedText(s, b.lineHeight)
+		b.pdf.Ln(b.lineHeight)
+	}
 
 	b.pdf.SetFont(b.cfg.FontFamily, "", metadataSize)
 	if len(authors) > 0 {
 		b.centeredWrappedText("by", b.lineHeight)
-		b.pdf.Ln(b.lineHeight)
+		b.pdf.Ln(b.lineHeight / 2)
 		for _, author := range authors {
 			b.centeredWrappedText(author, b.lineHeight)
-			b.pdf.Ln(b.lineHeight)
 		}
 	}
 	for _, kv := range other {
@@ -211,14 +216,23 @@ func applyDocumentMetadata(b *pdfBase, tp *ast.TitlePage) {
 	b.pdf.SetCreator("Downstage", true)
 }
 
-// placeBottomBlock anchors a footer block of entryCount lines just
-// above the bottom margin. The reserve allows for a two-line wrap per
-// entry so long values (e.g. a draft note) don't spill into the
-// bottom margin and trip the auto page break. If the author block
-// above has already spilled into the reserved area, fall back to a
-// short gap below them instead of backtracking over live content.
-func placeBottomBlock(b *pdfBase, entryCount int) {
-	reserve := float64(entryCount) * b.lineHeight * 2
+// placeBottomBlock anchors a footer block just above the bottom margin.
+// The reserve is computed by asking fpdf how each entry will wrap at
+// the current body width, so very long values stay inside the margin
+// instead of relying on a fixed per-entry allowance. If the author
+// block above has already spilled into the reserved area, fall back
+// to a short gap below them rather than backtracking over live
+// content.
+func placeBottomBlock(b *pdfBase, entries []ast.KeyValue) {
+	reserve := b.lineHeight
+	for _, kv := range entries {
+		text := kv.Key + ": " + kv.Value
+		wrapped := b.pdf.SplitText(text, b.bodyW)
+		if len(wrapped) == 0 {
+			wrapped = []string{text}
+		}
+		reserve += float64(len(wrapped)) * b.lineHeight
+	}
 	target := b.pageH - b.marginB - reserve
 	if current := b.pdf.GetY(); current > target {
 		b.pdf.Ln(b.lineHeight)
