@@ -8,7 +8,7 @@ import (
 	"go.lsp.dev/protocol"
 )
 
-func TestComputeCodeActions_AddUnknownCharacterToDramatisPersonae(t *testing.T) {
+func TestComputeCodeActions_UnknownCharacterOffersForceAndAddToDP(t *testing.T) {
 	content := `# Play
 
 ## Dramatis Personae
@@ -26,30 +26,49 @@ Boo.`
 
 	diagnostics := buildDiagnostics(doc, errs)
 	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), diagnostics, diagnostics)
-	if len(actions) != 1 {
-		t.Fatalf("expected 1 code action, got %d", len(actions))
+	if len(actions) != 2 {
+		t.Fatalf("expected 2 code actions (force cue + add to DP), got %d", len(actions))
 	}
 
-	action := actions[0]
-	if action.Title != "Add GHOST to Dramatis Personae" {
-		t.Fatalf("unexpected title: %q", action.Title)
+	var forceAction, addAction *protocol.CodeAction
+	for i := range actions {
+		switch {
+		case actions[i].Title == "Exclude cue from check":
+			forceAction = &actions[i]
+		case actions[i].Title == "Add GHOST to Dramatis Personae":
+			addAction = &actions[i]
+		}
 	}
-	if action.Kind != protocol.QuickFix {
-		t.Fatalf("expected quick fix kind, got %q", action.Kind)
+	if forceAction == nil {
+		t.Fatal("expected a Force-cue code action")
 	}
-	if action.Edit == nil {
-		t.Fatal("expected workspace edit")
+	if addAction == nil {
+		t.Fatal("expected an Add-to-DP code action")
 	}
 
-	edits := action.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
-	if len(edits) != 1 {
-		t.Fatalf("expected 1 text edit, got %d", len(edits))
+	forceEdits := forceAction.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(forceEdits) != 1 {
+		t.Fatalf("expected 1 force text edit, got %d", len(forceEdits))
 	}
-	if edits[0].NewText != "GHOST\n" {
-		t.Fatalf("expected insertion for character entry, got %q", edits[0].NewText)
+	if forceEdits[0].NewText != "@" {
+		t.Fatalf("expected Force edit to insert `@`, got %q", forceEdits[0].NewText)
 	}
-	if edits[0].Range.Start.Line != 4 {
-		t.Fatalf("expected insert on line 2, got %d", edits[0].Range.Start.Line)
+	if forceEdits[0].Range.Start.Line != 7 || forceEdits[0].Range.End.Line != 7 {
+		t.Fatalf("expected force edit on cue line 7, got %+v", forceEdits[0].Range)
+	}
+	if forceEdits[0].Range.Start.Character != forceEdits[0].Range.End.Character {
+		t.Fatalf("expected zero-length insertion, got %+v", forceEdits[0].Range)
+	}
+
+	addEdits := addAction.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	if len(addEdits) != 1 {
+		t.Fatalf("expected 1 DP text edit, got %d", len(addEdits))
+	}
+	if addEdits[0].NewText != "GHOST\n" {
+		t.Fatalf("expected insertion for character entry, got %q", addEdits[0].NewText)
+	}
+	if addEdits[0].Range.Start.Line != 4 {
+		t.Fatalf("expected insert on line 4, got %d", addEdits[0].Range.Start.Line)
 	}
 }
 
@@ -181,17 +200,84 @@ Boo.`
 	}
 
 	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), diagnostics, diagnostics)
-	if len(actions) != 1 {
-		t.Fatalf("expected 1 code action, got %d", len(actions))
+	if len(actions) != 2 {
+		t.Fatalf("expected 2 code actions (force + add to DP), got %d", len(actions))
 	}
 
-	edits := actions[0].Edit.Changes[protocol.DocumentURI("file:///test.ds")]
-	if edits[0].NewText != "\nGHOST\n" {
-		t.Fatalf("expected spaced insertion for empty dramatis personae, got %q", edits[0].NewText)
+	var addEdit *protocol.TextEdit
+	for i := range actions {
+		if actions[i].Title == "Add GHOST to Dramatis Personae" {
+			edits := actions[i].Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+			if len(edits) == 1 {
+				addEdit = &edits[0]
+			}
+		}
+	}
+	if addEdit == nil {
+		t.Fatal("expected an Add-to-DP action with a single edit")
+	}
+	if addEdit.NewText != "\nGHOST\n" {
+		t.Fatalf("expected spaced insertion for empty dramatis personae, got %q", addEdit.NewText)
 	}
 }
 
-func TestComputeCodeActions_NoDramatisPersonaeReturnsNothing(t *testing.T) {
+func TestForceCharacterCueEdit_SkipsLeadingWhitespace(t *testing.T) {
+	// The lexer anchors character-token ranges at column 0 of the raw line
+	// regardless of leading whitespace, so the quick fix must target the
+	// first non-whitespace column. Otherwise an indented cue like
+	// "\tHAMLET" would become "@\tHAMLET" and the parser would record the
+	// character name as "\tHAMLET" instead of "HAMLET".
+	cases := []struct {
+		name         string
+		line         string
+		wantInsertAt uint32
+	}{
+		{name: "no indent", line: "GHOST", wantInsertAt: 0},
+		{name: "single space", line: " GHOST", wantInsertAt: 1},
+		{name: "tab indent", line: "\tGHOST", wantInsertAt: 1},
+		{name: "mixed tabs and spaces", line: " \t GHOST", wantInsertAt: 3},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			content := tc.line + "\n"
+			// The diagnostic's range has no effect on the column choice —
+			// the helper derives it from the line contents — but pass in
+			// column 0 to mirror what the lexer actually produces.
+			r := protocol.Range{
+				Start: protocol.Position{Line: 0, Character: 0},
+				End:   protocol.Position{Line: 0, Character: uint32(len(tc.line))},
+			}
+			edit, ok := forceCharacterCueEdit(content, r)
+			if !ok {
+				t.Fatal("expected an edit")
+			}
+			if edit.NewText != "@" {
+				t.Fatalf("expected NewText=@, got %q", edit.NewText)
+			}
+			if edit.Range.Start.Character != tc.wantInsertAt || edit.Range.End.Character != tc.wantInsertAt {
+				t.Fatalf("expected insertion at column %d, got %+v", tc.wantInsertAt, edit.Range)
+			}
+		})
+	}
+}
+
+func TestForceCharacterCueEdit_AlreadyForced(t *testing.T) {
+	// Defensive: a stale diagnostic on an already-forced cue should not
+	// produce a double-`@`.
+	_, ok := forceCharacterCueEdit("@ghost\n", protocol.Range{
+		Start: protocol.Position{Line: 0, Character: 0},
+		End:   protocol.Position{Line: 0, Character: 6},
+	})
+	if ok {
+		t.Fatal("expected no edit for already-forced cue")
+	}
+}
+
+func TestComputeCodeActions_NoDramatisPersonaeOffersOnlyForce(t *testing.T) {
+	// Without a Dramatis Personae the "unknown character" diagnostic does
+	// not fire in practice. If a stale diagnostic is still present, the
+	// force-cue fix is still valid because there is no DP section to edit.
 	content := `# Play
 
 GHOST
@@ -205,6 +291,10 @@ Boo.`
 	diagnostics := []protocol.Diagnostic{
 		{
 			Code: diagnosticCodeUnknownCharacter,
+			Range: protocol.Range{
+				Start: protocol.Position{Line: 2, Character: 0},
+				End:   protocol.Position{Line: 2, Character: 5},
+			},
 			Data: map[string]interface{}{
 				"character": "GHOST",
 			},
@@ -212,8 +302,11 @@ Boo.`
 	}
 
 	actions := computeCodeActions(doc, content, protocol.DocumentURI("file:///test.ds"), diagnostics, diagnostics)
-	if len(actions) != 0 {
-		t.Fatalf("expected 0 code actions, got %d", len(actions))
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 code action (force cue only), got %d", len(actions))
+	}
+	if actions[0].Title != "Exclude cue from check" {
+		t.Fatalf("unexpected title: %q", actions[0].Title)
 	}
 }
 

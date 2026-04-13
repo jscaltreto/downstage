@@ -337,6 +337,22 @@ Once upon a time.`
 	findDialogue(doc.Body, &dlg)
 	require.NotNil(t, dlg)
 	assert.Equal(t, "narrator", dlg.Character)
+	assert.True(t, dlg.Forced, "forced cue should record the `@` prefix on the Dialogue node")
+}
+
+func TestNaturalCharacterNotForced(t *testing.T) {
+	input := `# Play
+
+NARRATOR
+Once upon a time.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	assert.False(t, dlg.Forced, "naturally-recognized cue should not be marked forced")
 }
 
 func TestDualDialogue(t *testing.T) {
@@ -409,7 +425,9 @@ Hello.`
 	dual, ok := play.Children[0].(*ast.DualDialogue)
 	require.True(t, ok, "expected DualDialogue node")
 	assert.Equal(t, "BRICK", dual.Left.Character)
+	assert.False(t, dual.Left.Forced)
 	assert.Equal(t, "narrator", dual.Right.Character)
+	assert.True(t, dual.Right.Forced, "`@` prefix on a dual-dialogue cue should mark it forced")
 }
 
 func TestDualDialogueInScene(t *testing.T) {

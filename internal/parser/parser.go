@@ -925,6 +925,7 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 		(nameTok.Type == token.DualDialogueChar && strings.HasPrefix(nameTok.Literal, "@")) {
 		dlg.Character = strings.TrimPrefix(nameTok.Literal, "@")
 		dlg.SetNameRange(shiftRangeStart(nameTok.Range, 1, 1))
+		dlg.Forced = true
 	}
 
 	// Check for parenthetical right after character name: (text)

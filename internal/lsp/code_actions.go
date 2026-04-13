@@ -97,6 +97,20 @@ func computeCodeActions(
 			if character == "" {
 				continue
 			}
+
+			if forceEdit, ok := forceCharacterCueEdit(content, diagnostic.Range); ok {
+				actions = append(actions, protocol.CodeAction{
+					Title:       "Exclude cue from check",
+					Kind:        protocol.QuickFix,
+					Diagnostics: []protocol.Diagnostic{diagnostic},
+					Edit: &protocol.WorkspaceEdit{
+						Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+							uri: {forceEdit},
+						},
+					},
+				})
+			}
+
 			textEdit, hasEdit := dramatisPersonaeInsertEdit(doc, index, content, int(diagnostic.Range.Start.Line))
 			if !hasEdit {
 				continue
@@ -365,6 +379,39 @@ func replaceUnicodeDashEdit(content string, r protocol.Range) *protocol.TextEdit
 		},
 		NewText: replaced,
 	}
+}
+
+// forceCharacterCueEdit builds a TextEdit that prepends `@` to the cue on
+// the diagnostic line, promoting it to a forced character that opts out of
+// the "unknown character" check.
+//
+// The `@` is inserted at the first non-whitespace column so that indented
+// cues (e.g. `  HAMLET`) become `  @HAMLET`, not `@  HAMLET` — the lexer
+// strips leading whitespace when computing the character name, but only
+// after `@` has been consumed, so misplacement would corrupt the parsed
+// character name.
+func forceCharacterCueEdit(content string, r protocol.Range) (protocol.TextEdit, bool) {
+	line, ok := lineAt(content, int(r.Start.Line))
+	if !ok {
+		return protocol.TextEdit{}, false
+	}
+	trimmed := strings.TrimLeft(line, " \t")
+	if trimmed == "" {
+		return protocol.TextEdit{}, false
+	}
+	// Already forced? Nothing to do. The diagnostic shouldn't fire in that
+	// case, but guard so a stale diagnostic can't produce `@@NAME`.
+	if strings.HasPrefix(trimmed, "@") {
+		return protocol.TextEdit{}, false
+	}
+	// Leading whitespace is always ASCII space/tab, so byte length equals
+	// both the column count and the UTF-16 code-unit count.
+	indent := uint32(len(line) - len(trimmed))
+	insertAt := protocol.Position{Line: r.Start.Line, Character: indent}
+	return protocol.TextEdit{
+		Range:   protocol.Range{Start: insertAt, End: insertAt},
+		NewText: "@",
+	}, true
 }
 
 // inlineStandaloneAliasEdit rewrites a `[NAME/ALIAS]` line as the

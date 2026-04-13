@@ -16,5 +16,11 @@ examplePairs:
     label: downstage
     code: |-
       .The Next Evening
+  - text: A forced cue also opts the character out of the Dramatis Personae check for brief appearances you do not want to list.
+    lang: downstage
+    label: downstage
+    code: |-
+      @GUARD 2
+      Who goes there?
 ---
 When the parser would otherwise classify a line incorrectly, force it.

@@ -531,6 +531,8 @@ My lord, I came to see your father's funeral.
 
 Without the `@`, `horatio` would be treated as plain text. The `@` is stripped from the name in the AST.
 
+A forced cue also opts the character out of Dramatis Personae membership checks: tooling SHOULD NOT flag a `@name` cue as unknown when the enclosing play has a `## Dramatis Personae` section. This makes `@` a concise way to mark brief character appearances without adding them to the roster. The suppression is scoped to the individual cue — subsequent non-forced uses of the same name are still checked.
+
 ### Forced Heading (`.`)
 
 Prefix text with `.` to force it to be treated as a heading, without needing `#` markup:
