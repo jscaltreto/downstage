@@ -62,7 +62,8 @@
   .prose-copy p code,
   .prose-copy li code,
   .prose-copy strong code,
-  .step-copy code {
+  .step-copy code,
+  .example-pair-text code {
     @apply rounded-md border border-brass-500/20 bg-white/[0.06] px-1.5 py-0.5 text-[0.9em] text-parchment-200;
   }
 
