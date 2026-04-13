@@ -137,9 +137,9 @@ describe("validateServerPath", () => {
 // ---------------------------------------------------------------------------
 
 describe("getNewPlayTemplate", () => {
-	it("starts with a title field for immediate writing", () => {
+	it("starts with a top-level heading for immediate writing", () => {
 		const template = getNewPlayTemplate();
-		expect(template.startsWith("Title: Your Play")).toBe(true);
+		expect(template.startsWith("# Your Play")).toBe(true);
 		expect(template).toContain("## ACT I");
 	});
 });
@@ -154,13 +154,13 @@ describe("getSamplePlayTemplate", () => {
 });
 
 describe("findTitleValueSelection", () => {
-	it("places the cursor after the title prefix", () => {
+	it("places the cursor after the heading prefix", () => {
 		const selection: SelectionTarget = findTitleValueSelection(getNewPlayTemplate());
-		expect(selection).toEqual({ line: 0, character: 7 });
+		expect(selection).toEqual({ line: 0, character: 2 });
 	});
 
-	it("falls back to the start when the first line is not a title", () => {
-		const selection = findTitleValueSelection("No title here");
+	it("falls back to the start when the first line is not a heading", () => {
+		const selection = findTitleValueSelection("No heading here");
 		expect(selection).toEqual({ line: 0, character: 0 });
 	});
 });
