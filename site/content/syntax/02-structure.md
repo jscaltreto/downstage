@@ -3,7 +3,7 @@ permalink: false
 id: structure
 kicker: "1"
 title: Document Structure
-order: 7
+order: 2
 examplePairs:
   - text: A minimal file is valid. No title page or headings required.
     lang: downstage

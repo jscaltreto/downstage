@@ -1,7 +1,7 @@
 ---
 layout: layouts/base.njk
 title: Start Here | Downstage for Playwrights
-description: "Choose the easiest way to start writing in Downstage: the Web Editor, VS Code, or the command line."
+description: "Choose the easiest way to start writing in Downstage: the Web Editor, Visual Studio Code (for developers), or the command line."
 bodyClass: docs-page
 permalink: /start/
 ---
@@ -18,7 +18,8 @@ permalink: /start/
         </p>
         <div class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
           <a class="button-primary" href="{{ '/editor/' | url }}">Start Writing</a>
-          <a class="button-secondary" href="{{ '/docs/' | url }}">Read the Docs</a>
+          <a class="button-secondary" href="{{ '/syntax/' | url }}">Read the Syntax Guide</a>
+          <a class="button-secondary" href="{{ '/faq/' | url }}">Read the FAQ</a>
           <a class="button-secondary" href="{{ '/' | url }}">Back to Home</a>
         </div>
       </div>
@@ -27,7 +28,7 @@ permalink: /start/
     <section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] shadow-stage backdrop-blur-xl">
       <div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]">
         <div class="border-b border-white/10 p-6 lg:border-b-0 lg:border-r lg:p-8">
-          <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Path 1</p>
+          <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Path 1 · Recommended for most</p>
           <h2 class="font-serif text-3xl leading-tight text-parchment-200 sm:text-[2rem]">Web Editor</h2>
         </div>
         <div class="p-6 lg:p-8">
@@ -56,15 +57,19 @@ permalink: /start/
     <section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] shadow-stage backdrop-blur-xl">
       <div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]">
         <div class="border-b border-white/10 p-6 lg:border-b-0 lg:border-r lg:p-8">
-          <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Path 2</p>
-          <h2 class="font-serif text-3xl leading-tight text-parchment-200 sm:text-[2rem]">VS Code</h2>
+          <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Path 2 · For coders</p>
+          <h2 class="font-serif text-3xl leading-tight text-parchment-200 sm:text-[2rem]">Visual Studio Code</h2>
         </div>
         <div class="p-6 lg:p-8">
-          <p class="text-base leading-7 text-parchment-300">Use this if VS Code is already where you write. The extension keeps the writing flow in the editor you know.</p>
+          <p class="text-base leading-7 text-parchment-300">
+            Already write code in Visual Studio Code? We've got you covered. A fully-featured VS Code extension is
+            available, so you can enjoy the tools you already know and still have a great experience writing Downstage.
+            If you've never heard of VS Code, no problem — the Web Editor does everything you need.
+          </p>
           <div class="my-5 grid gap-4">
             <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
               <h3 class="font-serif text-2xl text-parchment-200">First session</h3>
-              <p class="mt-2 text-base leading-7 text-parchment-300">Install the extension, open a `.ds` file, draft your scene, and use live preview or render commands when you want pages.</p>
+              <p class="mt-2 text-base leading-7 text-parchment-300">Install the extension, open a <code>.ds</code> file, draft your scene, and use live preview or render commands when you want pages.</p>
             </article>
             <article class="rounded-[20px] border border-white/10 bg-white/[0.03] p-5">
               <h3 class="font-serif text-2xl text-parchment-200">Why choose it</h3>
@@ -82,7 +87,7 @@ permalink: /start/
     <section class="rounded-panel border border-brass-500/20 bg-[linear-gradient(160deg,rgba(127,39,24,0.42),transparent_35%),rgba(66,39,31,0.96)] shadow-stage backdrop-blur-xl">
       <div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]">
         <div class="border-b border-white/10 p-6 lg:border-b-0 lg:border-r lg:p-8">
-          <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Path 3</p>
+          <p class="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brass-300">Path 3 · For power users</p>
           <h2 class="font-serif text-3xl leading-tight text-parchment-200 sm:text-[2rem]">Command Line</h2>
         </div>
         <div class="p-6 lg:p-8">
@@ -98,7 +103,7 @@ permalink: /start/
             </article>
           </div>
           <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <a class="button-secondary" href="{{ '/docs/' | url }}">Open the Docs</a>
+            <a class="button-secondary" href="{{ '/syntax/' | url }}">Open the Syntax Guide</a>
             <a class="button-secondary" href="https://github.com/jscaltreto/downstage#readme">Read the README</a>
           </div>
         </div>

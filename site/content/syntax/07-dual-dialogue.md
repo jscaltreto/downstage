@@ -3,7 +3,7 @@ permalink: false
 id: dual-dialogue
 kicker: "6"
 title: Dual Dialogue
-order: 12
+order: 7
 codeLang: downstage
 codeLabel: downstage
 code: |-

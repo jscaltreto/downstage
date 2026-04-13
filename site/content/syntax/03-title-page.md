@@ -3,7 +3,7 @@ permalink: false
 id: title-page
 kicker: "2"
 title: Title Page
-order: 8
+order: 3
 codeLang: downstage
 codeLabel: downstage
 callout:

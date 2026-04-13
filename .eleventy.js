@@ -91,8 +91,11 @@ module.exports = function (eleventyConfig) {
   eleventyConfig.addCollection("homeSections", (collectionApi) =>
     collectionApi.getFilteredByGlob("site/content/home/*.md").sort((a, b) => a.data.order - b.data.order),
   );
-  eleventyConfig.addCollection("docsSections", (collectionApi) =>
-    collectionApi.getFilteredByGlob("site/content/docs/*.md").sort((a, b) => a.data.order - b.data.order),
+  eleventyConfig.addCollection("syntaxSections", (collectionApi) =>
+    collectionApi.getFilteredByGlob("site/content/syntax/*.md").sort((a, b) => a.data.order - b.data.order),
+  );
+  eleventyConfig.addCollection("faqSections", (collectionApi) =>
+    collectionApi.getFilteredByGlob("site/content/faq/*.md").sort((a, b) => a.data.order - b.data.order),
   );
 
   return {
