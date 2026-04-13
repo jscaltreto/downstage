@@ -4,7 +4,7 @@ id: acknowledgements
 kicker: Acknowledgements
 title: Inspiration and prior art
 navTitle: Acknowledgements
-order: 20
+order: 6
 ---
 Downstage is inspired by [Fountain](https://fountain.io/), which showed the
 value of a readable plaintext format for scripts, and by the archived

@@ -53,7 +53,7 @@ const allowedRenderStyles = new Set(["standard", "condensed"]);
 const pathServerCommand = "downstage";
 const trustedServerPathsKey = "downstage.trustedServerPaths";
 const welcomeShownKey = "downstage.welcomeShown";
-const helpUrl = "https://www.getdownstage.com/docs/";
+const helpUrl = "https://www.getdownstage.com/syntax/";
 const bundledServerTargets = new Map<string, string>([
 	["linux:x64", "linux-x64"],
 	["darwin:x64", "darwin-x64"],

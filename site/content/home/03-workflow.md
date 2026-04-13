@@ -9,7 +9,7 @@ workflow:
   - title: Write
     text: Draft the play in plain text without wrestling with formatting controls.
   - title: Preview
-    text: See pages update in the Web Editor or VS Code when you want feedback while drafting.
+    text: See pages update live in the Web Editor while you draft.
   - title: Export
     text: Generate a clean PDF manuscript or acting edition from the same draft when it is ready to read or share.
   - title: Stage

@@ -3,7 +3,7 @@ permalink: false
 id: dialogue
 kicker: "5"
 title: Dialogue
-order: 11
+order: 6
 codeLang: downstage
 codeLabel: downstage
 code: |-

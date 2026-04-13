@@ -3,7 +3,7 @@ permalink: false
 id: comments-breaks
 kicker: "11"
 title: Comments and Page Breaks
-order: 17
+order: 12
 examplePairs:
   - text: Comments are ignored when rendering, so they will not appear in the PDF.
     lang: downstage

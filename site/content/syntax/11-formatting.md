@@ -3,7 +3,7 @@ permalink: false
 id: formatting
 kicker: "10"
 title: Inline Formatting
-order: 16
+order: 11
 tableLabel: Inline formatting
 tableHeaders:
   - Syntax

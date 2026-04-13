@@ -62,11 +62,11 @@ const emit = defineEmits<{
               Open the quick reference whenever you need it, or view the
               <a
                 class="font-bold text-brass-500 underline decoration-brass-500/40 underline-offset-2 hover:text-brass-400"
-                href="https://www.getdownstage.com/docs/"
+                href="https://www.getdownstage.com/syntax/"
                 target="_blank"
                 rel="noreferrer"
               >
-                docs
+                Syntax Guide
               </a>
               for the full spec with examples.
             </p>
