@@ -6,10 +6,6 @@ import type { EditorEnv, LSPTextEdit, SpellcheckContext, WasmDiagnostic } from "
 import { offsetFromLSP } from "./lsp-offsets";
 import { getSpellDiagnostics, type SpellcheckCallbacks } from "./spellcheck";
 
-// Dispatched by refreshDiagnostics() when spellcheck-related external state
-// changes (warmup completes, user toggles spellcheck, dictionary edited).
-// Picked up by the linter's needsRefresh hook so the linter knows to re-run
-// even though the doc didn't change.
 export const spellcheckRefreshEffect = StateEffect.define<null>();
 
 export function applyLSPEdits(view: EditorView, edits: LSPTextEdit[]) {
@@ -22,9 +18,6 @@ export function applyLSPEdits(view: EditorView, edits: LSPTextEdit[]) {
   view.dispatch({ changes, scrollIntoView: true });
 }
 
-// buildQuickFixActions resolves code actions lazily: on click, we re-query the
-// Go side with the current document so TextEdit ranges reflect any edits the
-// user made since the lint pass that produced this diagnostic.
 function buildQuickFixActions(
   env: EditorEnv,
   code: string,
@@ -61,7 +54,7 @@ export function toDiagnostics(
 ): Diagnostic[] {
   const result: Diagnostic[] = [];
   for (const d of sourceDiagnostics) {
-    const startLine = d.line + 1; // 0-based → 1-based
+    const startLine = d.line + 1;
     const endLine = d.endLine + 1;
     if (startLine > doc.lines || endLine > doc.lines) continue;
 
@@ -78,6 +71,7 @@ export function toDiagnostics(
       severity: d.severity,
       message: d.message,
       source: "downstage",
+      ...(d.code ? { code: d.code } : {}),
       actions,
     });
   }
@@ -111,10 +105,6 @@ export function createDownstageLinter(
     },
     {
       delay: 300,
-      // Re-run when our refresh effect lands, even if the doc didn't change.
-      // forceLinting() alone is not enough: it only runs the lint when the
-      // plugin already has work pending. needsRefresh tells the plugin
-      // there IS work to do.
       needsRefresh: (update) => update.transactions.some((tr) =>
         tr.effects.some((effect) => effect.is(spellcheckRefreshEffect)),
       ),
@@ -122,10 +112,6 @@ export function createDownstageLinter(
   );
 }
 
-// Trigger a re-lint when external state (spellcheck toggle, dictionary edit,
-// warmup completion) changed without a doc change. The linter's own `delay`
-// (300ms) coalesces rapid back-to-back refreshes so we don't need a
-// separate debounce here.
 export function refreshDiagnostics(view: EditorView) {
   view.dispatch({ effects: spellcheckRefreshEffect.of(null) });
 }

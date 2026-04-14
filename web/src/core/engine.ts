@@ -3,12 +3,14 @@ import { EditorState, Compartment } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { completionKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { forEachDiagnostic, setDiagnosticsEffect, type Diagnostic } from "@codemirror/lint";
 import { createDownstageLinter, refreshDiagnostics } from "../diagnostics";
 import { createDownstageCompletion } from "../completion";
 import { createDownstageHighlighter } from "../downstage-lang";
 import { createScrollSyncPlugin } from "../scroll-sync";
 import { warmSpellDictionary } from "../spellcheck";
-import type { EditorEnv } from "./types";
+import { projectDiagnostics } from "./issues";
+import type { EditorDiagnostic, EditorEnv } from "./types";
 
 const themeCompartment = new Compartment();
 const lintCompartment = new Compartment();
@@ -51,6 +53,7 @@ export class Engine {
     private iframe: HTMLIFrameElement,
     private getUserSpellAllowlist: () => string[],
     private addUserSpellAllowlistWord: (word: string) => Promise<boolean>,
+    private onDiagnosticsChange: (diagnostics: EditorDiagnostic[]) => void = () => {},
   ) {}
 
   init(initialContent: string, isDark: boolean, spellcheckEnabled = false) {
@@ -83,6 +86,12 @@ export class Engine {
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               this.onDocChange(update.state.doc.toString());
+            }
+            const lintChanged = update.transactions.some((tr) =>
+              tr.effects.some((effect) => effect.is(setDiagnosticsEffect)),
+            );
+            if (lintChanged) {
+              this.emitDiagnostics();
             }
           }),
         ],
@@ -190,6 +199,31 @@ export class Engine {
     refreshDiagnostics(this.view);
   }
 
+  getDiagnostics(): EditorDiagnostic[] {
+    if (!this.view) return [];
+    const raw: Diagnostic[] = [];
+    forEachDiagnostic(this.view.state, (d) => {
+      raw.push(d);
+    });
+    return projectDiagnostics(this.view.state.doc, raw);
+  }
+
+  revealDiagnostic(from: number, to: number) {
+    if (!this.view) return;
+    const docLength = this.view.state.doc.length;
+    const clampedFrom = Math.max(0, Math.min(from, docLength));
+    const clampedTo = Math.max(clampedFrom, Math.min(to, docLength));
+    this.view.dispatch({
+      selection: { anchor: clampedFrom, head: clampedTo },
+      effects: EditorView.scrollIntoView(clampedFrom, { y: "center" }),
+    });
+    this.view.focus();
+  }
+
+  private emitDiagnostics() {
+    this.onDiagnosticsChange(this.getDiagnostics());
+  }
+
   setContent(content: string) {
     if (!this.view) return;
     if (this.getContent() === content) return;
@@ -234,8 +268,6 @@ export class Engine {
       this.cancelSpellcheckWarmup = null;
       if (cancelled || !this.view || !this.spellcheckEnabled) return;
 
-      // Actually construct the typo-js dictionary here so the first lint
-      // pass doesn't pay the ~50K-line parse cost on the main thread.
       try {
         await warmSpellDictionary();
       } catch {

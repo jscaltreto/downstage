@@ -73,6 +73,16 @@ export interface SpellcheckContext {
   ignoredRanges: SpellcheckRange[];
 }
 
+export interface EditorDiagnostic {
+  from: number;
+  to: number;
+  line: number;
+  col: number;
+  severity: "error" | "warning" | "info" | "hint";
+  message: string;
+  code?: string;
+}
+
 export interface SavedDraft {
   id: string;
   title: string;

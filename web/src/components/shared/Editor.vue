@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick } from 'vue';
-import { 
-    Bold, Italic, Underline, MessageSquare, ChevronRight, 
+import {
+    Bold, Italic, Underline, MessageSquare, ChevronRight,
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
-    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, RefreshCw, SpellCheck, Trash2
+    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, RefreshCw, SpellCheck, Trash2, CheckCircle2
 } from 'lucide-vue-next';
 import { Engine } from '../../core/engine';
+import { issuesStatus, summarizeIssues } from '../../core/issues';
 import type { Store } from '../../core/store';
-import type { EditorEnv } from '../../core/types';
+import type { EditorDiagnostic, EditorEnv } from '../../core/types';
 import PreviewFrame from './PreviewFrame.vue';
 import ToolbarButton from './ToolbarButton.vue';
 import BaseModal from './BaseModal.vue';
+import IssuesDrawer from './IssuesDrawer.vue';
 
 const props = defineProps<{
   env: EditorEnv;
@@ -36,6 +38,10 @@ let engine: Engine | null = null;
 
 const previewVisible = ref(localStorage.getItem("downstage-editor-preview-hidden") !== "true");
 const spellcheckEnabled = ref(localStorage.getItem("downstage-editor-spellcheck-disabled") !== "true");
+const issuesDrawerOpen = ref(false);
+const diagnostics = ref<EditorDiagnostic[]>([]);
+const issuesSummary = computed(() => summarizeIssues(diagnostics.value));
+const issuesStatusValue = computed(() => issuesStatus(issuesSummary.value));
 const showSpellcheckModal = ref(false);
 const dictionaryWord = ref("");
 const spellAllowlist = computed(() => props.getSpellAllowlist());
@@ -100,8 +106,6 @@ async function upgradeV1Document() {
 
         v1DismissedForDraftId.value = null;
         showV1Modal.value = false;
-        // Parent updates props.content; the watch below syncs the engine and
-        // schedules a re-render, so no direct engine/render calls here.
         emit('update:content', result.source);
     } finally {
         isUpgradingV1.value = false;
@@ -128,6 +132,7 @@ onMounted(async () => {
       iframeEl,
       () => props.getSpellAllowlist(),
       (word) => props.addSpellAllowlistWord(word),
+      (next) => { diagnostics.value = next; },
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     scheduleRender(props.content, props.style);
@@ -152,6 +157,8 @@ watch(() => props.content, (newContent) => {
 
 watch(() => store.state.activeDraftId, () => {
   showV1Modal.value = false;
+  diagnostics.value = [];
+  engine?.refreshDiagnostics();
 });
 
 watch(() => props.style, (newStyle) => {
@@ -195,6 +202,10 @@ async function removeDictionaryWord(word: string) {
     if (removed) {
         engine?.refreshDiagnostics();
     }
+}
+
+function jumpToDiagnostic(d: EditorDiagnostic) {
+    engine?.revealDiagnostic(d.from, d.to);
 }
 </script>
 
@@ -276,8 +287,50 @@ async function removeDictionaryWord(word: string) {
     </div>
 
     <div class="flex-1 flex overflow-hidden relative">
-        <div ref="editorContainer" class="flex-1 h-full overflow-hidden border-r border-border bg-[var(--color-page-bg)]"></div>
-        
+        <div class="flex-1 h-full flex flex-col border-r border-border bg-[var(--color-page-bg)]">
+            <div class="flex-1 relative overflow-hidden">
+                <div ref="editorContainer" class="absolute inset-0 overflow-hidden"></div>
+
+                <div
+                    v-if="!issuesDrawerOpen"
+                    class="absolute right-6 bottom-6 z-20 flex flex-col items-end gap-3"
+                >
+                    <button
+                        type="button"
+                        @click="issuesDrawerOpen = true"
+                        class="flex items-center gap-2 rounded-full px-4 h-10 text-sm font-bold shadow-2xl transition-all hover:scale-105"
+                        :class="{
+                            'bg-emerald-500 text-white hover:bg-emerald-600': issuesStatusValue === 'clean',
+                            'bg-amber-500 text-ember-950 hover:bg-amber-400': issuesStatusValue === 'warning',
+                            'bg-red-500 text-white hover:bg-red-600': issuesStatusValue === 'error',
+                        }"
+                        :title="issuesStatusValue === 'clean' ? 'No script issues' : `${issuesSummary.total} script issue${issuesSummary.total === 1 ? '' : 's'}`"
+                    >
+                        <CheckCircle2 v-if="issuesStatusValue === 'clean'" class="w-4 h-4" />
+                        <AlertTriangle v-else-if="issuesStatusValue === 'warning'" class="w-4 h-4" />
+                        <AlertCircle v-else class="w-4 h-4" />
+                        <span>{{ issuesStatusValue === 'clean' ? 'No script issues' : `${issuesSummary.total} script issue${issuesSummary.total === 1 ? '' : 's'}` }}</span>
+                    </button>
+
+                    <button
+                        v-if="!previewVisible"
+                        @click="previewVisible = true"
+                        class="w-12 h-12 rounded-full bg-brass-500 text-ember-950 shadow-2xl flex items-center justify-center hover:bg-brass-400 transition-all transform hover:scale-110"
+                        title="Show Preview"
+                    >
+                        <Eye class="w-6 h-6 text-ember-950" />
+                    </button>
+                </div>
+            </div>
+
+            <IssuesDrawer
+                :diagnostics="diagnostics"
+                :open="issuesDrawerOpen"
+                @close="issuesDrawerOpen = false"
+                @jump="jumpToDiagnostic"
+            />
+        </div>
+
         <div v-show="previewVisible" class="flex-1 h-full bg-[var(--color-page-surface)] flex flex-col min-w-[300px]">
             <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex justify-between items-center shadow-sm">
                 <h2 class="text-[10px] uppercase tracking-[0.2em] font-bold text-accent">Live Preview</h2>
@@ -321,14 +374,6 @@ async function removeDictionaryWord(word: string) {
             </div>
         </div>
 
-        <button 
-            v-if="!previewVisible"
-            @click="previewVisible = true"
-            class="absolute right-6 bottom-6 w-12 h-12 rounded-full bg-brass-500 text-ember-950 shadow-2xl flex items-center justify-center hover:bg-brass-400 transition-all transform hover:scale-110 z-20"
-            title="Show Preview"
-        >
-            <Eye class="w-6 h-6 text-ember-950" />
-        </button>
     </div>
   </div>
 
