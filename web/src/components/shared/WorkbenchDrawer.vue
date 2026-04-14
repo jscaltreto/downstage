@@ -71,11 +71,11 @@ function switchTab(tab: WorkbenchTab) {
       </button>
     </header>
 
-    <div class="flex-1 min-h-0 overflow-hidden">
-      <div v-show="activeTab === 'issues'" class="flex h-full flex-col">
+    <div class="flex-1 min-h-0 min-w-0 overflow-hidden">
+      <div v-show="activeTab === 'issues'" class="flex h-full min-w-0 flex-col overflow-hidden">
         <slot name="issues" />
       </div>
-      <div v-show="activeTab === 'find'" class="flex h-full flex-col">
+      <div v-show="activeTab === 'find'" class="flex h-full min-w-0 flex-col overflow-hidden">
         <slot name="find" />
       </div>
     </div>

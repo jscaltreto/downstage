@@ -154,6 +154,23 @@ function clearFind() {
   query.value = '';
   focusField('find');
 }
+
+function matchSnippet(match: SearchMatch, maxLen = 120, leadContext = 24): string {
+  const line = match.lineText.replace(/\s+$/g, '');
+  const matchLen = match.to - match.from;
+  const startInLine = Math.min(match.col - 1, line.length);
+  const endInLine = Math.min(startInLine + matchLen, line.length);
+
+  if (line.length <= maxLen) return line;
+
+  const snippetStart = Math.max(0, startInLine - leadContext);
+  const lead = startInLine - snippetStart;
+  const snippetEnd = Math.min(line.length, endInLine + Math.max(0, maxLen - lead - matchLen));
+
+  const prefix = snippetStart > 0 ? '…' : '';
+  const suffix = snippetEnd < line.length ? '…' : '';
+  return prefix + line.slice(snippetStart, snippetEnd) + suffix;
+}
 </script>
 
 <template>
@@ -313,9 +330,9 @@ function clearFind() {
         :class="{ 'bg-brass-500/10': index === currentIndex }"
         @click="emit('jump', index)"
       >
-        <div class="flex items-start gap-3">
+        <div class="flex min-w-0 items-start gap-3">
           <span class="shrink-0 font-mono text-[11px] text-text-muted tabular-nums">{{ m.line }}:{{ m.col }}</span>
-          <span class="flex-1 truncate font-mono text-xs leading-snug text-text-main">{{ m.lineText }}</span>
+          <span class="min-w-0 flex-1 truncate font-mono text-xs leading-snug text-text-main">{{ matchSnippet(m) }}</span>
         </div>
       </li>
     </ul>
