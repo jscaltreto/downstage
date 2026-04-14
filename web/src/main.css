@@ -101,20 +101,23 @@
 .cm-ds-variable { color: #e36209; }
 .dark .cm-ds-variable { color: var(--color-brass-300); }
 
+/* @codemirror/lint adds `padding-bottom: 0.7px` to .cm-lintRange to make
+   room for its wavy underline. On wrapped lines that 0.7px inflates
+   getClientRects() output enough to push CM's posAtCoords onto the visual
+   row above the click. Zero the padding; the SVG wavy still renders. */
+.cm-lintRange { padding-bottom: 0 !important; }
+
+/* Spellcheck uses severity "warning" for issues-drawer bucketing, but we
+   paint it red to distinguish from LSP warnings (which stay orange). */
 .cm-lintRange.cm-spellcheckRange {
-  background-image: none !important;
-  text-decoration: underline wavy #d11;
-  text-decoration-skip-ink: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='m0 3 l2 -2 l1 0 l2 2 l1 0' stroke='%23d11' fill='none' stroke-width='.7'/%3E%3C/svg%3E") !important;
 }
 
 .cm-lintRange.cm-lintRange-info {
-  background-image: none !important;
-  text-decoration: underline wavy #7c3aed;
-  text-decoration-skip-ink: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='m0 3 l2 -2 l1 0 l2 2 l1 0' stroke='%237c3aed' fill='none' stroke-width='.7'/%3E%3C/svg%3E") !important;
 }
 .dark .cm-lintRange.cm-lintRange-info {
-  text-decoration: underline wavy #a78bfa;
-  text-decoration-skip-ink: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='m0 3 l2 -2 l1 0 l2 2 l1 0' stroke='%23a78bfa' fill='none' stroke-width='.7'/%3E%3C/svg%3E") !important;
 }
 
 .cm-diagnostic-info {
