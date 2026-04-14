@@ -3,9 +3,10 @@ import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick } from '
 import {
     Bold, Italic, Underline, MessageSquare, ChevronRight,
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
-    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Trash2, CheckCircle2
+    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Trash2, CheckCircle2, Search
 } from 'lucide-vue-next';
-import { Engine } from '../../core/engine';
+import { Engine, type SearchMode, type SearchSummary } from '../../core/engine';
+import type { SearchMatch, SearchOptions } from '../../core/search';
 import { issuesStatus, summarizeIssues } from '../../core/issues';
 import type { FilterSeverity } from '../../core/issues';
 import type { Store } from '../../core/store';
@@ -13,7 +14,9 @@ import type { EditorDiagnostic, EditorEnv } from '../../core/types';
 import PreviewFrame from './PreviewFrame.vue';
 import ToolbarButton from './ToolbarButton.vue';
 import BaseModal from './BaseModal.vue';
-import IssuesDrawer from './IssuesDrawer.vue';
+import WorkbenchDrawer, { type WorkbenchTab } from './WorkbenchDrawer.vue';
+import IssuesTab from './IssuesTab.vue';
+import FindReplaceTab from './FindReplaceTab.vue';
 
 const props = defineProps<{
   env: EditorEnv;
@@ -39,7 +42,14 @@ let engine: Engine | null = null;
 
 const previewVisible = ref(localStorage.getItem("downstage-editor-preview-hidden") !== "true");
 const spellcheckEnabled = ref(localStorage.getItem("downstage-editor-spellcheck-disabled") !== "true");
-const issuesDrawerOpen = ref(false);
+const drawerOpen = ref(false);
+const drawerTab = ref<WorkbenchTab>('issues');
+const searchMatches = ref<SearchMatch[]>([]);
+const searchIndex = ref(-1);
+const searchError = ref<string | null>(null);
+const searchInitialQuery = ref('');
+const searchFocusReplace = ref(false);
+const searchFocusNonce = ref(0);
 const diagnostics = ref<EditorDiagnostic[]>([]);
 const hiddenSeverities = ref<ReadonlySet<FilterSeverity>>(new Set());
 const visibleDiagnostics = computed(() =>
@@ -133,6 +143,31 @@ function dismissV1Modal() {
     v1DismissedForDraftId.value = store.state.activeDraftId;
 }
 
+function openSearch(mode: SearchMode) {
+  const selection = engine?.getSelectionText() ?? '';
+  if (selection) {
+    searchInitialQuery.value = selection;
+  }
+  searchFocusReplace.value = mode === 'replace';
+  drawerTab.value = 'find';
+  drawerOpen.value = true;
+  searchFocusNonce.value++;
+}
+
+function toggleSearch() {
+  if (drawerOpen.value && drawerTab.value === 'find') {
+    closeDrawer();
+    return;
+  }
+  openSearch('find');
+}
+
+function applySearchSummary(summary: SearchSummary, matches: SearchMatch[]) {
+  searchMatches.value = matches;
+  searchIndex.value = summary.index;
+  searchError.value = summary.error;
+}
+
 onMounted(async () => {
   await nextTick();
 
@@ -149,6 +184,8 @@ onMounted(async () => {
       () => props.getSpellAllowlist(),
       (word) => props.addSpellAllowlistWord(word),
       (next) => { diagnostics.value = next; },
+      openSearch,
+      applySearchSummary,
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     scheduleRender(props.content, props.style);
@@ -175,6 +212,11 @@ watch(() => store.state.activeDraftId, () => {
   showV1Modal.value = false;
   diagnostics.value = [];
   engine?.refreshDiagnostics();
+  engine?.clearSearch();
+  searchMatches.value = [];
+  searchIndex.value = -1;
+  searchError.value = null;
+  searchInitialQuery.value = '';
 });
 
 watch(() => props.style, (newStyle) => {
@@ -223,6 +265,27 @@ async function removeDictionaryWord(word: string) {
 function jumpToDiagnostic(d: EditorDiagnostic) {
     engine?.revealDiagnostic(d.from, d.to);
 }
+
+function openIssuesTab() {
+    drawerTab.value = 'issues';
+    drawerOpen.value = true;
+}
+
+function closeDrawer() {
+    drawerOpen.value = false;
+    engine?.clearSearch();
+    engine?.focus();
+}
+
+function onSearch(opts: SearchOptions) {
+    if (!engine) return;
+    engine.setSearch(opts);
+}
+function onFindNext() { engine?.findNext(); }
+function onFindPrev() { engine?.findPrev(); }
+function onReplaceOne(replacement: string) { engine?.replaceCurrent(replacement); }
+function onReplaceAll(replacement: string) { engine?.replaceAll(replacement); }
+function onJumpMatch(index: number) { engine?.selectMatch(index); }
 </script>
 
 <template>
@@ -255,6 +318,10 @@ function jumpToDiagnostic(d: EditorDiagnostic) {
                         ></span>
                     </span>
                 </template>
+            </ToolbarButton>
+
+            <ToolbarButton @click="toggleSearch" title="Find &amp; Replace (Ctrl/Cmd+F)">
+                <template #icon><Search class="w-4 h-4" /></template>
             </ToolbarButton>
         </div>
 
@@ -308,12 +375,12 @@ function jumpToDiagnostic(d: EditorDiagnostic) {
                 <div ref="editorContainer" :class="['absolute inset-0 overflow-hidden', ...editorHideClasses]"></div>
 
                 <div
-                    v-if="!issuesDrawerOpen"
+                    v-if="!drawerOpen"
                     class="absolute right-6 bottom-6 z-20 flex flex-col items-end gap-3"
                 >
                     <button
                         type="button"
-                        @click="issuesDrawerOpen = true"
+                        @click="openIssuesTab"
                         class="flex items-center gap-2 rounded-full px-4 h-10 text-sm font-bold shadow-2xl transition-all hover:scale-105"
                         :class="{
                             'bg-emerald-500 text-white hover:bg-emerald-600': issuesStatusValue === 'clean',
@@ -341,14 +408,39 @@ function jumpToDiagnostic(d: EditorDiagnostic) {
                 </div>
             </div>
 
-            <IssuesDrawer
-                :diagnostics="diagnostics"
-                :open="issuesDrawerOpen"
-                :hidden-severities="hiddenSeverities"
-                @close="issuesDrawerOpen = false"
-                @jump="jumpToDiagnostic"
-                @update:hidden-severities="hiddenSeverities = $event"
-            />
+            <WorkbenchDrawer
+                :open="drawerOpen"
+                :active-tab="drawerTab"
+                :issues-badge="issuesSummary.total"
+                @close="closeDrawer"
+                @update:active-tab="drawerTab = $event"
+            >
+                <template #issues>
+                    <IssuesTab
+                        :diagnostics="diagnostics"
+                        :hidden-severities="hiddenSeverities"
+                        @jump="jumpToDiagnostic"
+                        @update:hidden-severities="hiddenSeverities = $event"
+                    />
+                </template>
+                <template #find>
+                    <FindReplaceTab
+                        :active="drawerOpen && drawerTab === 'find'"
+                        :matches="searchMatches"
+                        :current-index="searchIndex"
+                        :error="searchError"
+                        :initial-query="searchInitialQuery"
+                        :focus-replace="searchFocusReplace"
+                        :focus-nonce="searchFocusNonce"
+                        @search="onSearch"
+                        @next="onFindNext"
+                        @prev="onFindPrev"
+                        @replace="onReplaceOne"
+                        @replace-all="onReplaceAll"
+                        @jump="onJumpMatch"
+                    />
+                </template>
+            </WorkbenchDrawer>
         </div>
 
         <div v-show="previewVisible" class="flex-1 h-full bg-[var(--color-page-surface)] flex flex-col min-w-[300px]">

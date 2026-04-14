@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import IssuesDrawer from "../components/shared/IssuesDrawer.vue";
+import IssuesTab from "../components/shared/IssuesTab.vue";
 import type { EditorDiagnostic } from "../core/types";
 
 function mk(overrides: Partial<EditorDiagnostic>): EditorDiagnostic {
@@ -16,10 +16,10 @@ function mk(overrides: Partial<EditorDiagnostic>): EditorDiagnostic {
   };
 }
 
-describe("IssuesDrawer", () => {
-  it("shows the empty state when no diagnostics are present and open", () => {
-    const wrapper = mount(IssuesDrawer, {
-      props: { diagnostics: [], open: true },
+describe("IssuesTab", () => {
+  it("shows the empty state when no diagnostics are present", () => {
+    const wrapper = mount(IssuesTab, {
+      props: { diagnostics: [] },
     });
     expect(wrapper.text()).toContain("No script issues");
     expect(wrapper.findAll("li")).toHaveLength(0);
@@ -31,8 +31,8 @@ describe("IssuesDrawer", () => {
       mk({ line: 7, col: 1, severity: "warning", message: "stray text" }),
     ];
 
-    const wrapper = mount(IssuesDrawer, {
-      props: { diagnostics, open: true },
+    const wrapper = mount(IssuesTab, {
+      props: { diagnostics },
     });
 
     const rows = wrapper.findAll("li");
@@ -45,8 +45,8 @@ describe("IssuesDrawer", () => {
 
   it("emits jump with the diagnostic when a row is clicked", async () => {
     const diag = mk({ line: 4, col: 2, message: "click me" });
-    const wrapper = mount(IssuesDrawer, {
-      props: { diagnostics: [diag], open: true },
+    const wrapper = mount(IssuesTab, {
+      props: { diagnostics: [diag] },
     });
 
     await wrapper.find("li").trigger("click");
@@ -56,16 +56,6 @@ describe("IssuesDrawer", () => {
     expect(events?.[0]?.[0]).toEqual(diag);
   });
 
-  it("emits close when the X button is clicked", async () => {
-    const wrapper = mount(IssuesDrawer, {
-      props: { diagnostics: [], open: true },
-    });
-
-    await wrapper.find('button[aria-label="Close script issues"]').trigger("click");
-
-    expect(wrapper.emitted("close")).toBeTruthy();
-  });
-
   it("shows severity count pills for errors and warnings", () => {
     const diagnostics: EditorDiagnostic[] = [
       mk({ severity: "error" }),
@@ -73,8 +63,8 @@ describe("IssuesDrawer", () => {
       mk({ severity: "warning" }),
     ];
 
-    const wrapper = mount(IssuesDrawer, {
-      props: { diagnostics, open: true },
+    const wrapper = mount(IssuesTab, {
+      props: { diagnostics },
     });
 
     const text = wrapper.text();
@@ -89,8 +79,8 @@ describe("IssuesDrawer", () => {
       mk({ severity: "info", message: "a hint" }),
     ];
 
-    const wrapper = mount(IssuesDrawer, {
-      props: { diagnostics, open: true, hiddenSeverities: new Set() },
+    const wrapper = mount(IssuesTab, {
+      props: { diagnostics, hiddenSeverities: new Set() },
     });
 
     expect(wrapper.findAll("li")).toHaveLength(3);
@@ -108,7 +98,6 @@ describe("IssuesDrawer", () => {
     const nextSet = updates[updates.length - 1][0];
     expect(Array.from(nextSet)).toEqual(["info"]);
 
-    // Simulate the parent applying the new value.
     await wrapper.setProps({ hiddenSeverities: nextSet });
 
     expect(infoPill!.attributes("aria-pressed")).toBe("false");
@@ -118,7 +107,6 @@ describe("IssuesDrawer", () => {
     expect(rowsText.some((t) => t.includes("boom"))).toBe(true);
     expect(rowsText.some((t) => t.includes("stray text"))).toBe(true);
 
-    // Clicking again clears the set.
     await infoPill!.trigger("click");
     const allEmits = wrapper.emitted("update:hiddenSeverities") as Array<[Set<string>]>;
     const nextNext = allEmits[allEmits.length - 1][0];
@@ -130,21 +118,11 @@ describe("IssuesDrawer", () => {
 
   it("shows a 'all matching issues hidden' state when every pill is toggled off", async () => {
     const diagnostics: EditorDiagnostic[] = [mk({ severity: "warning", message: "x" })];
-    const wrapper = mount(IssuesDrawer, {
-      props: { diagnostics, open: true, hiddenSeverities: new Set(["warning"]) },
+    const wrapper = mount(IssuesTab, {
+      props: { diagnostics, hiddenSeverities: new Set(["warning"]) },
     });
 
     expect(wrapper.findAll("li")).toHaveLength(0);
     expect(wrapper.text()).toContain("All matching issues hidden");
-  });
-
-  it("collapses the section to zero height when closed", () => {
-    const wrapper = mount(IssuesDrawer, {
-      props: { diagnostics: [], open: false },
-    });
-    const section = wrapper.find("section");
-    expect(section.exists()).toBe(true);
-    expect(section.attributes("style")).toContain("height: 0px");
-    expect(section.attributes("aria-hidden")).toBe("true");
   });
 });
