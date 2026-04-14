@@ -10,7 +10,27 @@ import { createDownstageHighlighter } from "../downstage-lang";
 import { createScrollSyncPlugin } from "../scroll-sync";
 import { warmSpellDictionary } from "../spellcheck";
 import { projectDiagnostics } from "./issues";
+import {
+  clearSearchEffect,
+  replaceAllMatches,
+  replaceAtMatch,
+  searchExtension,
+  searchStateField,
+  selectMatchEffect,
+  setSearchEffect,
+  type SearchMatch,
+  type SearchOptions,
+  type SearchState,
+} from "./search";
 import type { EditorDiagnostic, EditorEnv } from "./types";
+
+export type SearchMode = "find" | "replace";
+
+export interface SearchSummary {
+  total: number;
+  index: number;
+  error: string | null;
+}
 
 const themeCompartment = new Compartment();
 const lintCompartment = new Compartment();
@@ -46,6 +66,8 @@ export class Engine {
   private spellcheckReady = false;
   private cancelSpellcheckWarmup: (() => void) | null = null;
 
+  private lastEmittedSearch: SearchState | null = null;
+
   constructor(
     private parent: HTMLElement,
     private env: EditorEnv,
@@ -54,6 +76,8 @@ export class Engine {
     private getUserSpellAllowlist: () => string[],
     private addUserSpellAllowlistWord: (word: string) => Promise<boolean>,
     private onDiagnosticsChange: (diagnostics: EditorDiagnostic[]) => void = () => {},
+    private onOpenSearch: (mode: SearchMode) => void = () => {},
+    private onSearchChange: (summary: SearchSummary, matches: SearchMatch[]) => void = () => {},
   ) {}
 
   init(initialContent: string, isDark: boolean, spellcheckEnabled = false) {
@@ -67,7 +91,44 @@ export class Engine {
       ".cm-activeLine": {
         backgroundColor: "rgba(255, 255, 255, 0.05) !important",
       },
+      ".cm-search-match": {
+        backgroundColor: "rgba(227, 168, 87, 0.2)",
+        outline: "1px solid rgba(227, 168, 87, 0.45)",
+        borderRadius: "2px",
+      },
+      ".cm-search-match-current": {
+        backgroundColor: "rgba(227, 168, 87, 0.55)",
+        outline: "1px solid rgba(227, 168, 87, 0.9)",
+        borderRadius: "2px",
+      },
     });
+
+    const searchKeymap = keymap.of([
+      {
+        key: "Mod-f",
+        preventDefault: true,
+        run: () => {
+          this.onOpenSearch("find");
+          return true;
+        },
+      },
+      {
+        key: "Mod-h",
+        preventDefault: true,
+        run: () => {
+          this.onOpenSearch("replace");
+          return true;
+        },
+      },
+      {
+        key: "Mod-Alt-f",
+        preventDefault: true,
+        run: () => {
+          this.onOpenSearch("replace");
+          return true;
+        },
+      },
+    ]);
 
     this.view = new EditorView({
       state: EditorState.create({
@@ -75,10 +136,12 @@ export class Engine {
         extensions: [
           lineNumbers(),
           history(),
+          searchKeymap,
           keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
           themeCompartment.of(isDark ? oneDark : lightTheme),
           lintCompartment.of(this.createLintExtension()),
           customTheme,
+          searchExtension(),
           createDownstageHighlighter(this.env),
           createDownstageCompletion(this.env),
           createScrollSyncPlugin(this.iframe),
@@ -93,6 +156,7 @@ export class Engine {
             if (lintChanged) {
               this.emitDiagnostics();
             }
+            this.maybeEmitSearch();
           }),
         ],
       }),
@@ -222,6 +286,110 @@ export class Engine {
 
   private emitDiagnostics() {
     this.onDiagnosticsChange(this.getDiagnostics());
+  }
+
+  private maybeEmitSearch() {
+    if (!this.view) return;
+    const state = this.view.state.field(searchStateField, false);
+    if (!state) return;
+    if (state === this.lastEmittedSearch) return;
+    this.lastEmittedSearch = state;
+    this.onSearchChange(
+      { total: state.matches.length, index: state.currentIndex, error: state.regexError },
+      state.matches,
+    );
+  }
+
+  setSearch(opts: SearchOptions): SearchSummary {
+    if (!this.view) return { total: 0, index: -1, error: null };
+    this.view.dispatch({ effects: setSearchEffect.of(opts) });
+    const state = this.view.state.field(searchStateField);
+    if (state.matches.length > 0 && state.currentIndex >= 0) {
+      const active = state.matches[state.currentIndex];
+      this.view.dispatch({ effects: EditorView.scrollIntoView(active.from, { y: "nearest" }) });
+    }
+    return { total: state.matches.length, index: state.currentIndex, error: state.regexError };
+  }
+
+  findNext(): SearchSummary {
+    return this.step(1);
+  }
+
+  findPrev(): SearchSummary {
+    return this.step(-1);
+  }
+
+  private step(direction: 1 | -1): SearchSummary {
+    if (!this.view) return { total: 0, index: -1, error: null };
+    const state = this.view.state.field(searchStateField);
+    if (state.matches.length === 0) {
+      return { total: 0, index: -1, error: state.regexError };
+    }
+    const total = state.matches.length;
+    const currentValid = state.currentIndex >= 0;
+    const nextIndex = currentValid
+      ? (state.currentIndex + direction + total) % total
+      : direction === 1
+        ? 0
+        : total - 1;
+    this.selectMatch(nextIndex);
+    return { total, index: nextIndex, error: null };
+  }
+
+  selectMatch(index: number): SearchSummary {
+    if (!this.view) return { total: 0, index: -1, error: null };
+    const state = this.view.state.field(searchStateField);
+    if (index < 0 || index >= state.matches.length) {
+      return { total: state.matches.length, index: state.currentIndex, error: state.regexError };
+    }
+    const match = state.matches[index];
+    this.view.dispatch({
+      effects: [
+        selectMatchEffect.of(index),
+        EditorView.scrollIntoView(match.from, { y: "center" }),
+      ],
+      selection: { anchor: match.from, head: match.to },
+    });
+    return { total: state.matches.length, index, error: null };
+  }
+
+  replaceCurrent(replacement: string): SearchSummary {
+    if (!this.view) return { total: 0, index: -1, error: null };
+    const state = this.view.state.field(searchStateField);
+    if (state.currentIndex < 0 || state.matches.length === 0) {
+      return { total: state.matches.length, index: state.currentIndex, error: state.regexError };
+    }
+    replaceAtMatch(this.view, state.currentIndex, replacement);
+    const after = this.view.state.field(searchStateField);
+    if (after.matches.length > 0) {
+      const targetIndex = Math.min(state.currentIndex, after.matches.length - 1);
+      this.selectMatch(targetIndex);
+      return { total: after.matches.length, index: targetIndex, error: null };
+    }
+    return { total: 0, index: -1, error: null };
+  }
+
+  replaceAll(replacement: string): number {
+    if (!this.view) return 0;
+    return replaceAllMatches(this.view, replacement);
+  }
+
+  clearSearch() {
+    if (!this.view) return;
+    this.view.dispatch({ effects: clearSearchEffect.of(null) });
+  }
+
+  getSelectionText(): string {
+    if (!this.view) return "";
+    const sel = this.view.state.selection.main;
+    if (sel.empty) return "";
+    return this.view.state.sliceDoc(sel.from, sel.to);
+  }
+
+  getSearchMatches(): SearchMatch[] {
+    if (!this.view) return [];
+    const state = this.view.state.field(searchStateField, false);
+    return state ? state.matches : [];
   }
 
   setContent(content: string) {
