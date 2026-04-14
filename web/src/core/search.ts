@@ -51,6 +51,14 @@ function toMatch(doc: Text, from: number, to: number): SearchMatch {
   };
 }
 
+function sameSearchOptions(a: SearchOptions | null, b: SearchOptions): boolean {
+  return !!a &&
+    a.query === b.query &&
+    a.caseSensitive === b.caseSensitive &&
+    a.wholeWord === b.wholeWord &&
+    a.regex === b.regex;
+}
+
 export function findMatches(doc: Text, opts: SearchOptions): SearchResult {
   if (!opts.query) return { ok: true, matches: [] };
 
@@ -130,16 +138,10 @@ export const searchStateField = StateField.define<SearchState>({
           next = { opts, matches: [], currentIndex: -1, regexError: res.error };
           continue;
         }
-        const sameOpts =
-          !!value.opts &&
-          value.opts.query === opts.query &&
-          value.opts.caseSensitive === opts.caseSensitive &&
-          value.opts.wholeWord === opts.wholeWord &&
-          value.opts.regex === opts.regex;
         next = {
           opts,
           matches: res.matches,
-          currentIndex: sameOpts
+          currentIndex: sameSearchOptions(value.opts, opts)
             ? reconcileIndex(value, res.matches, null)
             : res.matches.length > 0
               ? 0

@@ -49,7 +49,7 @@ const searchIndex = ref(-1);
 const searchError = ref<string | null>(null);
 const searchInitialQuery = ref('');
 const searchFocusReplace = ref(false);
-const findTabRef = ref<{ focusInput: (mode?: 'find' | 'replace') => void } | null>(null);
+const searchFocusNonce = ref(0);
 const diagnostics = ref<EditorDiagnostic[]>([]);
 const hiddenSeverities = ref<ReadonlySet<FilterSeverity>>(new Set());
 const visibleDiagnostics = computed(() =>
@@ -148,13 +148,10 @@ function openSearch(mode: SearchMode) {
   if (selection) {
     searchInitialQuery.value = selection;
   }
-  const wasFindTabActive = drawerOpen.value && drawerTab.value === 'find';
   searchFocusReplace.value = mode === 'replace';
   drawerTab.value = 'find';
   drawerOpen.value = true;
-  if (wasFindTabActive) {
-    nextTick(() => findTabRef.value?.focusInput(mode));
-  }
+  searchFocusNonce.value++;
 }
 
 function toggleSearch() {
@@ -428,13 +425,13 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                 </template>
                 <template #find>
                     <FindReplaceTab
-                        ref="findTabRef"
                         :active="drawerOpen && drawerTab === 'find'"
                         :matches="searchMatches"
                         :current-index="searchIndex"
                         :error="searchError"
                         :initial-query="searchInitialQuery"
                         :focus-replace="searchFocusReplace"
+                        :focus-nonce="searchFocusNonce"
                         @search="onSearch"
                         @next="onFindNext"
                         @prev="onFindPrev"

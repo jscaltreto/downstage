@@ -10,6 +10,7 @@ const props = defineProps<{
   error: string | null;
   initialQuery?: string;
   focusReplace?: boolean;
+  focusNonce?: number;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +31,12 @@ const findInput = ref<HTMLInputElement | null>(null);
 const replaceInput = ref<HTMLInputElement | null>(null);
 
 let debounceTimer: number | null = null;
+
+function focusField(mode: 'find' | 'replace' = 'find') {
+  const el = mode === 'replace' ? replaceInput.value : findInput.value;
+  el?.focus();
+  el?.select();
+}
 
 function fireSearch() {
   emit('search', {
@@ -61,13 +68,7 @@ watch(
       fireSearch();
     }
     await nextTick();
-    if (props.focusReplace) {
-      replaceInput.value?.focus();
-      replaceInput.value?.select();
-    } else {
-      findInput.value?.focus();
-      findInput.value?.select();
-    }
+    focusField(props.focusReplace ? 'replace' : 'find');
   },
   { immediate: true },
 );
@@ -87,13 +88,16 @@ watch(
   async (next) => {
     if (!props.active) return;
     await nextTick();
-    if (next) {
-      replaceInput.value?.focus();
-      replaceInput.value?.select();
-    } else {
-      findInput.value?.focus();
-      findInput.value?.select();
-    }
+    focusField(next ? 'replace' : 'find');
+  },
+);
+
+watch(
+  () => props.focusNonce,
+  async () => {
+    await nextTick();
+    if (!props.active) return;
+    focusField(props.focusReplace ? 'replace' : 'find');
   },
 );
 
@@ -109,14 +113,12 @@ function interceptFindShortcut(e: KeyboardEvent): boolean {
   if (!(e.ctrlKey || e.metaKey) || e.shiftKey) return false;
   if (e.key === 'f') {
     e.preventDefault();
-    findInput.value?.focus();
-    findInput.value?.select();
+    focusField('find');
     return true;
   }
   if (e.key === 'h') {
     e.preventDefault();
-    replaceInput.value?.focus();
-    replaceInput.value?.select();
+    focusField('replace');
     return true;
   }
   return false;
@@ -150,22 +152,8 @@ function onReplaceKeydown(e: KeyboardEvent) {
 
 function clearFind() {
   query.value = '';
-  findInput.value?.focus();
+  focusField('find');
 }
-
-function truncate(text: string, maxLen = 80): string {
-  const trimmed = text.replace(/\s+$/g, '');
-  if (trimmed.length <= maxLen) return trimmed;
-  return trimmed.slice(0, maxLen - 1) + '…';
-}
-
-defineExpose({
-  focusInput: (mode: 'find' | 'replace' = 'find') => {
-    const el = mode === 'replace' ? replaceInput.value : findInput.value;
-    el?.focus();
-    el?.select();
-  },
-});
 </script>
 
 <template>
@@ -327,7 +315,7 @@ defineExpose({
       >
         <div class="flex items-start gap-3">
           <span class="shrink-0 font-mono text-[11px] text-text-muted tabular-nums">{{ m.line }}:{{ m.col }}</span>
-          <span class="flex-1 font-mono text-xs leading-snug text-text-main line-clamp-1">{{ truncate(m.lineText) }}</span>
+          <span class="flex-1 truncate font-mono text-xs leading-snug text-text-main">{{ m.lineText }}</span>
         </div>
       </li>
     </ul>
