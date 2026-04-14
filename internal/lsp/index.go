@@ -219,10 +219,15 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		case *ast.DualDialogue:
 			// A DualDialogue breaks the "same character back-to-back" chain
 			// on either side: the author marked simultaneous speech, which
-			// is structurally distinct from a bare consecutive cue.
+			// is structurally distinct from a bare consecutive cue. Also
+			// reset between the two halves so identical left/right cues
+			// (rare but legal) aren't flagged as repeated.
 			container := innerContainer(currentTopLevel, currentAct, currentScene)
 			recordBreak(container, v.Range.Start.Line)
 			walkNode(v.Left, currentTopLevel, currentAct, currentScene)
+			if v.Right != nil {
+				recordBreak(container, v.Right.Range.Start.Line)
+			}
 			walkNode(v.Right, currentTopLevel, currentAct, currentScene)
 			recordBreak(container, v.Range.End.Line)
 		case *ast.StageDirection:
@@ -234,6 +239,14 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		case *ast.VerseBlock:
 			recordBreak(innerContainer(currentTopLevel, currentAct, currentScene), v.Range.Start.Line)
 		case *ast.Section:
+			// Break the parent container's consecutive-cue chain at the
+			// heading line before we descend. Without this, cues bracketing
+			// a nested scene/act heading within the same enclosing
+			// container (e.g. an act that contains dialogue both before
+			// and after a scene it encloses) would chain across the
+			// structural marker.
+			recordBreak(innerContainer(currentTopLevel, currentAct, currentScene), v.Range.Start.Line)
+
 			if v.Level == 1 {
 				currentTopLevel = v
 				currentAct = nil

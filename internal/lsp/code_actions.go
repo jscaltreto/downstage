@@ -551,23 +551,14 @@ func insertMissingDramatisPersonaeEdit(doc *ast.Document, content string, index 
 	}
 
 	// Insert directly after the first top-level play heading when present so
-	// the DP sits at the conventional position. Otherwise insert at the very
-	// top of the document.
+	// the DP sits at the conventional position, but *after* any metadata
+	// block attached to the heading — otherwise we'd split the metadata
+	// from its owning heading and the V2 parser would re-classify those
+	// key/value lines as document content. Same precaution applies to the
+	// doc-level fallback when a V1-style top-level TitlePage exists.
 	if len(index.topLevelSections) > 0 {
 		play := index.topLevelSections[0]
-		line := play.HeadingRange().End.Line + 1
-		// Skip any blank lines immediately after the heading so we land on
-		// the first content line.
-		for {
-			raw, ok := lineAt(content, line)
-			if !ok {
-				break
-			}
-			if strings.TrimSpace(raw) != "" {
-				break
-			}
-			line++
-		}
+		line := insertAfterPlayHeader(play, content)
 		return &protocol.TextEdit{
 			Range: protocol.Range{
 				Start: protocol.Position{Line: uint32(line), Character: 0},
@@ -577,12 +568,42 @@ func insertMissingDramatisPersonaeEdit(doc *ast.Document, content string, index 
 		}
 	}
 
+	startLine := 0
+	if doc.TitlePage != nil {
+		startLine = doc.TitlePage.Range.End.Line + 1
+		startLine = skipBlankLines(content, startLine)
+	}
 	return &protocol.TextEdit{
 		Range: protocol.Range{
-			Start: protocol.Position{Line: 0, Character: 0},
-			End:   protocol.Position{Line: 0, Character: 0},
+			Start: protocol.Position{Line: uint32(startLine), Character: 0},
+			End:   protocol.Position{Line: uint32(startLine), Character: 0},
 		},
 		NewText: body,
+	}
+}
+
+// insertAfterPlayHeader returns the line index where new top-level content
+// should be inserted under a play heading: after the heading, past any
+// metadata block attached to it, and past any blank separator lines.
+func insertAfterPlayHeader(play *ast.Section, content string) int {
+	line := play.HeadingRange().End.Line + 1
+	if play.Metadata != nil {
+		line = play.Metadata.Range.End.Line + 1
+	}
+	return skipBlankLines(content, line)
+}
+
+func skipBlankLines(content string, start int) int {
+	line := start
+	for {
+		raw, ok := lineAt(content, line)
+		if !ok {
+			return line
+		}
+		if strings.TrimSpace(raw) != "" {
+			return line
+		}
+		line++
 	}
 }
 

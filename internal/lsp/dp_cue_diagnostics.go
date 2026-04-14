@@ -155,8 +155,16 @@ func checkDPCharacterNoDialogue(index *documentIndex) []protocol.Diagnostic {
 		record(scope, index.usedCharactersByPlay[play])
 	}
 	if index.legacyCharacterScope.dp != nil {
-		// Legacy scope dialogues are bucketed under the nil play key.
-		record(index.legacyCharacterScope, index.usedCharactersByPlay[nil])
+		// A document-level DP covers every dialogue in the file, so union
+		// usage across every play bucket (and the headingless nil bucket)
+		// before deciding whether an entry is unused.
+		union := make(map[string]struct{})
+		for _, bucket := range index.usedCharactersByPlay {
+			for k := range bucket {
+				union[k] = struct{}{}
+			}
+		}
+		record(index.legacyCharacterScope, union)
 	}
 
 	return diags

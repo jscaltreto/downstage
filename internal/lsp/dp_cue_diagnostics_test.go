@@ -219,6 +219,35 @@ Hi.`
 	assert.Contains(t, none[0].Message, "ALICE")
 }
 
+func TestDPCharacterNoDialogue_DocLevelDPUnionsUsageAcrossPlays(t *testing.T) {
+	// A V1-style document-level DP with plays declared as top-level
+	// sections. Dialogue gets bucketed under each play, but the DP is
+	// document-wide, so usage must union across all plays — otherwise
+	// every DP entry would get flagged as unused.
+	content := `## Dramatis Personae
+ALICE
+BOB
+
+# First Play
+
+## ACT I
+
+ALICE
+Hi from play one.
+
+# Second Play
+
+## ACT I
+
+BOB
+Hi from play two.`
+
+	diags, errs := parseDoc(t, content)
+	require.Empty(t, errs)
+	none := filterDiagnostics(diags, diagnosticCodeDPCharacterNoDialogue)
+	assert.Empty(t, none, "ALICE and BOB both speak somewhere in the document")
+}
+
 func TestCueOrphaned_FlagsCueWithNoLines(t *testing.T) {
 	content := `# Play
 
@@ -374,6 +403,56 @@ Second line.`
 	require.Empty(t, errs)
 	consecutive := filterDiagnostics(diags, diagnosticCodeCueConsecutiveSameCharacter)
 	assert.Empty(t, consecutive, "explicit page break should reset the chain")
+}
+
+func TestCueConsecutiveSameCharacter_NestedSceneHeadingResets(t *testing.T) {
+	// Act-level container: dialogue before and after a nested scene heading
+	// is structurally separated by the heading, so the chain must reset.
+	content := `# Play
+
+## Dramatis Personae
+ALICE
+
+## ACT I
+
+ALICE
+Outside any scene.
+
+### SCENE 1
+
+ALICE
+Inside the scene.`
+	diags, errs := parseDoc(t, content)
+	require.Empty(t, errs)
+	consecutive := filterDiagnostics(diags, diagnosticCodeCueConsecutiveSameCharacter)
+	assert.Empty(t, consecutive, "a nested scene heading should reset the parent act's consecutive-cue chain")
+}
+
+func TestCueConsecutiveSameCharacter_DualDialogueSameCharacterNotFlagged(t *testing.T) {
+	// Hypothetical but legal: same character on both halves of a dual
+	// block. The author marked simultaneous speech explicitly, so this
+	// should not be treated as back-to-back repeated cues.
+	content := `# Play
+
+## Dramatis Personae
+ALICE
+
+## ACT I
+
+### SCENE 1
+
+ALICE
+First.
+
+ALICE
+Together.
+
+ALICE ^
+Also together.`
+	diags, errs := parseDoc(t, content)
+	require.Empty(t, errs)
+	consecutive := filterDiagnostics(diags, diagnosticCodeCueConsecutiveSameCharacter)
+	assert.Empty(t, consecutive, "dual-dialogue halves must not count as back-to-back repeats")
 }
 
 func TestCueConsecutiveSameCharacter_CalloutResets(t *testing.T) {
