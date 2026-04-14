@@ -125,6 +125,17 @@ func SectionDisplayTitle(section *ast.Section) string {
 	return section.Title
 }
 
+// DramatisPersonaeDisplayTitle returns the DP heading text or the default.
+func DramatisPersonaeDisplayTitle(section *ast.Section) string {
+	if section == nil {
+		return "Dramatis Personae"
+	}
+	if title := strings.TrimSpace(section.Title); title != "" {
+		return title
+	}
+	return "Dramatis Personae"
+}
+
 func DocumentTitlePage(doc *ast.Document) *ast.TitlePage {
 	if doc == nil {
 		return nil

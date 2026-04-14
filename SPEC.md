@@ -131,6 +131,7 @@ The dramatis personae section begins with one of these headings inside a top-lev
 - `## Characters`
 
 Heading matching is case-insensitive.
+Renderers use the author's chosen heading wording.
 
 `## Dramatis Personae` applies only to the enclosing `#` section.
 

@@ -1,6 +1,8 @@
 package pdf
 
 import (
+	"strings"
+
 	"github.com/jscaltreto/downstage/internal/ast"
 	"github.com/jscaltreto/downstage/internal/render"
 )
@@ -12,7 +14,7 @@ func renderDramatisPersonae(b *pdfBase, s *ast.Section, charIndent float64) {
 	// Heading
 	b.setStyle("B")
 	b.pdf.Ln(b.lineHeight)
-	b.centeredText("DRAMATIS PERSONAE")
+	b.centeredText(strings.ToUpper(render.DramatisPersonaeDisplayTitle(s)))
 	b.pdf.Ln(b.lineHeight * 2)
 	b.setStyle("")
 
