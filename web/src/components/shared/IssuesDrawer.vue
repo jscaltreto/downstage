@@ -22,8 +22,6 @@ const emit = defineEmits<{
 
 const summary = computed(() => summarizeIssues(props.diagnostics));
 
-// Pills drive a parent-held "hidden severities" set. Clicking a pill emits
-// the updated set so the parent can also filter CM markers.
 function isHidden(kind: FilterSeverity): boolean {
   return props.hiddenSeverities.has(kind);
 }
@@ -54,7 +52,6 @@ const visibleDiagnostics = computed(() =>
   props.diagnostics.filter((d) => {
     if (d.severity === 'error') return !isHidden('error');
     if (d.severity === 'warning') return !isHidden('warning');
-    // Info + hint share a pill, so they share a filter toggle.
     return !isHidden('info');
   }),
 );

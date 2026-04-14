@@ -42,9 +42,6 @@ const spellcheckEnabled = ref(localStorage.getItem("downstage-editor-spellcheck-
 const issuesDrawerOpen = ref(false);
 const diagnostics = ref<EditorDiagnostic[]>([]);
 const hiddenSeverities = ref<ReadonlySet<FilterSeverity>>(new Set());
-// FAB-facing summary: drop diagnostics the author has hidden so the badge
-// and color reflect what's actually surfaced in the editor. The drawer
-// still gets the full list for its pill counts.
 const visibleDiagnostics = computed(() =>
   diagnostics.value.filter((d) => {
     if (d.severity === 'error') return !hiddenSeverities.value.has('error');
@@ -54,9 +51,6 @@ const visibleDiagnostics = computed(() =>
 );
 const issuesSummary = computed(() => summarizeIssues(visibleDiagnostics.value));
 const issuesStatusValue = computed(() => issuesStatus(issuesSummary.value));
-// Class list applied to the editor container so CSS can hide CM markers
-// and tooltips for severities the author toggled off. Keeping the
-// unfiltered diagnostics in CM state preserves accurate pill counts.
 const editorHideClasses = computed(() => {
   const classes: string[] = [];
   if (hiddenSeverities.value.has('error')) classes.push('cm-hide-error');

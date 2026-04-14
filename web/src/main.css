@@ -107,8 +107,6 @@
   text-decoration-skip-ink: none;
 }
 
-/* Info-severity squiggly: saturated purple, distinct from the muted
-   purple used on the FAB and pill. */
 .cm-lintRange.cm-lintRange-info {
   background-image: none !important;
   text-decoration: underline wavy #7c3aed;
@@ -119,8 +117,6 @@
   text-decoration-skip-ink: none;
 }
 
-/* Match info severity in the lint tooltip panel: CodeMirror's default
-   sets a grey border-left on .cm-diagnostic-info. */
 .cm-diagnostic-info {
   border-left-color: #7c3aed !important;
 }
@@ -128,14 +124,6 @@
   border-left-color: #a78bfa !important;
 }
 
-/* Severity-hide classes: applied to the editor host div by the Vue layer
-   when the author toggles a pill off. CSS strips the underline and
-   pointer-events so the marker vanishes and its tooltip never opens,
-   without removing the diagnostic from CodeMirror state (so pill counts
-   stay accurate). */
-/* cm-spellcheckRange excluded from the warning-hide rule: spellcheck uses
-   severity=warning but is semantically independent from Downstage lint
-   warnings and should stay visible when the author hides warnings. */
 .cm-hide-error .cm-lintRange-error,
 .cm-hide-warning .cm-lintRange-warning:not(.cm-spellcheckRange),
 .cm-hide-info .cm-lintRange-info,
@@ -144,12 +132,6 @@
   text-decoration: none !important;
   pointer-events: none !important;
 }
-/* Tooltip hide rules: pointer-events:none on the marker already prevents
-   hover on hidden-only ranges, so these only matter for ranges that
-   overlap a visible diagnostic. We intentionally do NOT hide the warning
-   tooltip when warnings are hidden, because CodeMirror's tooltip LIs
-   don't carry the markClass and we can't distinguish spellcheck from
-   lint here. */
 .cm-hide-error .cm-diagnostic-error,
 .cm-hide-info .cm-diagnostic-info,
 .cm-hide-info .cm-diagnostic-hint {

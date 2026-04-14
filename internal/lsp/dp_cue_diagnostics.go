@@ -9,10 +9,7 @@ import (
 	"go.lsp.dev/protocol"
 )
 
-// checkMissingDramatisPersonae emits a single info diagnostic when a document
-// contains dialogue but no Dramatis Personae section at any level. The
-// diagnostic anchors on the first cue so the author has a visible spot to act
-// on.
+// checkMissingDramatisPersonae reports a document with dialogue but no DP.
 func checkMissingDramatisPersonae(doc *ast.Document, index *documentIndex) []protocol.Diagnostic {
 	if doc == nil || index == nil {
 		return nil
@@ -34,10 +31,7 @@ func checkMissingDramatisPersonae(doc *ast.Document, index *documentIndex) []pro
 	}}
 }
 
-// checkDPDuplicates flags duplicate entries within a single DP scope. Pure
-// name-vs-name collisions surface as dp-duplicate-character-name; anything
-// involving an alias (alias-vs-alias or alias-vs-name) surfaces as
-// dp-duplicate-alias.
+// checkDPDuplicates flags duplicate entries within a single DP scope.
 func checkDPDuplicates(index *documentIndex) []protocol.Diagnostic {
 	if index == nil {
 		return nil
@@ -57,7 +51,6 @@ func checkDPDuplicates(index *documentIndex) []protocol.Diagnostic {
 			if len(occurrences) < 2 {
 				continue
 			}
-			// First occurrence stays untouched; only 2nd+ are duplicates.
 			for _, entryIdx := range occurrences[1:] {
 				entry := scope.entries[entryIdx]
 				nameFlagged[entryIdx] = struct{}{}
@@ -86,13 +79,10 @@ func checkDPDuplicates(index *documentIndex) []protocol.Diagnostic {
 				}
 			}
 			if !hasAlias {
-				// Pure name-vs-name — handled above.
 				continue
 			}
 			for _, occ := range occurrences[1:] {
 				if _, ok := nameFlagged[occ.entryIndex]; ok && occ.aliasIndex == -1 {
-					// Entry's primary name already flagged as a duplicate
-					// character name; don't double-report.
 					continue
 				}
 				entry := scope.entries[occ.entryIndex]
@@ -118,8 +108,7 @@ func checkDPDuplicates(index *documentIndex) []protocol.Diagnostic {
 }
 
 // checkDPCharacterNoDialogue flags DP entries whose name and aliases never
-// appear as a cue within the enclosing play. Info-level, because non-speaking
-// roles are a legitimate authoring pattern.
+// appear as a cue within the enclosing play.
 func checkDPCharacterNoDialogue(index *documentIndex) []protocol.Diagnostic {
 	if index == nil {
 		return nil
@@ -155,9 +144,6 @@ func checkDPCharacterNoDialogue(index *documentIndex) []protocol.Diagnostic {
 		record(scope, index.usedCharactersByPlay[play])
 	}
 	if index.legacyCharacterScope.dp != nil {
-		// A document-level DP covers every dialogue in the file, so union
-		// usage across every play bucket (and the headingless nil bucket)
-		// before deciding whether an entry is unused.
 		union := make(map[string]struct{})
 		for _, bucket := range index.usedCharactersByPlay {
 			for k := range bucket {
@@ -170,9 +156,7 @@ func checkDPCharacterNoDialogue(index *documentIndex) []protocol.Diagnostic {
 	return diags
 }
 
-// checkOrphanedCues flags character cues that have no dialogue content
-// following them. Covers both the lone orphan at a scene's end and two cues
-// stacked back-to-back with nothing between.
+// checkOrphanedCues flags cues that have no dialogue content following them.
 func checkOrphanedCues(index *documentIndex) []protocol.Diagnostic {
 	if index == nil {
 		return nil
@@ -200,17 +184,12 @@ func checkOrphanedCues(index *documentIndex) []protocol.Diagnostic {
 	return diags
 }
 
-// checkConsecutiveSameCharacterCues flags two cues for the same character
-// that appear back-to-back within a container (scene, else act, else play)
-// without any intervening structural break (stage direction, callout, song,
-// verse block, page break, dual dialogue, or nested section heading).
+// checkConsecutiveSameCharacterCues flags repeated cues with no break in between.
 func checkConsecutiveSameCharacterCues(index *documentIndex) []protocol.Diagnostic {
 	if index == nil {
 		return nil
 	}
 
-	// Traverse containers in a stable order so diagnostics are emitted in
-	// document order.
 	containers := make([]*ast.Section, 0, len(index.containerEvents))
 	for container := range index.containerEvents {
 		containers = append(containers, container)

@@ -550,12 +550,7 @@ func insertMissingDramatisPersonaeEdit(doc *ast.Document, content string, index 
 		body += "\n"
 	}
 
-	// Insert directly after the first top-level play heading when present so
-	// the DP sits at the conventional position, but *after* any metadata
-	// block attached to the heading — otherwise we'd split the metadata
-	// from its owning heading and the V2 parser would re-classify those
-	// key/value lines as document content. Same precaution applies to the
-	// doc-level fallback when a V1-style top-level TitlePage exists.
+	// Insert after the play heading and any attached metadata block.
 	if len(index.topLevelSections) > 0 {
 		play := index.topLevelSections[0]
 		line := insertAfterPlayHeader(play, content)
@@ -582,9 +577,7 @@ func insertMissingDramatisPersonaeEdit(doc *ast.Document, content string, index 
 	}
 }
 
-// insertAfterPlayHeader returns the line index where new top-level content
-// should be inserted under a play heading: after the heading, past any
-// metadata block attached to it, and past any blank separator lines.
+// insertAfterPlayHeader returns the insertion line under a play heading.
 func insertAfterPlayHeader(play *ast.Section, content string) int {
 	line := play.HeadingRange().End.Line + 1
 	if play.Metadata != nil {

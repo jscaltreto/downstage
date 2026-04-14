@@ -19,16 +19,10 @@ type sceneSpeakerCue struct {
 	name string
 }
 
-// containerEventKind classifies entries in the per-container event stream
-// used by the cue-consecutive-same-character diagnostic.
 type containerEventKind int
 
 const (
 	containerEventCue containerEventKind = iota
-	// containerEventBreak signals any structural element that severs the
-	// "two cues for the same character, back-to-back" pattern: a standalone
-	// stage direction, callout, song, page break, verse block, or nested
-	// section heading encountered within the container.
 	containerEventBreak
 )
 
@@ -55,16 +49,9 @@ type documentIndex struct {
 	legacyCharacterScope   characterScope
 	dialogues              []dialogueRef
 	sceneSpeakers          map[*ast.Section][]sceneSpeakerCue
-	// usedCharactersByPlay maps a top-level play section to the set of
-	// uppercase character keys that appear as cues within it. Populated
-	// during the dialogue walk and consulted by the
-	// dp-character-no-dialogue check. Forced cues count as usage.
-	usedCharactersByPlay map[*ast.Section]map[string]struct{}
-	// containerEvents is an ordered stream of cue + break events keyed by
-	// the nearest enclosing container section (scene, else act, else
-	// top-level play). Drives the cue-consecutive-same-character check.
-	containerEvents     map[*ast.Section][]containerEvent
-	hasDramatisPersonae bool
+	usedCharactersByPlay   map[*ast.Section]map[string]struct{}
+	containerEvents        map[*ast.Section][]containerEvent
+	hasDramatisPersonae    bool
 }
 
 func newDocumentIndex(doc *ast.Document) *documentIndex {
@@ -139,9 +126,6 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 	sceneCountsByAct := make(map[*ast.Section]int)
 	sceneCountsByPlay := make(map[*ast.Section]int)
 
-	// innerContainer picks the most specific container for cue-event
-	// bucketing: scene > act > play. Events in the containerEvents stream
-	// reset at each container boundary by virtue of being keyed per section.
 	innerContainer := func(play, act, scene *ast.Section) *ast.Section {
 		switch {
 		case scene != nil:
@@ -153,9 +137,6 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		}
 	}
 
-	// addUsedCharacter records a cue's character name under its enclosing
-	// play. A nil play (dialogue outside any H1) buckets under the nil key,
-	// which the legacy-scope branch of the no-dialogue check consults.
 	addUsedCharacter := func(play *ast.Section, name string) {
 		trimmed := strings.TrimSpace(name)
 		if trimmed == "" {
@@ -217,11 +198,6 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 			}
 			recordCue(innerContainer(currentTopLevel, currentAct, currentScene), v)
 		case *ast.DualDialogue:
-			// A DualDialogue breaks the "same character back-to-back" chain
-			// on either side: the author marked simultaneous speech, which
-			// is structurally distinct from a bare consecutive cue. Also
-			// reset between the two halves so identical left/right cues
-			// (rare but legal) aren't flagged as repeated.
 			container := innerContainer(currentTopLevel, currentAct, currentScene)
 			recordBreak(container, v.Range.Start.Line)
 			walkNode(v.Left, currentTopLevel, currentAct, currentScene)
@@ -239,12 +215,6 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 		case *ast.VerseBlock:
 			recordBreak(innerContainer(currentTopLevel, currentAct, currentScene), v.Range.Start.Line)
 		case *ast.Section:
-			// Break the parent container's consecutive-cue chain at the
-			// heading line before we descend. Without this, cues bracketing
-			// a nested scene/act heading within the same enclosing
-			// container (e.g. an act that contains dialogue both before
-			// and after a scene it encloses) would chain across the
-			// structural marker.
 			recordBreak(innerContainer(currentTopLevel, currentAct, currentScene), v.Range.Start.Line)
 
 			if v.Level == 1 {
@@ -278,9 +248,6 @@ func newDocumentIndex(doc *ast.Document) *documentIndex {
 				walkNode(child, currentTopLevel, currentAct, currentScene)
 			}
 		case *ast.Song:
-			// A Song is itself a structural container distinct from dialogue
-			// prose, so treat the surrounding boundary as a break but still
-			// descend to track cues inside.
 			container := innerContainer(currentTopLevel, currentAct, currentScene)
 			recordBreak(container, v.Range.Start.Line)
 			for _, child := range v.Content {
