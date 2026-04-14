@@ -262,7 +262,7 @@ See [`web/README.md`](web/README.md) for details.
 A Downstage document is organized around top-level `#` sections:
 
 1. **Play Header** — each play starts with `# Title`, followed by optional `Key: Value` metadata lines such as `Author:` or `Draft:`
-2. **Dramatis Personae** — an optional `## Dramatis Personae`, `## Cast of Characters`, or `## Characters` section inside that play, with character entries and optional `###` subgroup headings
+2. **Dramatis Personae** — an optional `## Dramatis Personae`, `## Cast of Characters`, or `## Characters` section inside that play, with character entries and optional `###` subgroup headings; rendered output keeps the chosen wording
 3. **Body** — the play itself: acts (`## ACT`), scenes (`### SCENE`), dialogue (ALL CAPS character name followed by speech text), stage directions (`>` prefixed lines), callouts (`>>` prefixed lines), verse (indented 2+ spaces), songs, and comments
 
 ### Dual Dialogue

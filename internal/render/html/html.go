@@ -279,7 +279,7 @@ func (r *htmlRenderer) renderDramatisPersonae(s *ast.Section) error {
 		className += " downstage-dramatis-personae-inline"
 	}
 	fmt.Fprintf(&r.buf, "<section class=\"%s\"%s>\n", className, r.sourceAttr(s.NodeRange()))
-	r.buf.WriteString("<h2>DRAMATIS PERSONAE</h2>\n")
+	fmt.Fprintf(&r.buf, "<h2>%s</h2>\n", html.EscapeString(strings.ToUpper(render.DramatisPersonaeDisplayTitle(s))))
 	r.buf.WriteString("<dl>\n")
 
 	for _, ch := range s.Characters {
