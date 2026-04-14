@@ -113,9 +113,11 @@ SONG END
   - Hover info on character names (shows description from dramatis personae)
   - Go-to-definition (jump to character's dramatis personae entry)
   - Context-aware completion for character cues
-  - Diagnostics (parse errors, unknown character warnings)
-  - Code actions (quick fixes for unknown characters and unnumbered or
-    misnumbered acts/scenes)
+  - Diagnostics (parse errors, unknown character warnings, Dramatis
+    Personae hygiene, cue hygiene)
+  - Code actions (quick fixes for unknown characters, unnumbered or
+    misnumbered acts/scenes, duplicate DP entries, and inserting a
+    missing Dramatis Personae section)
 - Neovim integration out of the box (0.11+)
 - CLI tools for parsing and validation
 

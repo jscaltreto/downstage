@@ -150,6 +150,24 @@ Author: William Shakespeare
 	assert.True(t, found, "expected v1-document diagnostic")
 }
 
+// filterDiagnostics returns only diagnostics whose Code matches one of the
+// given values. Lets narrow tests assert on a specific diagnostic class
+// without caring about independent checks that fire on the same fixture
+// (e.g. cue-orphaned on a synthetic Dialogue with no Lines).
+func filterDiagnostics(diags []protocol.Diagnostic, codes ...interface{}) []protocol.Diagnostic {
+	want := make(map[interface{}]struct{}, len(codes))
+	for _, c := range codes {
+		want[c] = struct{}{}
+	}
+	out := make([]protocol.Diagnostic, 0, len(diags))
+	for _, d := range diags {
+		if _, ok := want[d.Code]; ok {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
 func TestBuildDiagnostics_UnknownCharacter(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{
@@ -169,7 +187,7 @@ func TestBuildDiagnostics_UnknownCharacter(t *testing.T) {
 		},
 	}
 
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
@@ -228,9 +246,9 @@ func TestBuildDiagnostics_NoDramatisPersonaeSuppressesUnknownCharacter(t *testin
 		},
 	}
 
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
-		t.Fatalf("expected 0 diagnostics without dramatis personae, got %d", len(diags))
+		t.Fatalf("expected 0 unknown-character diagnostics without dramatis personae, got %d", len(diags))
 	}
 }
 
@@ -292,9 +310,9 @@ func TestBuildDiagnostics_KnownCharacter(t *testing.T) {
 		},
 	}
 
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
-		t.Errorf("expected 0 diagnostics for known character, got %d", len(diags))
+		t.Errorf("expected 0 unknown-character diagnostics for known character, got %d", len(diags))
 	}
 }
 
@@ -320,9 +338,9 @@ func TestBuildDiagnostics_AliasMatch(t *testing.T) {
 		},
 	}
 
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
-		t.Errorf("expected 0 diagnostics for alias match, got %d", len(diags))
+		t.Errorf("expected 0 unknown-character diagnostics for alias match, got %d", len(diags))
 	}
 }
 
@@ -443,7 +461,7 @@ func testDocWithCharactersAndDialogue(knownNames []string, dialogueCharacter str
 
 func TestBuildDiagnostics_CollectiveCueAll(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "ALL")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
 		t.Errorf("expected 0 diagnostics for ALL, got %d", len(diags))
 	}
@@ -451,7 +469,7 @@ func TestBuildDiagnostics_CollectiveCueAll(t *testing.T) {
 
 func TestBuildDiagnostics_CollectiveCueChorus(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "CHORUS")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
 		t.Errorf("expected 0 diagnostics for CHORUS, got %d", len(diags))
 	}
@@ -459,7 +477,7 @@ func TestBuildDiagnostics_CollectiveCueChorus(t *testing.T) {
 
 func TestBuildDiagnostics_CollectiveCueEnsemble(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "ENSEMBLE")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
 		t.Errorf("expected 0 diagnostics for ENSEMBLE, got %d", len(diags))
 	}
@@ -467,7 +485,7 @@ func TestBuildDiagnostics_CollectiveCueEnsemble(t *testing.T) {
 
 func TestBuildDiagnostics_CollectiveCueCaseInsensitive(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "All")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
 		t.Errorf("expected 0 diagnostics for mixed-case All, got %d", len(diags))
 	}
@@ -475,7 +493,7 @@ func TestBuildDiagnostics_CollectiveCueCaseInsensitive(t *testing.T) {
 
 func TestBuildDiagnostics_ConjunctionBothKnown(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"BOB", "JANE"}, "BOB AND JANE")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
 		t.Errorf("expected 0 diagnostics for conjunction of known characters, got %d", len(diags))
 	}
@@ -483,7 +501,7 @@ func TestBuildDiagnostics_ConjunctionBothKnown(t *testing.T) {
 
 func TestBuildDiagnostics_ConjunctionAmpersandBothKnown(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"BOB", "JANE"}, "BOB & JANE")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
 		t.Errorf("expected 0 diagnostics for ampersand conjunction of known characters, got %d", len(diags))
 	}
@@ -491,7 +509,7 @@ func TestBuildDiagnostics_ConjunctionAmpersandBothKnown(t *testing.T) {
 
 func TestBuildDiagnostics_ConjunctionOneUnknown(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"BOB"}, "BOB AND JANE")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic for one unknown in conjunction, got %d", len(diags))
 	}
@@ -502,7 +520,7 @@ func TestBuildDiagnostics_ConjunctionOneUnknown(t *testing.T) {
 
 func TestBuildDiagnostics_ConjunctionBothUnknown(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "BOB & JANE")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 2 {
 		t.Fatalf("expected 2 diagnostics for both unknown in conjunction, got %d", len(diags))
 	}
@@ -510,7 +528,7 @@ func TestBuildDiagnostics_ConjunctionBothUnknown(t *testing.T) {
 
 func TestBuildDiagnostics_ConjunctionWithCollective(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "BOB AND ALL")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic (BOB only), got %d", len(diags))
 	}
@@ -521,7 +539,7 @@ func TestBuildDiagnostics_ConjunctionWithCollective(t *testing.T) {
 
 func TestBuildDiagnostics_AllCollectiveConjunction(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "ALL AND CHORUS")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 0 {
 		t.Errorf("expected 0 diagnostics for conjunction of collective cues, got %d", len(diags))
 	}
@@ -529,7 +547,7 @@ func TestBuildDiagnostics_AllCollectiveConjunction(t *testing.T) {
 
 func TestBuildDiagnostics_MultiConjunction(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"BOB", "JANE"}, "BOB & JANE & STEVE")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic for STEVE, got %d", len(diags))
 	}
@@ -540,7 +558,7 @@ func TestBuildDiagnostics_MultiConjunction(t *testing.T) {
 
 func TestBuildDiagnostics_NameContainingAnd(t *testing.T) {
 	doc := testDocWithCharactersAndDialogue([]string{"HAMLET"}, "SANDY")
-	diags := buildDiagnostics(doc, nil)
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic for SANDY (no split), got %d", len(diags))
 	}

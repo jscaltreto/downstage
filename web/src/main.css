@@ -107,6 +107,37 @@
   text-decoration-skip-ink: none;
 }
 
+.cm-lintRange.cm-lintRange-info {
+  background-image: none !important;
+  text-decoration: underline wavy #7c3aed;
+  text-decoration-skip-ink: none;
+}
+.dark .cm-lintRange.cm-lintRange-info {
+  text-decoration: underline wavy #a78bfa;
+  text-decoration-skip-ink: none;
+}
+
+.cm-diagnostic-info {
+  border-left-color: #7c3aed !important;
+}
+.dark .cm-diagnostic-info {
+  border-left-color: #a78bfa !important;
+}
+
+.cm-hide-error .cm-lintRange-error,
+.cm-hide-warning .cm-lintRange-warning:not(.cm-spellcheckRange),
+.cm-hide-info .cm-lintRange-info,
+.cm-hide-info .cm-lintRange-hint {
+  background-image: none !important;
+  text-decoration: none !important;
+  pointer-events: none !important;
+}
+.cm-hide-error .cm-diagnostic-error,
+.cm-hide-info .cm-diagnostic-info,
+.cm-hide-info .cm-diagnostic-hint {
+  display: none !important;
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

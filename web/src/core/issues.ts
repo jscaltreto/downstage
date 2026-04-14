@@ -45,10 +45,16 @@ export function summarizeIssues(items: readonly EditorDiagnostic[]): IssuesSumma
   return summary;
 }
 
-export type IssuesStatus = "clean" | "warning" | "error";
+export type IssuesStatus = "clean" | "info" | "warning" | "error";
+
+// FilterSeverity is the set of severities the IssuesDrawer pills can toggle.
+// Info and hint diagnostics share a single pill (and therefore a single
+// filter bucket), so there's no separate "hint" here.
+export type FilterSeverity = "error" | "warning" | "info";
 
 export function issuesStatus(summary: IssuesSummary): IssuesStatus {
   if (summary.errors > 0) return "error";
-  if (summary.warnings > 0 || summary.infos > 0 || summary.hints > 0) return "warning";
+  if (summary.warnings > 0) return "warning";
+  if (summary.infos > 0 || summary.hints > 0) return "info";
   return "clean";
 }

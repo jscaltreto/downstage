@@ -136,6 +136,38 @@ func computeCodeActions(
 					},
 				},
 			})
+		case diagnosticCodeDPDuplicateCharacterName:
+			edit := deleteDuplicateDPEntryEdit(content, diagnostic.Range)
+			if edit == nil {
+				continue
+			}
+			actions = append(actions, protocol.CodeAction{
+				Title:       "Delete duplicate Dramatis Personae entry",
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {*edit},
+					},
+				},
+			})
+		case diagnosticCodeMissingDramatisPersonae:
+			edit := insertMissingDramatisPersonaeEdit(doc, content, index)
+			if edit == nil {
+				continue
+			}
+			actions = append(actions, protocol.CodeAction{
+				Title:       "Add Dramatis Personae section",
+				Kind:        protocol.QuickFix,
+				Diagnostics: []protocol.Diagnostic{diagnostic},
+				IsPreferred: true,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentURI][]protocol.TextEdit{
+						uri: {*edit},
+					},
+				},
+			})
 		case diagnosticCodeUnnumberedAct, diagnosticCodeUnnumberedScene,
 			diagnosticCodeMisnumberedAct, diagnosticCodeMisnumberedScene:
 			textEdit := numberingEdit(diagnostic)
@@ -446,4 +478,162 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// deleteDuplicateDPEntryEdit removes an entire duplicate Dramatis Personae
+// row. The diagnostic range covers the entry's character Range, which is
+// typically a single line; the edit consumes the trailing newline so
+// surrounding blank-line conventions survive.
+func deleteDuplicateDPEntryEdit(content string, r protocol.Range) *protocol.TextEdit {
+	startLine := int(r.Start.Line)
+	endLine := int(r.End.Line)
+	if endLine < startLine {
+		return nil
+	}
+	if _, ok := lineAt(content, startLine); !ok {
+		return nil
+	}
+	// Prefer consuming the trailing newline so the row vanishes cleanly.
+	// If we're at EOF (no trailing newline), fall back to consuming the
+	// preceding newline so we don't leave a blank row behind.
+	if _, ok := lineAt(content, endLine+1); ok {
+		return &protocol.TextEdit{
+			Range: protocol.Range{
+				Start: protocol.Position{Line: uint32(startLine), Character: 0},
+				End:   protocol.Position{Line: uint32(endLine + 1), Character: 0},
+			},
+			NewText: "",
+		}
+	}
+	if startLine == 0 {
+		// Only row in the file — just clear it.
+		line, _ := lineAt(content, startLine)
+		return &protocol.TextEdit{
+			Range: protocol.Range{
+				Start: protocol.Position{Line: uint32(startLine), Character: 0},
+				End:   protocol.Position{Line: uint32(endLine), Character: uint32(utf16Len(line))},
+			},
+			NewText: "",
+		}
+	}
+	prev, _ := lineAt(content, startLine-1)
+	endLineText, _ := lineAt(content, endLine)
+	return &protocol.TextEdit{
+		Range: protocol.Range{
+			Start: protocol.Position{Line: uint32(startLine - 1), Character: uint32(utf16Len(prev))},
+			End:   protocol.Position{Line: uint32(endLine), Character: uint32(utf16Len(endLineText))},
+		},
+		NewText: "",
+	}
+}
+
+// insertMissingDramatisPersonaeEdit produces a workspace edit that inserts a
+// fresh Dramatis Personae section seeded with every character observed as a
+// cue in the document. Names are uppercased, deduplicated, and ordered by
+// first appearance.
+func insertMissingDramatisPersonaeEdit(doc *ast.Document, content string, index *documentIndex) *protocol.TextEdit {
+	if doc == nil {
+		return nil
+	}
+	if index == nil {
+		index = newDocumentIndex(doc)
+	}
+
+	names := observedCueNames(index)
+	body := "## Dramatis Personae\n\n"
+	if len(names) == 0 {
+		body += "\n"
+	} else {
+		for _, name := range names {
+			body += name + "\n"
+		}
+		body += "\n"
+	}
+
+	// Insert after the play heading and any attached metadata block.
+	if len(index.topLevelSections) > 0 {
+		play := index.topLevelSections[0]
+		line := insertAfterPlayHeader(play, content)
+		return &protocol.TextEdit{
+			Range: protocol.Range{
+				Start: protocol.Position{Line: uint32(line), Character: 0},
+				End:   protocol.Position{Line: uint32(line), Character: 0},
+			},
+			NewText: body,
+		}
+	}
+
+	startLine := 0
+	if doc.TitlePage != nil {
+		startLine = doc.TitlePage.Range.End.Line + 1
+		startLine = skipBlankLines(content, startLine)
+	}
+	return &protocol.TextEdit{
+		Range: protocol.Range{
+			Start: protocol.Position{Line: uint32(startLine), Character: 0},
+			End:   protocol.Position{Line: uint32(startLine), Character: 0},
+		},
+		NewText: body,
+	}
+}
+
+// insertAfterPlayHeader returns the insertion line under a play heading.
+func insertAfterPlayHeader(play *ast.Section, content string) int {
+	line := play.HeadingRange().End.Line + 1
+	if play.Metadata != nil {
+		line = play.Metadata.Range.End.Line + 1
+	}
+	return skipBlankLines(content, line)
+}
+
+func skipBlankLines(content string, start int) int {
+	line := start
+	for {
+		raw, ok := lineAt(content, line)
+		if !ok {
+			return line
+		}
+		if strings.TrimSpace(raw) != "" {
+			return line
+		}
+		line++
+	}
+}
+
+// observedCueNames returns unique cue character names in first-appearance
+// order. Forced and conjunction-split cues are included; empty cues are
+// skipped.
+func observedCueNames(index *documentIndex) []string {
+	seen := make(map[string]struct{})
+	var names []string
+	add := func(raw string) {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			return
+		}
+		key := strings.ToUpper(trimmed)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		names = append(names, trimmed)
+	}
+	for _, ref := range index.dialogues {
+		if ref.dialogue == nil {
+			continue
+		}
+		if parts := splitConjunctionCue(ref.dialogue.Character); parts != nil {
+			for _, p := range parts {
+				if !collectiveCues[strings.ToUpper(strings.TrimSpace(p))] {
+					add(p)
+				}
+			}
+			continue
+		}
+		if collectiveCues[strings.ToUpper(strings.TrimSpace(ref.dialogue.Character))] {
+			continue
+		}
+		add(ref.dialogue.Character)
+	}
+	return names
 }

@@ -10,12 +10,40 @@ type characterScope struct {
 	dp    *ast.Section
 	names []string
 	known map[string]struct{}
+	// entries preserves DP entry order with per-entry key data for
+	// duplicate detection and no-dialogue tracking. Each entry corresponds
+	// to one Character row in the DP section.
+	entries []scopeEntry
+	// nameKeyOccurrences maps uppercase name key → entries whose primary
+	// name matches. A second occurrence is a duplicate primary name.
+	nameKeyOccurrences map[string][]int
+	// aliasKeyOccurrences maps uppercase key → entries whose alias (or
+	// primary name) matches. Collisions across entries flag duplicate
+	// aliases, including name-vs-alias collisions.
+	aliasKeyOccurrences map[string][]aliasOccurrence
+}
+
+type scopeEntry struct {
+	character ast.Character
+	// nameKey is the uppercase primary name.
+	nameKey string
+	// aliasKeys are uppercase alias keys (not including the primary name).
+	aliasKeys []string
+}
+
+type aliasOccurrence struct {
+	entryIndex int
+	// aliasIndex is the position of the alias within the entry's Aliases
+	// slice, or -1 when the occurrence is the entry's primary name.
+	aliasIndex int
 }
 
 func newCharacterScope(dp *ast.Section) characterScope {
 	scope := characterScope{
-		dp:    dp,
-		known: make(map[string]struct{}),
+		dp:                  dp,
+		known:               make(map[string]struct{}),
+		nameKeyOccurrences:  make(map[string][]int),
+		aliasKeyOccurrences: make(map[string][]aliasOccurrence),
 	}
 	if dp == nil {
 		return scope
@@ -40,6 +68,26 @@ func newCharacterScope(dp *ast.Section) characterScope {
 		addName(ch.Name)
 		for _, alias := range ch.Aliases {
 			addName(alias)
+		}
+
+		entry := scopeEntry{character: ch}
+		if trimmed := strings.TrimSpace(ch.Name); trimmed != "" {
+			entry.nameKey = strings.ToUpper(trimmed)
+		}
+		for _, alias := range ch.Aliases {
+			if trimmed := strings.TrimSpace(alias); trimmed != "" {
+				entry.aliasKeys = append(entry.aliasKeys, strings.ToUpper(trimmed))
+			}
+		}
+		scope.entries = append(scope.entries, entry)
+
+		entryIdx := len(scope.entries) - 1
+		if entry.nameKey != "" {
+			scope.nameKeyOccurrences[entry.nameKey] = append(scope.nameKeyOccurrences[entry.nameKey], entryIdx)
+			scope.aliasKeyOccurrences[entry.nameKey] = append(scope.aliasKeyOccurrences[entry.nameKey], aliasOccurrence{entryIndex: entryIdx, aliasIndex: -1})
+		}
+		for i, key := range entry.aliasKeys {
+			scope.aliasKeyOccurrences[key] = append(scope.aliasKeyOccurrences[key], aliasOccurrence{entryIndex: entryIdx, aliasIndex: i})
 		}
 	}
 

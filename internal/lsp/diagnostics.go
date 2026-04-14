@@ -12,12 +12,18 @@ import (
 )
 
 const (
-	diagnosticCodeUnknownCharacter = "unknown-character"
-	diagnosticCodeUnnumberedAct    = "unnumbered-act"
-	diagnosticCodeUnnumberedScene  = "unnumbered-scene"
-	diagnosticCodeMisnumberedAct   = "misnumbered-act"
-	diagnosticCodeMisnumberedScene = "misnumbered-scene"
-	diagnosticCodeV1Document       = "v1-document"
+	diagnosticCodeUnknownCharacter            = "unknown-character"
+	diagnosticCodeUnnumberedAct               = "unnumbered-act"
+	diagnosticCodeUnnumberedScene             = "unnumbered-scene"
+	diagnosticCodeMisnumberedAct              = "misnumbered-act"
+	diagnosticCodeMisnumberedScene            = "misnumbered-scene"
+	diagnosticCodeV1Document                  = "v1-document"
+	diagnosticCodeMissingDramatisPersonae     = "missing-dramatis-personae"
+	diagnosticCodeDPCharacterNoDialogue       = "dp-character-no-dialogue"
+	diagnosticCodeDPDuplicateCharacterName    = "dp-duplicate-character-name"
+	diagnosticCodeDPDuplicateAlias            = "dp-duplicate-alias"
+	diagnosticCodeCueOrphaned                 = "cue-orphaned"
+	diagnosticCodeCueConsecutiveSameCharacter = "cue-consecutive-same-character"
 )
 
 // collectiveCues are conventional ensemble cue names that should not
@@ -115,6 +121,11 @@ func buildDiagnosticsWithIndex(doc *ast.Document, errors []*parser.ParseError, i
 	if doc != nil {
 		diags = append(diags, checkUnnumberedSections(index)...)
 		diags = append(diags, checkUnknownCharacters(index)...)
+		diags = append(diags, checkMissingDramatisPersonae(doc, index)...)
+		diags = append(diags, checkDPDuplicates(index)...)
+		diags = append(diags, checkDPCharacterNoDialogue(index)...)
+		diags = append(diags, checkOrphanedCues(index)...)
+		diags = append(diags, checkConsecutiveSameCharacterCues(index)...)
 	}
 
 	if diags == nil {
