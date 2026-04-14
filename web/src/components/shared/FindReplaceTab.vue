@@ -75,8 +75,24 @@ watch(
 watch(
   () => props.initialQuery,
   (next) => {
-    if (next && next !== query.value) {
-      query.value = next;
+    const value = next ?? '';
+    if (value !== query.value) {
+      query.value = value;
+    }
+  },
+);
+
+watch(
+  () => props.focusReplace,
+  async (next) => {
+    if (!props.active) return;
+    await nextTick();
+    if (next) {
+      replaceInput.value?.focus();
+      replaceInput.value?.select();
+    } else {
+      findInput.value?.focus();
+      findInput.value?.select();
     }
   },
 );

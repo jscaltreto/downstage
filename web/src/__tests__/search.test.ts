@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { Text } from "@codemirror/state";
-import { findMatches } from "../core/search";
+import { EditorState, Text } from "@codemirror/state";
+import {
+  findMatches,
+  searchExtension,
+  searchStateField,
+  setSearchEffect,
+} from "../core/search";
 
 function doc(s: string): Text {
   return Text.of(s.split("\n"));
@@ -104,6 +109,33 @@ describe("findMatches", () => {
     expect(res.matches).toHaveLength(1);
     expect(res.matches[0].line).toBe(2);
     expect(res.matches[0].col).toBe(10);
+  });
+
+  it("resets currentIndex to 0 when the query changes but preserves it on re-runs", () => {
+    const doc = [
+      "first ALICE line",
+      "second line",
+      "third ALICE line",
+      "fourth ALICE line",
+    ].join("\n");
+    let state = EditorState.create({ doc, extensions: [searchExtension()] });
+    const opts = { query: "ALICE", caseSensitive: true, wholeWord: false, regex: false };
+
+    state = state.update({ effects: setSearchEffect.of(opts) }).state;
+    const initial = state.field(searchStateField);
+    expect(initial.matches).toHaveLength(3);
+    expect(initial.currentIndex).toBe(0);
+
+    state = state.update({
+      effects: setSearchEffect.of({ ...opts, query: "line" }),
+    }).state;
+    const afterQueryChange = state.field(searchStateField);
+    expect(afterQueryChange.matches.length).toBeGreaterThan(0);
+    expect(afterQueryChange.currentIndex).toBe(0);
+
+    state = state.update({ effects: setSearchEffect.of({ ...opts, query: "line" }) }).state;
+    const afterSameRun = state.field(searchStateField);
+    expect(afterSameRun.currentIndex).toBe(0);
   });
 
   it("captures the line text for match context", () => {

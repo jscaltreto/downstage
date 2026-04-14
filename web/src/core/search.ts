@@ -130,10 +130,20 @@ export const searchStateField = StateField.define<SearchState>({
           next = { opts, matches: [], currentIndex: -1, regexError: res.error };
           continue;
         }
+        const sameOpts =
+          !!value.opts &&
+          value.opts.query === opts.query &&
+          value.opts.caseSensitive === opts.caseSensitive &&
+          value.opts.wholeWord === opts.wholeWord &&
+          value.opts.regex === opts.regex;
         next = {
           opts,
           matches: res.matches,
-          currentIndex: reconcileIndex(value, res.matches, null),
+          currentIndex: sameOpts
+            ? reconcileIndex(value, res.matches, null)
+            : res.matches.length > 0
+              ? 0
+              : -1,
           regexError: null,
         };
       } else if (eff.is(clearSearchEffect)) {
