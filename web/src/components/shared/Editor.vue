@@ -3,10 +3,11 @@ import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick } from '
 import {
     Bold, Italic, Underline, MessageSquare, ChevronRight,
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
-    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, RefreshCw, SpellCheck, Trash2, CheckCircle2
+    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Trash2, CheckCircle2
 } from 'lucide-vue-next';
 import { Engine } from '../../core/engine';
 import { issuesStatus, summarizeIssues } from '../../core/issues';
+import type { FilterSeverity } from '../../core/issues';
 import type { Store } from '../../core/store';
 import type { EditorDiagnostic, EditorEnv } from '../../core/types';
 import PreviewFrame from './PreviewFrame.vue';
@@ -40,8 +41,29 @@ const previewVisible = ref(localStorage.getItem("downstage-editor-preview-hidden
 const spellcheckEnabled = ref(localStorage.getItem("downstage-editor-spellcheck-disabled") !== "true");
 const issuesDrawerOpen = ref(false);
 const diagnostics = ref<EditorDiagnostic[]>([]);
-const issuesSummary = computed(() => summarizeIssues(diagnostics.value));
+const hiddenSeverities = ref<ReadonlySet<FilterSeverity>>(new Set());
+// FAB-facing summary: drop diagnostics the author has hidden so the badge
+// and color reflect what's actually surfaced in the editor. The drawer
+// still gets the full list for its pill counts.
+const visibleDiagnostics = computed(() =>
+  diagnostics.value.filter((d) => {
+    if (d.severity === 'error') return !hiddenSeverities.value.has('error');
+    if (d.severity === 'warning') return !hiddenSeverities.value.has('warning');
+    return !hiddenSeverities.value.has('info');
+  }),
+);
+const issuesSummary = computed(() => summarizeIssues(visibleDiagnostics.value));
 const issuesStatusValue = computed(() => issuesStatus(issuesSummary.value));
+// Class list applied to the editor container so CSS can hide CM markers
+// and tooltips for severities the author toggled off. Keeping the
+// unfiltered diagnostics in CM state preserves accurate pill counts.
+const editorHideClasses = computed(() => {
+  const classes: string[] = [];
+  if (hiddenSeverities.value.has('error')) classes.push('cm-hide-error');
+  if (hiddenSeverities.value.has('warning')) classes.push('cm-hide-warning');
+  if (hiddenSeverities.value.has('info')) classes.push('cm-hide-info');
+  return classes;
+});
 const showSpellcheckModal = ref(false);
 const dictionaryWord = ref("");
 const spellAllowlist = computed(() => props.getSpellAllowlist());
@@ -289,7 +311,7 @@ function jumpToDiagnostic(d: EditorDiagnostic) {
     <div class="flex-1 flex overflow-hidden relative">
         <div class="flex-1 h-full flex flex-col border-r border-border bg-[var(--color-page-bg)]">
             <div class="flex-1 relative overflow-hidden">
-                <div ref="editorContainer" class="absolute inset-0 overflow-hidden"></div>
+                <div ref="editorContainer" :class="['absolute inset-0 overflow-hidden', ...editorHideClasses]"></div>
 
                 <div
                     v-if="!issuesDrawerOpen"
@@ -301,12 +323,14 @@ function jumpToDiagnostic(d: EditorDiagnostic) {
                         class="flex items-center gap-2 rounded-full px-4 h-10 text-sm font-bold shadow-2xl transition-all hover:scale-105"
                         :class="{
                             'bg-emerald-500 text-white hover:bg-emerald-600': issuesStatusValue === 'clean',
+                            'bg-purple-200 text-purple-950 hover:bg-purple-300': issuesStatusValue === 'info',
                             'bg-amber-500 text-ember-950 hover:bg-amber-400': issuesStatusValue === 'warning',
                             'bg-red-500 text-white hover:bg-red-600': issuesStatusValue === 'error',
                         }"
                         :title="issuesStatusValue === 'clean' ? 'No script issues' : `${issuesSummary.total} script issue${issuesSummary.total === 1 ? '' : 's'}`"
                     >
                         <CheckCircle2 v-if="issuesStatusValue === 'clean'" class="w-4 h-4" />
+                        <Info v-else-if="issuesStatusValue === 'info'" class="w-4 h-4" />
                         <AlertTriangle v-else-if="issuesStatusValue === 'warning'" class="w-4 h-4" />
                         <AlertCircle v-else class="w-4 h-4" />
                         <span>{{ issuesStatusValue === 'clean' ? 'No script issues' : `${issuesSummary.total} script issue${issuesSummary.total === 1 ? '' : 's'}` }}</span>
@@ -326,8 +350,10 @@ function jumpToDiagnostic(d: EditorDiagnostic) {
             <IssuesDrawer
                 :diagnostics="diagnostics"
                 :open="issuesDrawerOpen"
+                :hidden-severities="hiddenSeverities"
                 @close="issuesDrawerOpen = false"
                 @jump="jumpToDiagnostic"
+                @update:hidden-severities="hiddenSeverities = $event"
             />
         </div>
 

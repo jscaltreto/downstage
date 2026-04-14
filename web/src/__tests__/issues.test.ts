@@ -102,8 +102,13 @@ describe("issuesStatus", () => {
     expect(issuesStatus({ errors: 1, warnings: 5, infos: 0, hints: 0, total: 6 })).toBe("error");
   });
 
-  it("reports warning when only non-error diagnostics exist", () => {
+  it("reports warning when warnings are present without errors", () => {
     expect(issuesStatus({ errors: 0, warnings: 2, infos: 1, hints: 0, total: 3 })).toBe("warning");
+  });
+
+  it("reports info when only infos or hints are present", () => {
+    expect(issuesStatus({ errors: 0, warnings: 0, infos: 1, hints: 0, total: 1 })).toBe("info");
+    expect(issuesStatus({ errors: 0, warnings: 0, infos: 0, hints: 2, total: 2 })).toBe("info");
   });
 
   it("reports clean when nothing is present", () => {
