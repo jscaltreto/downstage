@@ -49,6 +49,7 @@ const searchIndex = ref(-1);
 const searchError = ref<string | null>(null);
 const searchInitialQuery = ref('');
 const searchFocusReplace = ref(false);
+const findTabRef = ref<{ focusInput: (mode?: 'find' | 'replace') => void } | null>(null);
 const diagnostics = ref<EditorDiagnostic[]>([]);
 const hiddenSeverities = ref<ReadonlySet<FilterSeverity>>(new Set());
 const visibleDiagnostics = computed(() =>
@@ -147,9 +148,21 @@ function openSearch(mode: SearchMode) {
   if (selection) {
     searchInitialQuery.value = selection;
   }
+  const wasFindTabActive = drawerOpen.value && drawerTab.value === 'find';
   searchFocusReplace.value = mode === 'replace';
   drawerTab.value = 'find';
   drawerOpen.value = true;
+  if (wasFindTabActive) {
+    nextTick(() => findTabRef.value?.focusInput(mode));
+  }
+}
+
+function toggleSearch() {
+  if (drawerOpen.value && drawerTab.value === 'find') {
+    closeDrawer();
+    return;
+  }
+  openSearch('find');
 }
 
 function applySearchSummary(summary: SearchSummary, matches: SearchMatch[]) {
@@ -310,7 +323,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                 </template>
             </ToolbarButton>
 
-            <ToolbarButton @click="openSearch('find')" title="Find &amp; Replace (Ctrl/Cmd+F)">
+            <ToolbarButton @click="toggleSearch" title="Find &amp; Replace (Ctrl/Cmd+F)">
                 <template #icon><Search class="w-4 h-4" /></template>
             </ToolbarButton>
         </div>
@@ -415,6 +428,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                 </template>
                 <template #find>
                     <FindReplaceTab
+                        ref="findTabRef"
                         :active="drawerOpen && drawerTab === 'find'"
                         :matches="searchMatches"
                         :current-index="searchIndex"

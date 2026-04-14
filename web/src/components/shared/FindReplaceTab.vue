@@ -105,7 +105,25 @@ const counterText = computed(() => {
   return `${shown} of ${props.matches.length}`;
 });
 
+function interceptFindShortcut(e: KeyboardEvent): boolean {
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey) return false;
+  if (e.key === 'f') {
+    e.preventDefault();
+    findInput.value?.focus();
+    findInput.value?.select();
+    return true;
+  }
+  if (e.key === 'h') {
+    e.preventDefault();
+    replaceInput.value?.focus();
+    replaceInput.value?.select();
+    return true;
+  }
+  return false;
+}
+
 function onFindKeydown(e: KeyboardEvent) {
+  if (interceptFindShortcut(e)) return;
   if (e.key === 'Enter') {
     e.preventDefault();
     if (e.altKey) {
@@ -119,6 +137,7 @@ function onFindKeydown(e: KeyboardEvent) {
 }
 
 function onReplaceKeydown(e: KeyboardEvent) {
+  if (interceptFindShortcut(e)) return;
   if (e.key === 'Enter') {
     e.preventDefault();
     if (e.altKey) {
@@ -141,9 +160,10 @@ function truncate(text: string, maxLen = 80): string {
 }
 
 defineExpose({
-  focus: () => findInput.value?.focus(),
-  setQuery: (q: string) => {
-    query.value = q;
+  focusInput: (mode: 'find' | 'replace' = 'find') => {
+    const el = mode === 'replace' ? replaceInput.value : findInput.value;
+    el?.focus();
+    el?.select();
   },
 });
 </script>
