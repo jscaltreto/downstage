@@ -3,20 +3,21 @@ import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick } from '
 import {
     Bold, Italic, Underline, MessageSquare, ChevronRight,
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
-    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Trash2, CheckCircle2, Search
+    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Trash2, Search, ListTree
 } from 'lucide-vue-next';
 import { Engine, type SearchMode, type SearchSummary } from '../../core/engine';
 import type { SearchMatch, SearchOptions } from '../../core/search';
 import { issuesStatus, summarizeIssues } from '../../core/issues';
 import type { FilterSeverity } from '../../core/issues';
 import type { Store } from '../../core/store';
-import type { EditorDiagnostic, EditorEnv } from '../../core/types';
+import type { DocumentSymbol, EditorDiagnostic, EditorEnv } from '../../core/types';
 import PreviewFrame from './PreviewFrame.vue';
 import ToolbarButton from './ToolbarButton.vue';
 import BaseModal from './BaseModal.vue';
 import WorkbenchDrawer, { type WorkbenchTab } from './WorkbenchDrawer.vue';
 import IssuesTab from './IssuesTab.vue';
 import FindReplaceTab from './FindReplaceTab.vue';
+import OutlineTab from './OutlineTab.vue';
 
 const props = defineProps<{
   env: EditorEnv;
@@ -51,6 +52,18 @@ const searchInitialQuery = ref('');
 const searchFocusReplace = ref(false);
 const searchFocusNonce = ref(0);
 const diagnostics = ref<EditorDiagnostic[]>([]);
+const outlineSymbols = ref<DocumentSymbol[]>([]);
+const isTyping = ref(false);
+let typingTimer: number | null = null;
+
+function markTyping() {
+    isTyping.value = true;
+    if (typingTimer) window.clearTimeout(typingTimer);
+    typingTimer = window.setTimeout(() => {
+        isTyping.value = false;
+        typingTimer = null;
+    }, 1500);
+}
 const hiddenSeverities = ref<ReadonlySet<FilterSeverity>>(new Set());
 const visibleDiagnostics = computed(() =>
   diagnostics.value.filter((d) => {
@@ -78,7 +91,26 @@ const isUpgradingV1 = ref(false);
 
 let lastRenderRequestId = 0;
 let renderTimer: number | null = null;
+let outlineRequestId = 0;
+let outlineTimer: number | null = null;
 const v1DiagnosticCode = "v1-document";
+
+function scheduleOutlineRefresh(content: string) {
+    if (outlineTimer) window.clearTimeout(outlineTimer);
+    outlineTimer = window.setTimeout(async () => {
+        outlineTimer = null;
+        const requestId = ++outlineRequestId;
+        try {
+            const { symbols } = await props.env.documentSymbols(content);
+            if (requestId !== outlineRequestId) return;
+            outlineSymbols.value = symbols;
+        } catch (err) {
+            if (requestId !== outlineRequestId) return;
+            outlineSymbols.value = [];
+            console.warn("failed to compute document outline:", err);
+        }
+    }, 300);
+}
 
 function setV1DocumentDetected(detected: boolean) {
     v1DocumentDetected.value = detected;
@@ -179,6 +211,8 @@ onMounted(async () => {
       async (content) => {
         emit('update:content', content);
         scheduleRender(content, props.style);
+        scheduleOutlineRefresh(content);
+        markTyping();
       },
       iframeEl,
       () => props.getSpellAllowlist(),
@@ -189,12 +223,15 @@ onMounted(async () => {
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     scheduleRender(props.content, props.style);
+    scheduleOutlineRefresh(props.content);
   }
 });
 
 onUnmounted(() => {
   engine?.destroy();
   if (renderTimer) window.clearTimeout(renderTimer);
+  if (outlineTimer) window.clearTimeout(outlineTimer);
+  if (typingTimer) window.clearTimeout(typingTimer);
 });
 
 watch(() => store.state.isDark, (isDark) => {
@@ -266,8 +303,22 @@ function jumpToDiagnostic(d: EditorDiagnostic) {
     engine?.revealDiagnostic(d.from, d.to);
 }
 
+function jumpToSymbol(symbol: DocumentSymbol) {
+    const start = symbol.selectionRange?.start ?? symbol.range.start;
+    engine?.revealPosition(start.line, start.character);
+}
+
 function openIssuesTab() {
     drawerTab.value = 'issues';
+    drawerOpen.value = true;
+}
+
+function toggleOutline() {
+    if (drawerOpen.value && drawerTab.value === 'outline') {
+        closeDrawer();
+        return;
+    }
+    drawerTab.value = 'outline';
     drawerOpen.value = true;
 }
 
@@ -322,6 +373,14 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
 
             <ToolbarButton @click="toggleSearch" title="Find &amp; Replace (Ctrl/Cmd+F)">
                 <template #icon><Search class="w-4 h-4" /></template>
+            </ToolbarButton>
+
+            <ToolbarButton
+                @click="toggleOutline"
+                :active="drawerOpen && drawerTab === 'outline'"
+                title="Outline"
+            >
+                <template #icon><ListTree class="w-4 h-4" /></template>
             </ToolbarButton>
         </div>
 
@@ -378,24 +437,26 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                     v-if="!drawerOpen"
                     class="absolute right-6 bottom-6 z-20 flex flex-col items-end gap-3"
                 >
-                    <button
-                        type="button"
-                        @click="openIssuesTab"
-                        class="flex items-center gap-2 rounded-full px-4 h-10 text-sm font-bold shadow-2xl transition-all hover:scale-105"
-                        :class="{
-                            'bg-emerald-500 text-white hover:bg-emerald-600': issuesStatusValue === 'clean',
-                            'bg-purple-200 text-purple-950 hover:bg-purple-300': issuesStatusValue === 'info',
-                            'bg-amber-500 text-ember-950 hover:bg-amber-400': issuesStatusValue === 'warning',
-                            'bg-red-500 text-white hover:bg-red-600': issuesStatusValue === 'error',
-                        }"
-                        :title="issuesStatusValue === 'clean' ? 'No script issues' : `${issuesSummary.total} script issue${issuesSummary.total === 1 ? '' : 's'}`"
-                    >
-                        <CheckCircle2 v-if="issuesStatusValue === 'clean'" class="w-4 h-4" />
-                        <Info v-else-if="issuesStatusValue === 'info'" class="w-4 h-4" />
-                        <AlertTriangle v-else-if="issuesStatusValue === 'warning'" class="w-4 h-4" />
-                        <AlertCircle v-else class="w-4 h-4" />
-                        <span>{{ issuesStatusValue === 'clean' ? 'No script issues' : `${issuesSummary.total} script issue${issuesSummary.total === 1 ? '' : 's'}` }}</span>
-                    </button>
+                    <Transition name="fab-fade" :css="true">
+                        <button
+                            v-if="issuesStatusValue !== 'clean' && !isTyping"
+                            type="button"
+                            @click="openIssuesTab"
+                            class="issue-fab flex items-center justify-center gap-1.5 rounded-full h-10 px-3 min-w-10 text-sm font-bold shadow-2xl hover:scale-105"
+                            :class="{
+                                'bg-purple-200 text-purple-950 hover:bg-purple-300': issuesStatusValue === 'info',
+                                'bg-amber-500 text-ember-950 hover:bg-amber-400': issuesStatusValue === 'warning',
+                                'bg-red-500 text-white hover:bg-red-600': issuesStatusValue === 'error',
+                            }"
+                            :aria-label="`${issuesSummary.total} script issue${issuesSummary.total === 1 ? '' : 's'}`"
+                            :title="`${issuesSummary.total} script issue${issuesSummary.total === 1 ? '' : 's'}`"
+                        >
+                            <Info v-if="issuesStatusValue === 'info'" class="w-4 h-4" />
+                            <AlertTriangle v-else-if="issuesStatusValue === 'warning'" class="w-4 h-4" />
+                            <AlertCircle v-else class="w-4 h-4" />
+                            <span class="tabular-nums">{{ issuesSummary.total }}</span>
+                        </button>
+                    </Transition>
 
                     <button
                         v-if="!previewVisible"
@@ -438,6 +499,12 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                         @replace="onReplaceOne"
                         @replace-all="onReplaceAll"
                         @jump="onJumpMatch"
+                    />
+                </template>
+                <template #outline>
+                    <OutlineTab
+                        :symbols="outlineSymbols"
+                        @jump="jumpToSymbol"
                     />
                 </template>
             </WorkbenchDrawer>
@@ -614,6 +681,19 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
 </template>
 
 <style>
+.issue-fab { transition: transform 150ms ease-out; }
+.issue-fab:hover { transition: transform 150ms ease-out; }
+
+.fab-fade-enter-active {
+    transition: opacity 500ms ease-out;
+}
+.fab-fade-enter-from {
+    opacity: 0;
+}
+.fab-fade-enter-to {
+    opacity: 1;
+}
+
 .cm-editor { height: 100%; outline: none !important; }
 .cm-gutters {
     background-color: transparent !important;

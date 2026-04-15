@@ -63,6 +63,28 @@ export interface LSPCodeActionsResult {
   actions: LSPCodeAction[];
 }
 
+// Mirrors go.lsp.dev/protocol SymbolKind values used by the outline.
+export const SymbolKind = {
+  File: 1,
+  Namespace: 3,
+  Class: 5,
+  Function: 12,
+  Struct: 23,
+} as const;
+export type SymbolKindValue = (typeof SymbolKind)[keyof typeof SymbolKind] | number;
+
+export interface DocumentSymbol {
+  name: string;
+  kind: SymbolKindValue;
+  range: LSPRange;
+  selectionRange: LSPRange;
+  children?: DocumentSymbol[];
+}
+
+export interface DocumentSymbolsResult {
+  symbols: DocumentSymbol[];
+}
+
 export interface SpellcheckRange {
   start: LSPPosition;
   end: LSPPosition;
@@ -99,6 +121,7 @@ export interface EditorEnv {
   upgradeV1(source: string): Promise<{ source: string; changed: boolean }>;
   completion(source: string, line: number, col: number): Promise<LSPCompletionList>;
   codeActions(source: string, line: number, col: number, codes?: string[]): Promise<LSPCodeActionsResult>;
+  documentSymbols(source: string): Promise<DocumentSymbolsResult>;
   semanticTokens(source: string): Promise<Uint32Array>;
   tokenTypeNames(): Promise<string[]>;
 

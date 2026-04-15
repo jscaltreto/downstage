@@ -107,30 +107,35 @@ func (r *htmlRenderer) EndDocument(_ *ast.Document) error {
 // --- Front matter ---
 
 func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
-	title, subtitle, authors, other := partitionHTMLTitlePageEntries(tp)
+	titleKV, subtitleKV, authorKVs, other := partitionHTMLTitlePageKVs(tp)
+
+	titleText := ""
+	if titleKV != nil {
+		titleText = titleKV.Value
+	}
 
 	r.hasTitlePage = true
-	r.titlePageTitle = title
+	r.titlePageTitle = titleText
 
 	fmt.Fprintf(&r.buf, "<header class=\"downstage-title-page\"%s>\n", r.sourceAttr(tp.NodeRange()))
 
-	if title != "" {
-		fmt.Fprintf(&r.buf, "<h1>%s</h1>\n", html.EscapeString(title))
+	if titleKV != nil && titleKV.Value != "" {
+		fmt.Fprintf(&r.buf, "<h1%s>%s</h1>\n", r.sourceAttr(titleKV.Range), html.EscapeString(titleKV.Value))
 	}
-	if subtitle != "" {
-		fmt.Fprintf(&r.buf, "<p class=\"subtitle\">%s</p>\n", html.EscapeString(subtitle))
+	if subtitleKV != nil && subtitleKV.Value != "" {
+		fmt.Fprintf(&r.buf, "<p class=\"subtitle\"%s>%s</p>\n", r.sourceAttr(subtitleKV.Range), html.EscapeString(subtitleKV.Value))
 	}
-	if len(authors) > 0 {
-		r.buf.WriteString("<p class=\"author\">by</p>\n")
-		for _, author := range authors {
-			fmt.Fprintf(&r.buf, "<p class=\"author\">%s</p>\n", html.EscapeString(author))
+	if len(authorKVs) > 0 {
+		fmt.Fprintf(&r.buf, "<p class=\"author\"%s>by</p>\n", r.sourceAttr(authorKVs[0].Range))
+		for _, kv := range authorKVs {
+			fmt.Fprintf(&r.buf, "<p class=\"author\"%s>%s</p>\n", r.sourceAttr(kv.Range), html.EscapeString(kv.Value))
 		}
 	}
 
 	if len(other) > 0 {
 		r.buf.WriteString("<dl class=\"metadata\">\n")
 		for _, kv := range other {
-			r.buf.WriteString("<div>")
+			fmt.Fprintf(&r.buf, "<div%s>", r.sourceAttr(kv.Range))
 			fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(kv.Key))
 			fmt.Fprintf(&r.buf, "<dd>%s</dd>", html.EscapeString(kv.Value))
 			r.buf.WriteString("</div>\n")
@@ -170,7 +175,7 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 			r.pushSection(true)
 			fmt.Fprintf(&r.buf, "<section class=\"downstage-subplay\"%s>\n", r.sourceAttr(s.NodeRange()))
 			r.buf.WriteString("<header class=\"downstage-subplay-header\">\n")
-			fmt.Fprintf(&r.buf, "<h1>%s</h1>\n", html.EscapeString(render.SectionDisplayTitle(s)))
+			fmt.Fprintf(&r.buf, "<h1%s>%s</h1>\n", r.sourceAttr(s.HeadingRange()), html.EscapeString(render.SectionDisplayTitle(s)))
 			r.renderSubplayMetadata(s.Metadata)
 			r.buf.WriteString("</header>\n")
 			return nil
@@ -185,7 +190,7 @@ func (r *htmlRenderer) BeginSection(s *ast.Section) error {
 		fmt.Fprintf(&r.buf, "<section class=\"downstage-section\"%s>\n", r.sourceAttr(s.NodeRange()))
 		if s.Title != "" {
 			tag := headingTag(s.Level)
-			fmt.Fprintf(&r.buf, "<%s>%s</%s>\n", tag, html.EscapeString(strings.ToUpper(s.Title)), tag)
+			fmt.Fprintf(&r.buf, "<%s%s>%s</%s>\n", tag, r.sourceAttr(s.HeadingRange()), html.EscapeString(strings.ToUpper(s.Title)), tag)
 		}
 		return nil
 	}
@@ -250,7 +255,7 @@ func (r *htmlRenderer) beginAct(s *ast.Section) error {
 		heading = s.Title
 	}
 
-	fmt.Fprintf(&r.buf, "<h2>%s</h2>\n", html.EscapeString(strings.ToUpper(heading)))
+	fmt.Fprintf(&r.buf, "<h2%s>%s</h2>\n", r.sourceAttr(s.HeadingRange()), html.EscapeString(strings.ToUpper(heading)))
 	return nil
 }
 
@@ -268,7 +273,7 @@ func (r *htmlRenderer) beginScene(s *ast.Section) error {
 		heading = s.Title
 	}
 
-	fmt.Fprintf(&r.buf, "<h3>%s</h3>\n", html.EscapeString(strings.ToUpper(heading)))
+	fmt.Fprintf(&r.buf, "<h3%s>%s</h3>\n", r.sourceAttr(s.HeadingRange()), html.EscapeString(strings.ToUpper(heading)))
 	return nil
 }
 
@@ -350,6 +355,36 @@ func partitionHTMLTitlePageEntries(tp *ast.TitlePage) (title string, subtitle st
 		case "author":
 			if strings.TrimSpace(kv.Value) != "" {
 				authors = append(authors, kv.Value)
+			}
+		default:
+			other = append(other, kv)
+		}
+	}
+	return title, subtitle, authors, other
+}
+
+// partitionHTMLTitlePageKVs mirrors partitionHTMLTitlePageEntries but preserves
+// the source range of each entry so the title-page render can emit anchors.
+func partitionHTMLTitlePageKVs(tp *ast.TitlePage) (title *ast.KeyValue, subtitle *ast.KeyValue, authors []ast.KeyValue, other []ast.KeyValue) {
+	if tp == nil {
+		return nil, nil, nil, nil
+	}
+	for i := range tp.Entries {
+		kv := tp.Entries[i]
+		switch strings.ToLower(strings.TrimSpace(kv.Key)) {
+		case "title":
+			if title == nil {
+				c := kv
+				title = &c
+			}
+		case "subtitle":
+			if subtitle == nil {
+				c := kv
+				subtitle = &c
+			}
+		case "author":
+			if strings.TrimSpace(kv.Value) != "" {
+				authors = append(authors, kv)
 			}
 		default:
 			other = append(other, kv)

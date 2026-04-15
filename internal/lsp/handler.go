@@ -173,7 +173,7 @@ func (h *handler) handleDocumentSymbol(ctx context.Context, reply jsonrpc2.Repli
 		return reply(ctx, []protocol.DocumentSymbol{}, nil)
 	}
 
-	symbols := computeDocumentSymbols(doc.doc, doc.errors)
+	symbols := ComputeDocumentSymbols(doc.doc, doc.errors)
 	return reply(ctx, symbols, nil)
 }
 

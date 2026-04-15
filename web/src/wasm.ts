@@ -6,6 +6,7 @@ import type {
   LSPCompletionList,
   LSPCodeActionsResult,
   SpellcheckContext,
+  DocumentSymbolsResult,
 } from "./core/types";
 
 declare class Go {
@@ -23,6 +24,7 @@ declare global {
       upgradeV1(source: string): { source: string; changed: boolean };
       completion(source: string, line: number, col: number): LSPCompletionList;
       codeActions(source: string, line: number, col: number, codes?: string[]): LSPCodeActionsResult;
+      documentSymbols(source: string): DocumentSymbolsResult;
       renderHTML(source: string, style?: string): string;
       renderPDF(source: string, style?: string): Uint8Array;
       semanticTokens(source: string): Uint32Array;

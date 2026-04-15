@@ -284,6 +284,19 @@ export class Engine {
     this.view.focus();
   }
 
+  revealPosition(line: number, character: number) {
+    if (!this.view) return;
+    const doc = this.view.state.doc;
+    const lineNumber = Math.max(1, Math.min(line + 1, doc.lines));
+    const lineInfo = doc.line(lineNumber);
+    const offset = Math.min(lineInfo.from + Math.max(0, character), lineInfo.to);
+    this.view.dispatch({
+      selection: { anchor: offset, head: offset },
+      effects: EditorView.scrollIntoView(offset, { y: "center" }),
+    });
+    this.view.focus();
+  }
+
   private emitDiagnostics() {
     this.onDiagnosticsChange(this.getDiagnostics());
   }

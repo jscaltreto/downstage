@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { X, AlertTriangle, Search } from 'lucide-vue-next';
+import { X, AlertTriangle, Search, ListTree } from 'lucide-vue-next';
 
-export type WorkbenchTab = 'issues' | 'find';
+export type WorkbenchTab = 'issues' | 'find' | 'outline';
 
 defineProps<{
   open: boolean;
@@ -30,6 +30,19 @@ function switchTab(tab: WorkbenchTab) {
   >
     <header class="flex items-center justify-between gap-3 border-b border-border bg-[var(--color-toolbar-bg)] px-4">
       <div class="flex items-center gap-1" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'outline'"
+          class="flex items-center gap-2 px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] border-b-2 transition-colors"
+          :class="activeTab === 'outline'
+            ? 'border-brass-500 text-accent'
+            : 'border-transparent text-text-muted hover:text-text-main'"
+          @click="switchTab('outline')"
+        >
+          <ListTree class="h-3.5 w-3.5" />
+          <span>Outline</span>
+        </button>
         <button
           type="button"
           role="tab"
@@ -77,6 +90,9 @@ function switchTab(tab: WorkbenchTab) {
       </div>
       <div v-show="activeTab === 'find'" class="flex h-full min-w-0 flex-col overflow-hidden">
         <slot name="find" />
+      </div>
+      <div v-show="activeTab === 'outline'" class="flex h-full min-w-0 flex-col overflow-hidden">
+        <slot name="outline" />
       </div>
     </div>
   </section>

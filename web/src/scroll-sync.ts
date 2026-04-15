@@ -81,10 +81,26 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
     class {
       private scrollHandler: () => void;
       private scrollDOM: HTMLElement;
+      private resizeObserver: ResizeObserver | null = null;
 
       constructor(private view: EditorView) {
         this.scrollDOM = view.scrollDOM;
-        
+
+        const resyncTop = () => {
+          if (rafId) cancelAnimationFrame(rafId);
+          rafId = requestAnimationFrame(() => {
+            const topBlock = view.elementAtHeight(view.scrollDOM.scrollTop);
+            const topLine = view.state.doc.lineAt(topBlock.from).number;
+            // Force re-sync after a viewport resize even if the top line hasn't changed,
+            // because the preview's viewport may have shrunk (e.g., drawer opening) and
+            // its scrollTop needs to be recomputed.
+            lastSyncLine = -1;
+            lastSyncMode = null;
+            syncToLine(view, topLine, 'top');
+            rafId = null;
+          });
+        };
+
         this.scrollHandler = () => {
           if (rafId) cancelAnimationFrame(rafId);
           rafId = requestAnimationFrame(() => {
@@ -98,6 +114,11 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
         this.scrollDOM.addEventListener("scroll", this.scrollHandler, {
           passive: true,
         });
+
+        if (typeof ResizeObserver !== 'undefined') {
+          this.resizeObserver = new ResizeObserver(() => resyncTop());
+          this.resizeObserver.observe(this.scrollDOM);
+        }
       }
 
       update(update: ViewUpdate) {
@@ -110,6 +131,8 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
 
       destroy() {
         this.scrollDOM.removeEventListener("scroll", this.scrollHandler);
+        this.resizeObserver?.disconnect();
+        this.resizeObserver = null;
         if (rafId) cancelAnimationFrame(rafId);
       }
     },

@@ -26,6 +26,7 @@ func main() {
 	ds.Set("upgradeV1", js.FuncOf(upgradeV1))
 	ds.Set("completion", js.FuncOf(completion))
 	ds.Set("codeActions", js.FuncOf(codeActions))
+	ds.Set("documentSymbols", js.FuncOf(documentSymbols))
 	ds.Set("renderHTML", js.FuncOf(renderHTML))
 	ds.Set("renderPDF", js.FuncOf(renderPDF))
 	ds.Set("semanticTokens", js.FuncOf(semanticTokens))
@@ -197,6 +198,18 @@ func codeActions(_ js.Value, args []js.Value) any {
 		"uri":     string(codeActionsURI),
 		"actions": actions,
 	})
+	return js.Global().Get("JSON").Call("parse", string(data))
+}
+
+func documentSymbols(_ js.Value, args []js.Value) any {
+	source := args[0].String()
+	doc, errs := parser.Parse([]byte(source))
+	symbols := lsp.ComputeDocumentSymbols(doc, errs)
+	if symbols == nil {
+		symbols = []protocol.DocumentSymbol{}
+	}
+
+	data, _ := json.Marshal(map[string]any{"symbols": symbols})
 	return js.Global().Get("JSON").Call("parse", string(data))
 }
 
