@@ -9,7 +9,7 @@ import (
 )
 
 func TestComputeDocumentSymbols_Nil(t *testing.T) {
-	symbols := computeDocumentSymbols(nil, nil)
+	symbols := ComputeDocumentSymbols(nil, nil)
 	if symbols != nil {
 		t.Errorf("expected nil for nil doc, got %v", symbols)
 	}
@@ -19,12 +19,14 @@ func TestComputeDocumentSymbols_Act(t *testing.T) {
 	doc := &ast.Document{
 		Body: []ast.Node{
 			&ast.Section{
-				Kind:  ast.SectionAct,
-				Title: "Act I",
+				Kind:   ast.SectionAct,
+				Number: "I",
+				Title:  "The Beginning",
 				Children: []ast.Node{
 					&ast.Section{
-						Kind:  ast.SectionScene,
-						Title: "Scene 1",
+						Kind:   ast.SectionScene,
+						Number: "1",
+						Title:  "The Garden",
 						Children: []ast.Node{
 							&ast.Dialogue{
 								Character: "HAMLET",
@@ -48,14 +50,14 @@ func TestComputeDocumentSymbols_Act(t *testing.T) {
 		},
 	}
 
-	symbols := computeDocumentSymbols(doc, nil)
+	symbols := ComputeDocumentSymbols(doc, nil)
 	if len(symbols) != 1 {
 		t.Fatalf("expected 1 top-level symbol, got %d", len(symbols))
 	}
 
 	actSym := symbols[0]
-	if actSym.Name != "Act I" {
-		t.Errorf("expected act name %q, got %q", "Act I", actSym.Name)
+	if actSym.Name != "Act I: The Beginning" {
+		t.Errorf("expected act name %q, got %q", "Act I: The Beginning", actSym.Name)
 	}
 	if actSym.Kind != protocol.SymbolKindNamespace {
 		t.Errorf("expected kind Namespace, got %v", actSym.Kind)
@@ -65,8 +67,8 @@ func TestComputeDocumentSymbols_Act(t *testing.T) {
 	}
 
 	sceneSym := actSym.Children[0]
-	if sceneSym.Name != "Scene 1" {
-		t.Errorf("expected scene name %q, got %q", "Scene 1", sceneSym.Name)
+	if sceneSym.Name != "Scene 1: The Garden" {
+		t.Errorf("expected scene name %q, got %q", "Scene 1: The Garden", sceneSym.Name)
 	}
 	if sceneSym.Kind != protocol.SymbolKindClass {
 		t.Errorf("expected kind Class, got %v", sceneSym.Kind)
@@ -76,6 +78,39 @@ func TestComputeDocumentSymbols_Act(t *testing.T) {
 	}
 	if sceneSym.Children[0].Name != "HAMLET" {
 		t.Errorf("expected character name %q, got %q", "HAMLET", sceneSym.Children[0].Name)
+	}
+}
+
+func TestComputeDocumentSymbols_ActSceneNumberedOnly(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:   ast.SectionAct,
+				Number: "II",
+				Children: []ast.Node{
+					&ast.Section{
+						Kind:   ast.SectionScene,
+						Number: "3",
+						Range: token.Range{
+							Start: token.Position{Line: 3, Column: 0},
+							End:   token.Position{Line: 5, Column: 0},
+						},
+					},
+				},
+				Range: token.Range{
+					Start: token.Position{Line: 1, Column: 0},
+					End:   token.Position{Line: 10, Column: 0},
+				},
+			},
+		},
+	}
+
+	symbols := ComputeDocumentSymbols(doc, nil)
+	if symbols[0].Name != "Act II" {
+		t.Errorf("expected %q, got %q", "Act II", symbols[0].Name)
+	}
+	if symbols[0].Children[0].Name != "Scene 3" {
+		t.Errorf("expected %q, got %q", "Scene 3", symbols[0].Children[0].Name)
 	}
 }
 
@@ -92,7 +127,7 @@ func TestComputeDocumentSymbols_FlatDialogue(t *testing.T) {
 		},
 	}
 
-	symbols := computeDocumentSymbols(doc, nil)
+	symbols := ComputeDocumentSymbols(doc, nil)
 	if len(symbols) != 1 {
 		t.Fatalf("expected 1 symbol, got %d", len(symbols))
 	}
@@ -140,7 +175,7 @@ func TestComputeDocumentSymbols_DualDialogueInSection(t *testing.T) {
 		},
 	}
 
-	symbols := computeDocumentSymbols(doc, nil)
+	symbols := ComputeDocumentSymbols(doc, nil)
 	if len(symbols) != 1 {
 		t.Fatalf("expected 1 top-level symbol, got %d", len(symbols))
 	}
@@ -168,7 +203,7 @@ func TestComputeDocumentSymbols_UsesFallbackNameForUntitledScene(t *testing.T) {
 		},
 	}
 
-	symbols := computeDocumentSymbols(doc, nil)
+	symbols := ComputeDocumentSymbols(doc, nil)
 	if len(symbols) != 1 {
 		t.Fatalf("expected 1 symbol, got %d", len(symbols))
 	}

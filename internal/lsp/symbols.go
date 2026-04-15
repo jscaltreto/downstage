@@ -7,8 +7,8 @@ import (
 	"go.lsp.dev/protocol"
 )
 
-// computeDocumentSymbols builds a hierarchical document outline from the AST.
-func computeDocumentSymbols(doc *ast.Document, _ []*parser.ParseError) []protocol.DocumentSymbol {
+// ComputeDocumentSymbols builds a hierarchical document outline from the AST.
+func ComputeDocumentSymbols(doc *ast.Document, _ []*parser.ParseError) []protocol.DocumentSymbol {
 	if doc == nil {
 		return nil
 	}
@@ -129,30 +129,39 @@ func sectionSymbolName(s *ast.Section) string {
 		return "Section"
 	}
 
-	if s.Title != "" {
-		return s.Title
-	}
-
-	if s.Number != "" {
-		switch s.Kind {
-		case ast.SectionAct:
-			return "Act " + s.Number
-		case ast.SectionScene:
-			return "Scene " + s.Number
-		default:
-			return s.Number
-		}
-	}
-
 	switch s.Kind {
 	case ast.SectionAct:
-		return "Act"
+		return joinNumberAndTitle("Act", s.Number, s.Title)
 	case ast.SectionScene:
-		return "Scene"
+		return joinNumberAndTitle("Scene", s.Number, s.Title)
 	case ast.SectionDramatisPersonae:
+		if s.Title != "" {
+			return s.Title
+		}
 		return "Dramatis Personae"
 	default:
+		if s.Title != "" {
+			return s.Title
+		}
+		if s.Number != "" {
+			return s.Number
+		}
 		return "Section"
+	}
+}
+
+// joinNumberAndTitle formats an Act/Scene label, keeping the number when both
+// a number and title are present (e.g. "Act I: The Beginning").
+func joinNumberAndTitle(prefix, number, title string) string {
+	switch {
+	case number != "" && title != "":
+		return prefix + " " + number + ": " + title
+	case number != "":
+		return prefix + " " + number
+	case title != "":
+		return title
+	default:
+		return prefix
 	}
 }
 

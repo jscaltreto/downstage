@@ -1,5 +1,5 @@
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
-import { EditorState, Compartment } from "@codemirror/state";
+import { EditorState, Compartment, Transaction } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { completionKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -71,7 +71,7 @@ export class Engine {
   constructor(
     private parent: HTMLElement,
     private env: EditorEnv,
-    private onDocChange: (content: string) => void,
+    private onDocChange: (content: string, info: { userInput: boolean }) => void,
     private iframe: HTMLIFrameElement,
     private getUserSpellAllowlist: () => string[],
     private addUserSpellAllowlistWord: (word: string) => Promise<boolean>,
@@ -148,7 +148,11 @@ export class Engine {
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
-              this.onDocChange(update.state.doc.toString());
+              const userInput = update.transactions.some((tr) => {
+                const evt = tr.annotation(Transaction.userEvent);
+                return typeof evt === "string" && (evt.startsWith("input") || evt.startsWith("delete"));
+              });
+              this.onDocChange(update.state.doc.toString(), { userInput });
             }
             const lintChanged = update.transactions.some((tr) =>
               tr.effects.some((effect) => effect.is(setDiagnosticsEffect)),
@@ -280,6 +284,19 @@ export class Engine {
     this.view.dispatch({
       selection: { anchor: clampedFrom, head: clampedTo },
       effects: EditorView.scrollIntoView(clampedFrom, { y: "center" }),
+    });
+    this.view.focus();
+  }
+
+  revealPosition(line: number, character: number) {
+    if (!this.view) return;
+    const doc = this.view.state.doc;
+    const lineNumber = Math.max(1, Math.min(line + 1, doc.lines));
+    const lineInfo = doc.line(lineNumber);
+    const offset = Math.min(lineInfo.from + Math.max(0, character), lineInfo.to);
+    this.view.dispatch({
+      selection: { anchor: offset, head: offset },
+      effects: EditorView.scrollIntoView(offset, { y: "center" }),
     });
     this.view.focus();
   }

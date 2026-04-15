@@ -10,6 +10,7 @@ import type {
   LSPCompletionList,
   LSPCodeActionsResult,
   SpellcheckContext,
+  DocumentSymbolsResult,
 } from "./core/types";
 
 declare const __APP_VERSION__: string;
@@ -68,6 +69,10 @@ class WebEnv implements EditorEnv {
     codes?: string[],
   ): Promise<LSPCodeActionsResult> {
     return window.downstage.codeActions(source, line, col, codes);
+  }
+
+  async documentSymbols(source: string): Promise<DocumentSymbolsResult> {
+    return window.downstage.documentSymbols(source);
   }
 
   async semanticTokens(source: string): Promise<Uint32Array> {
