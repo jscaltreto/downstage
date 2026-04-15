@@ -956,6 +956,33 @@ func TestWrapStyledRuns_HonorsHardNewlines(t *testing.T) {
 	assert.Equal(t, "line two", lines[1][0].text)
 }
 
+func TestPlaceBottomBlock_ReservesSpaceForInlineOnlyValues(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	words := "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco"
+	inlines := []ast.Inline{&ast.TextNode{Value: words}}
+	entries := []ast.KeyValue{
+		// Inline-only entry: legacy Value is empty, ValueInlines carries
+		// the full text. If placeBottomBlock read kv.Value it would
+		// reserve only a single line and leave the rendered content
+		// hanging below the target.
+		{Key: "Notes", ValueInlines: inlines},
+	}
+
+	r.pdf.SetY(r.marginT)
+	placeBottomBlock(&r.pdfBase, entries)
+	yAfter := r.pdf.GetY()
+
+	text := "Notes: " + words
+	wrappedLines := len(r.pdf.SplitText(text, r.bodyW))
+	require.Greater(t, wrappedLines, 1, "test inputs should force multi-line wrapping")
+
+	expectedTarget := r.pageH - r.marginB - r.lineHeight - float64(wrappedLines)*r.lineHeight
+	assert.InDelta(t, expectedTarget, yAfter, 0.01,
+		"placeBottomBlock must reserve space for every wrapped line derived from the rendered inline content")
+}
+
 func TestRender_TitlePageSubtitleInlineOnlyField(t *testing.T) {
 	r := NewRenderer(render.DefaultConfig())
 	doc := &ast.Document{

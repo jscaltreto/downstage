@@ -236,7 +236,7 @@ func applyDocumentMetadata(b *pdfBase, tp *ast.TitlePage) {
 func placeBottomBlock(b *pdfBase, entries []ast.KeyValue) {
 	reserve := b.lineHeight
 	for _, kv := range entries {
-		text := kv.Key + ": " + kv.Value
+		text := kv.Key + ": " + render.PlainText(keyValueInlines(kv))
 		wrapped := b.pdf.SplitText(text, b.bodyW)
 		if len(wrapped) == 0 {
 			wrapped = []string{text}
