@@ -21,12 +21,6 @@ parenthetical and one or more speech lines.
 Character names are uppercase and may contain spaces, punctuation like periods
 and apostrophes, digits, and slashes for alias-aware names.
 
-A cue must be preceded by a blank line, or be the first line of the document.
-Comments are transparent: a line or block comment directly above a cue counts,
-as long as the comment itself has a blank line (or the start of the document)
-before it. That way a shouted "WHAT" directly below a cue — even with a
-parenthetical or inline comment between them — stays part of the dialogue
-instead of turning into a new character. Headings, page breaks, and stage
-directions are not cue boundaries on their own: always put a blank line before
-a cue. When you need a cue without a blank line before it, prefix the name
-with `@` to force it (see Forced Elements).
+Cues need a blank line before them, or they can start the document. Comments do
+not reset cue context, so a shouted "WHAT" under `JIM` stays dialogue. Use
+`@NAME` when you need to force a cue without a blank line.

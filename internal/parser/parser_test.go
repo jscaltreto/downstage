@@ -703,11 +703,7 @@ a block comment */`
 }
 
 func TestDemotedCueInLeafGenericSection(t *testing.T) {
-	// An ALL-CAPS line immediately under a generic section heading fails the
-	// strict cue rule (no blank line) and is demoted to Text by the lexer.
-	// In a leaf generic section the parser promotes it to an implicit stage
-	// direction so the writer's failed-cue attempt renders as italic text
-	// rather than being silently reflowed as prose.
+	// Demoted ALL-CAPS lines still render as stage directions in leaf generic sections.
 	input := "# Play\n\n## Notes\nALICE\n"
 	doc, errs := Parse([]byte(input))
 	require.Empty(t, errs)
@@ -729,10 +725,7 @@ func TestDemotedCueInLeafGenericSection(t *testing.T) {
 }
 
 func TestCueCommentsAreTransparentInDialogue(t *testing.T) {
-	// Both line and block comments between a cue and its dialogue body must
-	// be transparent: they should not end the dialogue block, and they should
-	// not cause a following shouted ALL-CAPS line to be reinterpreted as a
-	// new cue.
+	// Comments stay transparent inside dialogue.
 	cases := map[string]string{
 		"line comment":  "# Play\n\nJIM\n// he pauses\nWHAT\n",
 		"block comment": "# Play\n\nJIM\n/* he pauses */\nWHAT\n",

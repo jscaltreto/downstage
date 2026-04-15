@@ -57,7 +57,7 @@ The following older patterns are no longer part of the preferred model:
 
 - document-level `Key: Value` frontmatter before the first `#` heading
 - document-level `# Dramatis Personae`
-- ALL-CAPS lines recognised as cues without a preceding blank line (a cue must now follow a blank line or the start of the document; comments with a blank line above them are transparent; use `@NAME` to force a cue in tight positions)
+- ALL-CAPS cues without a preceding blank line (cues need a blank line or the start of the document; use `@NAME` to force one)
 
 Instead:
 
@@ -276,40 +276,18 @@ In a multi-play file, act and scene numbering is scoped to the enclosing top-lev
 
 ## 7. Dialogue
 
-Dialogue is the primary content type. A dialogue block consists of:
+Dialogue is the primary content type. A dialogue block consists of a cue, an optional parenthetical, and one or more lines of dialogue text.
 
-1. A **character name** on its own line (ALL CAPS)
-2. An optional **parenthetical** on the next line
-3. One or more lines of **dialogue text**
-
-An ALL-CAPS line is only recognised as a cue when it is preceded by a blank line or is the first line of the document. Comments are transparent: a line comment or block comment above an ALL-CAPS line counts as the cue's preceding context, provided the comment itself has a blank line (or the start of the document) before it.
-
-This means an ALL-CAPS line that appears on the line directly after another cue, a parenthetical, or dialogue body text is treated as shouted dialogue, not as a new cue:
+An ALL-CAPS line is only a cue at the start of a document or after a blank line. Comments do not reset cue context. So `WHAT` under `JIM` stays dialogue, not a new character.
 
 ```
 JIM
 WHAT
 ```
 
-Here `WHAT` is Jim's line, not a new character. The same applies when a parenthetical sits between the cue and the shouted line:
+A parenthetical between the cue and the shouted line does not change this.
 
-```
-JIM
-(angrily)
-WHAT
-```
-
-A comment with a blank line before it keeps the cue recognisable:
-
-```
-// note: make jim meaner
-JIM
-I am angry
-```
-
-Structural elements that are not followed by a blank line do **not** start a cue. An ALL-CAPS line immediately after a heading, page break, or stage direction falls through to the implicit-stage-direction rule (Section 8) and renders as italic text. Writers should put a blank line before every cue.
-
-When a cue is needed without a preceding blank line, use the forced-cue form `@NAME` (see Section 14). Forced cues are always recognised regardless of what came before them.
+Use `@NAME` when you need a cue without a blank line (see Section 14).
 
 ```
 HAMLET
