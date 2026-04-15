@@ -11,6 +11,23 @@
           {
             "Key": "Author",
             "Value": "Test Writer",
+            "ValueInlines": [
+              {
+                "Value": "Test Writer",
+                "Range": {
+                  "Start": {
+                    "Line": 1,
+                    "Column": 8,
+                    "Offset": 31
+                  },
+                  "End": {
+                    "Line": 1,
+                    "Column": 19,
+                    "Offset": 42
+                  }
+                }
+              }
+            ],
             "Range": {
               "Start": {
                 "Line": 1,
@@ -27,6 +44,23 @@
           {
             "Key": "Draft",
             "Value": "Second",
+            "ValueInlines": [
+              {
+                "Value": "Second",
+                "Range": {
+                  "Start": {
+                    "Line": 2,
+                    "Column": 7,
+                    "Offset": 50
+                  },
+                  "End": {
+                    "Line": 2,
+                    "Column": 13,
+                    "Offset": 56
+                  }
+                }
+              }
+            ],
             "Range": {
               "Start": {
                 "Line": 2,
@@ -70,6 +104,23 @@
                   "Name": "KING LEAR",
                   "Aliases": null,
                   "Description": "King of Britain",
+                  "DescriptionInlines": [
+                    {
+                      "Value": "King of Britain",
+                      "Range": {
+                        "Start": {
+                          "Line": 6,
+                          "Column": 12,
+                          "Offset": 105
+                        },
+                        "End": {
+                          "Line": 6,
+                          "Column": 27,
+                          "Offset": 120
+                        }
+                      }
+                    }
+                  ],
                   "Range": {
                     "Start": {
                       "Line": 6,
@@ -87,6 +138,23 @@
                   "Name": "CORDELIA",
                   "Aliases": null,
                   "Description": "His youngest daughter",
+                  "DescriptionInlines": [
+                    {
+                      "Value": "His youngest daughter",
+                      "Range": {
+                        "Start": {
+                          "Line": 7,
+                          "Column": 11,
+                          "Offset": 132
+                        },
+                        "End": {
+                          "Line": 7,
+                          "Column": 32,
+                          "Offset": 153
+                        }
+                      }
+                    }
+                  ],
                   "Range": {
                     "Start": {
                       "Line": 7,
@@ -121,6 +189,23 @@
                   "Name": "KENT",
                   "Aliases": null,
                   "Description": "A loyal earl",
+                  "DescriptionInlines": [
+                    {
+                      "Value": "A loyal earl",
+                      "Range": {
+                        "Start": {
+                          "Line": 10,
+                          "Column": 7,
+                          "Offset": 176
+                        },
+                        "End": {
+                          "Line": 10,
+                          "Column": 19,
+                          "Offset": 188
+                        }
+                      }
+                    }
+                  ],
                   "Range": {
                     "Start": {
                       "Line": 10,

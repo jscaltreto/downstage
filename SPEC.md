@@ -466,7 +466,9 @@ Songs can appear within scenes or directly in the body.
 
 ## 11. Inline Formatting
 
-Formatting markers work within dialogue, stage directions, and verse.
+Formatting markers work within dialogue, stage directions, verse, character
+descriptions in the dramatis personae, and frontmatter/section-metadata values
+such as `Subtitle`.
 
 | Syntax | Result |
 |--------|--------|

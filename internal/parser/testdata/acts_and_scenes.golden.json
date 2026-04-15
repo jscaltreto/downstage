@@ -11,6 +11,23 @@
           {
             "Key": "Title",
             "Value": "Structured Play",
+            "ValueInlines": [
+              {
+                "Value": "Structured Play",
+                "Range": {
+                  "Start": {
+                    "Line": 1,
+                    "Column": 7,
+                    "Offset": 25
+                  },
+                  "End": {
+                    "Line": 1,
+                    "Column": 22,
+                    "Offset": 40
+                  }
+                }
+              }
+            ],
             "Range": {
               "Start": {
                 "Line": 1,
@@ -50,6 +67,23 @@
               "Name": "ALICE",
               "Aliases": null,
               "Description": "The protagonist",
+              "DescriptionInlines": [
+                {
+                  "Value": "The protagonist",
+                  "Range": {
+                    "Start": {
+                      "Line": 5,
+                      "Column": 8,
+                      "Offset": 72
+                    },
+                    "End": {
+                      "Line": 5,
+                      "Column": 23,
+                      "Offset": 87
+                    }
+                  }
+                }
+              ],
               "Range": {
                 "Start": {
                   "Line": 5,

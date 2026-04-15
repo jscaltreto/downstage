@@ -918,3 +918,91 @@ func TestCondensedPrepareDialogueLinesOnlyNarrowsFirstVisualLine(t *testing.T) {
 	narrowAllLines := r.pdf.SplitText(text, 45)
 	assert.Less(t, len(prepared[0].wrappedText), len(narrowAllLines))
 }
+
+func TestWrapStyledRuns_WrapsAtMaxWidth(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	runs := []dialogueTextRun{
+		{text: "A tragedy in ", style: "I"},
+		{text: "five", style: "BI"},
+		{text: " acts, as recounted by a reliable narrator", style: "I"},
+	}
+	singleLineWidth := r.pdf.GetStringWidth("A tragedy in five acts, as recounted by a reliable narrator")
+
+	lines := wrapStyledRuns(r.pdf, r.cfg.FontFamily, r.cfg.FontSize, runs, singleLineWidth/2)
+	require.Greater(t, len(lines), 1, "expected content to wrap across multiple lines")
+
+	for _, line := range lines {
+		total := 0.0
+		for _, run := range line {
+			r.pdf.SetFont(r.cfg.FontFamily, run.style, r.cfg.FontSize)
+			total += r.pdf.GetStringWidth(run.text)
+		}
+		assert.LessOrEqual(t, total, singleLineWidth, "each wrapped line should stay within the measured width")
+	}
+}
+
+func TestWrapStyledRuns_HonorsHardNewlines(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	runs := []dialogueTextRun{
+		{text: "line one\nline two", style: ""},
+	}
+	lines := wrapStyledRuns(r.pdf, r.cfg.FontFamily, r.cfg.FontSize, runs, 1000)
+	require.Len(t, lines, 2)
+	assert.Equal(t, "line one", lines[0][0].text)
+	assert.Equal(t, "line two", lines[1][0].text)
+}
+
+func TestPlaceBottomBlock_ReservesSpaceForInlineOnlyValues(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	words := "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco"
+	inlines := []ast.Inline{&ast.TextNode{Value: words}}
+	entries := []ast.KeyValue{
+		// Inline-only entry: legacy Value is empty, ValueInlines carries
+		// the full text. If placeBottomBlock read kv.Value it would
+		// reserve only a single line and leave the rendered content
+		// hanging below the target.
+		{Key: "Notes", ValueInlines: inlines},
+	}
+
+	r.pdf.SetY(r.marginT)
+	placeBottomBlock(&r.pdfBase, entries)
+	yAfter := r.pdf.GetY()
+
+	text := "Notes: " + words
+	wrappedLines := len(r.pdf.SplitText(text, r.bodyW))
+	require.Greater(t, wrappedLines, 1, "test inputs should force multi-line wrapping")
+
+	expectedTarget := r.pageH - r.marginB - r.lineHeight - float64(wrappedLines)*r.lineHeight
+	assert.InDelta(t, expectedTarget, yAfter, 0.01,
+		"placeBottomBlock must reserve space for every wrapped line derived from the rendered inline content")
+}
+
+func TestRender_TitlePageSubtitleInlineOnlyField(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig())
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "A Play"},
+				{
+					Key: "Subtitle",
+					ValueInlines: []ast.Inline{
+						&ast.TextNode{Value: "A tragedy in "},
+						&ast.ItalicNode{Content: []ast.Inline{&ast.TextNode{Value: "five"}}},
+						&ast.TextNode{Value: " acts"},
+					},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0, "PDF output should not be empty when subtitle uses inline-only content")
+}

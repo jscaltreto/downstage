@@ -45,9 +45,10 @@ func (t *TitlePage) nodeType() string       { return "TitlePage" }
 
 // KeyValue is a single title page entry.
 type KeyValue struct {
-	Key   string
-	Value string
-	Range token.Range
+	Key          string
+	Value        string
+	ValueInlines []Inline
+	Range        token.Range
 }
 
 // --- Section ---
@@ -198,10 +199,11 @@ type sectionItemRef struct {
 
 // Character describes a character entry in the dramatis personae.
 type Character struct {
-	Name        string
-	Aliases     []string
-	Description string
-	Range       token.Range
+	Name               string
+	Aliases            []string
+	Description        string
+	DescriptionInlines []Inline
+	Range              token.Range
 }
 
 // CharacterGroup is a named group of characters.

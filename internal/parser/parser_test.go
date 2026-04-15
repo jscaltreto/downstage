@@ -1207,3 +1207,71 @@ func findDialogue(nodes []ast.Node, result **ast.Dialogue) {
 		}
 	}
 }
+
+func TestCharacterDescriptionInlines(t *testing.T) {
+	input := `# The Play
+
+## Dramatis Personae
+
+HAMLET - Prince of **Denmark**, _melancholic_
+`
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+
+	top, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.Len(t, top.Children, 1)
+	section, ok := top.Children[0].(*ast.Section)
+	require.True(t, ok)
+	require.Equal(t, ast.SectionDramatisPersonae, section.Kind)
+	require.Len(t, section.Characters, 1)
+
+	ch := section.Characters[0]
+	assert.Equal(t, "HAMLET", ch.Name)
+	assert.Equal(t, "Prince of **Denmark**, _melancholic_", ch.Description)
+	require.NotEmpty(t, ch.DescriptionInlines)
+
+	var hasBold, hasUnderline bool
+	for _, inline := range ch.DescriptionInlines {
+		switch inline.(type) {
+		case *ast.BoldNode:
+			hasBold = true
+		case *ast.UnderlineNode:
+			hasUnderline = true
+		}
+	}
+	assert.True(t, hasBold, "expected bold inline in description")
+	assert.True(t, hasUnderline, "expected underline inline in description")
+}
+
+func TestTitlePageValueInlines(t *testing.T) {
+	input := `# A Play
+Subtitle: A tragedy in *five* acts
+Author: Jane Doe
+`
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+	require.Len(t, doc.Body, 1)
+	top, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.NotNil(t, top.Metadata)
+	require.Len(t, top.Metadata.Entries, 2)
+
+	var subtitle *ast.KeyValue
+	for i := range top.Metadata.Entries {
+		if strings.EqualFold(top.Metadata.Entries[i].Key, "subtitle") {
+			subtitle = &top.Metadata.Entries[i]
+		}
+	}
+	require.NotNil(t, subtitle)
+
+	require.NotEmpty(t, subtitle.ValueInlines)
+	var hasItalic bool
+	for _, inline := range subtitle.ValueInlines {
+		if _, ok := inline.(*ast.ItalicNode); ok {
+			hasItalic = true
+		}
+	}
+	assert.True(t, hasItalic, "expected italic inline in subtitle value")
+}
