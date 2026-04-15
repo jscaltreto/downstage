@@ -18,6 +18,11 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
   let lastSyncMode: SyncMode | null = null;
   let lastDocument: Document | null = null;
 
+  function topLineAtScroll(view: EditorView): number {
+    const topBlock = view.elementAtHeight(view.scrollDOM.scrollTop);
+    return view.state.doc.lineAt(topBlock.from).number;
+  }
+
   function syncToLine(view: EditorView, lineNumber: number, mode: SyncMode) {
     let idoc: Document | null = null;
     try {
@@ -89,11 +94,8 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
         const resyncTop = () => {
           if (rafId) cancelAnimationFrame(rafId);
           rafId = requestAnimationFrame(() => {
-            const topBlock = view.elementAtHeight(view.scrollDOM.scrollTop);
-            const topLine = view.state.doc.lineAt(topBlock.from).number;
-            // Force re-sync after a viewport resize even if the top line hasn't changed,
-            // because the preview's viewport may have shrunk (e.g., drawer opening) and
-            // its scrollTop needs to be recomputed.
+            const topLine = topLineAtScroll(view);
+            // Force a re-sync after a viewport resize so the preview's scrollTop is recomputed.
             lastSyncLine = -1;
             lastSyncMode = null;
             syncToLine(view, topLine, 'top');
@@ -104,8 +106,7 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
         this.scrollHandler = () => {
           if (rafId) cancelAnimationFrame(rafId);
           rafId = requestAnimationFrame(() => {
-            const topBlock = view.elementAtHeight(view.scrollDOM.scrollTop);
-            const topLine = view.state.doc.lineAt(topBlock.from).number;
+            const topLine = topLineAtScroll(view);
             syncToLine(view, topLine, 'top');
             rafId = null;
           });

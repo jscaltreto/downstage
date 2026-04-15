@@ -71,11 +71,10 @@ export const SymbolKind = {
   Function: 12,
   Struct: 23,
 } as const;
-export type SymbolKindValue = (typeof SymbolKind)[keyof typeof SymbolKind] | number;
 
 export interface DocumentSymbol {
   name: string;
-  kind: SymbolKindValue;
+  kind: number;
   range: LSPRange;
   selectionRange: LSPRange;
   children?: DocumentSymbol[];

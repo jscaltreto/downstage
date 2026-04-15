@@ -55,6 +55,8 @@ const diagnostics = ref<EditorDiagnostic[]>([]);
 const outlineSymbols = ref<DocumentSymbol[]>([]);
 const isTyping = ref(false);
 let typingTimer: number | null = null;
+const outlineDebounceMs = 300;
+const typingIndicatorMs = 1500;
 
 function markTyping() {
     isTyping.value = true;
@@ -62,7 +64,7 @@ function markTyping() {
     typingTimer = window.setTimeout(() => {
         isTyping.value = false;
         typingTimer = null;
-    }, 1500);
+    }, typingIndicatorMs);
 }
 const hiddenSeverities = ref<ReadonlySet<FilterSeverity>>(new Set());
 const visibleDiagnostics = computed(() =>
@@ -104,12 +106,11 @@ function scheduleOutlineRefresh(content: string) {
             const { symbols } = await props.env.documentSymbols(content);
             if (requestId !== outlineRequestId) return;
             outlineSymbols.value = symbols;
-        } catch (err) {
+        } catch {
             if (requestId !== outlineRequestId) return;
             outlineSymbols.value = [];
-            console.warn("failed to compute document outline:", err);
         }
-    }, 300);
+    }, outlineDebounceMs);
 }
 
 function setV1DocumentDetected(detected: boolean) {
@@ -245,6 +246,7 @@ watch(() => props.content, (newContent) => {
     engine.setContent(newContent);
   }
   scheduleRender(newContent, props.style);
+  scheduleOutlineRefresh(newContent);
 });
 
 watch(() => store.state.activeDraftId, () => {
@@ -439,12 +441,12 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                     v-if="!drawerOpen"
                     class="absolute right-6 bottom-6 z-20 flex flex-col items-end gap-3"
                 >
-                    <Transition name="fab-fade" :css="true">
+                    <Transition name="fab-fade">
                         <button
                             v-if="issuesStatusValue !== 'clean' && !isTyping"
                             type="button"
                             @click="openIssuesTab"
-                            class="issue-fab flex items-center justify-center gap-1.5 rounded-full h-10 px-3 min-w-10 text-sm font-bold shadow-2xl hover:scale-105"
+                            class="flex items-center justify-center gap-1.5 rounded-full h-10 px-3 min-w-10 text-sm font-bold shadow-2xl transition-transform duration-150 ease-out hover:scale-105"
                             :class="{
                                 'bg-purple-200 text-purple-950 hover:bg-purple-300': issuesStatusValue === 'info',
                                 'bg-amber-500 text-ember-950 hover:bg-amber-400': issuesStatusValue === 'warning',
@@ -683,9 +685,6 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
 </template>
 
 <style>
-.issue-fab { transition: transform 150ms ease-out; }
-.issue-fab:hover { transition: transform 150ms ease-out; }
-
 .fab-fade-enter-active {
     transition: opacity 500ms ease-out;
 }

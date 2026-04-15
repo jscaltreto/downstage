@@ -18,23 +18,22 @@ const emit = defineEmits<{
   (e: 'jump', symbol: DocumentSymbol): void;
 }>();
 
-function isSong(symbol: DocumentSymbol): boolean {
+function isSongSymbol(symbol: DocumentSymbol): boolean {
   return (
     symbol.kind === SymbolKind.Function &&
     (symbol.name.endsWith(' (song)') || symbol.name === 'Song')
   );
 }
 
-function shouldInclude(symbol: DocumentSymbol): boolean {
-  // Exclude character dialogue leaves; keep everything else (acts, scenes, DP, songs, generic).
-  return symbol.kind !== SymbolKind.Function || isSong(symbol);
+function isRenderableSymbol(symbol: DocumentSymbol): boolean {
+  return symbol.kind !== SymbolKind.Function || isSongSymbol(symbol);
 }
 
 const flat = computed<FlatSymbol[]>(() => {
   const out: FlatSymbol[] = [];
   const walk = (nodes: DocumentSymbol[], depth: number, prefix: string) => {
     nodes.forEach((symbol, index) => {
-      if (!shouldInclude(symbol)) return;
+      if (!isRenderableSymbol(symbol)) return;
       const key = `${prefix}${index}:${symbol.range.start.line}:${symbol.range.start.character}`;
       out.push({ symbol, depth, key });
       if (symbol.children && symbol.children.length > 0) {
@@ -75,7 +74,7 @@ function iconColor(kind: number) {
 }
 
 function resolveIcon(symbol: DocumentSymbol) {
-  if (isSong(symbol)) {
+  if (isSongSymbol(symbol)) {
     return Music;
   }
   return iconFor(symbol.kind);
