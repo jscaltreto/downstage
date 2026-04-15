@@ -82,7 +82,15 @@ func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Pos
 		{Range: toLSPRange(target.declRange), NewText: cleaned},
 	}
 
-	visitDialogues(doc, func(dlg *ast.Dialogue) {
+	// Restrict cue updates to the play that owns the target's DP scope.
+	// In a compilation document each top-level play has its own dramatis
+	// personae, so a "BOB" in Play A is a different character than
+	// "BOB" in Play B. Walking the whole document would rewrite cues
+	// belonging to other plays. When the document uses the legacy
+	// document-wide DP (no top-level section owns one), play is nil and
+	// we fall back to a doc-wide walk.
+	scope := renameScope(doc, target.declRange.Start.Line)
+	visitDialoguesInScope(doc, scope, func(dlg *ast.Dialogue) {
 		cueName := strings.TrimSpace(dlg.Character)
 		if cueName == "" {
 			return
@@ -321,9 +329,20 @@ func hasNameConflict(doc *ast.Document, target *renameTarget, newName string) bo
 	return false
 }
 
-// visitDialogues walks every dialogue node in the document, including
-// those nested inside dual dialogues and songs.
-func visitDialogues(doc *ast.Document, fn func(*ast.Dialogue)) {
+// renameScope returns the top-level play section that owns the DP
+// resolving the rename target. Returns nil when the document uses a
+// document-wide DP (legacy / single-play layout), signalling a doc-wide
+// walk is correct.
+func renameScope(doc *ast.Document, line int) *ast.Section {
+	if !hasScopedDramatisPersonae(doc) {
+		return nil
+	}
+	return topLevelSectionForLine(doc, line)
+}
+
+// visitDialoguesInScope walks every dialogue node within the given play
+// section. When play is nil, it walks the entire document.
+func visitDialoguesInScope(doc *ast.Document, play *ast.Section, fn func(*ast.Dialogue)) {
 	var walk func(node ast.Node)
 	walk = func(node ast.Node) {
 		switch v := node.(type) {
@@ -345,6 +364,11 @@ func visitDialogues(doc *ast.Document, fn func(*ast.Dialogue)) {
 				walk(child)
 			}
 		}
+	}
+
+	if play != nil {
+		walk(play)
+		return
 	}
 	for _, node := range doc.Body {
 		walk(node)

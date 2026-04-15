@@ -456,6 +456,147 @@ SONG END
 	}
 }
 
+func TestComputeRename_CompilationScopesToOwningPlay(t *testing.T) {
+	// Each play in a compilation has its own dramatis personae. Renaming
+	// BOB in Play A must not rewrite the (different) BOB in Play B.
+	src := `# Play A
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from A.
+
+# Play B
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from B.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	// Cursor on Play A's DP entry.
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "ROBERT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	// Expect: Play A DP entry + Play A cue. Play B's DP entry and cue stay put.
+	if got, want := len(edits), 2; got != want {
+		t.Fatalf("expected %d edits scoped to Play A, got %d: %+v", want, got, edits)
+	}
+	for _, e := range edits {
+		if e.Range.Start.Line >= 13 {
+			t.Errorf("edit leaked into Play B at line %d: %+v", e.Range.Start.Line, e)
+		}
+	}
+}
+
+func TestComputeRename_CompilationCueScopesToOwningPlay(t *testing.T) {
+	// Triggering rename from a cue should also stay within that cue's
+	// owning play.
+	src := `# Play A
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from A.
+
+# Play B
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from B.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	// Cursor on Play B's cue (line 23).
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 23, Character: 1}, "ROBERT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	if got, want := len(edits), 2; got != want {
+		t.Fatalf("expected %d edits scoped to Play B, got %d: %+v", want, got, edits)
+	}
+	for _, e := range edits {
+		if e.Range.Start.Line < 13 {
+			t.Errorf("edit leaked into Play A at line %d: %+v", e.Range.Start.Line, e)
+		}
+	}
+}
+
+func TestComputeRename_CompilationConflictScopedToPlay(t *testing.T) {
+	// A name that exists in another play should NOT be flagged as a
+	// conflict; each play's DP scope is independent.
+	src := `# Play A
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hi.
+
+# Play B
+
+## Dramatis Personae
+
+JANE
+
+## ACT I
+
+### SCENE 1
+
+JANE
+Hi.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	// Renaming Play A's BOB → JANE is fine because Play A has no JANE.
+	if _, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "JANE"); err != nil {
+		t.Fatalf("expected rename to succeed across plays, got %v", err)
+	}
+}
+
 func TestPrepareRename_NilDoc(t *testing.T) {
 	if r := computePrepareRename(nil, protocol.Position{}); r != nil {
 		t.Errorf("expected nil for nil doc, got %+v", r)
