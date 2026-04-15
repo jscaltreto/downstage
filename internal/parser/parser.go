@@ -940,9 +940,9 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 
 func parseCharacterEntry(tok token.Token) ast.Character {
 	ch := ast.Character{Range: tok.Range}
-	namePart := tok.Literal
+	nameEnd := len(tok.Literal)
 	if idx := strings.Index(tok.Literal, " - "); idx >= 0 {
-		namePart = strings.TrimSpace(tok.Literal[:idx])
+		nameEnd = idx
 		descStart := idx + 3
 		descRaw := tok.Literal[descStart:]
 		trimmedLeading := len(descRaw) - len(strings.TrimLeft(descRaw, " \t"))
@@ -955,8 +955,70 @@ func parseCharacterEntry(tok token.Token) ast.Character {
 			ch.DescriptionInlines = parseInlineContent(descTrimmed, descRange)
 		}
 	}
-	ch.Name, ch.Aliases = parseAliasSpec(strings.TrimSpace(namePart))
+
+	namePart := tok.Literal[:nameEnd]
+	name, nameRange, aliases, aliasRanges := parseAliasSpecRanges(namePart, tok.Range, tok.Literal)
+	ch.Name = name
+	ch.Aliases = aliases
+	if !isZeroRange(nameRange) {
+		ch.SetNameRange(nameRange)
+	}
+	if len(aliasRanges) > 0 {
+		ch.SetAliasRanges(aliasRanges)
+	}
 	return ch
+}
+
+func isZeroRange(r token.Range) bool {
+	return r.Start == (token.Position{}) && r.End == (token.Position{})
+}
+
+// parseAliasSpecRanges splits a "NAME/ALIAS1/ALIAS2" segment and returns
+// each spelling alongside its source range within base. Empty segments are
+// dropped, matching parseAliasSpec semantics.
+func parseAliasSpecRanges(segment string, base token.Range, baseLiteral string) (string, token.Range, []string, []token.Range) {
+	var (
+		name        string
+		nameRange   token.Range
+		aliases     []string
+		aliasRanges []token.Range
+		cursor      int
+	)
+
+	for i, part := range strings.Split(segment, "/") {
+		offsetInSegment := cursor
+		cursor += len(part) + 1 // include the slash separator
+
+		trimmedLeading := len(part) - len(strings.TrimLeft(part, " \t"))
+		trimmed := strings.TrimSpace(part)
+		startByte := offsetInSegment + trimmedLeading
+		endByte := startByte + len(trimmed)
+
+		if i == 0 {
+			name = trimmed
+			if trimmed != "" {
+				nameRange = sliceInlineRange(baseLiteral, base, startByte, endByte)
+			}
+			continue
+		}
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToUpper(trimmed)
+		duplicate := false
+		for _, existing := range aliases {
+			if strings.ToUpper(existing) == key {
+				duplicate = true
+				break
+			}
+		}
+		if duplicate {
+			continue
+		}
+		aliases = append(aliases, trimmed)
+		aliasRanges = append(aliasRanges, sliceInlineRange(baseLiteral, base, startByte, endByte))
+	}
+	return name, nameRange, aliases, aliasRanges
 }
 
 func hasUnsupportedDPDash(raw string) bool {
@@ -1372,24 +1434,6 @@ func isSectionKeyword(title, keyword string) bool {
 	return false
 }
 
-func parseAliasSpec(raw string) (string, []string) {
-	parts := strings.Split(raw, "/")
-	if len(parts) == 0 {
-		return "", nil
-	}
-
-	name := strings.TrimSpace(parts[0])
-	var aliases []string
-	for _, part := range parts[1:] {
-		alias := strings.TrimSpace(part)
-		if alias == "" {
-			continue
-		}
-		aliases = appendUniqueAliases(aliases, alias)
-	}
-	return name, aliases
-}
-
 func (p *parser) skipTitlePageOverflow() {
 	for p.at(token.TitleKey) || p.at(token.TitleValue) {
 		p.advance()
@@ -1431,25 +1475,6 @@ func findInlineDelimiter(s string, start int, delimiter string) int {
 	}
 
 	return strings.Index(s[start:end], delimiter)
-}
-
-func appendUniqueAliases(existing []string, aliases ...string) []string {
-	seen := make(map[string]struct{}, len(existing))
-	for _, alias := range existing {
-		seen[strings.ToUpper(alias)] = struct{}{}
-	}
-	for _, alias := range aliases {
-		key := strings.ToUpper(strings.TrimSpace(alias))
-		if key == "" {
-			continue
-		}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		existing = append(existing, strings.TrimSpace(alias))
-	}
-	return existing
 }
 
 func shiftRangeStart(r token.Range, columnDelta, offsetDelta int) token.Range {

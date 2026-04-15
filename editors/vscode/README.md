@@ -45,6 +45,8 @@ Downstage includes:
 - Character cue suggestions in scene context
 - Structure-aware headings and folding
 - Diagnostics in the Problems panel
+- Rename Symbol on a character name (F2) updates the dramatis personae
+  entry and every matching cue at once
 - Snippets for acts, scenes, cues, stage directions, and songs
 
 ### Snippets for common structures

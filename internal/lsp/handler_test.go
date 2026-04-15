@@ -99,6 +99,14 @@ func TestHandleInitialize_AdvertisesFoldingRangeProvider(t *testing.T) {
 	if got.Capabilities.FoldingRangeProvider != true {
 		t.Fatalf("expected folding range provider to be advertised, got %#v", got.Capabilities.FoldingRangeProvider)
 	}
+
+	rename, ok := got.Capabilities.RenameProvider.(protocol.RenameOptions)
+	if !ok {
+		t.Fatalf("expected rename provider to be RenameOptions, got %T", got.Capabilities.RenameProvider)
+	}
+	if !rename.PrepareProvider {
+		t.Fatal("expected rename provider to advertise prepareProvider")
+	}
 }
 
 func TestHandle_UnknownMethodReturnsMethodNotFound(t *testing.T) {
