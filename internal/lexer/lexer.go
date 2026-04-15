@@ -19,13 +19,13 @@ const (
 // Lex tokenizes the input bytes into a slice of tokens.
 func Lex(input []byte) []token.Token {
 	l := &lexer{
-		input:   input,
-		lines:   bytes.Split(input, []byte("\n")),
-		ctx:     ctxTitlePage,
-		offset:  0,
-		tokens:  make([]token.Token, 0, 256),
-		inBlock: false,
-		prev:    token.Blank,
+		input:      input,
+		lines:      bytes.Split(input, []byte("\n")),
+		ctx:        ctxTitlePage,
+		offset:     0,
+		tokens:     make([]token.Token, 0, 256),
+		inBlock:    false,
+		cueAllowed: true,
 	}
 	l.lex()
 	return l.tokens
@@ -38,11 +38,12 @@ type lexer struct {
 	offset  int // byte offset of the current line start
 	tokens  []token.Token
 	inBlock bool // inside a block comment
-	// prev is the last emitted non-comment token type. It's used to decide
-	// whether a cue is allowed on the current line: a cue must be preceded by
-	// a block boundary (blank line, heading, page break, etc.), not by dialogue
-	// body content. Initialized to Blank so start-of-document allows a cue.
-	prev token.Type
+	// cueAllowed is true when the current line can start a cue: the previous
+	// non-comment line was blank, or the line is the start of the document.
+	// Comments (line and block) are transparent — they don't change the flag,
+	// so a comment with a blank line before it still allows the following line
+	// to be a cue.
+	cueAllowed bool
 }
 
 func (l *lexer) lex() {
@@ -177,7 +178,7 @@ func (l *lexer) classifyBodyLine(line, trimmed string, lineNum, lineLen int) {
 			l.emit(token.DualDialogueChar, name, line, lineNum, 0, len(name))
 			return
 		}
-		if isCharacterName(name) && canStartCue(l.prev) {
+		if isCharacterName(name) && l.cueAllowed {
 			l.emit(token.DualDialogueChar, name, line, lineNum, 0, len(name))
 			return
 		}
@@ -234,10 +235,11 @@ func (l *lexer) classifyBodyLine(line, trimmed string, lineNum, lineLen int) {
 		return
 	}
 
-	// ALL CAPS character name: must be preceded by a block boundary so that
-	// shouted dialogue ("WHAT") following a cue line isn't misread as a new
-	// cue. Use `@NAME` to force a cue without a blank line.
-	if isCharacterName(trimmed) && canStartCue(l.prev) {
+	// ALL CAPS character name: must be preceded by a blank line (or the start
+	// of the document) so that shouted dialogue ("WHAT") following a cue line
+	// isn't misread as a new cue. Comments are transparent. Use `@NAME` to
+	// force a cue without a blank line.
+	if isCharacterName(trimmed) && l.cueAllowed {
 		l.emit(token.CharacterName, trimmed, line, lineNum, 0, lineLen)
 		return
 	}
@@ -258,9 +260,9 @@ func (l *lexer) emit(typ token.Type, literal, sourceLine string, line, colStart,
 		},
 	})
 	// Comments are transparent for cue-context tracking: a comment between a
-	// cue line and its dialogue body shouldn't re-enable a cue on the next
-	// line. Block-comment body lines (emitted while inBlock) are likewise
-	// invisible.
+	// blank line and a cue preserves cueAllowed, and a comment between a
+	// dialogue body line and a shouted ALL-CAPS line does not reopen a cue.
+	// Block-comment body lines (emitted while inBlock) are likewise invisible.
 	switch typ {
 	case token.LineComment, token.BlockCommentStart, token.BlockCommentEnd:
 		return
@@ -268,23 +270,7 @@ func (l *lexer) emit(typ token.Type, literal, sourceLine string, line, colStart,
 	if l.inBlock {
 		return
 	}
-	l.prev = typ
-}
-
-// canStartCue reports whether a cue (CharacterName or non-forced
-// DualDialogueChar) is allowed on the current line, given the last meaningful
-// token type. A cue must follow a block boundary so that ALL-CAPS dialogue
-// content doesn't get misread as a new cue.
-func canStartCue(prev token.Type) bool {
-	switch prev {
-	case token.Text,
-		token.Verse,
-		token.CharacterName,
-		token.ForcedCharacter,
-		token.DualDialogueChar:
-		return false
-	}
-	return true
+	l.cueAllowed = typ == token.Blank
 }
 
 // isCharacterName returns true if s looks like an ALL CAPS character name.

@@ -248,25 +248,30 @@ func TestDramatisPersonae(t *testing.T) {
 	input := "# Dramatis Personae\n## The Court\nKING LEAR\nCORDELIA\n# Act One"
 	tokens := Lex([]byte(input))
 
-	// All headings are generic now — no special DP tokens. KING LEAR is a cue
-	// token (preceded by a heading); CORDELIA is Text because it's on the
-	// line immediately after another cue-shaped line. The DP parser accepts
-	// either token type as a character entry, so semantic behaviour is
+	// All headings are generic now — no special DP tokens. KING LEAR and
+	// CORDELIA both tokenize as Text because neither has a blank line before
+	// it (the strict cue rule). The DP parser accepts Text as a character
+	// entry, so semantic behaviour in Dramatis Personae sections is
 	// unchanged.
 	assert.Equal(t, token.HeadingH1, tokens[0].Type)
 	assert.Equal(t, "Dramatis Personae", tokens[0].Literal)
 	assert.Equal(t, token.HeadingH2, tokens[1].Type)
 	assert.Equal(t, "The Court", tokens[1].Literal)
-	assert.Equal(t, token.CharacterName, tokens[2].Type)
+	assert.Equal(t, token.Text, tokens[2].Type)
 	assert.Equal(t, token.Text, tokens[3].Type)
 	assert.Equal(t, token.HeadingH1, tokens[4].Type)
 }
 
-func TestCueRequiresBlockBoundary(t *testing.T) {
-	// Adjacent ALL-CAPS lines: the second should be dialogue text, not a cue.
-	tokens := Lex([]byte("JIM\nWHAT\n"))
+func TestCueRequiresBlankLineBefore(t *testing.T) {
+	// Start of document is an implicit blank line.
+	tokens := Lex([]byte("JIM\nHello\n"))
 	assert.Equal(t, token.CharacterName, tokens[0].Type)
 	assert.Equal(t, "JIM", tokens[0].Literal)
+	assert.Equal(t, token.Text, tokens[1].Type)
+
+	// Adjacent ALL-CAPS lines: the second is dialogue text, not a cue.
+	tokens = Lex([]byte("JIM\nWHAT\n"))
+	assert.Equal(t, token.CharacterName, tokens[0].Type)
 	assert.Equal(t, token.Text, tokens[1].Type)
 	assert.Equal(t, "WHAT", tokens[1].Literal)
 
@@ -276,36 +281,68 @@ func TestCueRequiresBlockBoundary(t *testing.T) {
 	assert.Equal(t, token.Text, tokens[1].Type)
 	assert.Equal(t, token.Text, tokens[2].Type)
 
-	// Comment between cue and shouted dialogue is transparent: still text.
-	tokens = Lex([]byte("JIM\n// beat\nWHAT\n"))
-	assert.Equal(t, token.CharacterName, tokens[0].Type)
-	assert.Equal(t, token.LineComment, tokens[1].Type)
-	assert.Equal(t, token.Text, tokens[2].Type)
+	// A comment with a blank line before it is transparent — the cue after
+	// it is still valid.
+	tokens = Lex([]byte("# Play\n\n// note: make jim meaner\nJIM\nI am angry\n"))
+	assert.Equal(t, token.HeadingH1, tokens[0].Type)
+	assert.Equal(t, token.Blank, tokens[1].Type)
+	assert.Equal(t, token.LineComment, tokens[2].Type)
+	assert.Equal(t, token.CharacterName, tokens[3].Type)
+	assert.Equal(t, token.Text, tokens[4].Type)
 
-	// Blank line restores cue context.
-	tokens = Lex([]byte("JIM\nHello.\n\nJANE\nHi.\n"))
+	// Block comment with a blank line before it is transparent as well.
+	tokens = Lex([]byte("# Play\n\n/*\nnote:\naddress comments\n*/\nJIM\nHello\n"))
+	assert.Equal(t, token.HeadingH1, tokens[0].Type)
+	assert.Equal(t, token.Blank, tokens[1].Type)
+	assert.Equal(t, token.BlockCommentStart, tokens[2].Type)
+	// body lines of the block comment emit Text, but they're invisible to the
+	// cue-context tracker.
+	for i := 3; i < 5; i++ {
+		assert.Equal(t, token.Text, tokens[i].Type)
+	}
+	assert.Equal(t, token.BlockCommentEnd, tokens[5].Type)
+	assert.Equal(t, token.CharacterName, tokens[6].Type)
+
+	// A comment between dialogue body and an ALL-CAPS line does NOT reopen a
+	// cue — the comment has no blank line before it.
+	tokens = Lex([]byte("JIM\nHello.\n// inline note\nWHAT\n"))
 	assert.Equal(t, token.CharacterName, tokens[0].Type)
 	assert.Equal(t, token.Text, tokens[1].Type)
-	assert.Equal(t, token.Blank, tokens[2].Type)
-	assert.Equal(t, token.CharacterName, tokens[3].Type)
+	assert.Equal(t, token.LineComment, tokens[2].Type)
+	assert.Equal(t, token.Text, tokens[3].Type)
 
-	// Forced character always wins, even with no blank line.
+	// Heading without a blank line is NOT a cue boundary under the strict
+	// rule. ALICE becomes text (and the parser will render it as an implicit
+	// stage direction).
+	tokens = Lex([]byte("### SCENE 1\nALICE\nHello\n"))
+	assert.Equal(t, token.HeadingH3, tokens[0].Type)
+	assert.Equal(t, token.Text, tokens[1].Type)
+	assert.Equal(t, token.Text, tokens[2].Type)
+
+	// Page break without a blank line is also NOT a cue boundary.
+	tokens = Lex([]byte("===\n// note\nJIM\nHello\n"))
+	assert.Equal(t, token.PageBreak, tokens[0].Type)
+	assert.Equal(t, token.LineComment, tokens[1].Type)
+	assert.Equal(t, token.Text, tokens[2].Type)
+	assert.Equal(t, token.Text, tokens[3].Type)
+
+	// Forced character always wins, even without a blank line.
 	tokens = Lex([]byte("JIM\nHello.\n@JANE\nHi.\n"))
 	assert.Equal(t, token.CharacterName, tokens[0].Type)
 	assert.Equal(t, token.Text, tokens[1].Type)
 	assert.Equal(t, token.ForcedCharacter, tokens[2].Type)
 
-	// Stage direction is a block boundary — cue allowed immediately after.
-	tokens = Lex([]byte("> Lights up.\nALICE\nHi.\n"))
-	assert.Equal(t, token.StageDirection, tokens[0].Type)
-	assert.Equal(t, token.CharacterName, tokens[1].Type)
-	assert.Equal(t, token.Text, tokens[2].Type)
-
-	// Dual dialogue also needs a block boundary.
+	// Dual dialogue also needs a blank line before it.
 	tokens = Lex([]byte("JIM\nHello.\nJANE ^\nHi.\n"))
 	assert.Equal(t, token.CharacterName, tokens[0].Type)
 	assert.Equal(t, token.Text, tokens[1].Type)
 	assert.Equal(t, token.Text, tokens[2].Type)
+
+	tokens = Lex([]byte("JIM\nHello.\n\nJANE ^\nHi.\n"))
+	assert.Equal(t, token.CharacterName, tokens[0].Type)
+	assert.Equal(t, token.Text, tokens[1].Type)
+	assert.Equal(t, token.Blank, tokens[2].Type)
+	assert.Equal(t, token.DualDialogueChar, tokens[3].Type)
 }
 
 func TestPositionTracking(t *testing.T) {

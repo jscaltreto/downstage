@@ -433,14 +433,14 @@
                               "Value": "The storm rages on,",
                               "Range": {
                                 "Start": {
-                                  "Line": 33,
+                                  "Line": 34,
                                   "Column": 2,
-                                  "Offset": 480
+                                  "Offset": 481
                                 },
                                 "End": {
-                                  "Line": 33,
+                                  "Line": 34,
                                   "Column": 21,
-                                  "Offset": 499
+                                  "Offset": 500
                                 }
                               }
                             }
@@ -448,14 +448,14 @@
                           "IsVerse": true,
                           "Range": {
                             "Start": {
-                              "Line": 33,
+                              "Line": 34,
                               "Column": 0,
-                              "Offset": 478
+                              "Offset": 479
                             },
                             "End": {
-                              "Line": 33,
+                              "Line": 34,
                               "Column": 21,
-                              "Offset": 499
+                              "Offset": 500
                             }
                           }
                         },
@@ -465,14 +465,14 @@
                               "Value": "The wind howls and moans.",
                               "Range": {
                                 "Start": {
-                                  "Line": 34,
+                                  "Line": 35,
                                   "Column": 2,
-                                  "Offset": 502
+                                  "Offset": 503
                                 },
                                 "End": {
-                                  "Line": 34,
+                                  "Line": 35,
                                   "Column": 27,
-                                  "Offset": 527
+                                  "Offset": 528
                                 }
                               }
                             }
@@ -480,28 +480,28 @@
                           "IsVerse": true,
                           "Range": {
                             "Start": {
-                              "Line": 34,
+                              "Line": 35,
                               "Column": 0,
-                              "Offset": 500
+                              "Offset": 501
                             },
                             "End": {
-                              "Line": 34,
+                              "Line": 35,
                               "Column": 27,
-                              "Offset": 527
+                              "Offset": 528
                             }
                           }
                         }
                       ],
                       "Range": {
                         "Start": {
-                          "Line": 32,
+                          "Line": 33,
                           "Column": 0,
-                          "Offset": 468
+                          "Offset": 469
                         },
                         "End": {
-                          "Line": 34,
+                          "Line": 35,
                           "Column": 27,
-                          "Offset": 527
+                          "Offset": 528
                         }
                       }
                     }
@@ -513,23 +513,23 @@
                       "Offset": 451
                     },
                     "End": {
-                      "Line": 35,
+                      "Line": 37,
                       "Column": 8,
-                      "Offset": 536
+                      "Offset": 538
                     }
                   }
                 },
                 {
                   "Range": {
                     "Start": {
-                      "Line": 37,
+                      "Line": 39,
                       "Column": 0,
-                      "Offset": 538
+                      "Offset": 540
                     },
                     "End": {
-                      "Line": 37,
+                      "Line": 39,
                       "Column": 3,
-                      "Offset": 541
+                      "Offset": 543
                     }
                   }
                 }
@@ -544,9 +544,9 @@
                   "Offset": 200
                 },
                 "End": {
-                  "Line": 38,
+                  "Line": 40,
                   "Column": 0,
-                  "Offset": 542
+                  "Offset": 544
                 }
               }
             },
@@ -566,14 +566,14 @@
                           "Value": "My lord, I bring news.",
                           "Range": {
                             "Start": {
-                              "Line": 42,
+                              "Line": 44,
                               "Column": 0,
-                              "Offset": 561
+                              "Offset": 563
                             },
                             "End": {
-                              "Line": 42,
+                              "Line": 44,
                               "Column": 22,
-                              "Offset": 583
+                              "Offset": 585
                             }
                           }
                         }
@@ -581,28 +581,28 @@
                       "IsVerse": false,
                       "Range": {
                         "Start": {
-                          "Line": 42,
+                          "Line": 44,
                           "Column": 0,
-                          "Offset": 561
+                          "Offset": 563
                         },
                         "End": {
-                          "Line": 42,
+                          "Line": 44,
                           "Column": 22,
-                          "Offset": 583
+                          "Offset": 585
                         }
                       }
                     }
                   ],
                   "Range": {
                     "Start": {
-                      "Line": 41,
+                      "Line": 43,
                       "Column": 0,
-                      "Offset": 556
+                      "Offset": 558
                     },
                     "End": {
-                      "Line": 42,
+                      "Line": 44,
                       "Column": 22,
-                      "Offset": 583
+                      "Offset": 585
                     }
                   }
                 }
@@ -612,14 +612,14 @@
               "Lines": null,
               "Range": {
                 "Start": {
-                  "Line": 39,
+                  "Line": 41,
                   "Column": 0,
-                  "Offset": 543
+                  "Offset": 545
                 },
                 "End": {
-                  "Line": 43,
+                  "Line": 45,
                   "Column": 0,
-                  "Offset": 584
+                  "Offset": 586
                 }
               }
             }
@@ -634,9 +634,9 @@
               "Offset": 190
             },
             "End": {
-              "Line": 43,
+              "Line": 45,
               "Column": 0,
-              "Offset": 584
+              "Offset": 586
             }
           }
         }
@@ -651,9 +651,9 @@
           "Offset": 0
         },
         "End": {
-          "Line": 43,
+          "Line": 45,
           "Column": 0,
-          "Offset": 584
+          "Offset": 586
         }
       }
     }
@@ -665,9 +665,9 @@
       "Offset": 0
     },
     "End": {
-      "Line": 44,
+      "Line": 46,
       "Column": 0,
-      "Offset": 584
+      "Offset": 586
     }
   }
 }

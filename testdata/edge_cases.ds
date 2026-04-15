@@ -43,7 +43,10 @@ Is everyone here?
 ALICE
 Yes.
 
-// Dialogue immediately after heading (no blank line separator)
+// ALL-CAPS line immediately after a heading (no blank line separator).
+// Under the strict cue rule, ALICE is NOT a cue — it becomes an implicit
+// stage direction, as does the following line. Use a blank line (or `@ALICE`)
+// to make this a real cue.
 ### SCENE 2
 ALICE
 No blank line before me.
