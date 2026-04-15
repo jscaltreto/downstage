@@ -123,7 +123,9 @@ func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		fmt.Fprintf(&r.buf, "<h1%s>%s</h1>\n", r.sourceAttr(titleKV.Range), html.EscapeString(titleKV.Value))
 	}
 	if subtitleKV != nil && subtitleKV.Value != "" {
-		fmt.Fprintf(&r.buf, "<p class=\"subtitle\"%s>%s</p>\n", r.sourceAttr(subtitleKV.Range), html.EscapeString(subtitleKV.Value))
+		fmt.Fprintf(&r.buf, "<p class=\"subtitle\"%s>", r.sourceAttr(subtitleKV.Range))
+		r.renderInlineContent(keyValueInlines(*subtitleKV))
+		r.buf.WriteString("</p>\n")
 	}
 	if len(authorKVs) > 0 {
 		fmt.Fprintf(&r.buf, "<p class=\"author\"%s>by</p>\n", r.sourceAttr(authorKVs[0].Range))
@@ -137,7 +139,9 @@ func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		for _, kv := range other {
 			fmt.Fprintf(&r.buf, "<div%s>", r.sourceAttr(kv.Range))
 			fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(kv.Key))
-			fmt.Fprintf(&r.buf, "<dd>%s</dd>", html.EscapeString(kv.Value))
+			r.buf.WriteString("<dd>")
+			r.renderInlineContent(keyValueInlines(kv))
+			r.buf.WriteString("</dd>")
 			r.buf.WriteString("</div>\n")
 		}
 		r.buf.WriteString("</dl>\n")
@@ -320,7 +324,9 @@ func (r *htmlRenderer) renderMetadata(className string, tp *ast.TitlePage) {
 		}
 		r.buf.WriteString("<div>")
 		fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(kv.Key))
-		fmt.Fprintf(&r.buf, "<dd>%s</dd>", html.EscapeString(kv.Value))
+		r.buf.WriteString("<dd>")
+		r.renderInlineContent(keyValueInlines(kv))
+		r.buf.WriteString("</dd>")
 		r.buf.WriteString("</div>\n")
 	}
 	r.buf.WriteString("</dl>\n")
@@ -330,7 +336,9 @@ func (r *htmlRenderer) renderSubplayMetadata(tp *ast.TitlePage) {
 	_, subtitleKV, authorKVs, other := partitionHTMLTitlePageEntries(tp)
 	if subtitleKV != nil {
 		if s := strings.TrimSpace(subtitleKV.Value); s != "" {
-			fmt.Fprintf(&r.buf, "<p class=\"downstage-subplay-subtitle\">%s</p>\n", html.EscapeString(s))
+			r.buf.WriteString("<p class=\"downstage-subplay-subtitle\">")
+			r.renderInlineContent(keyValueInlines(*subtitleKV))
+			r.buf.WriteString("</p>\n")
 		}
 	}
 	if len(authorKVs) > 0 {
@@ -376,7 +384,9 @@ func (r *htmlRenderer) renderCharacterEntry(ch ast.Character) {
 	r.buf.WriteString("<div class=\"character-entry\">")
 	fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(render.CharacterDisplayName(ch)))
 	if ch.Description != "" {
-		fmt.Fprintf(&r.buf, "<dd>%s</dd>", html.EscapeString(ch.Description))
+		r.buf.WriteString("<dd>")
+		r.renderInlineContent(characterDescriptionInlines(ch))
+		r.buf.WriteString("</dd>")
 	}
 	r.buf.WriteString("</div>\n")
 }
@@ -640,6 +650,30 @@ func (r *htmlRenderer) renderInlineContent(inlines []ast.Inline) {
 			}
 		}
 	}
+}
+
+// keyValueInlines returns the inline representation of a KeyValue's value,
+// falling back to a single TextNode when the parser didn't populate
+// ValueInlines (e.g. tests that build KeyValues by hand).
+func keyValueInlines(kv ast.KeyValue) []ast.Inline {
+	if len(kv.ValueInlines) > 0 {
+		return kv.ValueInlines
+	}
+	if kv.Value == "" {
+		return nil
+	}
+	return []ast.Inline{&ast.TextNode{Value: kv.Value}}
+}
+
+// characterDescriptionInlines is the same fallback for Character descriptions.
+func characterDescriptionInlines(ch ast.Character) []ast.Inline {
+	if len(ch.DescriptionInlines) > 0 {
+		return ch.DescriptionInlines
+	}
+	if ch.Description == "" {
+		return nil
+	}
+	return []ast.Inline{&ast.TextNode{Value: ch.Description}}
 }
 
 func dialogueParentheticalInlines(d *ast.Dialogue) []ast.Inline {

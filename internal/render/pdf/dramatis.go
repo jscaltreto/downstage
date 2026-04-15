@@ -46,7 +46,12 @@ func renderCharacterEntry(b *pdfBase, ch ast.Character, indent float64) {
 	b.setStyle("")
 
 	if ch.Description != "" {
-		b.pdf.Write(b.lineHeight, " \u2014 "+ch.Description)
+		b.pdf.Write(b.lineHeight, " \u2014 ")
+		inlines := ch.DescriptionInlines
+		if len(inlines) == 0 {
+			inlines = []ast.Inline{&ast.TextNode{Value: ch.Description}}
+		}
+		_ = b.renderInlineContent(inlines)
 	}
 
 	b.pdf.Ln(b.lineHeight)

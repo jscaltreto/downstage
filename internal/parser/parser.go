@@ -142,6 +142,7 @@ func (p *parser) parseTitlePage() *ast.TitlePage {
 			if p.at(token.TitleValue) {
 				valTok := p.advance()
 				kv.Value = valTok.Literal
+				kv.ValueInlines = parseInlineContent(valTok.Literal, valTok.Range)
 				kv.Range.End = valTok.Range.End
 			}
 			tp.Entries = append(tp.Entries, kv)
@@ -152,8 +153,13 @@ func (p *parser) parseTitlePage() *ast.TitlePage {
 				last := &tp.Entries[len(tp.Entries)-1]
 				if last.Value != "" {
 					last.Value += "\n"
+					last.ValueInlines = append(last.ValueInlines, &ast.TextNode{
+						Value: "\n",
+						Range: token.Range{Start: valTok.Range.Start, End: valTok.Range.Start},
+					})
 				}
 				last.Value += valTok.Literal
+				last.ValueInlines = append(last.ValueInlines, parseInlineContent(valTok.Literal, valTok.Range)...)
 				last.Range.End = valTok.Range.End
 			}
 		}
@@ -671,20 +677,25 @@ func (p *parser) parseSectionMetadata() *ast.TitlePage {
 		}
 
 		raw := p.peek().Literal
-		if key, value, ok := parseMetadataEntry(raw); ok {
+		if key, value, valueStart, ok := parseMetadataEntryBytes(raw); ok {
 			tok := p.advance()
 			if len(tp.Entries) == 0 {
 				start = tok.Range
 			}
-			tp.Entries = append(tp.Entries, ast.KeyValue{
+			kv := ast.KeyValue{
 				Key:   key,
 				Value: value,
 				Range: tok.Range,
-			})
+			}
+			if value != "" {
+				valueRange := sliceInlineRange(tok.Literal, tok.Range, valueStart, valueStart+len(value))
+				kv.ValueInlines = parseInlineContent(value, valueRange)
+			}
+			tp.Entries = append(tp.Entries, kv)
 			continue
 		}
 
-		if value, ok := parseMetadataContinuation(raw); ok {
+		if value, valueStart, ok := parseMetadataContinuationBytes(raw); ok {
 			if len(tp.Entries) == 0 {
 				p.pos = saved
 				return nil
@@ -693,8 +704,16 @@ func (p *parser) parseSectionMetadata() *ast.TitlePage {
 			last := &tp.Entries[len(tp.Entries)-1]
 			if last.Value != "" {
 				last.Value += "\n"
+				last.ValueInlines = append(last.ValueInlines, &ast.TextNode{
+					Value: "\n",
+					Range: token.Range{Start: tok.Range.Start, End: tok.Range.Start},
+				})
 			}
 			last.Value += value
+			if value != "" {
+				valueRange := sliceInlineRange(tok.Literal, tok.Range, valueStart, valueStart+len(value))
+				last.ValueInlines = append(last.ValueInlines, parseInlineContent(value, valueRange)...)
+			}
 			last.Range.End = tok.Range.End
 			continue
 		}
@@ -713,25 +732,40 @@ func (p *parser) parseSectionMetadata() *ast.TitlePage {
 }
 
 func parseMetadataEntry(raw string) (key, value string, ok bool) {
+	key, value, _, ok = parseMetadataEntryBytes(raw)
+	return key, value, ok
+}
+
+// parseMetadataEntryBytes is like parseMetadataEntry but also returns the
+// byte offset within raw at which the trimmed value begins.
+func parseMetadataEntryBytes(raw string) (key, value string, valueStart int, ok bool) {
 	idx := strings.Index(raw, ":")
 	if idx <= 0 {
-		return "", "", false
+		return "", "", 0, false
 	}
 	key = strings.TrimSpace(raw[:idx])
 	if key == "" {
-		return "", "", false
+		return "", "", 0, false
 	}
-	return key, strings.TrimSpace(raw[idx+1:]), true
+	rest := raw[idx+1:]
+	leading := len(rest) - len(strings.TrimLeft(rest, " \t"))
+	return key, strings.TrimSpace(rest), idx + 1 + leading, true
 }
 
 func parseMetadataContinuation(raw string) (string, bool) {
+	v, _, ok := parseMetadataContinuationBytes(raw)
+	return v, ok
+}
+
+func parseMetadataContinuationBytes(raw string) (value string, valueStart int, ok bool) {
 	if raw == "" {
-		return "", false
+		return "", 0, false
 	}
 	if raw[0] != ' ' && raw[0] != '\t' {
-		return "", false
+		return "", 0, false
 	}
-	return strings.TrimSpace(raw), true
+	leading := len(raw) - len(strings.TrimLeft(raw, " \t"))
+	return strings.TrimSpace(raw), leading, true
 }
 
 // parseActContent fills Children for an act section with scenes and content.
@@ -909,7 +943,17 @@ func parseCharacterEntry(tok token.Token) ast.Character {
 	namePart := tok.Literal
 	if idx := strings.Index(tok.Literal, " - "); idx >= 0 {
 		namePart = strings.TrimSpace(tok.Literal[:idx])
-		ch.Description = strings.TrimSpace(tok.Literal[idx+3:])
+		descStart := idx + 3
+		descRaw := tok.Literal[descStart:]
+		trimmedLeading := len(descRaw) - len(strings.TrimLeft(descRaw, " \t"))
+		descTrimmed := strings.TrimSpace(descRaw)
+		ch.Description = descTrimmed
+		if descTrimmed != "" {
+			startByte := descStart + trimmedLeading
+			endByte := startByte + len(descTrimmed)
+			descRange := sliceInlineRange(tok.Literal, tok.Range, startByte, endByte)
+			ch.DescriptionInlines = parseInlineContent(descTrimmed, descRange)
+		}
 	}
 	ch.Name, ch.Aliases = parseAliasSpec(strings.TrimSpace(namePart))
 	return ch

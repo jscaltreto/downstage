@@ -11,6 +11,23 @@
           {
             "Key": "Title",
             "Value": "Test",
+            "ValueInlines": [
+              {
+                "Value": "Test",
+                "Range": {
+                  "Start": {
+                    "Line": 1,
+                    "Column": 7,
+                    "Offset": 14
+                  },
+                  "End": {
+                    "Line": 1,
+                    "Column": 11,
+                    "Offset": 18
+                  }
+                }
+              }
+            ],
             "Range": {
               "Start": {
                 "Line": 1,
@@ -50,6 +67,23 @@
               "Name": "BRICK",
               "Aliases": null,
               "Description": "One half of the pair",
+              "DescriptionInlines": [
+                {
+                  "Value": "One half of the pair",
+                  "Range": {
+                    "Start": {
+                      "Line": 5,
+                      "Column": 8,
+                      "Offset": 50
+                    },
+                    "End": {
+                      "Line": 5,
+                      "Column": 28,
+                      "Offset": 70
+                    }
+                  }
+                }
+              ],
               "Range": {
                 "Start": {
                   "Line": 5,
@@ -67,6 +101,23 @@
               "Name": "STEEL",
               "Aliases": null,
               "Description": "The other half of the pair",
+              "DescriptionInlines": [
+                {
+                  "Value": "The other half of the pair",
+                  "Range": {
+                    "Start": {
+                      "Line": 6,
+                      "Column": 8,
+                      "Offset": 79
+                    },
+                    "End": {
+                      "Line": 6,
+                      "Column": 34,
+                      "Offset": 105
+                    }
+                  }
+                }
+              ],
               "Range": {
                 "Start": {
                   "Line": 6,

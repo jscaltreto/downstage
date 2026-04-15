@@ -29,10 +29,12 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		r.pdf.Ln(r.lineHeight)
 	}
 
-	if subtitle != "" {
+	if subtitle != nil && strings.TrimSpace(subtitle.Value) != "" {
 		r.pdf.SetFont(r.cfg.FontFamily, "I", r.cfg.FontSize+2)
-		r.centeredWrappedText(subtitle, r.lineHeight)
-		r.pdf.Ln(r.lineHeight)
+		r.fontStyle = "I"
+		if err := r.centeredInlines(keyValueInlines(*subtitle), "", ""); err != nil {
+			return err
+		}
 	}
 
 	if len(authors) > 0 {
@@ -48,9 +50,12 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	// Remaining metadata near the bottom.
 	if len(other) > 0 {
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize)
+		r.fontStyle = ""
 		placeBottomBlock(&r.pdfBase, other)
 		for _, kv := range other {
-			r.centeredWrappedText(kv.Key+": "+kv.Value, r.lineHeight)
+			if err := r.centeredInlines(keyValueInlines(kv), kv.Key+": ", ""); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -75,13 +80,14 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 	b.centeredWrappedText(strings.ToUpper(displayTitle), b.lineHeight)
 	b.pdf.Ln(b.lineHeight)
 
-	if s := strings.TrimSpace(subtitle); s != "" {
+	if subtitle != nil && strings.TrimSpace(subtitle.Value) != "" {
 		b.pdf.SetFont(b.cfg.FontFamily, "I", metadataSize)
-		b.centeredWrappedText(s, b.lineHeight)
-		b.pdf.Ln(b.lineHeight)
+		b.fontStyle = "I"
+		_ = b.centeredInlines(keyValueInlines(*subtitle), "", "")
 	}
 
 	b.pdf.SetFont(b.cfg.FontFamily, "", metadataSize)
+	b.fontStyle = ""
 	if len(authors) > 0 {
 		b.centeredWrappedText("by", b.lineHeight)
 		b.pdf.Ln(b.lineHeight / 2)
@@ -90,7 +96,7 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 		}
 	}
 	for _, kv := range other {
-		b.centeredWrappedText(kv.Key+": "+kv.Value, b.lineHeight)
+		_ = b.centeredInlines(keyValueInlines(kv), kv.Key+": ", "")
 		b.pdf.Ln(b.lineHeight)
 	}
 
@@ -200,14 +206,16 @@ func applyDocumentMetadata(b *pdfBase, tp *ast.TitlePage) {
 	if len(authors) > 0 {
 		b.pdf.SetAuthor(strings.Join(authors, ", "), true)
 	}
-	if s := strings.TrimSpace(subtitle); s != "" {
-		b.pdf.SetSubject(s, true)
+	if subtitle != nil {
+		if s := strings.TrimSpace(render.PlainText(keyValueInlines(*subtitle))); s != "" {
+			b.pdf.SetSubject(s, true)
+		}
 	}
 	var keywords []string
 	for _, kv := range other {
 		switch strings.ToLower(strings.TrimSpace(kv.Key)) {
 		case "keywords", "tags":
-			keywords = append(keywords, kv.Value)
+			keywords = append(keywords, render.PlainText(keyValueInlines(kv)))
 		}
 	}
 	if len(keywords) > 0 {
@@ -241,16 +249,31 @@ func placeBottomBlock(b *pdfBase, entries []ast.KeyValue) {
 	b.pdf.SetY(target)
 }
 
-func partitionTitlePageEntries(tp *ast.TitlePage) (title string, subtitle string, authors []string, other []ast.KeyValue) {
-	if tp == nil {
-		return "", "", nil, nil
+// keyValueInlines returns the inline representation of a KeyValue's value,
+// falling back to a single TextNode when the parser didn't populate
+// ValueInlines (e.g. tests that build KeyValues by hand).
+func keyValueInlines(kv ast.KeyValue) []ast.Inline {
+	if len(kv.ValueInlines) > 0 {
+		return kv.ValueInlines
 	}
-	for _, kv := range tp.Entries {
+	if kv.Value == "" {
+		return nil
+	}
+	return []ast.Inline{&ast.TextNode{Value: kv.Value}}
+}
+
+func partitionTitlePageEntries(tp *ast.TitlePage) (title string, subtitle *ast.KeyValue, authors []string, other []ast.KeyValue) {
+	if tp == nil {
+		return "", nil, nil, nil
+	}
+	for i := range tp.Entries {
+		kv := tp.Entries[i]
 		switch strings.ToLower(strings.TrimSpace(kv.Key)) {
 		case "title":
 			title = kv.Value
 		case "subtitle":
-			subtitle = kv.Value
+			c := kv
+			subtitle = &c
 		case "author":
 			if strings.TrimSpace(kv.Value) != "" {
 				authors = append(authors, kv.Value)

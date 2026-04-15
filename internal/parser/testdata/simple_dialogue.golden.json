@@ -11,6 +11,23 @@
           {
             "Key": "Title",
             "Value": "Test",
+            "ValueInlines": [
+              {
+                "Value": "Test",
+                "Range": {
+                  "Start": {
+                    "Line": 1,
+                    "Column": 7,
+                    "Offset": 19
+                  },
+                  "End": {
+                    "Line": 1,
+                    "Column": 11,
+                    "Offset": 23
+                  }
+                }
+              }
+            ],
             "Range": {
               "Start": {
                 "Line": 1,
@@ -50,6 +67,23 @@
               "Name": "ALICE",
               "Aliases": null,
               "Description": "A test character",
+              "DescriptionInlines": [
+                {
+                  "Value": "A test character",
+                  "Range": {
+                    "Start": {
+                      "Line": 5,
+                      "Column": 8,
+                      "Offset": 55
+                    },
+                    "End": {
+                      "Line": 5,
+                      "Column": 24,
+                      "Offset": 71
+                    }
+                  }
+                }
+              ],
               "Range": {
                 "Start": {
                   "Line": 5,
@@ -67,6 +101,23 @@
               "Name": "BOB",
               "Aliases": null,
               "Description": "Another test character",
+              "DescriptionInlines": [
+                {
+                  "Value": "Another test character",
+                  "Range": {
+                    "Start": {
+                      "Line": 6,
+                      "Column": 6,
+                      "Offset": 78
+                    },
+                    "End": {
+                      "Line": 6,
+                      "Column": 28,
+                      "Offset": 100
+                    }
+                  }
+                }
+              ],
               "Range": {
                 "Start": {
                   "Line": 6,
@@ -84,6 +135,7 @@
               "Name": "ALICE",
               "Aliases": null,
               "Description": "",
+              "DescriptionInlines": null,
               "Range": {
                 "Start": {
                   "Line": 8,
@@ -101,6 +153,7 @@
               "Name": "Hello, Bob!",
               "Aliases": null,
               "Description": "",
+              "DescriptionInlines": null,
               "Range": {
                 "Start": {
                   "Line": 9,
@@ -118,6 +171,7 @@
               "Name": "BOB",
               "Aliases": null,
               "Description": "",
+              "DescriptionInlines": null,
               "Range": {
                 "Start": {
                   "Line": 11,
@@ -135,6 +189,7 @@
               "Name": "Hello, Alice!",
               "Aliases": null,
               "Description": "",
+              "DescriptionInlines": null,
               "Range": {
                 "Start": {
                   "Line": 12,

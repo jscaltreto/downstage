@@ -131,10 +131,12 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		r.pdf.Ln(r.lineHeight)
 	}
 
-	if subtitle != "" {
+	if subtitle != nil && strings.TrimSpace(subtitle.Value) != "" {
 		r.pdf.SetFont(r.cfg.FontFamily, "I", r.cfg.FontSize+1)
-		r.centeredWrappedText(subtitle, r.lineHeight)
-		r.pdf.Ln(r.lineHeight)
+		r.fontStyle = "I"
+		if err := r.centeredInlines(keyValueInlines(*subtitle), "", ""); err != nil {
+			return err
+		}
 	}
 
 	if len(authors) > 0 {
@@ -149,9 +151,12 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 
 	if len(other) > 0 {
 		r.pdf.SetFont(r.cfg.FontFamily, "", r.cfg.FontSize-1)
+		r.fontStyle = ""
 		placeBottomBlock(&r.pdfBase, other)
 		for _, kv := range other {
-			r.centeredWrappedText(kv.Key+": "+kv.Value, r.lineHeight)
+			if err := r.centeredInlines(keyValueInlines(kv), kv.Key+": ", ""); err != nil {
+				return err
+			}
 		}
 	}
 

@@ -11,6 +11,23 @@
           {
             "Key": "Title",
             "Value": "Formatting",
+            "ValueInlines": [
+              {
+                "Value": "Formatting",
+                "Range": {
+                  "Start": {
+                    "Line": 1,
+                    "Column": 7,
+                    "Offset": 20
+                  },
+                  "End": {
+                    "Line": 1,
+                    "Column": 17,
+                    "Offset": 30
+                  }
+                }
+              }
+            ],
             "Range": {
               "Start": {
                 "Line": 1,
@@ -50,6 +67,23 @@
               "Name": "ALICE",
               "Aliases": null,
               "Description": "A speaker",
+              "DescriptionInlines": [
+                {
+                  "Value": "A speaker",
+                  "Range": {
+                    "Start": {
+                      "Line": 5,
+                      "Column": 8,
+                      "Offset": 62
+                    },
+                    "End": {
+                      "Line": 5,
+                      "Column": 17,
+                      "Offset": 71
+                    }
+                  }
+                }
+              ],
               "Range": {
                 "Start": {
                   "Line": 5,
