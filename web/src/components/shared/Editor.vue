@@ -208,11 +208,13 @@ onMounted(async () => {
     engine = new Engine(
       editorContainer.value,
       props.env,
-      async (content) => {
+      async (content, info) => {
         emit('update:content', content);
         scheduleRender(content, props.style);
         scheduleOutlineRefresh(content);
-        markTyping();
+        if (info.userInput) {
+          markTyping();
+        }
       },
       iframeEl,
       () => props.getSpellAllowlist(),

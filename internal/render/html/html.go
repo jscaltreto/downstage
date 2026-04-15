@@ -107,7 +107,7 @@ func (r *htmlRenderer) EndDocument(_ *ast.Document) error {
 // --- Front matter ---
 
 func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
-	titleKV, subtitleKV, authorKVs, other := partitionHTMLTitlePageKVs(tp)
+	titleKV, subtitleKV, authorKVs, other := partitionHTMLTitlePageEntries(tp)
 
 	titleText := ""
 	if titleKV != nil {
@@ -327,14 +327,16 @@ func (r *htmlRenderer) renderMetadata(className string, tp *ast.TitlePage) {
 }
 
 func (r *htmlRenderer) renderSubplayMetadata(tp *ast.TitlePage) {
-	_, subtitle, authors, other := partitionHTMLTitlePageEntries(tp)
-	if s := strings.TrimSpace(subtitle); s != "" {
-		fmt.Fprintf(&r.buf, "<p class=\"downstage-subplay-subtitle\">%s</p>\n", html.EscapeString(s))
+	_, subtitleKV, authorKVs, other := partitionHTMLTitlePageEntries(tp)
+	if subtitleKV != nil {
+		if s := strings.TrimSpace(subtitleKV.Value); s != "" {
+			fmt.Fprintf(&r.buf, "<p class=\"downstage-subplay-subtitle\">%s</p>\n", html.EscapeString(s))
+		}
 	}
-	if len(authors) > 0 {
+	if len(authorKVs) > 0 {
 		r.buf.WriteString("<p class=\"downstage-subplay-author-label\">by</p>\n")
-		for _, author := range authors {
-			fmt.Fprintf(&r.buf, "<p class=\"downstage-subplay-author\">%s</p>\n", html.EscapeString(author))
+		for _, kv := range authorKVs {
+			fmt.Fprintf(&r.buf, "<p class=\"downstage-subplay-author\">%s</p>\n", html.EscapeString(kv.Value))
 		}
 	}
 	if len(other) > 0 {
@@ -342,30 +344,11 @@ func (r *htmlRenderer) renderSubplayMetadata(tp *ast.TitlePage) {
 	}
 }
 
-func partitionHTMLTitlePageEntries(tp *ast.TitlePage) (title string, subtitle string, authors []string, other []ast.KeyValue) {
-	if tp == nil {
-		return "", "", nil, nil
-	}
-	for _, kv := range tp.Entries {
-		switch strings.ToLower(strings.TrimSpace(kv.Key)) {
-		case "title":
-			title = kv.Value
-		case "subtitle":
-			subtitle = kv.Value
-		case "author":
-			if strings.TrimSpace(kv.Value) != "" {
-				authors = append(authors, kv.Value)
-			}
-		default:
-			other = append(other, kv)
-		}
-	}
-	return title, subtitle, authors, other
-}
-
-// partitionHTMLTitlePageKVs mirrors partitionHTMLTitlePageEntries but preserves
-// the source range of each entry so the title-page render can emit anchors.
-func partitionHTMLTitlePageKVs(tp *ast.TitlePage) (title *ast.KeyValue, subtitle *ast.KeyValue, authors []ast.KeyValue, other []ast.KeyValue) {
+// partitionHTMLTitlePageEntries splits a title page into the slots the HTML
+// renderer cares about, preserving source ranges so callers can emit anchors.
+// Duplicate Title/Subtitle entries follow last-wins semantics, matching the
+// PDF renderer.
+func partitionHTMLTitlePageEntries(tp *ast.TitlePage) (title *ast.KeyValue, subtitle *ast.KeyValue, authors []ast.KeyValue, other []ast.KeyValue) {
 	if tp == nil {
 		return nil, nil, nil, nil
 	}
@@ -373,15 +356,11 @@ func partitionHTMLTitlePageKVs(tp *ast.TitlePage) (title *ast.KeyValue, subtitle
 		kv := tp.Entries[i]
 		switch strings.ToLower(strings.TrimSpace(kv.Key)) {
 		case "title":
-			if title == nil {
-				c := kv
-				title = &c
-			}
+			c := kv
+			title = &c
 		case "subtitle":
-			if subtitle == nil {
-				c := kv
-				subtitle = &c
-			}
+			c := kv
+			subtitle = &c
 		case "author":
 			if strings.TrimSpace(kv.Value) != "" {
 				authors = append(authors, kv)
@@ -680,12 +659,13 @@ func titlePageTitle(tp *ast.TitlePage) string {
 	if tp == nil {
 		return ""
 	}
+	var title string
 	for _, entry := range tp.Entries {
 		if strings.EqualFold(strings.TrimSpace(entry.Key), "title") {
-			return strings.TrimSpace(entry.Value)
+			title = strings.TrimSpace(entry.Value)
 		}
 	}
-	return ""
+	return title
 }
 
 func (r *htmlRenderer) closeParagraph() {

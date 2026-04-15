@@ -65,6 +65,26 @@ func TestRender_TitlePage(t *testing.T) {
 	assert.Contains(t, out, "</header>")
 }
 
+func TestRender_TitlePageDuplicateTitleSubtitleUsesLastWins(t *testing.T) {
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "First Title"},
+				{Key: "Title", Value: "Final Title"},
+				{Key: "Subtitle", Value: "First Subtitle"},
+				{Key: "Subtitle", Value: "Final Subtitle"},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, "<h1>Final Title</h1>")
+	assert.NotContains(t, out, "<h1>First Title</h1>")
+	assert.Contains(t, out, "<p class=\"subtitle\">Final Subtitle</p>")
+	assert.NotContains(t, out, "<p class=\"subtitle\">First Subtitle</p>")
+	assert.Contains(t, out, "<title>Final Title</title>")
+}
+
 func TestRender_TitlePageSupportsMultipleAuthors(t *testing.T) {
 	doc := &ast.Document{
 		TitlePage: &ast.TitlePage{
