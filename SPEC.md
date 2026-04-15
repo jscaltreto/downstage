@@ -57,6 +57,7 @@ The following older patterns are no longer part of the preferred model:
 
 - document-level `Key: Value` frontmatter before the first `#` heading
 - document-level `# Dramatis Personae`
+- ALL-CAPS lines recognised as cues without a preceding block boundary (a cue must now follow a blank line or other structural marker; use `@NAME` to force a cue in tight positions)
 
 Instead:
 
@@ -280,6 +281,25 @@ Dialogue is the primary content type. A dialogue block consists of:
 1. A **character name** on its own line (ALL CAPS)
 2. An optional **parenthetical** on the next line
 3. One or more lines of **dialogue text**
+
+A character name is only recognised as a cue when it appears at a **block boundary** — the start of the document, the line immediately after a blank line, or the line immediately after a structural element such as a heading, page break, stage direction, callout, or `SONG` / `SONG END` marker. Line and block comments are transparent for this rule: a comment between a dialogue body line and a following ALL-CAPS line does not reopen a cue.
+
+This means an ALL-CAPS line that appears on the line directly after another cue, a parenthetical, or dialogue body text is treated as shouted dialogue, not as a new cue:
+
+```
+JIM
+WHAT
+```
+
+Here `WHAT` is Jim's line, not a new character. The same applies when a parenthetical sits between the cue and the shouted line:
+
+```
+JIM
+(angrily)
+WHAT
+```
+
+When an author truly needs a cue without a preceding blank line, use the forced-cue form `@NAME` (see Section 14). Forced cues are always recognised regardless of what came before them.
 
 ```
 HAMLET

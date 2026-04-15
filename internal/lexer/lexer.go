@@ -25,6 +25,7 @@ func Lex(input []byte) []token.Token {
 		offset:  0,
 		tokens:  make([]token.Token, 0, 256),
 		inBlock: false,
+		prev:    token.Blank,
 	}
 	l.lex()
 	return l.tokens
@@ -37,6 +38,11 @@ type lexer struct {
 	offset  int // byte offset of the current line start
 	tokens  []token.Token
 	inBlock bool // inside a block comment
+	// prev is the last emitted non-comment token type. It's used to decide
+	// whether a cue is allowed on the current line: a cue must be preceded by
+	// a block boundary (blank line, heading, page break, etc.), not by dialogue
+	// body content. Initialized to Blank so start-of-document allows a cue.
+	prev token.Type
 }
 
 func (l *lexer) lex() {
@@ -162,20 +168,23 @@ func (l *lexer) lex() {
 }
 
 func (l *lexer) classifyBodyLine(line, trimmed string, lineNum, lineLen int) {
-	// Dual dialogue: character name or forced character ending with ^
+	// Dual dialogue: character name or forced character ending with ^.
+	// A ^-marked cue still needs a block boundary before it — unless it's an
+	// @-forced name, which always wins.
 	if strings.HasSuffix(trimmed, " ^") || strings.HasSuffix(trimmed, "\t^") {
 		name := strings.TrimSpace(trimmed[:len(trimmed)-2])
 		if strings.HasPrefix(name, "@") && len(name) > 1 {
 			l.emit(token.DualDialogueChar, name, line, lineNum, 0, len(name))
 			return
 		}
-		if isCharacterName(name) {
+		if isCharacterName(name) && canStartCue(l.prev) {
 			l.emit(token.DualDialogueChar, name, line, lineNum, 0, len(name))
 			return
 		}
 	}
 
-	// Forced character: @TEXT
+	// Forced character: @TEXT. Always recognised — this is the escape hatch for
+	// cues that can't have a blank line before them.
 	if strings.HasPrefix(trimmed, "@") && len(trimmed) > 1 {
 		l.emit(token.ForcedCharacter, trimmed, line, lineNum, 0, lineLen)
 		return
@@ -225,8 +234,10 @@ func (l *lexer) classifyBodyLine(line, trimmed string, lineNum, lineLen int) {
 		return
 	}
 
-	// ALL CAPS character name: 2+ chars, only uppercase letters, digits, spaces, and punctuation
-	if isCharacterName(trimmed) {
+	// ALL CAPS character name: must be preceded by a block boundary so that
+	// shouted dialogue ("WHAT") following a cue line isn't misread as a new
+	// cue. Use `@NAME` to force a cue without a blank line.
+	if isCharacterName(trimmed) && canStartCue(l.prev) {
 		l.emit(token.CharacterName, trimmed, line, lineNum, 0, lineLen)
 		return
 	}
@@ -246,6 +257,34 @@ func (l *lexer) emit(typ token.Type, literal, sourceLine string, line, colStart,
 			End:   token.Position{Line: line, Column: endColumn, Offset: l.offset + colEnd},
 		},
 	})
+	// Comments are transparent for cue-context tracking: a comment between a
+	// cue line and its dialogue body shouldn't re-enable a cue on the next
+	// line. Block-comment body lines (emitted while inBlock) are likewise
+	// invisible.
+	switch typ {
+	case token.LineComment, token.BlockCommentStart, token.BlockCommentEnd:
+		return
+	}
+	if l.inBlock {
+		return
+	}
+	l.prev = typ
+}
+
+// canStartCue reports whether a cue (CharacterName or non-forced
+// DualDialogueChar) is allowed on the current line, given the last meaningful
+// token type. A cue must follow a block boundary so that ALL-CAPS dialogue
+// content doesn't get misread as a new cue.
+func canStartCue(prev token.Type) bool {
+	switch prev {
+	case token.Text,
+		token.Verse,
+		token.CharacterName,
+		token.ForcedCharacter,
+		token.DualDialogueChar:
+		return false
+	}
+	return true
 }
 
 // isCharacterName returns true if s looks like an ALL CAPS character name.
