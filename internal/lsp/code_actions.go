@@ -550,9 +550,10 @@ func insertMissingDramatisPersonaeEdit(doc *ast.Document, content string, index 
 		body += "\n"
 	}
 
-	// Insert after the play heading and any attached metadata block.
-	if len(index.topLevelSections) > 0 {
-		play := index.topLevelSections[0]
+	// Insert after the play that actually contains the first dialogue. This
+	// avoids dropping the section into a compilation header or notes block
+	// when the document has multiple top-level sections.
+	if play := firstDialoguePlay(index); play != nil {
 		line := insertAfterPlayHeader(play, content)
 		return &protocol.TextEdit{
 			Range: protocol.Range{
@@ -575,6 +576,18 @@ func insertMissingDramatisPersonaeEdit(doc *ast.Document, content string, index 
 		},
 		NewText: body,
 	}
+}
+
+func firstDialoguePlay(index *documentIndex) *ast.Section {
+	if index == nil {
+		return nil
+	}
+	for _, ref := range index.dialogues {
+		if ref.play != nil {
+			return ref.play
+		}
+	}
+	return nil
 }
 
 // insertAfterPlayHeader returns the insertion line under a play heading.
