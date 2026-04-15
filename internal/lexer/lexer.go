@@ -238,7 +238,9 @@ func (l *lexer) classifyBodyLine(line, trimmed string, lineNum, lineLen int) {
 	// ALL CAPS character name: must be preceded by a blank line (or the start
 	// of the document) so that shouted dialogue ("WHAT") following a cue line
 	// isn't misread as a new cue. Comments are transparent. Use `@NAME` to
-	// force a cue without a blank line.
+	// force a cue without a blank line. When the rule fails the line falls
+	// through to Text; the parser promotes it to an implicit stage direction
+	// in leaf generic sections (see IsCharacterName).
 	if isCharacterName(trimmed) && l.cueAllowed {
 		l.emit(token.CharacterName, trimmed, line, lineNum, 0, lineLen)
 		return
@@ -272,6 +274,13 @@ func (l *lexer) emit(typ token.Type, literal, sourceLine string, line, colStart,
 	}
 	l.cueAllowed = typ == token.Blank
 }
+
+// IsCharacterName reports whether s looks like an ALL CAPS character name.
+// Exposed so the parser can recognise ALL-CAPS lines that were demoted to
+// Text by the strict cue rule and promote them to implicit stage directions
+// in contexts (like leaf generic sections) where plain text otherwise
+// becomes prose.
+func IsCharacterName(s string) bool { return isCharacterName(s) }
 
 // isCharacterName returns true if s looks like an ALL CAPS character name.
 // Must be 1+ characters, contain at least one letter, and consist only of

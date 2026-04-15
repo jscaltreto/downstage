@@ -702,6 +702,32 @@ a block comment */`
 	assert.True(t, comment.Block)
 }
 
+func TestDemotedCueInLeafGenericSection(t *testing.T) {
+	// An ALL-CAPS line immediately under a generic section heading fails the
+	// strict cue rule (no blank line) and is demoted to Text by the lexer.
+	// In a leaf generic section the parser promotes it to an implicit stage
+	// direction so the writer's failed-cue attempt renders as italic text
+	// rather than being silently reflowed as prose.
+	input := "# Play\n\n## Notes\nALICE\n"
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	play, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.NotEmpty(t, play.Children)
+	notes, ok := play.Children[0].(*ast.Section)
+	require.True(t, ok, "expected Notes section, got %T", play.Children[0])
+
+	require.NotEmpty(t, notes.Children, "ALL-CAPS line should appear as a stage direction child")
+	sd, ok := notes.Children[0].(*ast.StageDirection)
+	require.True(t, ok, "expected *ast.StageDirection, got %T", notes.Children[0])
+	require.Len(t, sd.Content, 1)
+	text, ok := sd.Content[0].(*ast.TextNode)
+	require.True(t, ok)
+	assert.Equal(t, "ALICE", text.Value)
+	assert.Empty(t, notes.Lines, "ALL-CAPS line must not become prose")
+}
+
 func TestCueCommentsAreTransparentInDialogue(t *testing.T) {
 	// Both line and block comments between a cue and its dialogue body must
 	// be transparent: they should not end the dialogue block, and they should

@@ -834,8 +834,21 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 		// Structural content and text go into Children by default.
 		// Only Text tokens become Lines (prose reflow) in leaf generic
 		// sections — StageDirections keep their semantics and stay as Children
-		// so the `>` prefix survives rendering.
+		// so the `>` prefix survives rendering. ALL-CAPS lines that the lexer
+		// demoted to Text because they failed the strict cue rule (no blank
+		// line above) are promoted here to implicit stage directions, so the
+		// writer's failed-cue attempt renders as italic text instead of
+		// silently being reflowed as prose.
 		if p.at(token.Text) && !hasStructuralContent {
+			if lexer.IsCharacterName(strings.TrimSpace(p.peek().Literal)) {
+				tok := p.advance()
+				section.AppendChild(&ast.StageDirection{
+					Content: parseInlineContent(tok.Literal, tok.Range),
+					Range:   tok.Range,
+				})
+				prevContinuation = token.EOF
+				continue
+			}
 			tok := p.advance()
 			line := ast.SectionLine{
 				Content: parseInlineContent(tok.Literal, tok.Range),
