@@ -43,7 +43,8 @@ Is everyone here?
 ALICE
 Yes.
 
-// Dialogue immediately after heading (no blank line separator)
+// ALL-CAPS line immediately after a heading.
+// Use a blank line (or `@ALICE`) to make this a cue.
 ### SCENE 2
 ALICE
 No blank line before me.

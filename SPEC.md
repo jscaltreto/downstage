@@ -57,6 +57,7 @@ The following older patterns are no longer part of the preferred model:
 
 - document-level `Key: Value` frontmatter before the first `#` heading
 - document-level `# Dramatis Personae`
+- ALL-CAPS cues without a preceding blank line (cues need a blank line or the start of the document; use `@NAME` to force one)
 
 Instead:
 
@@ -275,11 +276,18 @@ In a multi-play file, act and scene numbering is scoped to the enclosing top-lev
 
 ## 7. Dialogue
 
-Dialogue is the primary content type. A dialogue block consists of:
+Dialogue is the primary content type. A dialogue block consists of a cue, an optional parenthetical, and one or more lines of dialogue text.
 
-1. A **character name** on its own line (ALL CAPS)
-2. An optional **parenthetical** on the next line
-3. One or more lines of **dialogue text**
+An ALL-CAPS line is only a cue at the start of a document or after a blank line. Comments do not reset cue context. So `WHAT` under `JIM` stays dialogue, not a new character.
+
+```
+JIM
+WHAT
+```
+
+A parenthetical between the cue and the shouted line does not change this.
+
+Use `@NAME` when you need a cue without a blank line (see Section 14).
 
 ```
 HAMLET

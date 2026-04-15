@@ -702,6 +702,53 @@ a block comment */`
 	assert.True(t, comment.Block)
 }
 
+func TestDemotedCueInLeafGenericSection(t *testing.T) {
+	// Demoted ALL-CAPS lines still render as stage directions in leaf generic sections.
+	input := "# Play\n\n## Notes\nALICE\n"
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	play, ok := doc.Body[0].(*ast.Section)
+	require.True(t, ok)
+	require.NotEmpty(t, play.Children)
+	notes, ok := play.Children[0].(*ast.Section)
+	require.True(t, ok, "expected Notes section, got %T", play.Children[0])
+
+	require.NotEmpty(t, notes.Children, "ALL-CAPS line should appear as a stage direction child")
+	sd, ok := notes.Children[0].(*ast.StageDirection)
+	require.True(t, ok, "expected *ast.StageDirection, got %T", notes.Children[0])
+	require.Len(t, sd.Content, 1)
+	text, ok := sd.Content[0].(*ast.TextNode)
+	require.True(t, ok)
+	assert.Equal(t, "ALICE", text.Value)
+	assert.Empty(t, notes.Lines, "ALL-CAPS line must not become prose")
+}
+
+func TestCueCommentsAreTransparentInDialogue(t *testing.T) {
+	// Comments stay transparent inside dialogue.
+	cases := map[string]string{
+		"line comment":  "# Play\n\nJIM\n// he pauses\nWHAT\n",
+		"block comment": "# Play\n\nJIM\n/* he pauses */\nWHAT\n",
+	}
+	for name, input := range cases {
+		t.Run(name, func(t *testing.T) {
+			doc, errs := Parse([]byte(input))
+			require.Empty(t, errs)
+
+			var dlg *ast.Dialogue
+			findDialogue(doc.Body, &dlg)
+			require.NotNil(t, dlg, "expected a single Dialogue block")
+			assert.Equal(t, "JIM", dlg.Character)
+
+			require.Len(t, dlg.Lines, 1, "WHAT should be dialogue text, not a new cue")
+			require.Len(t, dlg.Lines[0].Content, 1)
+			textNode, ok := dlg.Lines[0].Content[0].(*ast.TextNode)
+			require.True(t, ok, "expected TextNode, got %T", dlg.Lines[0].Content[0])
+			assert.Equal(t, "WHAT", textNode.Value)
+		})
+	}
+}
+
 func TestPageBreak(t *testing.T) {
 	input := `# Play
 

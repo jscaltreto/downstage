@@ -248,14 +248,92 @@ func TestDramatisPersonae(t *testing.T) {
 	input := "# Dramatis Personae\n## The Court\nKING LEAR\nCORDELIA\n# Act One"
 	tokens := Lex([]byte(input))
 
-	// All headings are generic now — no special DP tokens
+	// The DP parser still accepts Text entries.
 	assert.Equal(t, token.HeadingH1, tokens[0].Type)
 	assert.Equal(t, "Dramatis Personae", tokens[0].Literal)
 	assert.Equal(t, token.HeadingH2, tokens[1].Type)
 	assert.Equal(t, "The Court", tokens[1].Literal)
-	assert.Equal(t, token.CharacterName, tokens[2].Type)
-	assert.Equal(t, token.CharacterName, tokens[3].Type)
+	assert.Equal(t, token.Text, tokens[2].Type)
+	assert.Equal(t, token.Text, tokens[3].Type)
 	assert.Equal(t, token.HeadingH1, tokens[4].Type)
+}
+
+func TestCueRequiresBlankLineBefore(t *testing.T) {
+	// Start of document counts as cue context.
+	tokens := Lex([]byte("JIM\nHello\n"))
+	assert.Equal(t, token.CharacterName, tokens[0].Type)
+	assert.Equal(t, "JIM", tokens[0].Literal)
+	assert.Equal(t, token.Text, tokens[1].Type)
+
+	// Adjacent ALL-CAPS lines: the second is dialogue text, not a cue.
+	tokens = Lex([]byte("JIM\nWHAT\n"))
+	assert.Equal(t, token.CharacterName, tokens[0].Type)
+	assert.Equal(t, token.Text, tokens[1].Type)
+	assert.Equal(t, "WHAT", tokens[1].Literal)
+
+	// Parenthetical between cue and shouted dialogue: shouted line stays text.
+	tokens = Lex([]byte("JIM\n(angrily)\nWHAT\n"))
+	assert.Equal(t, token.CharacterName, tokens[0].Type)
+	assert.Equal(t, token.Text, tokens[1].Type)
+	assert.Equal(t, token.Text, tokens[2].Type)
+
+	// Comments do not reset cue context.
+	tokens = Lex([]byte("# Play\n\n// note: make jim meaner\nJIM\nI am angry\n"))
+	assert.Equal(t, token.HeadingH1, tokens[0].Type)
+	assert.Equal(t, token.Blank, tokens[1].Type)
+	assert.Equal(t, token.LineComment, tokens[2].Type)
+	assert.Equal(t, token.CharacterName, tokens[3].Type)
+	assert.Equal(t, token.Text, tokens[4].Type)
+
+	// Block comments are transparent too.
+	tokens = Lex([]byte("# Play\n\n/*\nnote:\naddress comments\n*/\nJIM\nHello\n"))
+	assert.Equal(t, token.HeadingH1, tokens[0].Type)
+	assert.Equal(t, token.Blank, tokens[1].Type)
+	assert.Equal(t, token.BlockCommentStart, tokens[2].Type)
+	// Body lines stay invisible to cue tracking.
+	for i := 3; i < 5; i++ {
+		assert.Equal(t, token.Text, tokens[i].Type)
+	}
+	assert.Equal(t, token.BlockCommentEnd, tokens[5].Type)
+	assert.Equal(t, token.CharacterName, tokens[6].Type)
+
+	// A comment does not reopen cue context.
+	tokens = Lex([]byte("JIM\nHello.\n// inline note\nWHAT\n"))
+	assert.Equal(t, token.CharacterName, tokens[0].Type)
+	assert.Equal(t, token.Text, tokens[1].Type)
+	assert.Equal(t, token.LineComment, tokens[2].Type)
+	assert.Equal(t, token.Text, tokens[3].Type)
+
+	// Without a blank line, ALICE is text.
+	tokens = Lex([]byte("### SCENE 1\nALICE\nHello\n"))
+	assert.Equal(t, token.HeadingH3, tokens[0].Type)
+	assert.Equal(t, token.Text, tokens[1].Type)
+	assert.Equal(t, token.Text, tokens[2].Type)
+
+	// Page breaks do not count.
+	tokens = Lex([]byte("===\n// note\nJIM\nHello\n"))
+	assert.Equal(t, token.PageBreak, tokens[0].Type)
+	assert.Equal(t, token.LineComment, tokens[1].Type)
+	assert.Equal(t, token.Text, tokens[2].Type)
+	assert.Equal(t, token.Text, tokens[3].Type)
+
+	// Forced character always wins, even without a blank line.
+	tokens = Lex([]byte("JIM\nHello.\n@JANE\nHi.\n"))
+	assert.Equal(t, token.CharacterName, tokens[0].Type)
+	assert.Equal(t, token.Text, tokens[1].Type)
+	assert.Equal(t, token.ForcedCharacter, tokens[2].Type)
+
+	// Dual dialogue needs the same rule.
+	tokens = Lex([]byte("JIM\nHello.\nJANE ^\nHi.\n"))
+	assert.Equal(t, token.CharacterName, tokens[0].Type)
+	assert.Equal(t, token.Text, tokens[1].Type)
+	assert.Equal(t, token.Text, tokens[2].Type)
+
+	tokens = Lex([]byte("JIM\nHello.\n\nJANE ^\nHi.\n"))
+	assert.Equal(t, token.CharacterName, tokens[0].Type)
+	assert.Equal(t, token.Text, tokens[1].Type)
+	assert.Equal(t, token.Blank, tokens[2].Type)
+	assert.Equal(t, token.DualDialogueChar, tokens[3].Type)
 }
 
 func TestPositionTracking(t *testing.T) {

@@ -831,11 +831,18 @@ func (p *parser) parseGenericContent(section *ast.Section, level int) {
 			continue
 		}
 
-		// Structural content and text go into Children by default.
-		// Only Text tokens become Lines (prose reflow) in leaf generic
-		// sections — StageDirections keep their semantics and stay as Children
-		// so the `>` prefix survives rendering.
+		// Text becomes prose in leaf generic sections. Demoted ALL-CAPS lines
+		// are promoted to stage directions so they still render as italic text.
 		if p.at(token.Text) && !hasStructuralContent {
+			if lexer.IsCharacterName(strings.TrimSpace(p.peek().Literal)) {
+				tok := p.advance()
+				section.AppendChild(&ast.StageDirection{
+					Content: parseInlineContent(tok.Literal, tok.Range),
+					Range:   tok.Range,
+				})
+				prevContinuation = token.EOF
+				continue
+			}
 			tok := p.advance()
 			line := ast.SectionLine{
 				Content: parseInlineContent(tok.Literal, tok.Range),
@@ -947,12 +954,13 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 loop:
 	for !p.at(token.EOF) {
 		if p.at(token.Blank) {
-			// Peek ahead: if next non-blank is another character or structural, stop
+			// Stop if the blank leads into another cue or structural break.
 			saved := p.pos
 			p.skipBlanks()
 			if p.atAny(token.CharacterName, token.ForcedCharacter, token.DualDialogueChar,
 				token.HeadingH1, token.HeadingH2, token.HeadingH3, token.SongStart,
-				token.SongEnd, token.PageBreak, token.EOF, token.StageDirection) {
+				token.SongEnd, token.PageBreak, token.EOF, token.StageDirection,
+				token.BlockCommentStart) {
 				p.pos = saved // restore; let caller handle the blank
 				break
 			}
@@ -961,7 +969,7 @@ loop:
 				p.pos = saved
 				break
 			}
-			// Single blank line continues dialogue — insert paragraph break marker
+			// Single blank line continues dialogue.
 			blankRange := p.tokens[saved].Range
 			p.pos = saved
 			p.skipBlanks()
@@ -1022,8 +1030,12 @@ loop:
 			dlg.Lines = append(dlg.Lines, line)
 
 		case token.LineComment:
-			// Skip comments within dialogue
+			// Skip comments within dialogue.
 			p.advance()
+
+		case token.BlockCommentStart:
+			// Block comments are transparent within dialogue.
+			p.parseBlockComment()
 
 		default:
 			break loop

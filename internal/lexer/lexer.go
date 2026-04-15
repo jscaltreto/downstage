@@ -19,12 +19,13 @@ const (
 // Lex tokenizes the input bytes into a slice of tokens.
 func Lex(input []byte) []token.Token {
 	l := &lexer{
-		input:   input,
-		lines:   bytes.Split(input, []byte("\n")),
-		ctx:     ctxTitlePage,
-		offset:  0,
-		tokens:  make([]token.Token, 0, 256),
-		inBlock: false,
+		input:      input,
+		lines:      bytes.Split(input, []byte("\n")),
+		ctx:        ctxTitlePage,
+		offset:     0,
+		tokens:     make([]token.Token, 0, 256),
+		inBlock:    false,
+		cueAllowed: true,
 	}
 	l.lex()
 	return l.tokens
@@ -37,6 +38,8 @@ type lexer struct {
 	offset  int // byte offset of the current line start
 	tokens  []token.Token
 	inBlock bool // inside a block comment
+	// cueAllowed reports whether the current line may start a cue.
+	cueAllowed bool
 }
 
 func (l *lexer) lex() {
@@ -162,20 +165,20 @@ func (l *lexer) lex() {
 }
 
 func (l *lexer) classifyBodyLine(line, trimmed string, lineNum, lineLen int) {
-	// Dual dialogue: character name or forced character ending with ^
+	// Dual dialogue: character name or forced character ending with ^.
 	if strings.HasSuffix(trimmed, " ^") || strings.HasSuffix(trimmed, "\t^") {
 		name := strings.TrimSpace(trimmed[:len(trimmed)-2])
 		if strings.HasPrefix(name, "@") && len(name) > 1 {
 			l.emit(token.DualDialogueChar, name, line, lineNum, 0, len(name))
 			return
 		}
-		if isCharacterName(name) {
+		if isCharacterName(name) && l.cueAllowed {
 			l.emit(token.DualDialogueChar, name, line, lineNum, 0, len(name))
 			return
 		}
 	}
 
-	// Forced character: @TEXT
+	// Forced character: @TEXT.
 	if strings.HasPrefix(trimmed, "@") && len(trimmed) > 1 {
 		l.emit(token.ForcedCharacter, trimmed, line, lineNum, 0, lineLen)
 		return
@@ -225,8 +228,8 @@ func (l *lexer) classifyBodyLine(line, trimmed string, lineNum, lineLen int) {
 		return
 	}
 
-	// ALL CAPS character name: 2+ chars, only uppercase letters, digits, spaces, and punctuation
-	if isCharacterName(trimmed) {
+	// ALL CAPS character name: requires a blank line or document start.
+	if isCharacterName(trimmed) && l.cueAllowed {
 		l.emit(token.CharacterName, trimmed, line, lineNum, 0, lineLen)
 		return
 	}
@@ -246,7 +249,19 @@ func (l *lexer) emit(typ token.Type, literal, sourceLine string, line, colStart,
 			End:   token.Position{Line: line, Column: endColumn, Offset: l.offset + colEnd},
 		},
 	})
+	// Comments do not change cue context.
+	switch typ {
+	case token.LineComment, token.BlockCommentStart, token.BlockCommentEnd:
+		return
+	}
+	if l.inBlock {
+		return
+	}
+	l.cueAllowed = typ == token.Blank
 }
+
+// IsCharacterName reports whether s looks like an ALL CAPS character name.
+func IsCharacterName(s string) bool { return isCharacterName(s) }
 
 // isCharacterName returns true if s looks like an ALL CAPS character name.
 // Must be 1+ characters, contain at least one letter, and consist only of
