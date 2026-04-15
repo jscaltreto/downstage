@@ -134,9 +134,7 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	if subtitle != nil && hasKeyValueContent(*subtitle) {
 		r.pdf.SetFont(r.cfg.FontFamily, "I", r.cfg.FontSize+1)
 		r.fontStyle = "I"
-		if err := r.centeredWrappedInlines(keyValueInlines(*subtitle), "", ""); err != nil {
-			return err
-		}
+		r.centeredWrappedInlines(keyValueInlines(*subtitle), "", "")
 		r.pdf.Ln(r.lineHeight)
 	}
 
@@ -155,9 +153,7 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		r.fontStyle = ""
 		placeBottomBlock(&r.pdfBase, other)
 		for _, kv := range other {
-			if err := r.centeredWrappedInlines(keyValueInlines(kv), kv.Key+": ", ""); err != nil {
-				return err
-			}
+			r.centeredWrappedInlines(keyValueInlines(kv), kv.Key+": ", "")
 		}
 	}
 

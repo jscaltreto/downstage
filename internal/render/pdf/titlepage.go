@@ -32,9 +32,7 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	if subtitle != nil && hasKeyValueContent(*subtitle) {
 		r.pdf.SetFont(r.cfg.FontFamily, "I", r.cfg.FontSize+2)
 		r.fontStyle = "I"
-		if err := r.centeredWrappedInlines(keyValueInlines(*subtitle), "", ""); err != nil {
-			return err
-		}
+		r.centeredWrappedInlines(keyValueInlines(*subtitle), "", "")
 		r.pdf.Ln(r.lineHeight)
 	}
 
@@ -54,9 +52,7 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		r.fontStyle = ""
 		placeBottomBlock(&r.pdfBase, other)
 		for _, kv := range other {
-			if err := r.centeredWrappedInlines(keyValueInlines(kv), kv.Key+": ", ""); err != nil {
-				return err
-			}
+			r.centeredWrappedInlines(keyValueInlines(kv), kv.Key+": ", "")
 		}
 	}
 
@@ -84,7 +80,7 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 	if subtitle != nil && hasKeyValueContent(*subtitle) {
 		b.pdf.SetFont(b.cfg.FontFamily, "I", metadataSize)
 		b.fontStyle = "I"
-		_ = b.centeredWrappedInlines(keyValueInlines(*subtitle), "", "")
+		b.centeredWrappedInlines(keyValueInlines(*subtitle), "", "")
 		b.pdf.Ln(b.lineHeight)
 	}
 
@@ -98,7 +94,7 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 		}
 	}
 	for _, kv := range other {
-		_ = b.centeredWrappedInlines(keyValueInlines(kv), kv.Key+": ", "")
+		b.centeredWrappedInlines(keyValueInlines(kv), kv.Key+": ", "")
 		b.pdf.Ln(b.lineHeight)
 	}
 

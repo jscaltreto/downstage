@@ -450,7 +450,7 @@ func (b *pdfBase) centeredInlines(inlines []ast.Inline, prefix, suffix string) e
 // and wraps across multiple lines when the content is too wide. Explicit
 // '\n' characters produce hard line breaks. The base font style is restored
 // on exit.
-func (b *pdfBase) centeredWrappedInlines(inlines []ast.Inline, prefix, suffix string) error {
+func (b *pdfBase) centeredWrappedInlines(inlines []ast.Inline, prefix, suffix string) {
 	baseStyle := b.fontStyle
 
 	runs := flattenInlineRuns(inlines, baseStyle)
@@ -478,7 +478,6 @@ func (b *pdfBase) centeredWrappedInlines(inlines []ast.Inline, prefix, suffix st
 	}
 
 	b.setStyle(baseStyle)
-	return nil
 }
 
 // flattenInlineRuns walks inline nodes and emits styled text runs. Nested
