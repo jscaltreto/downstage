@@ -952,7 +952,8 @@ loop:
 			p.skipBlanks()
 			if p.atAny(token.CharacterName, token.ForcedCharacter, token.DualDialogueChar,
 				token.HeadingH1, token.HeadingH2, token.HeadingH3, token.SongStart,
-				token.SongEnd, token.PageBreak, token.EOF, token.StageDirection) {
+				token.SongEnd, token.PageBreak, token.EOF, token.StageDirection,
+				token.BlockCommentStart) {
 				p.pos = saved // restore; let caller handle the blank
 				break
 			}
@@ -1024,6 +1025,11 @@ loop:
 		case token.LineComment:
 			// Skip comments within dialogue
 			p.advance()
+
+		case token.BlockCommentStart:
+			// Block comments are transparent within dialogue — they must not
+			// end the block, matching the lexer's cue-context rule.
+			p.parseBlockComment()
 
 		default:
 			break loop

@@ -702,6 +702,34 @@ a block comment */`
 	assert.True(t, comment.Block)
 }
 
+func TestCueCommentsAreTransparentInDialogue(t *testing.T) {
+	// Both line and block comments between a cue and its dialogue body must
+	// be transparent: they should not end the dialogue block, and they should
+	// not cause a following shouted ALL-CAPS line to be reinterpreted as a
+	// new cue.
+	cases := map[string]string{
+		"line comment":  "# Play\n\nJIM\n// he pauses\nWHAT\n",
+		"block comment": "# Play\n\nJIM\n/* he pauses */\nWHAT\n",
+	}
+	for name, input := range cases {
+		t.Run(name, func(t *testing.T) {
+			doc, errs := Parse([]byte(input))
+			require.Empty(t, errs)
+
+			var dlg *ast.Dialogue
+			findDialogue(doc.Body, &dlg)
+			require.NotNil(t, dlg, "expected a single Dialogue block")
+			assert.Equal(t, "JIM", dlg.Character)
+
+			require.Len(t, dlg.Lines, 1, "WHAT should be dialogue text, not a new cue")
+			require.Len(t, dlg.Lines[0].Content, 1)
+			textNode, ok := dlg.Lines[0].Content[0].(*ast.TextNode)
+			require.True(t, ok, "expected TextNode, got %T", dlg.Lines[0].Content[0])
+			assert.Equal(t, "WHAT", textNode.Value)
+		})
+	}
+}
+
 func TestPageBreak(t *testing.T) {
 	input := `# Play
 
