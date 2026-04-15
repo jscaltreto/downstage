@@ -29,12 +29,13 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		r.pdf.Ln(r.lineHeight)
 	}
 
-	if subtitle != nil && strings.TrimSpace(subtitle.Value) != "" {
+	if subtitle != nil && hasKeyValueContent(*subtitle) {
 		r.pdf.SetFont(r.cfg.FontFamily, "I", r.cfg.FontSize+2)
 		r.fontStyle = "I"
-		if err := r.centeredInlines(keyValueInlines(*subtitle), "", ""); err != nil {
+		if err := r.centeredWrappedInlines(keyValueInlines(*subtitle), "", ""); err != nil {
 			return err
 		}
+		r.pdf.Ln(r.lineHeight)
 	}
 
 	if len(authors) > 0 {
@@ -53,7 +54,7 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		r.fontStyle = ""
 		placeBottomBlock(&r.pdfBase, other)
 		for _, kv := range other {
-			if err := r.centeredInlines(keyValueInlines(kv), kv.Key+": ", ""); err != nil {
+			if err := r.centeredWrappedInlines(keyValueInlines(kv), kv.Key+": ", ""); err != nil {
 				return err
 			}
 		}
@@ -80,10 +81,11 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 	b.centeredWrappedText(strings.ToUpper(displayTitle), b.lineHeight)
 	b.pdf.Ln(b.lineHeight)
 
-	if subtitle != nil && strings.TrimSpace(subtitle.Value) != "" {
+	if subtitle != nil && hasKeyValueContent(*subtitle) {
 		b.pdf.SetFont(b.cfg.FontFamily, "I", metadataSize)
 		b.fontStyle = "I"
-		_ = b.centeredInlines(keyValueInlines(*subtitle), "", "")
+		_ = b.centeredWrappedInlines(keyValueInlines(*subtitle), "", "")
+		b.pdf.Ln(b.lineHeight)
 	}
 
 	b.pdf.SetFont(b.cfg.FontFamily, "", metadataSize)
@@ -96,7 +98,7 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 		}
 	}
 	for _, kv := range other {
-		_ = b.centeredInlines(keyValueInlines(kv), kv.Key+": ", "")
+		_ = b.centeredWrappedInlines(keyValueInlines(kv), kv.Key+": ", "")
 		b.pdf.Ln(b.lineHeight)
 	}
 
@@ -260,6 +262,36 @@ func keyValueInlines(kv ast.KeyValue) []ast.Inline {
 		return nil
 	}
 	return []ast.Inline{&ast.TextNode{Value: kv.Value}}
+}
+
+// hasKeyValueContent reports whether a KeyValue has any renderable value,
+// checking both the legacy string and the inline form so ASTs built only
+// with ValueInlines still render.
+func hasKeyValueContent(kv ast.KeyValue) bool {
+	if strings.TrimSpace(kv.Value) != "" {
+		return true
+	}
+	return strings.TrimSpace(render.PlainText(kv.ValueInlines)) != ""
+}
+
+// hasCharacterDescription is the same gate for Character entries.
+func hasCharacterDescription(ch ast.Character) bool {
+	if strings.TrimSpace(ch.Description) != "" {
+		return true
+	}
+	return strings.TrimSpace(render.PlainText(ch.DescriptionInlines)) != ""
+}
+
+// characterDescriptionInlines returns the inline representation of a
+// Character's description with a TextNode fallback for hand-built ASTs.
+func characterDescriptionInlines(ch ast.Character) []ast.Inline {
+	if len(ch.DescriptionInlines) > 0 {
+		return ch.DescriptionInlines
+	}
+	if ch.Description == "" {
+		return nil
+	}
+	return []ast.Inline{&ast.TextNode{Value: ch.Description}}
 }
 
 func partitionTitlePageEntries(tp *ast.TitlePage) (title string, subtitle *ast.KeyValue, authors []string, other []ast.KeyValue) {

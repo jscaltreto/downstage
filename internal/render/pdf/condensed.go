@@ -131,12 +131,13 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		r.pdf.Ln(r.lineHeight)
 	}
 
-	if subtitle != nil && strings.TrimSpace(subtitle.Value) != "" {
+	if subtitle != nil && hasKeyValueContent(*subtitle) {
 		r.pdf.SetFont(r.cfg.FontFamily, "I", r.cfg.FontSize+1)
 		r.fontStyle = "I"
-		if err := r.centeredInlines(keyValueInlines(*subtitle), "", ""); err != nil {
+		if err := r.centeredWrappedInlines(keyValueInlines(*subtitle), "", ""); err != nil {
 			return err
 		}
+		r.pdf.Ln(r.lineHeight)
 	}
 
 	if len(authors) > 0 {
@@ -154,7 +155,7 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 		r.fontStyle = ""
 		placeBottomBlock(&r.pdfBase, other)
 		for _, kv := range other {
-			if err := r.centeredInlines(keyValueInlines(kv), kv.Key+": ", ""); err != nil {
+			if err := r.centeredWrappedInlines(keyValueInlines(kv), kv.Key+": ", ""); err != nil {
 				return err
 			}
 		}

@@ -609,6 +609,29 @@ func TestRender_DramatisPersonaeInlineStyling(t *testing.T) {
 	assert.NotContains(t, out, "_ragged_")
 }
 
+func TestRender_DramatisPersonaeDescriptionInlinesWithoutValue(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Section{
+				Kind: ast.SectionDramatisPersonae,
+				Characters: []ast.Character{
+					{
+						Name: "GHOST",
+						DescriptionInlines: []ast.Inline{
+							&ast.TextNode{Value: "A "},
+							&ast.BoldNode{Content: []ast.Inline{&ast.TextNode{Value: "spectre"}}},
+						},
+					},
+				},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, "<dd>A <strong>spectre</strong></dd>",
+		"description should render from inlines even when the legacy Description string is empty")
+}
+
 func TestRender_TitlePageSubtitleInlineStyling(t *testing.T) {
 	doc := &ast.Document{
 		TitlePage: &ast.TitlePage{
@@ -630,6 +653,28 @@ func TestRender_TitlePageSubtitleInlineStyling(t *testing.T) {
 
 	assert.Contains(t, out, "<p class=\"subtitle\">A tragedy in <em>five</em> acts</p>")
 	assert.NotContains(t, out, "_five_")
+}
+
+func TestRender_TitlePageSubtitleInlinesWithoutValue(t *testing.T) {
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "A Play"},
+				{
+					Key: "Subtitle",
+					ValueInlines: []ast.Inline{
+						&ast.TextNode{Value: "A tragedy in "},
+						&ast.ItalicNode{Content: []ast.Inline{&ast.TextNode{Value: "five"}}},
+						&ast.TextNode{Value: " acts"},
+					},
+				},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, "<p class=\"subtitle\">A tragedy in <em>five</em> acts</p>",
+		"subtitle should render from inlines even when the legacy Value string is empty")
 }
 
 func TestRender_PageBreak(t *testing.T) {

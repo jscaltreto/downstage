@@ -122,7 +122,7 @@ func (r *htmlRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	if titleKV != nil && titleKV.Value != "" {
 		fmt.Fprintf(&r.buf, "<h1%s>%s</h1>\n", r.sourceAttr(titleKV.Range), html.EscapeString(titleKV.Value))
 	}
-	if subtitleKV != nil && subtitleKV.Value != "" {
+	if subtitleKV != nil && hasKeyValueContent(*subtitleKV) {
 		fmt.Fprintf(&r.buf, "<p class=\"subtitle\"%s>", r.sourceAttr(subtitleKV.Range))
 		r.renderInlineContent(keyValueInlines(*subtitleKV))
 		r.buf.WriteString("</p>\n")
@@ -334,12 +334,10 @@ func (r *htmlRenderer) renderMetadata(className string, tp *ast.TitlePage) {
 
 func (r *htmlRenderer) renderSubplayMetadata(tp *ast.TitlePage) {
 	_, subtitleKV, authorKVs, other := partitionHTMLTitlePageEntries(tp)
-	if subtitleKV != nil {
-		if s := strings.TrimSpace(subtitleKV.Value); s != "" {
-			r.buf.WriteString("<p class=\"downstage-subplay-subtitle\">")
-			r.renderInlineContent(keyValueInlines(*subtitleKV))
-			r.buf.WriteString("</p>\n")
-		}
+	if subtitleKV != nil && hasKeyValueContent(*subtitleKV) {
+		r.buf.WriteString("<p class=\"downstage-subplay-subtitle\">")
+		r.renderInlineContent(keyValueInlines(*subtitleKV))
+		r.buf.WriteString("</p>\n")
 	}
 	if len(authorKVs) > 0 {
 		r.buf.WriteString("<p class=\"downstage-subplay-author-label\">by</p>\n")
@@ -383,7 +381,7 @@ func partitionHTMLTitlePageEntries(tp *ast.TitlePage) (title *ast.KeyValue, subt
 func (r *htmlRenderer) renderCharacterEntry(ch ast.Character) {
 	r.buf.WriteString("<div class=\"character-entry\">")
 	fmt.Fprintf(&r.buf, "<dt>%s</dt>", html.EscapeString(render.CharacterDisplayName(ch)))
-	if ch.Description != "" {
+	if hasCharacterDescription(ch) {
 		r.buf.WriteString("<dd>")
 		r.renderInlineContent(characterDescriptionInlines(ch))
 		r.buf.WriteString("</dd>")
@@ -665,6 +663,15 @@ func keyValueInlines(kv ast.KeyValue) []ast.Inline {
 	return []ast.Inline{&ast.TextNode{Value: kv.Value}}
 }
 
+// hasKeyValueContent reports whether a KeyValue has any renderable value,
+// checking both the legacy string and the inline form.
+func hasKeyValueContent(kv ast.KeyValue) bool {
+	if strings.TrimSpace(kv.Value) != "" {
+		return true
+	}
+	return strings.TrimSpace(render.PlainText(kv.ValueInlines)) != ""
+}
+
 // characterDescriptionInlines is the same fallback for Character descriptions.
 func characterDescriptionInlines(ch ast.Character) []ast.Inline {
 	if len(ch.DescriptionInlines) > 0 {
@@ -674,6 +681,14 @@ func characterDescriptionInlines(ch ast.Character) []ast.Inline {
 		return nil
 	}
 	return []ast.Inline{&ast.TextNode{Value: ch.Description}}
+}
+
+// hasCharacterDescription is the gate for rendering a description.
+func hasCharacterDescription(ch ast.Character) bool {
+	if strings.TrimSpace(ch.Description) != "" {
+		return true
+	}
+	return strings.TrimSpace(render.PlainText(ch.DescriptionInlines)) != ""
 }
 
 func dialogueParentheticalInlines(d *ast.Dialogue) []ast.Inline {

@@ -446,6 +446,198 @@ func (b *pdfBase) centeredInlines(inlines []ast.Inline, prefix, suffix string) e
 	return nil
 }
 
+// centeredWrappedInlines renders styled inline content centered within bodyW
+// and wraps across multiple lines when the content is too wide. Explicit
+// '\n' characters produce hard line breaks. The base font style is restored
+// on exit.
+func (b *pdfBase) centeredWrappedInlines(inlines []ast.Inline, prefix, suffix string) error {
+	baseStyle := b.fontStyle
+
+	runs := flattenInlineRuns(inlines, baseStyle)
+	if prefix != "" {
+		runs = append([]dialogueTextRun{{text: prefix, style: baseStyle}}, runs...)
+	}
+	if suffix != "" {
+		runs = append(runs, dialogueTextRun{text: suffix, style: baseStyle})
+	}
+
+	lines := wrapStyledRuns(b.pdf, b.cfg.FontFamily, b.cfg.FontSize, runs, b.bodyW)
+
+	for _, line := range lines {
+		totalWidth := 0.0
+		for _, run := range line {
+			b.setStyle(run.style)
+			totalWidth += b.pdf.GetStringWidth(run.text)
+		}
+		b.pdf.SetX(b.marginL + (b.bodyW-totalWidth)/2)
+		for _, run := range line {
+			b.setStyle(run.style)
+			b.pdf.Write(b.lineHeight, run.text)
+		}
+		b.pdf.Ln(b.lineHeight)
+	}
+
+	b.setStyle(baseStyle)
+	return nil
+}
+
+// flattenInlineRuns walks inline nodes and emits styled text runs. Nested
+// styles are merged onto a base style so the caller's font context is
+// respected (e.g. an italic <subtitle> stays italic when no inline marker
+// overrides it).
+func flattenInlineRuns(inlines []ast.Inline, baseStyle string) []dialogueTextRun {
+	var runs []dialogueTextRun
+	var walk func(nodes []ast.Inline, style string)
+	walk = func(nodes []ast.Inline, style string) {
+		for _, n := range nodes {
+			switch v := n.(type) {
+			case *ast.TextNode:
+				if v.Value != "" {
+					runs = append(runs, dialogueTextRun{text: v.Value, style: style})
+				}
+			case *ast.BoldNode:
+				walk(v.Content, mergeStyles(style, "B"))
+			case *ast.ItalicNode:
+				walk(v.Content, mergeStyles(style, "I"))
+			case *ast.BoldItalicNode:
+				walk(v.Content, mergeStyles(style, "BI"))
+			case *ast.UnderlineNode:
+				walk(v.Content, mergeStyles(style, "U"))
+			case *ast.StrikethroughNode:
+				walk(v.Content, mergeStyles(style, "S"))
+			case *ast.InlineDirectionNode:
+				runs = append(runs, dialogueTextRun{text: "(", style: mergeStyles(style, "I")})
+				walk(v.Content, mergeStyles(style, "I"))
+				runs = append(runs, dialogueTextRun{text: ")", style: mergeStyles(style, "I")})
+			}
+		}
+	}
+	walk(inlines, baseStyle)
+	return runs
+}
+
+// wrapStyledRuns greedy-wraps a sequence of styled runs into lines that fit
+// within maxWidth. Word boundaries are whitespace; explicit '\n' characters
+// force a hard break. A single token longer than maxWidth overflows onto
+// its own line rather than being broken.
+func wrapStyledRuns(pdf stringWidthMeasurer, family string, size float64, runs []dialogueTextRun, maxWidth float64) [][]dialogueTextRun {
+	tokens := tokenizeStyledRuns(runs)
+
+	var lines [][]dialogueTextRun
+	var current []dialogueTextRun
+	currentWidth := 0.0
+
+	flush := func() {
+		lines = append(lines, trimTrailingWhitespaceRuns(current))
+		current = nil
+		currentWidth = 0.0
+	}
+
+	appendToken := func(tok dialogueTextRun) {
+		if len(current) > 0 && current[len(current)-1].style == tok.style {
+			current[len(current)-1].text += tok.text
+			return
+		}
+		current = append(current, tok)
+	}
+
+	for _, tok := range tokens {
+		if tok.text == "\n" {
+			flush()
+			continue
+		}
+		pdf.SetFont(family, tok.style, size)
+		w := pdf.GetStringWidth(tok.text)
+
+		if len(current) == 0 {
+			if strings.TrimSpace(tok.text) == "" {
+				continue
+			}
+			appendToken(tok)
+			currentWidth = w
+			continue
+		}
+
+		if currentWidth+w > maxWidth && strings.TrimSpace(tok.text) != "" {
+			flush()
+			appendToken(tok)
+			currentWidth = w
+			continue
+		}
+
+		appendToken(tok)
+		currentWidth += w
+	}
+
+	if len(current) > 0 {
+		flush()
+	}
+	return lines
+}
+
+type stringWidthMeasurer interface {
+	SetFont(familyStr, styleStr string, size float64)
+	GetStringWidth(s string) float64
+}
+
+// tokenizeStyledRuns splits each run's text into tokens of words, whitespace,
+// and explicit '\n' newlines, preserving the style from the originating run.
+func tokenizeStyledRuns(runs []dialogueTextRun) []dialogueTextRun {
+	var tokens []dialogueTextRun
+	for _, run := range runs {
+		if run.text == "" {
+			continue
+		}
+		var buf strings.Builder
+		var inSpace bool
+		flush := func() {
+			if buf.Len() > 0 {
+				tokens = append(tokens, dialogueTextRun{text: buf.String(), style: run.style})
+				buf.Reset()
+			}
+		}
+		for _, r := range run.text {
+			switch {
+			case r == '\n':
+				flush()
+				tokens = append(tokens, dialogueTextRun{text: "\n", style: run.style})
+				inSpace = false
+			case r == ' ' || r == '\t':
+				if !inSpace {
+					flush()
+					inSpace = true
+				}
+				buf.WriteRune(r)
+			default:
+				if inSpace {
+					flush()
+					inSpace = false
+				}
+				buf.WriteRune(r)
+			}
+		}
+		flush()
+	}
+	return tokens
+}
+
+func trimTrailingWhitespaceRuns(line []dialogueTextRun) []dialogueTextRun {
+	for len(line) > 0 {
+		last := &line[len(line)-1]
+		trimmed := strings.TrimRight(last.text, " \t")
+		if trimmed == last.text {
+			break
+		}
+		if trimmed == "" {
+			line = line[:len(line)-1]
+			continue
+		}
+		last.text = trimmed
+		break
+	}
+	return line
+}
+
 func (b *pdfBase) remainingPageHeight() float64 {
 	return b.pageH - b.marginB - b.pdf.GetY()
 }
