@@ -72,7 +72,7 @@ Hello world.
 	if err := json.Unmarshal([]byte(out), &s); err != nil {
 		t.Fatalf("unmarshal: %v\n---\n%s", err, out)
 	}
-	if s.Acts != 1 || s.Speeches != 1 {
+	if s.Acts != 1 || s.Lines != 1 {
 		t.Errorf("unexpected stats: %+v", s)
 	}
 	if s.Runtime.Preset != "standard" || s.Runtime.WordsPerMinute != 130 {

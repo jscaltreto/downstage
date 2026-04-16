@@ -44,11 +44,8 @@ Hi Alice.
 	if s.Scenes != 1 {
 		t.Errorf("Scenes = %d, want 1", s.Scenes)
 	}
-	if s.Speeches != 2 {
-		t.Errorf("Speeches = %d, want 2", s.Speeches)
-	}
-	if s.DialogueLines != 3 {
-		t.Errorf("DialogueLines = %d, want 3", s.DialogueLines)
+	if s.Lines != 2 {
+		t.Errorf("Lines = %d, want 2", s.Lines)
 	}
 	if s.DialogueWords != 9 {
 		t.Errorf("DialogueWords = %d, want 9 (\"Hello world This is a second line Hi Alice\")", s.DialogueWords)
@@ -62,8 +59,8 @@ Hi Alice.
 	if s.Characters[0].Name != "ALICE" {
 		t.Errorf("top character = %q, want ALICE", s.Characters[0].Name)
 	}
-	if s.Characters[0].Speeches != 1 || s.Characters[0].DialogueLines != 2 {
-		t.Errorf("ALICE stats = %+v", s.Characters[0])
+	if s.Characters[0].Lines != 1 {
+		t.Errorf("ALICE lines = %d, want 1", s.Characters[0].Lines)
 	}
 }
 
@@ -90,8 +87,8 @@ Line two.
 	if ch.Name != "JAMES" {
 		t.Errorf("Name = %q, want JAMES", ch.Name)
 	}
-	if ch.Speeches != 2 || ch.DialogueLines != 2 {
-		t.Errorf("JAMES stats = %+v, want 2 speeches / 2 lines", ch)
+	if ch.Lines != 2 {
+		t.Errorf("JAMES lines = %d, want 2", ch.Lines)
 	}
 	if len(ch.Aliases) != 1 || ch.Aliases[0] != "JIM" {
 		t.Errorf("Aliases = %v, want [JIM]", ch.Aliases)
@@ -138,8 +135,8 @@ SONG END
 	if s.Songs != 1 {
 		t.Errorf("Songs = %d, want 1", s.Songs)
 	}
-	if s.Speeches != 1 {
-		t.Errorf("Speeches = %d, want 1 (dialogue inside song counts)", s.Speeches)
+	if s.Lines != 1 {
+		t.Errorf("Lines = %d, want 1 (dialogue inside song counts)", s.Lines)
 	}
 	if s.DialogueWords != 4 {
 		t.Errorf("DialogueWords = %d, want 4", s.DialogueWords)

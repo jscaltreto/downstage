@@ -101,7 +101,7 @@ func writeStatsText(w io.Writer, s stats.Stats) error {
 	fmt.Fprintf(w, "  Acts:             %d\n", s.Acts)
 	fmt.Fprintf(w, "  Scenes:           %d\n", s.Scenes)
 	fmt.Fprintf(w, "  Songs:            %d\n", s.Songs)
-	fmt.Fprintf(w, "  Speeches:         %d\n", s.Speeches)
+	fmt.Fprintf(w, "  Lines:            %d\n", s.Lines)
 	fmt.Fprintf(w, "  Stage directions: %d\n", s.StageDirections)
 	fmt.Fprintln(w)
 
@@ -109,15 +109,14 @@ func writeStatsText(w io.Writer, s stats.Stats) error {
 	fmt.Fprintf(w, "  Total:            %d\n", s.TotalWords)
 	fmt.Fprintf(w, "  Dialogue:         %d (%s)\n", s.DialogueWords, percent(s.DialogueWords, s.TotalWords))
 	fmt.Fprintf(w, "  Stage directions: %d\n", s.StageDirectionWords)
-	fmt.Fprintf(w, "  Dialogue lines:   %d\n", s.DialogueLines)
 	fmt.Fprintln(w)
 
 	if len(s.Characters) > 0 {
-		fmt.Fprintln(w, "Characters (by speeches)")
+		fmt.Fprintln(w, "Characters (by lines)")
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "  NAME\tSPEECHES\tLINES\tWORDS")
+		fmt.Fprintln(tw, "  NAME\tLINES\tWORDS")
 		for _, c := range s.Characters {
-			fmt.Fprintf(tw, "  %s\t%d\t%d\t%d\n", c.Name, c.Speeches, c.DialogueLines, c.DialogueWords)
+			fmt.Fprintf(tw, "  %s\t%d\t%d\n", c.Name, c.Lines, c.DialogueWords)
 		}
 		tw.Flush()
 		fmt.Fprintln(w)

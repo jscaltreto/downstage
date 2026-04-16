@@ -19,8 +19,7 @@ type Stats struct {
 	Songs               int              `json:"songs"`
 	TotalWords          int              `json:"totalWords"`
 	DialogueWords       int              `json:"dialogueWords"`
-	DialogueLines       int              `json:"dialogueLines"`
-	Speeches            int              `json:"speeches"`
+	Lines               int              `json:"lines"`
 	StageDirections     int              `json:"stageDirections"`
 	StageDirectionWords int              `json:"stageDirectionWords"`
 	Characters          []CharacterStats `json:"characters"`
@@ -32,8 +31,7 @@ type Stats struct {
 type CharacterStats struct {
 	Name          string   `json:"name"`
 	Aliases       []string `json:"aliases,omitempty"`
-	Speeches      int      `json:"speeches"`
-	DialogueLines int      `json:"dialogueLines"`
+	Lines         int      `json:"lines"`
 	DialogueWords int      `json:"dialogueWords"`
 }
 
@@ -80,19 +78,17 @@ func Compute(doc *ast.Document, rt RuntimeOptions) Stats {
 					}
 				}
 			case *ast.Dialogue:
-				s.Speeches++
+				s.Lines++
 				name := resolver.canonical(n.Character)
 				cs := addCharacter(name)
-				cs.Speeches++
-				for _, line := range n.Lines {
-					words := countSpokenWords(line.Content)
-					if words == 0 && plainTextTrimmed(line.Content) == "" {
+				cs.Lines++
+				for _, dl := range n.Lines {
+					words := countSpokenWords(dl.Content)
+					if words == 0 && plainTextTrimmed(dl.Content) == "" {
 						continue
 					}
-					s.DialogueLines++
 					s.DialogueWords += words
 					s.TotalWords += words
-					cs.DialogueLines++
 					cs.DialogueWords += words
 				}
 			case *ast.DualDialogue:
@@ -124,8 +120,8 @@ func Compute(doc *ast.Document, rt RuntimeOptions) Stats {
 	}
 	sort.Slice(s.Characters, func(i, j int) bool {
 		a, b := s.Characters[i], s.Characters[j]
-		if a.Speeches != b.Speeches {
-			return a.Speeches > b.Speeches
+		if a.Lines != b.Lines {
+			return a.Lines > b.Lines
 		}
 		if a.DialogueWords != b.DialogueWords {
 			return a.DialogueWords > b.DialogueWords
