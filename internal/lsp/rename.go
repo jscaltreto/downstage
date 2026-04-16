@@ -112,7 +112,10 @@ func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Pos
 	// belonging to other plays. When the document uses the legacy
 	// document-wide DP (no top-level section owns one), play is nil and
 	// we fall back to a doc-wide walk.
-	scope := renameScope(doc, declRange.Start.Line)
+	scope, ok := renameScope(doc, declRange.Start.Line)
+	if !ok {
+		return nil, errRenameInvalid
+	}
 	visitDialoguesInScope(doc, scope, func(dlg *ast.Dialogue) {
 		cueName := strings.TrimSpace(dlg.Character)
 		if cueName == "" {
@@ -372,15 +375,25 @@ func hasNameConflict(doc *ast.Document, target *renameTarget, newName string) bo
 	return false
 }
 
-// renameScope returns the top-level play section that owns the DP
-// resolving the rename target. Returns nil when the document uses a
-// document-wide DP (legacy / single-play layout), signalling a doc-wide
-// walk is correct.
-func renameScope(doc *ast.Document, line int) *ast.Section {
-	if !hasScopedDramatisPersonae(doc) {
-		return nil
+// renameScope returns the top-level play section whose dramatis
+// personae owns the rename target. The boolean is false when the
+// rename has no defined scope and must be refused — that happens when
+// the document mixes a legacy doc-level DP with one or more scoped
+// plays, and the cursor lands on the now-ignored legacy DP. A nil
+// section paired with a true result means the document is a pure
+// legacy layout (no scoped DPs anywhere), so a doc-wide walk is
+// correct.
+func renameScope(doc *ast.Document, line int) (*ast.Section, bool) {
+	if play := topLevelSectionForLine(doc, line); play != nil {
+		return play, true
 	}
-	return topLevelSectionForLine(doc, line)
+	if hasScopedDramatisPersonae(doc) {
+		// Mixed layout: legacy DP entries are intentionally disregarded
+		// by the rest of the LSP. Refuse rather than silently widening
+		// the rewrite across every scoped play.
+		return nil, false
+	}
+	return nil, true
 }
 
 // visitDialoguesInScope walks every dialogue node within the given play
@@ -425,7 +438,10 @@ func positionInRange(pos protocol.Position, r token.Range) bool {
 		return false
 	}
 	col := int(pos.Character)
-	return col >= r.Start.Column && col <= r.End.Column
+	// End-exclusive to match the cue-position check. A cursor on the
+	// slash that follows an alias (or whitespace after a name) is no
+	// longer "inside" the symbol.
+	return col >= r.Start.Column && col < r.End.Column
 }
 
 // isValidCharacterName accepts identifiers a writer could realistically

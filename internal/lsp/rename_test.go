@@ -733,6 +733,75 @@ Hi.
 	}
 }
 
+func TestPrepareRename_RefusesOnSlashAfterPrimaryName(t *testing.T) {
+	// "BOB/B" — column 3 sits on the slash, which is the byte
+	// immediately after the primary name. End-inclusive bounds would
+	// incorrectly fire here.
+	src := `# Play
+
+## Dramatis Personae
+
+BOB/B - The good guy
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	if r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 3}); r != nil {
+		t.Errorf("expected refusal on the slash after BOB, got %+v", r)
+	}
+	// Sanity: the column right before the slash is still on the name.
+	if r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 2}); r == nil {
+		t.Error("expected rename on the last char of BOB")
+	}
+}
+
+func TestPrepareRename_RefusesOnWhitespaceAfterAlias(t *testing.T) {
+	// "BOB/B - desc" — column 5 is the space right after the alias B.
+	src := `# Play
+
+## Dramatis Personae
+
+BOB/B - desc
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	if r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 5}); r != nil {
+		t.Errorf("expected refusal on the space after alias B, got %+v", r)
+	}
+}
+
+func TestComputeRename_MixedLayoutRefusesLegacyDPTrigger(t *testing.T) {
+	// A document with both a doc-level legacy DP and one or more
+	// scoped plays. The rest of the LSP intentionally ignores the
+	// legacy DP in this layout, so we must refuse rename triggered on
+	// it rather than silently rewriting cues across the scoped plays.
+	src := `## Dramatis Personae
+
+BOB
+
+# Play A
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from A.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	// Cursor on the legacy doc-level DP entry (line 2).
+	if _, err := computeRename(doc, renameURI, protocol.Position{Line: 2, Character: 1}, "ROBERT"); err == nil {
+		t.Fatal("expected rename to be refused on legacy DP entry in mixed layout")
+	}
+}
+
 func TestPrepareRename_NilDoc(t *testing.T) {
 	if r := computePrepareRename(nil, protocol.Position{}); r != nil {
 		t.Errorf("expected nil for nil doc, got %+v", r)
