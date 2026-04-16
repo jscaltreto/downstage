@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Type, Layout, Keyboard, ExternalLink } from 'lucide-vue-next';
+import {
+  Type, Layout, Keyboard, ExternalLink,
+  Eye, ListTree, BarChart3, AlertTriangle, Search, SpellCheck, ScrollText,
+} from 'lucide-vue-next';
+import type { Component } from 'vue';
 
 const props = defineProps<{
   openLink: (url: string) => Promise<void>;
@@ -14,14 +18,14 @@ const shortcuts = [
   { keys: ['Ctrl/⌘', 'H'], desc: 'Open Find & Replace' },
 ];
 
-const tools = [
-  { name: 'Preview', desc: 'See the printed page side-by-side as you write.' },
-  { name: 'Outline', desc: 'Jump between acts, scenes, and characters.' },
-  { name: 'Stats', desc: 'Word counts, estimated runtime, and who talks the most.' },
-  { name: 'Issues', desc: 'Catch problems — misspelled character names, missing dialogue, formatting mistakes.' },
-  { name: 'Find & Replace', desc: 'Search your script and fix names or lines in bulk.' },
-  { name: 'Spell Check', desc: 'Underlines misspelled words. You can add names and terms to a per-script allowlist.' },
-  { name: 'Manuscript / Acting Edition', desc: 'Switch between standard manuscript format and a compact acting-edition layout.' },
+const tools: { icon: Component; name: string; desc: string }[] = [
+  { icon: Eye, name: 'Preview', desc: 'See the printed page side-by-side as you write.' },
+  { icon: ListTree, name: 'Outline', desc: 'Jump between acts, scenes, and characters.' },
+  { icon: BarChart3, name: 'Stats', desc: 'Word counts, estimated runtime, and who talks the most.' },
+  { icon: AlertTriangle, name: 'Issues', desc: 'Catch problems — misspelled character names, missing dialogue, formatting mistakes.' },
+  { icon: Search, name: 'Find & Replace', desc: 'Search your script and fix names or lines in bulk.' },
+  { icon: SpellCheck, name: 'Spell Check', desc: 'Underlines misspelled words. You can add names and terms to a per-script allowlist.' },
+  { icon: ScrollText, name: 'Manuscript / Acting Edition', desc: 'Switch between standard manuscript format and a compact acting-edition layout.' },
 ];
 </script>
 
@@ -126,10 +130,13 @@ _underline_  ~strikethrough~</code></pre>
         <div
           v-for="t in tools"
           :key="t.name"
-          class="rounded-md bg-black/[0.03] px-3 py-2 dark:bg-white/[0.03]"
+          class="flex items-start gap-2.5 rounded-md bg-black/[0.03] px-3 py-2 dark:bg-white/[0.03]"
         >
-          <span class="text-xs font-bold text-text-main">{{ t.name }}</span>
-          <span class="ml-2 text-xs text-text-muted">{{ t.desc }}</span>
+          <component :is="t.icon" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted" />
+          <div>
+            <span class="text-xs font-bold text-text-main">{{ t.name }}</span>
+            <span class="ml-2 text-xs text-text-muted">{{ t.desc }}</span>
+          </div>
         </div>
       </div>
 
