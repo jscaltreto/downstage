@@ -5,6 +5,7 @@ import {
   Eye, ListTree, BarChart3, AlertTriangle, Search, SpellCheck, ScrollText,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
+import { shortcuts as sc } from '../../core/platform';
 
 const props = defineProps<{
   openLink: (url: string) => Promise<void>;
@@ -13,14 +14,10 @@ const props = defineProps<{
 type HelpSection = 'syntax' | 'tools' | 'shortcuts';
 const activeSection = ref<HelpSection>('syntax');
 
-const shortcuts = [
-  { keys: ['Ctrl/⌘', 'B'], desc: 'Bold' },
-  { keys: ['Ctrl/⌘', 'I'], desc: 'Italic' },
-  { keys: ['Ctrl/⌘', 'U'], desc: 'Underline' },
-  { keys: ['Ctrl/⌘', 'F'], desc: 'Open Find' },
-  { keys: ['Ctrl/⌘', 'H'], desc: 'Open Find & Replace' },
-  { keys: ['Ctrl/⌘', 'Shift', 'P'], desc: 'Show / Hide Preview' },
-  { keys: ['Ctrl/⌘', 'Shift', '/'], desc: 'Open Help' },
+const shortcutList = [
+  sc.bold, sc.italic, sc.underline,
+  sc.find, sc.findReplace,
+  sc.preview, sc.help,
 ];
 
 const tools: { icon: Component; name: string; desc: string }[] = [
@@ -151,18 +148,12 @@ _underline_  ~strikethrough~</code></pre>
           Everything else is in the toolbar — these are the keyboard shortcuts.
         </p>
         <div
-          v-for="s in shortcuts"
-          :key="s.desc"
+          v-for="s in shortcutList"
+          :key="s.label"
           class="flex items-center justify-between rounded-md bg-black/[0.03] px-3 py-2 dark:bg-white/[0.03]"
         >
-          <span class="text-xs text-text-main">{{ s.desc }}</span>
-          <span class="flex items-center gap-1">
-            <kbd
-              v-for="(k, i) in s.keys"
-              :key="i"
-              class="rounded border border-border bg-[var(--color-page-surface)] px-1.5 py-0.5 text-[10px] font-mono font-bold text-text-muted shadow-sm"
-            >{{ k }}</kbd>
-          </span>
+          <span class="text-xs text-text-main">{{ s.label }}</span>
+          <kbd class="rounded border border-border bg-[var(--color-page-surface)] px-1.5 py-0.5 text-[10px] font-mono font-bold text-text-muted shadow-sm">{{ s.keys }}</kbd>
         </div>
       </div>
     </div>
