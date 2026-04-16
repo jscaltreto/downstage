@@ -84,6 +84,34 @@ export interface DocumentSymbolsResult {
   symbols: DocumentSymbol[];
 }
 
+export interface CharacterStats {
+  name: string;
+  aliases?: string[];
+  lines: number;
+  dialogueWords: number;
+}
+
+export interface RuntimeEstimate {
+  preset: string;
+  wordsPerMinute: number;
+  pauseFactor: number;
+  dialogueWords: number;
+  minutes: number;
+}
+
+export interface ManuscriptStats {
+  acts: number;
+  scenes: number;
+  songs: number;
+  totalWords: number;
+  dialogueWords: number;
+  lines: number;
+  stageDirections: number;
+  stageDirectionWords: number;
+  characters: CharacterStats[];
+  runtime: RuntimeEstimate;
+}
+
 export interface SpellcheckRange {
   start: LSPPosition;
   end: LSPPosition;
@@ -123,6 +151,7 @@ export interface EditorEnv {
   documentSymbols(source: string): Promise<DocumentSymbolsResult>;
   semanticTokens(source: string): Promise<Uint32Array>;
   tokenTypeNames(): Promise<string[]>;
+  stats(source: string): Promise<ManuscriptStats>;
 
   // Rendering
   renderHTML(source: string, style?: string): Promise<string>;

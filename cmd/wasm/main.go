@@ -14,6 +14,7 @@ import (
 	"github.com/jscaltreto/downstage/internal/render"
 	htmlrender "github.com/jscaltreto/downstage/internal/render/html"
 	pdfrender "github.com/jscaltreto/downstage/internal/render/pdf"
+	"github.com/jscaltreto/downstage/internal/stats"
 	"go.lsp.dev/protocol"
 )
 
@@ -30,6 +31,7 @@ func main() {
 	ds.Set("renderHTML", js.FuncOf(renderHTML))
 	ds.Set("renderPDF", js.FuncOf(renderPDF))
 	ds.Set("semanticTokens", js.FuncOf(semanticTokens))
+	ds.Set("stats", js.FuncOf(computeStats))
 	ds.Set("tokenTypeNames", tokenTypeNamesArray())
 
 	js.Global().Set("downstage", ds)
@@ -315,6 +317,14 @@ func tokenTypeNamesArray() js.Value {
 		arr.SetIndex(i, name)
 	}
 	return arr
+}
+
+func computeStats(_ js.Value, args []js.Value) any {
+	source := args[0].String()
+	doc, _ := parser.Parse([]byte(source))
+	s := stats.Compute(doc, stats.RuntimeOptions{})
+	data, _ := json.Marshal(s)
+	return js.Global().Get("JSON").Call("parse", string(data))
 }
 
 func diagnosticSeverity(severity protocol.DiagnosticSeverity) string {

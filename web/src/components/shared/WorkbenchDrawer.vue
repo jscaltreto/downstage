@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { X, AlertTriangle, Search, ListTree } from 'lucide-vue-next';
+import { X, AlertTriangle, Search, ListTree, BarChart3 } from 'lucide-vue-next';
 
-export type WorkbenchTab = 'issues' | 'find' | 'outline';
+export type WorkbenchTab = 'issues' | 'find' | 'outline' | 'stats';
 
 defineProps<{
   open: boolean;
@@ -73,6 +73,19 @@ function switchTab(tab: WorkbenchTab) {
           <Search class="h-3.5 w-3.5" />
           <span>Find &amp; Replace</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'stats'"
+          class="flex items-center gap-2 px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] border-b-2 transition-colors"
+          :class="activeTab === 'stats'
+            ? 'border-brass-500 text-accent'
+            : 'border-transparent text-text-muted hover:text-text-main'"
+          @click="switchTab('stats')"
+        >
+          <BarChart3 class="h-3.5 w-3.5" />
+          <span>Stats</span>
+        </button>
       </div>
       <button
         type="button"
@@ -93,6 +106,9 @@ function switchTab(tab: WorkbenchTab) {
       </div>
       <div v-show="activeTab === 'outline'" class="flex h-full min-w-0 flex-col overflow-hidden">
         <slot name="outline" />
+      </div>
+      <div v-show="activeTab === 'stats'" class="flex h-full min-w-0 flex-col overflow-hidden">
+        <slot name="stats" />
       </div>
     </div>
   </section>
