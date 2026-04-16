@@ -17,12 +17,11 @@ function formatKeys(parts: string[]): string {
 }
 
 export const shortcuts: Record<string, Shortcut> = {
-  bold:           { label: "Bold",                keys: formatKeys([mod, "B"]),            tooltip: `Bold (${formatKeys([mod, "B"])})` },
-  italic:        { label: "Italic",              keys: formatKeys([mod, "I"]),            tooltip: `Italic (${formatKeys([mod, "I"])})` },
-  underline:     { label: "Underline",           keys: formatKeys([mod, "U"]),            tooltip: `Underline (${formatKeys([mod, "U"])})` },
-  find:          { label: "Find",                keys: formatKeys([mod, "F"]),            tooltip: `Find (${formatKeys([mod, "F"])})` },
-  findReplace:   { label: "Find & Replace",      keys: formatKeys([mod, "H"]),            tooltip: `Find & Replace (${formatKeys([mod, "H"])})` },
-  findReplaceAlt:{ label: "Find & Replace",      keys: formatKeys([mod, alt, "F"]),       tooltip: `Find & Replace (${formatKeys([mod, alt, "F"])})` },
-  preview:       { label: "Show / Hide Preview", keys: formatKeys([mod, shift, "P"]),     tooltip: `Toggle Preview (${formatKeys([mod, shift, "P"])})` },
-  help:          { label: "Help",                keys: formatKeys([mod, shift, "/"]),     tooltip: `Help (${formatKeys([mod, shift, "/"])})` },
+  bold:        { label: "Bold",                keys: formatKeys([mod, "B"]),        tooltip: `Bold (${formatKeys([mod, "B"])})` },
+  italic:      { label: "Italic",              keys: formatKeys([mod, "I"]),        tooltip: `Italic (${formatKeys([mod, "I"])})` },
+  underline:   { label: "Underline",           keys: formatKeys([mod, "U"]),        tooltip: `Underline (${formatKeys([mod, "U"])})` },
+  find:        { label: "Find",                keys: formatKeys([mod, "F"]),        tooltip: `Find (${formatKeys([mod, "F"])})` },
+  findReplace: { label: "Find & Replace",      keys: formatKeys([mod, alt, "F"]),   tooltip: `Find & Replace (${formatKeys([mod, alt, "F"])})` },
+  preview:     { label: "Show / Hide Preview", keys: formatKeys([mod, "\\"]),       tooltip: `Toggle Preview (${formatKeys([mod, "\\"])})` },
+  help:        { label: "Help",                keys: formatKeys([mod, shift, "/"]), tooltip: `Help (${formatKeys([mod, shift, "/"])})` },
 };

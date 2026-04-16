@@ -136,7 +136,7 @@ export class Engine {
         run: () => { this.applyFormat("underline"); return true; },
       },
       {
-        key: "Mod-Shift-p",
+        key: "Mod-\\",
         preventDefault: true,
         run: () => { this.onAction("toggle-preview"); return true; },
       },
