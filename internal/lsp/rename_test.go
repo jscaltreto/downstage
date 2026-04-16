@@ -205,7 +205,6 @@ Yo.
 		t.Fatalf("unexpected error: %v", err)
 	}
 	edits := edit.Changes[renameURI]
-	// Expect: BOB declaration + the BOB cue. The B alias and B cue stay put.
 	if got, want := len(edits), 2; got != want {
 		t.Fatalf("expected %d edits, got %d: %+v", want, got, edits)
 	}
@@ -235,13 +234,11 @@ Yo.
 `
 	doc, _ := parser.Parse([]byte(src))
 
-	// Cursor on the alias B in the DP entry (column 4).
 	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 4}, "BOBBY")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	edits := edit.Changes[renameURI]
-	// Expect: alias declaration + the B cue; BOB cue and BOB primary untouched.
 	if got, want := len(edits), 2; got != want {
 		t.Fatalf("expected %d edits, got %d: %+v", want, got, edits)
 	}
@@ -272,9 +269,6 @@ Hi.
 		t.Fatalf("expected %d edits from cue trigger, got %d: %+v", want, got, edits)
 	}
 
-	// The edit set must include the DP entry and the cue, with no
-	// overlapping ranges. VS Code rejects overlapping workspace edits
-	// with "Rename failed to apply edits".
 	assertNoOverlappingEdits(t, edits)
 	lines := map[uint32]bool{}
 	for _, e := range edits {
@@ -288,10 +282,6 @@ Hi.
 	}
 }
 
-// assertNoOverlappingEdits fails the test when any two edits target
-// ranges that overlap. VS Code requires non-overlapping edits in a
-// workspace edit; overlapping edits surface as "Rename failed to apply
-// edits" to the user with no LSP-side log.
 func assertNoOverlappingEdits(t *testing.T, edits []protocol.TextEdit) {
 	t.Helper()
 	for i := 0; i < len(edits); i++ {
@@ -375,26 +365,27 @@ Hi.
 `
 	doc, _ := parser.Parse([]byte(src))
 
-	cases := map[string]string{
-		"empty":           "",
-		"slash":           "BOB/X",
-		"description sep": "BOB - X",
-		"punctuation":     "BOB!",
-		"digits only":     "1234",
+	cases := []struct {
+		name    string
+		newName string
+	}{
+		{name: "empty", newName: ""},
+		{name: "slash", newName: "BOB/X"},
+		{name: "description sep", newName: "BOB - X"},
+		{name: "punctuation", newName: "BOB!"},
+		{name: "digits only", newName: "1234"},
 	}
-	for name, newName := range cases {
-		t.Run(name, func(t *testing.T) {
-			_, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, newName)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, tc.newName)
 			if err == nil {
-				t.Fatalf("expected error for %q", newName)
+				t.Fatalf("expected error for %q", tc.newName)
 			}
 		})
 	}
 }
 
 func TestComputeRename_PreservesCueCasing(t *testing.T) {
-	// The forced cue prefix lets writers cue characters in non-canonical
-	// case. Rename should preserve each cue's existing case style.
 	src := `# Play
 
 ## Dramatis Personae
@@ -466,9 +457,6 @@ Solo.
 	edits := edit.Changes[renameURI]
 	assertNoOverlappingEdits(t, edits)
 
-	// Expect: DP entry, the "JAKE" sub-name in "JAKE AND BOB", the
-	// "JAKE" sub-name in "BOB AND JAKE", and the solo "JAKE" cue. The
-	// BOB sub-names stay put.
 	if got, want := len(edits), 4; got != want {
 		t.Fatalf("expected %d edits, got %d: %+v", want, got, edits)
 	}
@@ -478,8 +466,6 @@ Solo.
 		}
 	}
 
-	// The two sub-name edits must hit the JAKE positions inside their
-	// respective cues, not the whole cue.
 	for _, e := range edits {
 		if e.Range.Start.Line != 11 && e.Range.Start.Line != 14 {
 			continue
@@ -491,8 +477,6 @@ Solo.
 }
 
 func TestComputeRename_ConjunctionCueLeavesUnaffectedParticipantsAlone(t *testing.T) {
-	// Renaming JAKE in a "JAKE AND BOB" cue must not alter "BOB" or
-	// the surrounding " AND " separator.
 	src := `# Play
 
 ## Dramatis Personae
@@ -521,7 +505,6 @@ Hi.
 		if e.Range.Start.Line != 11 {
 			continue
 		}
-		// The cue starts at column 0; "JAKE" is columns 0..4.
 		if e.Range.Start.Character != 0 || e.Range.End.Character != 4 {
 			t.Errorf("expected JAKE-only edit on conjunction cue, got %+v", e.Range)
 		}
@@ -593,8 +576,6 @@ SONG END
 }
 
 func TestComputeRename_CompilationScopesToOwningPlay(t *testing.T) {
-	// Each play in a compilation has its own dramatis personae. Renaming
-	// BOB in Play A must not rewrite the (different) BOB in Play B.
 	src := `# Play A
 
 ## Dramatis Personae
@@ -626,13 +607,11 @@ Hello from B.
 		t.Fatalf("parse errors: %v", errs)
 	}
 
-	// Cursor on Play A's DP entry.
 	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "ROBERT")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	edits := edit.Changes[renameURI]
-	// Expect: Play A DP entry + Play A cue. Play B's DP entry and cue stay put.
 	if got, want := len(edits), 2; got != want {
 		t.Fatalf("expected %d edits scoped to Play A, got %d: %+v", want, got, edits)
 	}
@@ -644,8 +623,6 @@ Hello from B.
 }
 
 func TestComputeRename_CompilationCueScopesToOwningPlay(t *testing.T) {
-	// Triggering rename from a cue should also stay within that cue's
-	// owning play.
 	src := `# Play A
 
 ## Dramatis Personae
@@ -677,7 +654,6 @@ Hello from B.
 		t.Fatalf("parse errors: %v", errs)
 	}
 
-	// Cursor on Play B's cue (line 23).
 	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 23, Character: 1}, "ROBERT")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -694,8 +670,6 @@ Hello from B.
 }
 
 func TestComputeRename_CompilationConflictScopedToPlay(t *testing.T) {
-	// A name that exists in another play should NOT be flagged as a
-	// conflict; each play's DP scope is independent.
 	src := `# Play A
 
 ## Dramatis Personae
@@ -727,16 +701,12 @@ Hi.
 		t.Fatalf("parse errors: %v", errs)
 	}
 
-	// Renaming Play A's BOB → JANE is fine because Play A has no JANE.
 	if _, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "JANE"); err != nil {
 		t.Fatalf("expected rename to succeed across plays, got %v", err)
 	}
 }
 
 func TestPrepareRename_RefusesOnSlashAfterPrimaryName(t *testing.T) {
-	// "BOB/B" — column 3 sits on the slash, which is the byte
-	// immediately after the primary name. End-inclusive bounds would
-	// incorrectly fire here.
 	src := `# Play
 
 ## Dramatis Personae
@@ -748,14 +718,12 @@ BOB/B - The good guy
 	if r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 3}); r != nil {
 		t.Errorf("expected refusal on the slash after BOB, got %+v", r)
 	}
-	// Sanity: the column right before the slash is still on the name.
 	if r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 2}); r == nil {
 		t.Error("expected rename on the last char of BOB")
 	}
 }
 
 func TestPrepareRename_RefusesOnWhitespaceAfterAlias(t *testing.T) {
-	// "BOB/B - desc" — column 5 is the space right after the alias B.
 	src := `# Play
 
 ## Dramatis Personae
@@ -770,10 +738,6 @@ BOB/B - desc
 }
 
 func TestComputeRename_MixedLayoutRefusesLegacyDPTrigger(t *testing.T) {
-	// A document with both a doc-level legacy DP and one or more
-	// scoped plays. The rest of the LSP intentionally ignores the
-	// legacy DP in this layout, so we must refuse rename triggered on
-	// it rather than silently rewriting cues across the scoped plays.
 	src := `## Dramatis Personae
 
 BOB
@@ -796,7 +760,6 @@ Hello from A.
 		t.Fatalf("parse errors: %v", errs)
 	}
 
-	// Cursor on the legacy doc-level DP entry (line 2).
 	if _, err := computeRename(doc, renameURI, protocol.Position{Line: 2, Character: 1}, "ROBERT"); err == nil {
 		t.Fatal("expected rename to be refused on legacy DP entry in mixed layout")
 	}

@@ -204,17 +204,13 @@ type Character struct {
 	Description        string
 	DescriptionInlines []Inline
 	Range              token.Range
-	// nameRange covers the primary name token within Range. Excluded from
-	// JSON to keep `downstage parse` output stable.
+	// nameRange covers the primary name token within Range.
 	nameRange token.Range
-	// aliasRanges covers each alias name token, in the same order as Aliases.
-	// Excluded from JSON for the same reason.
+	// aliasRanges covers each alias token, in alias order.
 	aliasRanges []token.Range
 }
 
-// NameRange returns the source range of the primary name token. When unset
-// (e.g. character constructed in tests) it falls back to a synthesized range
-// derived from Range and Name.
+// NameRange returns the source range of the primary name token.
 func (c Character) NameRange() token.Range {
 	if !isZeroRange(c.nameRange) {
 		return c.nameRange
@@ -226,12 +222,10 @@ func (c Character) NameRange() token.Range {
 	return r
 }
 
-// SetNameRange records the source range of the primary name token.
+// SetNameRange records the primary name range.
 func (c *Character) SetNameRange(r token.Range) { c.nameRange = r }
 
-// AliasRange returns the source range of the alias at index i. Returns a
-// zero range when the index is out of bounds or the alias range was not
-// captured by the parser.
+// AliasRange returns the source range of the alias at index i.
 func (c Character) AliasRange(i int) token.Range {
 	if i < 0 || i >= len(c.aliasRanges) {
 		return token.Range{}
@@ -239,8 +233,7 @@ func (c Character) AliasRange(i int) token.Range {
 	return c.aliasRanges[i]
 }
 
-// SetAliasRanges records the source ranges of alias tokens, indexed in
-// parallel with Aliases.
+// SetAliasRanges records alias ranges in alias order.
 func (c *Character) SetAliasRanges(rs []token.Range) { c.aliasRanges = rs }
 
 // CharacterGroup is a named group of characters.

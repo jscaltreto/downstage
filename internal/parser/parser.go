@@ -957,7 +957,7 @@ func parseCharacterEntry(tok token.Token) ast.Character {
 	}
 
 	namePart := tok.Literal[:nameEnd]
-	name, nameRange, aliases, aliasRanges := parseAliasSpecRanges(namePart, tok.Range, tok.Literal)
+	name, nameRange, aliases, aliasRanges := parseAliasSpecRanges(namePart, tok.Range)
 	ch.Name = name
 	ch.Aliases = aliases
 	if !isZeroRange(nameRange) {
@@ -975,8 +975,8 @@ func isZeroRange(r token.Range) bool {
 
 // parseAliasSpecRanges splits a "NAME/ALIAS1/ALIAS2" segment and returns
 // each spelling alongside its source range within base. Empty segments are
-// dropped, matching parseAliasSpec semantics.
-func parseAliasSpecRanges(segment string, base token.Range, baseLiteral string) (string, token.Range, []string, []token.Range) {
+// dropped.
+func parseAliasSpecRanges(segment string, base token.Range) (string, token.Range, []string, []token.Range) {
 	var (
 		name        string
 		nameRange   token.Range
@@ -997,7 +997,7 @@ func parseAliasSpecRanges(segment string, base token.Range, baseLiteral string) 
 		if i == 0 {
 			name = trimmed
 			if trimmed != "" {
-				nameRange = sliceInlineRange(baseLiteral, base, startByte, endByte)
+				nameRange = sliceInlineRange(segment, base, startByte, endByte)
 			}
 			continue
 		}
@@ -1016,7 +1016,7 @@ func parseAliasSpecRanges(segment string, base token.Range, baseLiteral string) 
 			continue
 		}
 		aliases = append(aliases, trimmed)
-		aliasRanges = append(aliasRanges, sliceInlineRange(baseLiteral, base, startByte, endByte))
+		aliasRanges = append(aliasRanges, sliceInlineRange(segment, base, startByte, endByte))
 	}
 	return name, nameRange, aliases, aliasRanges
 }

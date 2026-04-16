@@ -10,38 +10,16 @@ import (
 	"go.lsp.dev/protocol"
 )
 
-// errRenameInvalid signals that the cursor is not on a renameable symbol,
-// or that the requested new name is not acceptable. The handler converts
-// this into an LSP error response.
 var errRenameInvalid = errors.New("rename: invalid request")
 
-// renameTarget describes the specific spelling the cursor is on. A
-// character may be referenced by its primary name or any of its aliases;
-// each spelling is treated as its own renameable symbol so writers can
-// rename a single alias without rewriting the rest.
 type renameTarget struct {
-	character *ast.Character
-	// oldName is the spelling being renamed (case-preserved as declared
-	// in the dramatis personae).
-	oldName string
-	// upperKey is the case-folded form used to match cues.
-	upperKey string
-	// cursorRange is the range under the cursor — used by prepareRename
-	// to highlight the symbol. It is the dramatis personae entry when
-	// the cursor is on a declaration, or the cue range when the cursor
-	// is on a dialogue cue.
+	character   *ast.Character
+	upperKey    string
 	cursorRange token.Range
-	// kind tracks whether the declaration is the primary name or an alias.
-	kind renameKind
-	// aliasIndex is the alias position when kind == renameKindAlias.
-	aliasIndex int
+	kind        renameKind
+	aliasIndex  int
 }
 
-// declRange returns the canonical declaration range for the target —
-// always the dramatis personae entry (primary name or alias), never a
-// cue. The cue walk in computeRename relies on this so the declaration
-// edit does not overlap with the cue edit when rename is triggered
-// from a cue.
 func (t *renameTarget) declRange() token.Range {
 	if t.character == nil {
 		return token.Range{}
@@ -61,8 +39,6 @@ const (
 	renameKindAlias
 )
 
-// computePrepareRename returns the source range of the symbol under the
-// cursor when rename is supported there, or nil otherwise.
 func computePrepareRename(doc *ast.Document, pos protocol.Position) *protocol.Range {
 	if doc == nil {
 		return nil
@@ -75,9 +51,6 @@ func computePrepareRename(doc *ast.Document, pos protocol.Position) *protocol.Ra
 	return &r
 }
 
-// computeRename builds a workspace edit that renames every structural
-// reference to the symbol at the cursor. Returns errRenameInvalid when
-// the symbol is not renameable or the new name is not acceptable.
 func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Position, newName string) (*protocol.WorkspaceEdit, error) {
 	if doc == nil {
 		return nil, errRenameInvalid
@@ -105,13 +78,6 @@ func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Pos
 		{Range: toLSPRange(declRange), NewText: cleaned},
 	}
 
-	// Restrict cue updates to the play that owns the target's DP scope.
-	// In a compilation document each top-level play has its own dramatis
-	// personae, so a "BOB" in Play A is a different character than
-	// "BOB" in Play B. Walking the whole document would rewrite cues
-	// belonging to other plays. When the document uses the legacy
-	// document-wide DP (no top-level section owns one), play is nil and
-	// we fall back to a doc-wide walk.
 	scope, ok := renameScope(doc, declRange.Start.Line)
 	if !ok {
 		return nil, errRenameInvalid
@@ -123,7 +89,6 @@ func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Pos
 		}
 		nameRange := dlg.NameRange()
 
-		// Single-name cue: replace the whole cue when it matches.
 		if strings.ToUpper(cueName) == target.upperKey {
 			replacement := matchCueCasing(cueName, cleaned)
 			if replacement != cueName {
@@ -135,10 +100,6 @@ func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Pos
 			return
 		}
 
-		// Conjunction cue ("JAKE AND BOB"): rewrite each participant
-		// that matches the renamed spelling. Each participant has a
-		// known byte span inside the cue text, so we can build a
-		// precise range without disturbing the rest of the cue.
 		parts := splitConjunctionCueWithOffsets(dlg.Character)
 		for _, part := range parts {
 			if strings.ToUpper(part.Name) != target.upperKey {
@@ -162,12 +123,6 @@ func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Pos
 	}, nil
 }
 
-// findRenameTarget identifies the character spelling under the cursor.
-// Supported positions:
-//   - primary name in a dramatis personae entry
-//   - alias spelling in a dramatis personae entry
-//   - dialogue cue whose spelling matches a known character primary name
-//     or alias (excluding conjunction cues like "BOB AND JANE")
 func findRenameTarget(doc *ast.Document, pos protocol.Position) *renameTarget {
 	if target := findRenameTargetInDP(doc, pos); target != nil {
 		return target
@@ -215,7 +170,6 @@ func scanCharactersForPosition(characters []ast.Character, pos protocol.Position
 		if positionInRange(pos, ch.NameRange()) && strings.TrimSpace(ch.Name) != "" {
 			return &renameTarget{
 				character:   ch,
-				oldName:     ch.Name,
 				upperKey:    strings.ToUpper(strings.TrimSpace(ch.Name)),
 				cursorRange: ch.NameRange(),
 				kind:        renameKindPrimary,
@@ -230,7 +184,6 @@ func scanCharactersForPosition(characters []ast.Character, pos protocol.Position
 			if positionInRange(pos, r) && strings.TrimSpace(alias) != "" {
 				return &renameTarget{
 					character:   ch,
-					oldName:     alias,
 					upperKey:    strings.ToUpper(strings.TrimSpace(alias)),
 					cursorRange: r,
 					kind:        renameKindAlias,
@@ -247,9 +200,6 @@ func findRenameTargetInCue(doc *ast.Document, pos protocol.Position) *renameTarg
 	if cueName == "" {
 		return nil
 	}
-	// Skip conjunction cues — sub-name boundaries aren't ranged so we
-	// cannot rename a single participant safely. The user can rename
-	// from the dramatis personae entry instead.
 	if splitConjunctionCue(cueName) != nil {
 		return nil
 	}
@@ -263,7 +213,6 @@ func findRenameTargetInCue(doc *ast.Document, pos protocol.Position) *renameTarg
 		if strings.ToUpper(strings.TrimSpace(ch.Name)) == upperCue {
 			return &renameTarget{
 				character:   ch,
-				oldName:     ch.Name,
 				upperKey:    upperCue,
 				cursorRange: cueRange,
 				kind:        renameKindPrimary,
@@ -274,7 +223,6 @@ func findRenameTargetInCue(doc *ast.Document, pos protocol.Position) *renameTarg
 			if strings.ToUpper(strings.TrimSpace(alias)) == upperCue {
 				return &renameTarget{
 					character:   ch,
-					oldName:     alias,
 					upperKey:    upperCue,
 					cursorRange: cueRange,
 					kind:        renameKindAlias,
@@ -286,9 +234,6 @@ func findRenameTargetInCue(doc *ast.Document, pos protocol.Position) *renameTarg
 	return nil
 }
 
-// collectAllCharacters returns pointers to every character in the section,
-// including those nested in groups, so callers can mutate via the same
-// slice the parser populated.
 func collectAllCharacters(dp *ast.Section) []*ast.Character {
 	var out []*ast.Character
 	for i := range dp.Characters {
@@ -302,8 +247,6 @@ func collectAllCharacters(dp *ast.Section) []*ast.Character {
 	return out
 }
 
-// findCueAtPosition is a sibling of findCharacterAtPosition that also
-// returns the cue's source range, which prepareRename needs.
 func findCueAtPosition(doc *ast.Document, pos protocol.Position) (string, token.Range) {
 	for _, n := range doc.Body {
 		if name, r := findCueInNode(n, pos); name != "" {
@@ -342,10 +285,6 @@ func findCueInNode(n ast.Node, pos protocol.Position) (string, token.Range) {
 	return "", token.Range{}
 }
 
-// hasNameConflict returns true when renaming target to newName would
-// collide with another known spelling in the same dramatis personae —
-// e.g. renaming BOB to JANE when JANE already exists, or renaming an
-// alias to a spelling already used by the same entry.
 func hasNameConflict(doc *ast.Document, target *renameTarget, newName string) bool {
 	dp := scopedDramatisPersonae(doc, target.cursorRange.Start.Line)
 	if dp == nil {
@@ -358,7 +297,6 @@ func hasNameConflict(doc *ast.Document, target *renameTarget, newName string) bo
 	for _, ch := range collectAllCharacters(dp) {
 		nameKey := strings.ToUpper(strings.TrimSpace(ch.Name))
 		if ch == target.character && target.kind == renameKindPrimary {
-			// skip the spelling being renamed
 		} else if nameKey != "" && nameKey == upperNew {
 			return true
 		}
@@ -375,29 +313,16 @@ func hasNameConflict(doc *ast.Document, target *renameTarget, newName string) bo
 	return false
 }
 
-// renameScope returns the top-level play section whose dramatis
-// personae owns the rename target. The boolean is false when the
-// rename has no defined scope and must be refused — that happens when
-// the document mixes a legacy doc-level DP with one or more scoped
-// plays, and the cursor lands on the now-ignored legacy DP. A nil
-// section paired with a true result means the document is a pure
-// legacy layout (no scoped DPs anywhere), so a doc-wide walk is
-// correct.
 func renameScope(doc *ast.Document, line int) (*ast.Section, bool) {
 	if play := topLevelSectionForLine(doc, line); play != nil {
 		return play, true
 	}
 	if hasScopedDramatisPersonae(doc) {
-		// Mixed layout: legacy DP entries are intentionally disregarded
-		// by the rest of the LSP. Refuse rather than silently widening
-		// the rewrite across every scoped play.
 		return nil, false
 	}
 	return nil, true
 }
 
-// visitDialoguesInScope walks every dialogue node within the given play
-// section. When play is nil, it walks the entire document.
 func visitDialoguesInScope(doc *ast.Document, play *ast.Section, fn func(*ast.Dialogue)) {
 	var walk func(node ast.Node)
 	walk = func(node ast.Node) {
@@ -433,23 +358,12 @@ func visitDialoguesInScope(doc *ast.Document, play *ast.Section, fn func(*ast.Di
 
 func positionInRange(pos protocol.Position, r token.Range) bool {
 	if int(pos.Line) != r.Start.Line || r.Start.Line != r.End.Line {
-		// Character names always sit on a single source line; reject
-		// multi-line or off-line positions outright.
 		return false
 	}
 	col := int(pos.Character)
-	// End-exclusive to match the cue-position check. A cursor on the
-	// slash that follows an alias (or whitespace after a name) is no
-	// longer "inside" the symbol.
 	return col >= r.Start.Column && col < r.End.Column
 }
 
-// isValidCharacterName accepts identifiers a writer could realistically
-// type at a cue position. Names must contain at least one letter and may
-// include letters, digits, spaces, and a small punctuation set commonly
-// used in stage names (apostrophe, hyphen, period). The check stays
-// conservative — false rejections are easier to recover from than a
-// rename that produces an unparseable script.
 func isValidCharacterName(name string) bool {
 	hasLetter := false
 	for _, r := range name {
@@ -457,7 +371,6 @@ func isValidCharacterName(name string) bool {
 		case unicode.IsLetter(r):
 			hasLetter = true
 		case unicode.IsDigit(r), r == ' ', r == '\'', r == '-', r == '.':
-			// permitted
 		default:
 			return false
 		}
@@ -469,15 +382,11 @@ func isValidCharacterName(name string) bool {
 		return false
 	}
 	if strings.Contains(name, " - ") {
-		// Would be parsed as the start of a description.
 		return false
 	}
 	return true
 }
 
-// matchCueCasing keeps the casing convention of the existing cue when
-// generating the replacement. ALL CAPS cues stay ALL CAPS, lowercase
-// stays lowercase, otherwise the user-typed spelling is used as-is.
 func matchCueCasing(existing, replacement string) string {
 	trimmedReplacement := strings.TrimSpace(replacement)
 	if trimmedReplacement == "" {
@@ -523,11 +432,6 @@ func isZeroRange(r token.Range) bool {
 	return r.Start == (token.Position{}) && r.End == (token.Position{})
 }
 
-// subRangeWithinCue maps byte offsets inside the cue's source text to a
-// token.Range anchored relative to the cue's name range. Character cues
-// always sit on a single source line, so only the column needs adjusting.
-// UTF-16 columns are computed for the prefix bytes so the result stays
-// correct for non-ASCII names.
 func subRangeWithinCue(cueRange token.Range, cueText string, startByte, endByte int) token.Range {
 	if startByte < 0 {
 		startByte = 0
