@@ -7,12 +7,17 @@ import {
 import type { Component } from 'vue';
 import { shortcuts as sc } from '../../core/platform';
 
-const props = defineProps<{
+const { openLink } = defineProps<{
   openLink: (url: string) => Promise<void>;
 }>();
 
 type HelpSection = 'syntax' | 'tools' | 'shortcuts';
 const activeSection = ref<HelpSection>('syntax');
+const sections: { id: HelpSection; icon: Component; label: string }[] = [
+  { id: 'syntax', icon: Type, label: 'Writing' },
+  { id: 'tools', icon: Layout, label: 'Tools' },
+  { id: 'shortcuts', icon: Keyboard, label: 'Shortcuts' },
+];
 
 const shortcutList = [
   sc.bold, sc.italic, sc.underline,
@@ -35,11 +40,7 @@ const tools: { icon: Component; name: string; desc: string }[] = [
   <div class="flex h-full flex-col overflow-hidden">
     <div class="flex items-center gap-1 border-b border-border px-4 py-1.5">
       <button
-        v-for="section in ([
-          { id: 'syntax' as HelpSection, icon: Type, label: 'Writing' },
-          { id: 'tools' as HelpSection, icon: Layout, label: 'Tools' },
-          { id: 'shortcuts' as HelpSection, icon: Keyboard, label: 'Shortcuts' },
-        ])"
+        v-for="section in sections"
         :key="section.id"
         class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] transition-colors"
         :class="activeSection === section.id
@@ -53,7 +54,6 @@ const tools: { icon: Component; name: string; desc: string }[] = [
     </div>
 
     <div class="flex-1 overflow-y-auto px-4 py-3">
-      <!-- Writing / Syntax -->
       <div v-if="activeSection === 'syntax'" class="space-y-3">
         <p class="text-xs text-text-muted">
           Downstage scripts are plain text. Write naturally. Structure does the work.
@@ -115,7 +115,7 @@ _underline_  ~strikethrough~</code></pre>
           You don't need a title page to start. Just dialogue works too. See the
           <button
             class="font-bold text-brass-500 underline decoration-brass-500/40 underline-offset-2 hover:text-brass-400"
-            @click="props.openLink('https://www.getdownstage.com/syntax/')"
+            @click="openLink('https://www.getdownstage.com/syntax/')"
           >
             full Syntax Guide
             <ExternalLink class="mb-0.5 inline h-3 w-3" />
@@ -124,7 +124,6 @@ _underline_  ~strikethrough~</code></pre>
         </p>
       </div>
 
-      <!-- Tools -->
       <div v-if="activeSection === 'tools'" class="space-y-1.5">
         <p class="mb-2 text-xs text-text-muted">
           All of these are in the toolbar above the editor.
@@ -142,7 +141,6 @@ _underline_  ~strikethrough~</code></pre>
         </div>
       </div>
 
-      <!-- Shortcuts -->
       <div v-if="activeSection === 'shortcuts'" class="space-y-1.5">
         <p class="mb-2 text-xs text-text-muted">
           These are the keyboard shortcuts. Everything else lives in the toolbar.
