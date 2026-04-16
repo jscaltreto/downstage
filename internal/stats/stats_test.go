@@ -108,8 +108,6 @@ ALICE
 Hello (softly) world.
 `
 	s := compute(t, src)
-	// "Hello" + "world" = 2 spoken words. "softly" is an inline direction
-	// and must not be counted as spoken dialogue.
 	if s.DialogueWords != 2 {
 		t.Errorf("DialogueWords = %d, want 2 (inline direction should be excluded)", s.DialogueWords)
 	}
@@ -144,10 +142,6 @@ SONG END
 }
 
 func TestComputeGenericSectionProseCounted(t *testing.T) {
-	// Prose under a non-act/scene heading is stored as Section.Lines, not
-	// as child nodes. Those words must still count toward the manuscript
-	// total — otherwise playwright's notes, credits, etc. are silently
-	// dropped from TotalWords.
 	src := `# Playwright's Notes
 
 This play was written over four months.
@@ -211,8 +205,6 @@ func TestRuntimeOverrides(t *testing.T) {
 	}
 }
 
-// A preset name supplied alongside --wpm should not leak into the
-// surfaced metadata: any explicit wpm is always "custom".
 func TestRuntimeWPMOverrideReportsCustom(t *testing.T) {
 	got := stats.EstimateRuntime(260, stats.RuntimeOptions{
 		Preset:         "standard",

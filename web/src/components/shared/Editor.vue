@@ -55,6 +55,7 @@ const searchFocusNonce = ref(0);
 const diagnostics = ref<EditorDiagnostic[]>([]);
 const outlineSymbols = ref<DocumentSymbol[]>([]);
 const manuscriptStats = ref<ManuscriptStats | null>(null);
+const manuscriptStatsLoading = ref(false);
 const isTyping = ref(false);
 let typingTimer: number | null = null;
 const outlineDebounceMs = 300;
@@ -120,6 +121,7 @@ function scheduleOutlineRefresh(content: string) {
 
 function scheduleStatsRefresh(content: string) {
     if (statsTimer) window.clearTimeout(statsTimer);
+    manuscriptStatsLoading.value = true;
     statsTimer = window.setTimeout(async () => {
         statsTimer = null;
         const requestId = ++statsRequestId;
@@ -130,6 +132,10 @@ function scheduleStatsRefresh(content: string) {
         } catch {
             if (requestId !== statsRequestId) return;
             manuscriptStats.value = null;
+        } finally {
+            if (requestId === statsRequestId) {
+                manuscriptStatsLoading.value = false;
+            }
         }
     }, statsDebounceMs);
 }
@@ -278,6 +284,7 @@ watch(() => store.state.activeDraftId, () => {
   showV1Modal.value = false;
   diagnostics.value = [];
   manuscriptStats.value = null;
+  manuscriptStatsLoading.value = true;
   engine?.refreshDiagnostics();
   engine?.clearSearch();
   searchMatches.value = [];
@@ -338,27 +345,25 @@ function jumpToSymbol(symbol: DocumentSymbol) {
     engine?.revealPosition(start.line, start.character);
 }
 
-function openIssuesTab() {
-    drawerTab.value = 'issues';
+function openWorkbenchTab(tab: WorkbenchTab) {
+    if (drawerOpen.value && drawerTab.value === tab) {
+        closeDrawer();
+        return;
+    }
+    drawerTab.value = tab;
     drawerOpen.value = true;
 }
 
 function toggleOutline() {
-    if (drawerOpen.value && drawerTab.value === 'outline') {
-        closeDrawer();
-        return;
-    }
-    drawerTab.value = 'outline';
-    drawerOpen.value = true;
+    openWorkbenchTab('outline');
 }
 
 function toggleStats() {
-    if (drawerOpen.value && drawerTab.value === 'stats') {
-        closeDrawer();
-        return;
-    }
-    drawerTab.value = 'stats';
-    drawerOpen.value = true;
+    openWorkbenchTab('stats');
+}
+
+function openIssuesTab() {
+    openWorkbenchTab('issues');
 }
 
 function closeDrawer() {
@@ -555,7 +560,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                     />
                 </template>
                 <template #stats>
-                    <StatsTab :stats="manuscriptStats" />
+                    <StatsTab :stats="manuscriptStats" :loading="manuscriptStatsLoading" />
                 </template>
             </WorkbenchDrawer>
         </div>

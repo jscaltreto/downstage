@@ -12,7 +12,6 @@ import (
 	"github.com/jscaltreto/downstage/internal/ast"
 )
 
-// Stats summarizes a manuscript.
 type Stats struct {
 	Acts                int              `json:"acts"`
 	Scenes              int              `json:"scenes"`
@@ -26,8 +25,7 @@ type Stats struct {
 	Runtime             RuntimeEstimate  `json:"runtime"`
 }
 
-// CharacterStats holds per-character tallies. Aliases listed in the
-// dramatis personae are folded into the primary name.
+// CharacterStats holds per-character tallies.
 type CharacterStats struct {
 	Name          string   `json:"name"`
 	Aliases       []string `json:"aliases,omitempty"`
@@ -35,9 +33,7 @@ type CharacterStats struct {
 	DialogueWords int      `json:"dialogueWords"`
 }
 
-// Compute walks the document and returns manuscript statistics. The
-// runtime field is filled in using the supplied RuntimeOptions; see
-// EstimateRuntime for the heuristic.
+// Compute returns manuscript statistics for doc.
 func Compute(doc *ast.Document, rt RuntimeOptions) Stats {
 	s := Stats{}
 	if doc == nil {
@@ -133,9 +129,7 @@ func Compute(doc *ast.Document, rt RuntimeOptions) Stats {
 	return s
 }
 
-// aliasResolver maps raw cue names (including aliases) to a canonical
-// character name using the dramatis personae. Unknown names are returned
-// upper-cased so forced cues still tally consistently.
+// aliasResolver maps raw cue names to canonical character names.
 type aliasResolver struct {
 	canonicalByKey map[string]string
 	aliasesByName  map[string][]string
