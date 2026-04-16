@@ -19,6 +19,7 @@ import IssuesTab from './IssuesTab.vue';
 import FindReplaceTab from './FindReplaceTab.vue';
 import OutlineTab from './OutlineTab.vue';
 import StatsTab from './StatsTab.vue';
+import HelpTab from './HelpTab.vue';
 
 const props = defineProps<{
   env: EditorEnv;
@@ -32,7 +33,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:content', value: string): void;
   (e: 'update:style', value: string): void;
-  (e: 'toggle-help'): void;
   (e: 'migration-state-change', value: boolean): void;
 }>();
 
@@ -362,6 +362,10 @@ function toggleStats() {
     openWorkbenchTab('stats');
 }
 
+function toggleHelp() {
+    openWorkbenchTab('help');
+}
+
 function openIssuesTab() {
     openWorkbenchTab('issues');
 }
@@ -437,7 +441,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
         </div>
 
         <div class="flex items-center gap-1.5 border-l border-black/10 dark:border-white/10 pl-2">
-            <ToolbarButton @click="emit('toggle-help')" title="Help" class="w-8 h-8 !p-0 rounded-full font-bold" transparent>
+            <ToolbarButton @click="toggleHelp" :active="drawerOpen && drawerTab === 'help'" title="Help" class="w-8 h-8 !p-0 rounded-full font-bold" transparent>
                 <template #icon><HelpCircle class="w-5 h-5" /></template>
             </ToolbarButton>
 
@@ -561,6 +565,9 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                 </template>
                 <template #stats>
                     <StatsTab :stats="manuscriptStats" :loading="manuscriptStatsLoading" />
+                </template>
+                <template #help>
+                    <HelpTab :open-link="props.env.openURL" />
                 </template>
             </WorkbenchDrawer>
         </div>

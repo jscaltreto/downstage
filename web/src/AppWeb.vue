@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, provide, onMounted, ref, watch, onUnmounted } from 'vue';
 import {
-    Plus, FolderOpen, FileText, Download, Copy, ExternalLink, Trash2, X, FileOutput, Upload, AlertTriangle
+    Plus, FolderOpen, FileText, Download, Copy, ExternalLink, Trash2, FileOutput, Upload, AlertTriangle
 } from 'lucide-vue-next';
 import { Store } from './core/store';
 import type { EditorEnv, SavedDraft } from './core/types';
@@ -19,12 +19,10 @@ const props = defineProps<{
 const store = new Store(props.env);
 provide('store', store);
 
-const quickReferenceStorageKey = "downstage-quick-reference-hidden";
 const welcomeStorageKey = "downstage-editor-welcome-dismissed";
 
 const isLoaded = ref(false);
 const showDrafts = ref(false);
-const showQuickReference = ref(false);
 const showWelcome = ref(false);
 const showNewPlayConfirm = ref(false);
 const activeContent = ref("");
@@ -155,7 +153,6 @@ onMounted(async () => {
     showPendingPlaceholder("The Example Play", exampleContent);
   }
 
-  showQuickReference.value = localStorage.getItem(quickReferenceStorageKey) === "false";
   showWelcome.value = localStorage.getItem(welcomeStorageKey) !== "true";
   isLoaded.value = true;
 
@@ -230,11 +227,6 @@ function flushDrafts() {
 function dismissWelcome() {
   showWelcome.value = false;
   localStorage.setItem(welcomeStorageKey, "true");
-}
-
-function openQuickReferenceFromWelcome() {
-  showQuickReference.value = true;
-  dismissWelcome();
 }
 
 function handleNewPlay() {
@@ -345,9 +337,6 @@ watch(activeContent, (newContent) => {
     }
 });
 
-watch(showQuickReference, (val) => {
-    localStorage.setItem(quickReferenceStorageKey, String(!val));
-});
 </script>
 
 <template>
@@ -386,88 +375,13 @@ watch(showQuickReference, (val) => {
     </div>
 
     <main v-else class="flex-1 overflow-hidden flex flex-col">
-      <section
-        v-if="showQuickReference"
-        class="border-b border-border bg-[var(--color-page-surface)] px-4 py-3 shadow-sm"
-      >
-        <div class="mx-auto flex max-w-7xl flex-col gap-3">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <h2 class="text-[10px] font-bold uppercase tracking-[0.2em] text-brass-500">Quick Reference</h2>
-              <p class="mt-1 text-sm text-text-muted">
-                The basics only. Keep writing, and open the
-                <button
-                  class="font-bold text-brass-500 underline decoration-brass-500/40 underline-offset-2 hover:text-brass-400"
-                  @click="env.openURL('https://www.getdownstage.com/syntax/')"
-                >
-                  Syntax Guide
-                </button>
-                for the full spec.
-              </p>
-            </div>
-            <button
-              class="rounded-full p-2 text-text-muted transition-colors hover:bg-black/5 hover:text-text-main dark:hover:bg-white/5"
-              @click="showQuickReference = false"
-              aria-label="Close quick reference"
-            >
-              <X class="h-5 w-5" />
-            </button>
-          </div>
-
-          <dl class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
-              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Play Header</dt>
-              <dd>
-                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code># My Play
-Subtitle: A Play in One Act
-Author: Your Name
-Draft: First</code></pre>
-              </dd>
-            </div>
-
-            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
-              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Cue + Dialogue</dt>
-              <dd>
-                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>ALICE
-I know this looks reckless.</code></pre>
-              </dd>
-            </div>
-
-            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
-              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Stage Direction</dt>
-              <dd>
-                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>&gt; The lights cut to black.</code></pre>
-              </dd>
-            </div>
-
-            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
-              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Structure</dt>
-              <dd>
-                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>## ACT I
-### SCENE 1</code></pre>
-              </dd>
-            </div>
-
-            <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
-              <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Emphasis</dt>
-              <dd>
-                <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>**bold**
-*italic*
-_underline_</code></pre>
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </section>
-
-      <Editor 
+      <Editor
         :env="env"
         v-model:content="activeContent"
         v-model:style="pageStyle"
         :get-spell-allowlist="() => activeSavedDraft?.spellAllowlist || []"
         :add-spell-allowlist-word="addSpellAllowlistWord"
         :remove-spell-allowlist-word="removeSpellAllowlistWord"
-        @toggle-help="showQuickReference = !showQuickReference"
         @migration-state-change="isV1Document = $event"
       />
     </main>
@@ -569,7 +483,6 @@ _underline_</code></pre>
     <WelcomeModal
         :open="showWelcome"
         @close="dismissWelcome"
-        @open-quick-reference="openQuickReferenceFromWelcome"
     />
 
     <ToastManager ref="toastManager" />
