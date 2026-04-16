@@ -21,13 +21,13 @@ const shortcutList = [
 ];
 
 const tools: { icon: Component; name: string; desc: string }[] = [
-  { icon: Eye, name: 'Preview', desc: 'See the printed page side-by-side as you write.' },
+  { icon: Eye, name: 'Preview', desc: 'See the printed page beside your script.' },
   { icon: ListTree, name: 'Outline', desc: 'Jump between acts, scenes, and characters.' },
-  { icon: BarChart3, name: 'Stats', desc: 'Word counts, estimated runtime, and who talks the most.' },
-  { icon: AlertTriangle, name: 'Issues', desc: 'Catch problems — misspelled character names, missing dialogue, formatting mistakes.' },
-  { icon: Search, name: 'Find & Replace', desc: 'Search your script and fix names or lines in bulk.' },
-  { icon: SpellCheck, name: 'Spell Check', desc: 'Underlines misspelled words. You can add names and terms to a per-script allowlist.' },
-  { icon: ScrollText, name: 'Manuscript / Acting Edition', desc: 'Switch between standard manuscript format and a compact acting-edition layout.' },
+  { icon: BarChart3, name: 'Stats', desc: 'See word count, runtime estimate, and who speaks most.' },
+  { icon: AlertTriangle, name: 'Issues', desc: 'Catch typos, structural errors, and formatting mistakes.' },
+  { icon: Search, name: 'Find & Replace', desc: 'Search for a word or phrase, then replace it once or everywhere.' },
+  { icon: SpellCheck, name: 'Spell Check', desc: 'Underline misspellings and add names or terms to this script’s allowlist.' },
+  { icon: ScrollText, name: 'Manuscript / Acting Edition', desc: 'Switch between standard manuscript and a compact acting-edition layout.' },
 ];
 </script>
 
@@ -56,14 +56,14 @@ const tools: { icon: Component; name: string; desc: string }[] = [
       <!-- Writing / Syntax -->
       <div v-if="activeSection === 'syntax'" class="space-y-3">
         <p class="text-xs text-text-muted">
-          Downstage scripts are plain text. Type naturally — formatting comes from structure, not menus.
+          Downstage scripts are plain text. Write naturally. Structure does the work.
         </p>
         <dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
             <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Title Page</dt>
             <dd>
               <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code># My Play
-Subtitle: A Drama
+Subtitle: A Play in One Act
 Author: Your Name
 Draft: First</code></pre>
             </dd>
@@ -112,7 +112,7 @@ _underline_  ~strikethrough~</code></pre>
           </div>
         </dl>
         <p class="text-xs text-text-muted">
-          You don't need a title page to start — just dialogue works too. See the
+          You don't need a title page to start. Just dialogue works too. See the
           <button
             class="font-bold text-brass-500 underline decoration-brass-500/40 underline-offset-2 hover:text-brass-400"
             @click="props.openLink('https://www.getdownstage.com/syntax/')"
@@ -120,7 +120,7 @@ _underline_  ~strikethrough~</code></pre>
             full Syntax Guide
             <ExternalLink class="mb-0.5 inline h-3 w-3" />
           </button>
-          for everything.
+          for the full reference.
         </p>
       </div>
 
@@ -145,7 +145,7 @@ _underline_  ~strikethrough~</code></pre>
       <!-- Shortcuts -->
       <div v-if="activeSection === 'shortcuts'" class="space-y-1.5">
         <p class="mb-2 text-xs text-text-muted">
-          Everything else is in the toolbar — these are the keyboard shortcuts.
+          These are the keyboard shortcuts. Everything else lives in the toolbar.
         </p>
         <div
           v-for="s in shortcutList"
