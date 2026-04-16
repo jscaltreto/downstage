@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.7.0](https://github.com/jscaltreto/downstage/compare/v0.6.0...v0.7.0) (2026-04-16)
+
+
+### Features
+
+* **lexer:** require blank line before cue ([#152](https://github.com/jscaltreto/downstage/issues/152)) ([ba33d2a](https://github.com/jscaltreto/downstage/commit/ba33d2a59b3bdeda16262310c424e5678e7934d0))
+* **lsp:** add DP and cue hygiene diagnostics ([#147](https://github.com/jscaltreto/downstage/issues/147)) ([56c8b27](https://github.com/jscaltreto/downstage/commit/56c8b27e0ba9f8b954eaf77b15793536d40d1ca7))
+* **lsp:** add structural Rename Symbol for characters ([#155](https://github.com/jscaltreto/downstage/issues/155)) ([ad485e0](https://github.com/jscaltreto/downstage/commit/ad485e044d65e8f9f147aa8b49976e921296c3a7))
+* **lsp:** suppress unknown-character diagnostic for forced cues ([#144](https://github.com/jscaltreto/downstage/issues/144)) ([fe92efa](https://github.com/jscaltreto/downstage/commit/fe92efaa503128ad58c25ca4df98eceec1eddfde))
+* **stats:** add manuscript statistics command ([#158](https://github.com/jscaltreto/downstage/issues/158)) ([3a0c965](https://github.com/jscaltreto/downstage/commit/3a0c965da0ec796899769b309206bd68a6552d3b))
+* **web:** add find/replace to editor ([#149](https://github.com/jscaltreto/downstage/issues/149)) ([ddff1ee](https://github.com/jscaltreto/downstage/commit/ddff1eea124d7f25611ad93969ff2dfd11528d26))
+* **web:** add issues drawer with status FAB ([#146](https://github.com/jscaltreto/downstage/issues/146)) ([7f54afd](https://github.com/jscaltreto/downstage/commit/7f54afdee26de94e18e61892cdce01e84421cf30))
+* **web:** add outline tab + scroll-sync fixes + FAB polish ([#151](https://github.com/jscaltreto/downstage/issues/151)) ([b09c602](https://github.com/jscaltreto/downstage/commit/b09c6021865f5450e27e6119d60c34276301d453))
+* **web:** add spell check ([#142](https://github.com/jscaltreto/downstage/issues/142)) ([0212401](https://github.com/jscaltreto/downstage/commit/021240198fa7b6192ab4097d5995d4354a906542))
+* **web:** add stats drawer tab and toolbar toggle ([#159](https://github.com/jscaltreto/downstage/issues/159)) ([f3410cd](https://github.com/jscaltreto/downstage/commit/f3410cd669b7aa2f203f9ac1b52c940fb811ff59))
+* **web:** replace quick reference with help drawer ([#160](https://github.com/jscaltreto/downstage/issues/160)) ([c66fc7e](https://github.com/jscaltreto/downstage/commit/c66fc7e5d4fa489115b285e37ae80eea4c5f3116))
+
+
+### Bug Fixes
+
+* **lsp:** target missing dp edit by play ([#154](https://github.com/jscaltreto/downstage/issues/154)) ([ceb722d](https://github.com/jscaltreto/downstage/commit/ceb722d10bcb3c331babe5ca6885a642bb44e853))
+* **render:** stylable character descriptions and frontmatter values ([#153](https://github.com/jscaltreto/downstage/issues/153)) ([de0399b](https://github.com/jscaltreto/downstage/commit/de0399b04165ea28a6069bc9bcb82adf361328a7))
+* **render:** use dp heading wording ([#148](https://github.com/jscaltreto/downstage/issues/148)) ([5cef99c](https://github.com/jscaltreto/downstage/commit/5cef99cbddb1ea886a00d5641dd620ee5690f0ba))
+* **web:** avoid caret misplacement on wrapped lintRange lines ([#150](https://github.com/jscaltreto/downstage/issues/150)) ([fbf3909](https://github.com/jscaltreto/downstage/commit/fbf3909a90b67f0978476c65275681909bc086a9))
+
 ## [0.6.0](https://github.com/jscaltreto/downstage/compare/v0.5.0...v0.6.0) (2026-04-13)
 
 
