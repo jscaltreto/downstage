@@ -49,7 +49,7 @@ const maxCharacterWords = computed(() => {
         <div class="rounded-lg border border-border bg-black/[0.03] p-2.5 dark:bg-white/[0.03]">
           <div class="flex items-center gap-1.5 text-text-muted">
             <Clock class="h-3 w-3" />
-            <span class="text-[10px] font-bold uppercase tracking-[0.15em]">Runtime</span>
+            <span class="text-[10px] font-bold uppercase tracking-[0.15em]">Est. Runtime<sup class="text-text-muted">&dagger;</sup></span>
           </div>
           <p class="mt-1 text-sm font-bold text-text-main">{{ formatRuntime(stats.runtime.minutes) }}</p>
         </div>
@@ -111,7 +111,7 @@ const maxCharacterWords = computed(() => {
 
       <div class="border-t border-border px-3 py-2">
         <p class="text-[10px] text-text-muted">
-          Runtime estimate based on {{ stats.runtime.wordsPerMinute }} WPM ({{ stats.runtime.preset }}) with {{ Math.round(stats.runtime.pauseFactor * 100) }}% pause factor.
+  &dagger; Runtime estimate based on {{ stats.runtime.wordsPerMinute }} WPM ({{ stats.runtime.preset }}) with {{ Math.round(stats.runtime.pauseFactor * 100) }}% pause factor.
         </p>
       </div>
     </div>
