@@ -97,30 +97,11 @@ _underline_  ~strikethrough~</code></pre>
             </dd>
           </div>
           <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
-            <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Songs</dt>
-            <dd>
-              <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>SONG 1: Wanderer's Lament
-
-ALICE
-  Lyric line one.
-
-SONG END</code></pre>
-            </dd>
-          </div>
-          <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
             <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Page Breaks &amp; Comments</dt>
             <dd>
               <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>===
 
 // Note to self: fix this</code></pre>
-            </dd>
-          </div>
-          <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
-            <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Forced Cues</dt>
-            <dd>
-              <pre class="overflow-x-auto text-xs leading-relaxed text-text-muted"><code>@OFFSTAGE VOICE
-Help! Is anyone there?</code></pre>
-              <p class="mt-1.5 text-[10px] text-text-muted">Use <code class="font-mono">@</code> for one-off speakers not in the cast list.</p>
             </dd>
           </div>
         </dl>
