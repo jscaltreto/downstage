@@ -144,6 +144,7 @@ brew install downstage
 ```
 downstage parse play.ds       # Output AST as JSON
 downstage validate play.ds    # Check for errors
+downstage stats play.ds       # Report word/dialogue/runtime stats
 downstage render play.ds      # Render to PDF (default)
 downstage render -f html play.ds  # Render to HTML
 downstage lsp                 # Start LSP server (stdio)
@@ -177,6 +178,32 @@ Both formats support two styles via `--style`:
 PDF uses Courier 12pt on letter-size pages for manuscript, and Libre Baskerville
 10pt on half-letter for acting edition. HTML produces a self-contained document with
 embedded CSS using semantic `.downstage-*` class names for custom styling.
+
+### Statistics
+
+`downstage stats` reports manuscript metrics derived from the parsed AST:
+word counts, dialogue breakdown, per-character speeches and lines, scene/act
+counts, and a rough runtime estimate.
+
+```
+downstage stats play.ds                 # Human-readable summary
+downstage stats play.ds --format json   # Machine-readable output
+downstage stats play.ds --rate slow     # Use the 110 wpm preset
+downstage stats play.ds --wpm 140 --pause 0  # Custom rate, no pause overhead
+```
+
+Runtime is based on spoken dialogue word count divided by a speaking rate,
+plus a small pause factor for pacing:
+
+```
+spoken_minutes    = dialogue_words / words_per_minute
+estimated_minutes = spoken_minutes * (1 + pause_factor)
+```
+
+Presets: `slow` (110 wpm), `standard` (130 wpm, default), `conversational`
+(150 wpm). The default pause factor is 10%. Stage directions and prose do
+not contribute to the runtime estimate. Treat the output as a rough guide,
+not a prediction.
 
 ## Editor Setup
 
