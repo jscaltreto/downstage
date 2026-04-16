@@ -277,6 +277,7 @@ watch(() => props.content, (newContent) => {
 watch(() => store.state.activeDraftId, () => {
   showV1Modal.value = false;
   diagnostics.value = [];
+  manuscriptStats.value = null;
   engine?.refreshDiagnostics();
   engine?.clearSearch();
   searchMatches.value = [];

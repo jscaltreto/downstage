@@ -9,8 +9,9 @@ const props = defineProps<{
 
 function formatRuntime(minutes: number): string {
   if (minutes < 1) return '< 1 min';
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
+  const total = Math.round(minutes);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
   if (h === 0) return `${m} min`;
   if (m === 0) return `${h} hr`;
   return `${h} hr ${m} min`;
@@ -27,7 +28,7 @@ const topCharacters = computed(() => {
 
 const maxCharacterWords = computed(() => {
   if (topCharacters.value.length === 0) return 1;
-  return Math.max(1, topCharacters.value[0]?.dialogueWords ?? 1);
+  return Math.max(1, ...topCharacters.value.map(c => c.dialogueWords));
 });
 </script>
 
