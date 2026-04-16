@@ -42,9 +42,37 @@ var conjunctionSeps = []string{" AND ", " & "}
 // splitConjunctionCue splits a cue like "BOB AND JANE" or "BOB & JANE"
 // into individual names. Returns nil if no conjunction is found.
 func splitConjunctionCue(name string) []string {
+	parts := splitConjunctionCueWithOffsets(name)
+	if len(parts) == 0 {
+		return nil
+	}
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		out[i] = p.Name
+	}
+	return out
+}
+
+// conjunctionPart describes one participant of a conjunction cue,
+// alongside its byte offsets within the original cue string. Callers
+// that need to edit a sub-name in place (rename) use the offsets to
+// build a precise source range.
+type conjunctionPart struct {
+	Name  string
+	Start int // inclusive byte offset of the trimmed name within the cue
+	End   int // exclusive byte offset
+}
+
+// splitConjunctionCueWithOffsets returns participants of a conjunction
+// cue together with their byte spans inside the original name string.
+// Returns nil when the cue is a single name.
+func splitConjunctionCueWithOffsets(name string) []conjunctionPart {
 	upper := strings.ToUpper(name)
 
-	var parts []string
+	type rawPart struct {
+		start, end int // raw segment bounds, including any surrounding whitespace
+	}
+	var raws []rawPart
 	offset := 0
 	for offset < len(upper) {
 		bestIdx := -1
@@ -56,15 +84,25 @@ func splitConjunctionCue(name string) []string {
 			}
 		}
 		if bestIdx < 0 {
-			parts = append(parts, strings.TrimSpace(name[offset:]))
+			raws = append(raws, rawPart{start: offset, end: len(name)})
 			break
 		}
-		parts = append(parts, strings.TrimSpace(name[offset:offset+bestIdx]))
+		raws = append(raws, rawPart{start: offset, end: offset + bestIdx})
 		offset += bestIdx + bestLen
 	}
 
-	if len(parts) <= 1 {
+	if len(raws) <= 1 {
 		return nil
+	}
+
+	parts := make([]conjunctionPart, 0, len(raws))
+	for _, raw := range raws {
+		segment := name[raw.start:raw.end]
+		trimmedLeading := len(segment) - len(strings.TrimLeft(segment, " \t"))
+		trimmed := strings.TrimSpace(segment)
+		start := raw.start + trimmedLeading
+		end := start + len(trimmed)
+		parts = append(parts, conjunctionPart{Name: trimmed, Start: start, End: end})
 	}
 	return parts
 }

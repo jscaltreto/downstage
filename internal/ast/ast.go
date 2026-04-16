@@ -204,7 +204,37 @@ type Character struct {
 	Description        string
 	DescriptionInlines []Inline
 	Range              token.Range
+	// nameRange covers the primary name token within Range.
+	nameRange token.Range
+	// aliasRanges covers each alias token, in alias order.
+	aliasRanges []token.Range
 }
+
+// NameRange returns the source range of the primary name token.
+func (c Character) NameRange() token.Range {
+	if !isZeroRange(c.nameRange) {
+		return c.nameRange
+	}
+	r := c.Range
+	r.End = r.Start
+	r.End.Column += token.UTF16Len(c.Name)
+	r.End.Offset += len(c.Name)
+	return r
+}
+
+// SetNameRange records the primary name range.
+func (c *Character) SetNameRange(r token.Range) { c.nameRange = r }
+
+// AliasRange returns the source range of the alias at index i.
+func (c Character) AliasRange(i int) token.Range {
+	if i < 0 || i >= len(c.aliasRanges) {
+		return token.Range{}
+	}
+	return c.aliasRanges[i]
+}
+
+// SetAliasRanges records alias ranges in alias order.
+func (c *Character) SetAliasRanges(rs []token.Range) { c.aliasRanges = rs }
 
 // CharacterGroup is a named group of characters.
 type CharacterGroup struct {

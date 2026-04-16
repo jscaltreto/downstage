@@ -39,3 +39,4 @@ Thumbs.db
 # Project-specific ignored files
 .design_docs/
 .tmp/
+.codex

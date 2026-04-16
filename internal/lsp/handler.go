@@ -57,6 +57,10 @@ func (h *handler) Handle(ctx context.Context, reply jsonrpc2.Replier, req jsonrp
 		return h.handleCodeAction(ctx, reply, req)
 	case protocol.MethodTextDocumentFoldingRange:
 		return h.handleFoldingRange(ctx, reply, req)
+	case protocol.MethodTextDocumentPrepareRename:
+		return h.handlePrepareRename(ctx, reply, req)
+	case protocol.MethodTextDocumentRename:
+		return h.handleRename(ctx, reply, req)
 	default:
 		return reply(ctx, nil, jsonrpc2.NewError(jsonrpc2.MethodNotFound, "method not found: "+method))
 	}
@@ -88,6 +92,9 @@ func (h *handler) handleInitialize(ctx context.Context, reply jsonrpc2.Replier, 
 			DefinitionProvider:     true,
 			CodeActionProvider:     true,
 			FoldingRangeProvider:   true,
+			RenameProvider: protocol.RenameOptions{
+				PrepareProvider: true,
+			},
 			CompletionProvider: &protocol.CompletionOptions{
 				TriggerCharacters: []string{"@", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"},
 			},
@@ -264,6 +271,46 @@ func (h *handler) handleFoldingRange(ctx context.Context, reply jsonrpc2.Replier
 		result = []protocol.FoldingRange{}
 	}
 	return reply(ctx, result, nil)
+}
+
+func (h *handler) handlePrepareRename(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
+	var params protocol.PrepareRenameParams
+	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		h.logger.Error("failed to unmarshal prepareRename params", slog.String("error", err.Error()))
+		return reply(ctx, nil, nil)
+	}
+
+	doc := h.dm.Get(params.TextDocument.URI)
+	if doc == nil {
+		return reply(ctx, nil, nil)
+	}
+
+	r := computePrepareRename(doc.doc, params.Position)
+	if r == nil {
+		// Returning a JSON-RPC error tells the client to refuse the
+		// rename UI gracefully (no popup with a misleading default).
+		return reply(ctx, nil, jsonrpc2.NewError(jsonrpc2.InvalidRequest, "cannot rename here"))
+	}
+	return reply(ctx, r, nil)
+}
+
+func (h *handler) handleRename(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
+	var params protocol.RenameParams
+	if err := json.Unmarshal(req.Params(), &params); err != nil {
+		h.logger.Error("failed to unmarshal rename params", slog.String("error", err.Error()))
+		return reply(ctx, nil, nil)
+	}
+
+	doc := h.dm.Get(params.TextDocument.URI)
+	if doc == nil {
+		return reply(ctx, nil, nil)
+	}
+
+	edit, err := computeRename(doc.doc, params.TextDocument.URI, params.Position, params.NewName)
+	if err != nil {
+		return reply(ctx, nil, jsonrpc2.NewError(jsonrpc2.InvalidRequest, err.Error()))
+	}
+	return reply(ctx, edit, nil)
 }
 
 func (h *handler) publishDiagnostics(ctx context.Context, docURI protocol.DocumentURI, diags []protocol.Diagnostic) error {

@@ -112,6 +112,8 @@ SONG END
   - Document outline (acts/scenes/characters)
   - Hover info on character names (shows description from dramatis personae)
   - Go-to-definition (jump to character's dramatis personae entry)
+  - Rename Symbol for characters (updates dramatis personae entry,
+    aliases, and matching cues — refuses on prose mentions)
   - Context-aware completion for character cues
   - Diagnostics (parse errors, unknown character warnings, Dramatis
     Personae hygiene, cue hygiene)

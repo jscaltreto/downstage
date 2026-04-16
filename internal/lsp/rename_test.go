@@ -1,0 +1,778 @@
+package lsp
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/jscaltreto/downstage/internal/parser"
+	"go.lsp.dev/protocol"
+)
+
+const renameURI protocol.DocumentURI = "file:///rename.ds"
+
+func TestPrepareRename_OnDramatisPersonaePrimaryName(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB - The good guy
+JANE
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 1})
+	if r == nil {
+		t.Fatal("expected rename range on DP primary name")
+	}
+	if r.Start.Line != 4 || r.Start.Character != 0 || r.End.Character != 3 {
+		t.Errorf("unexpected range %+v", r)
+	}
+}
+
+func TestPrepareRename_OnAliasDeclaration(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB/B - The good guy
+
+## ACT I
+
+### SCENE 1
+
+B
+Hello.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 4})
+	if r == nil {
+		t.Fatal("expected rename range on alias")
+	}
+	if r.Start.Character != 4 || r.End.Character != 5 {
+		t.Errorf("unexpected alias range %+v", r)
+	}
+}
+
+func TestPrepareRename_OnDialogueCue(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	r := computePrepareRename(doc, protocol.Position{Line: 10, Character: 1})
+	if r == nil {
+		t.Fatal("expected rename range on cue")
+	}
+	if r.Start.Line != 10 || r.Start.Character != 0 || r.End.Character != 3 {
+		t.Errorf("unexpected cue range %+v", r)
+	}
+}
+
+func TestPrepareRename_RefusesOnDialogueBody(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	r := computePrepareRename(doc, protocol.Position{Line: 11, Character: 1})
+	if r != nil {
+		t.Errorf("expected no rename on dialogue body, got %+v", r)
+	}
+}
+
+func TestPrepareRename_RefusesOnConjunctionCue(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB
+JANE
+
+## ACT I
+
+### SCENE 1
+
+BOB AND JANE
+Hello.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	r := computePrepareRename(doc, protocol.Position{Line: 11, Character: 1})
+	if r != nil {
+		t.Errorf("expected no rename on conjunction cue, got %+v", r)
+	}
+}
+
+func TestPrepareRename_RefusesOnPlainProse(t *testing.T) {
+	src := `# Notes
+
+Just some prose mentioning BOB.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	r := computePrepareRename(doc, protocol.Position{Line: 2, Character: 28})
+	if r != nil {
+		t.Errorf("expected no rename on prose, got %+v", r)
+	}
+}
+
+func TestComputeRename_UpdatesDeclarationAndCues(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB - The good guy
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello.
+
+BOB
+Again.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "ROBERT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if edit == nil {
+		t.Fatal("expected workspace edit")
+	}
+	edits := edit.Changes[renameURI]
+	if got, want := len(edits), 3; got != want {
+		t.Fatalf("expected %d edits (1 decl + 2 cues), got %d: %+v", want, got, edits)
+	}
+	for _, e := range edits {
+		if e.NewText != "ROBERT" {
+			t.Errorf("expected NewText ROBERT, got %q", e.NewText)
+		}
+	}
+}
+
+func TestComputeRename_PreservesAliasWhenRenamingPrimary(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB/B - The good guy
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hi.
+
+B
+Yo.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "ROBERT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	if got, want := len(edits), 2; got != want {
+		t.Fatalf("expected %d edits, got %d: %+v", want, got, edits)
+	}
+	for _, e := range edits {
+		if !strings.EqualFold(e.NewText, "ROBERT") {
+			t.Errorf("expected NewText ROBERT, got %q", e.NewText)
+		}
+	}
+}
+
+func TestComputeRename_AliasOnly(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB/B - The good guy
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hi.
+
+B
+Yo.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 4}, "BOBBY")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	if got, want := len(edits), 2; got != want {
+		t.Fatalf("expected %d edits, got %d: %+v", want, got, edits)
+	}
+}
+
+func TestComputeRename_CuePosition(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hi.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 10, Character: 1}, "ROBERT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	if got, want := len(edits), 2; got != want {
+		t.Fatalf("expected %d edits from cue trigger, got %d: %+v", want, got, edits)
+	}
+
+	assertNoOverlappingEdits(t, edits)
+	lines := map[uint32]bool{}
+	for _, e := range edits {
+		lines[e.Range.Start.Line] = true
+	}
+	if !lines[4] {
+		t.Errorf("expected DP entry at line 4 to be edited, got edits on lines %v", lines)
+	}
+	if !lines[10] {
+		t.Errorf("expected cue at line 10 to be edited, got edits on lines %v", lines)
+	}
+}
+
+func assertNoOverlappingEdits(t *testing.T, edits []protocol.TextEdit) {
+	t.Helper()
+	for i := 0; i < len(edits); i++ {
+		for j := i + 1; j < len(edits); j++ {
+			if rangesOverlap(edits[i].Range, edits[j].Range) {
+				t.Fatalf("overlapping edits: %+v and %+v", edits[i], edits[j])
+			}
+		}
+	}
+}
+
+func rangesOverlap(a, b protocol.Range) bool {
+	if a.End.Line < b.Start.Line || (a.End.Line == b.Start.Line && a.End.Character <= b.Start.Character) {
+		return false
+	}
+	if b.End.Line < a.Start.Line || (b.End.Line == a.Start.Line && b.End.Character <= a.Start.Character) {
+		return false
+	}
+	return true
+}
+
+func TestComputeRename_RejectsConflictWithExistingName(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB
+JANE
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hi.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	_, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "JANE")
+	if err == nil {
+		t.Fatal("expected conflict error")
+	}
+}
+
+func TestComputeRename_RejectsConflictWithAlias(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB/B
+JANE
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hi.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	_, err := computeRename(doc, renameURI, protocol.Position{Line: 5, Character: 1}, "B")
+	if err == nil {
+		t.Fatal("expected conflict error against existing alias")
+	}
+}
+
+func TestComputeRename_RejectsInvalidName(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hi.
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	cases := []struct {
+		name    string
+		newName string
+	}{
+		{name: "empty", newName: ""},
+		{name: "slash", newName: "BOB/X"},
+		{name: "description sep", newName: "BOB - X"},
+		{name: "punctuation", newName: "BOB!"},
+		{name: "digits only", newName: "1234"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, tc.newName)
+			if err == nil {
+				t.Fatalf("expected error for %q", tc.newName)
+			}
+		})
+	}
+}
+
+func TestComputeRename_PreservesCueCasing(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hi.
+
+@Bob
+Hi too.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "Robert")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	gotTexts := make(map[string]int)
+	for _, e := range edits {
+		gotTexts[e.NewText]++
+	}
+	if gotTexts["ROBERT"] < 1 {
+		t.Errorf("expected ALL-CAPS cue to stay ALL CAPS, got %+v", gotTexts)
+	}
+	if gotTexts["Robert"] < 1 {
+		t.Errorf("expected mixed-case cue to keep typed case, got %+v", gotTexts)
+	}
+}
+
+func TestComputeRename_RewritesConjunctionCueParticipants(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+JAKE
+BOB
+
+## ACT I
+
+### SCENE 1
+
+JAKE AND BOB
+Hi.
+
+BOB AND JAKE
+Hello.
+
+JAKE
+Solo.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "JAKOB")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	assertNoOverlappingEdits(t, edits)
+
+	if got, want := len(edits), 4; got != want {
+		t.Fatalf("expected %d edits, got %d: %+v", want, got, edits)
+	}
+	for _, e := range edits {
+		if e.NewText != "JAKOB" {
+			t.Errorf("expected NewText JAKOB, got %q", e.NewText)
+		}
+	}
+
+	for _, e := range edits {
+		if e.Range.Start.Line != 11 && e.Range.Start.Line != 14 {
+			continue
+		}
+		if w := e.Range.End.Character - e.Range.Start.Character; w != 4 {
+			t.Errorf("expected sub-name edit width 4 (len(\"JAKE\")), got %d on line %d", w, e.Range.Start.Line)
+		}
+	}
+}
+
+func TestComputeRename_ConjunctionCueLeavesUnaffectedParticipantsAlone(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+JAKE
+BOB
+
+## ACT I
+
+### SCENE 1
+
+JAKE AND BOB
+Hi.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "JAKOB")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	for _, e := range edits {
+		if e.Range.Start.Line != 11 {
+			continue
+		}
+		if e.Range.Start.Character != 0 || e.Range.End.Character != 4 {
+			t.Errorf("expected JAKE-only edit on conjunction cue, got %+v", e.Range)
+		}
+	}
+}
+
+func TestComputeRename_DualDialogue(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB
+JANE
+
+## ACT I
+
+### SCENE 1
+
+BOB ^
+Hi.
+
+JANE
+Hello.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "ROBERT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, want := len(edit.Changes[renameURI]), 2; got != want {
+		t.Fatalf("expected %d edits across DP + dual cue, got %d: %+v", want, got, edit.Changes[renameURI])
+	}
+}
+
+func TestComputeRename_SongDialogue(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+SONG: Opening
+
+BOB
+Sing it.
+
+SONG END
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "ROBERT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, want := len(edit.Changes[renameURI]), 2; got != want {
+		t.Fatalf("expected %d edits across DP + song cue, got %d: %+v", want, got, edit.Changes[renameURI])
+	}
+}
+
+func TestComputeRename_CompilationScopesToOwningPlay(t *testing.T) {
+	src := `# Play A
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from A.
+
+# Play B
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from B.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "ROBERT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	if got, want := len(edits), 2; got != want {
+		t.Fatalf("expected %d edits scoped to Play A, got %d: %+v", want, got, edits)
+	}
+	for _, e := range edits {
+		if e.Range.Start.Line >= 13 {
+			t.Errorf("edit leaked into Play B at line %d: %+v", e.Range.Start.Line, e)
+		}
+	}
+}
+
+func TestComputeRename_CompilationCueScopesToOwningPlay(t *testing.T) {
+	src := `# Play A
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from A.
+
+# Play B
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from B.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 23, Character: 1}, "ROBERT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	if got, want := len(edits), 2; got != want {
+		t.Fatalf("expected %d edits scoped to Play B, got %d: %+v", want, got, edits)
+	}
+	for _, e := range edits {
+		if e.Range.Start.Line < 13 {
+			t.Errorf("edit leaked into Play A at line %d: %+v", e.Range.Start.Line, e)
+		}
+	}
+}
+
+func TestComputeRename_CompilationConflictScopedToPlay(t *testing.T) {
+	src := `# Play A
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hi.
+
+# Play B
+
+## Dramatis Personae
+
+JANE
+
+## ACT I
+
+### SCENE 1
+
+JANE
+Hi.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	if _, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "JANE"); err != nil {
+		t.Fatalf("expected rename to succeed across plays, got %v", err)
+	}
+}
+
+func TestPrepareRename_RefusesOnSlashAfterPrimaryName(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB/B - The good guy
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	if r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 3}); r != nil {
+		t.Errorf("expected refusal on the slash after BOB, got %+v", r)
+	}
+	if r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 2}); r == nil {
+		t.Error("expected rename on the last char of BOB")
+	}
+}
+
+func TestPrepareRename_RefusesOnWhitespaceAfterAlias(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+BOB/B - desc
+`
+	doc, _ := parser.Parse([]byte(src))
+
+	if r := computePrepareRename(doc, protocol.Position{Line: 4, Character: 5}); r != nil {
+		t.Errorf("expected refusal on the space after alias B, got %+v", r)
+	}
+}
+
+func TestComputeRename_MixedLayoutRefusesLegacyDPTrigger(t *testing.T) {
+	src := `## Dramatis Personae
+
+BOB
+
+# Play A
+
+## Dramatis Personae
+
+BOB
+
+## ACT I
+
+### SCENE 1
+
+BOB
+Hello from A.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	if _, err := computeRename(doc, renameURI, protocol.Position{Line: 2, Character: 1}, "ROBERT"); err == nil {
+		t.Fatal("expected rename to be refused on legacy DP entry in mixed layout")
+	}
+}
+
+func TestPrepareRename_NilDoc(t *testing.T) {
+	if r := computePrepareRename(nil, protocol.Position{}); r != nil {
+		t.Errorf("expected nil for nil doc, got %+v", r)
+	}
+}
+
+func TestComputeRename_NilDoc(t *testing.T) {
+	if _, err := computeRename(nil, renameURI, protocol.Position{}, "X"); err == nil {
+		t.Error("expected error for nil doc")
+	}
+}
