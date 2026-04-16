@@ -118,17 +118,38 @@ func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Pos
 		if cueName == "" {
 			return
 		}
-		if strings.ToUpper(cueName) != target.upperKey {
+		nameRange := dlg.NameRange()
+
+		// Single-name cue: replace the whole cue when it matches.
+		if strings.ToUpper(cueName) == target.upperKey {
+			replacement := matchCueCasing(cueName, cleaned)
+			if replacement != cueName {
+				edits = append(edits, protocol.TextEdit{
+					Range:   toLSPRange(nameRange),
+					NewText: replacement,
+				})
+			}
 			return
 		}
-		replacement := matchCueCasing(cueName, cleaned)
-		if replacement == cueName {
-			return
+
+		// Conjunction cue ("JAKE AND BOB"): rewrite each participant
+		// that matches the renamed spelling. Each participant has a
+		// known byte span inside the cue text, so we can build a
+		// precise range without disturbing the rest of the cue.
+		parts := splitConjunctionCueWithOffsets(dlg.Character)
+		for _, part := range parts {
+			if strings.ToUpper(part.Name) != target.upperKey {
+				continue
+			}
+			replacement := matchCueCasing(part.Name, cleaned)
+			if replacement == part.Name {
+				continue
+			}
+			edits = append(edits, protocol.TextEdit{
+				Range:   toLSPRange(subRangeWithinCue(nameRange, dlg.Character, part.Start, part.End)),
+				NewText: replacement,
+			})
 		}
-		edits = append(edits, protocol.TextEdit{
-			Range:   toLSPRange(dlg.NameRange()),
-			NewText: replacement,
-		})
 	})
 
 	return &protocol.WorkspaceEdit{
@@ -484,4 +505,32 @@ func isAllLower(s string) bool {
 
 func isZeroRange(r token.Range) bool {
 	return r.Start == (token.Position{}) && r.End == (token.Position{})
+}
+
+// subRangeWithinCue maps byte offsets inside the cue's source text to a
+// token.Range anchored relative to the cue's name range. Character cues
+// always sit on a single source line, so only the column needs adjusting.
+// UTF-16 columns are computed for the prefix bytes so the result stays
+// correct for non-ASCII names.
+func subRangeWithinCue(cueRange token.Range, cueText string, startByte, endByte int) token.Range {
+	if startByte < 0 {
+		startByte = 0
+	}
+	if endByte > len(cueText) {
+		endByte = len(cueText)
+	}
+	startUTF16 := token.UTF16Len(cueText[:startByte])
+	endUTF16 := token.UTF16Len(cueText[:endByte])
+	return token.Range{
+		Start: token.Position{
+			Line:   cueRange.Start.Line,
+			Column: cueRange.Start.Column + startUTF16,
+			Offset: cueRange.Start.Offset + startByte,
+		},
+		End: token.Position{
+			Line:   cueRange.Start.Line,
+			Column: cueRange.Start.Column + endUTF16,
+			Offset: cueRange.Start.Offset + endByte,
+		},
+	}
 }

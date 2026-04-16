@@ -433,6 +433,101 @@ Hi too.
 	}
 }
 
+func TestComputeRename_RewritesConjunctionCueParticipants(t *testing.T) {
+	src := `# Play
+
+## Dramatis Personae
+
+JAKE
+BOB
+
+## ACT I
+
+### SCENE 1
+
+JAKE AND BOB
+Hi.
+
+BOB AND JAKE
+Hello.
+
+JAKE
+Solo.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "JAKOB")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	assertNoOverlappingEdits(t, edits)
+
+	// Expect: DP entry, the "JAKE" sub-name in "JAKE AND BOB", the
+	// "JAKE" sub-name in "BOB AND JAKE", and the solo "JAKE" cue. The
+	// BOB sub-names stay put.
+	if got, want := len(edits), 4; got != want {
+		t.Fatalf("expected %d edits, got %d: %+v", want, got, edits)
+	}
+	for _, e := range edits {
+		if e.NewText != "JAKOB" {
+			t.Errorf("expected NewText JAKOB, got %q", e.NewText)
+		}
+	}
+
+	// The two sub-name edits must hit the JAKE positions inside their
+	// respective cues, not the whole cue.
+	for _, e := range edits {
+		if e.Range.Start.Line != 11 && e.Range.Start.Line != 14 {
+			continue
+		}
+		if w := e.Range.End.Character - e.Range.Start.Character; w != 4 {
+			t.Errorf("expected sub-name edit width 4 (len(\"JAKE\")), got %d on line %d", w, e.Range.Start.Line)
+		}
+	}
+}
+
+func TestComputeRename_ConjunctionCueLeavesUnaffectedParticipantsAlone(t *testing.T) {
+	// Renaming JAKE in a "JAKE AND BOB" cue must not alter "BOB" or
+	// the surrounding " AND " separator.
+	src := `# Play
+
+## Dramatis Personae
+
+JAKE
+BOB
+
+## ACT I
+
+### SCENE 1
+
+JAKE AND BOB
+Hi.
+`
+	doc, errs := parser.Parse([]byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	edit, err := computeRename(doc, renameURI, protocol.Position{Line: 4, Character: 1}, "JAKOB")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	edits := edit.Changes[renameURI]
+	for _, e := range edits {
+		if e.Range.Start.Line != 11 {
+			continue
+		}
+		// The cue starts at column 0; "JAKE" is columns 0..4.
+		if e.Range.Start.Character != 0 || e.Range.End.Character != 4 {
+			t.Errorf("expected JAKE-only edit on conjunction cue, got %+v", e.Range)
+		}
+	}
+}
+
 func TestComputeRename_DualDialogue(t *testing.T) {
 	src := `# Play
 
