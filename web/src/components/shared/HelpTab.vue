@@ -14,8 +14,13 @@ type HelpSection = 'syntax' | 'tools' | 'shortcuts';
 const activeSection = ref<HelpSection>('syntax');
 
 const shortcuts = [
+  { keys: ['Ctrl/⌘', 'B'], desc: 'Bold' },
+  { keys: ['Ctrl/⌘', 'I'], desc: 'Italic' },
+  { keys: ['Ctrl/⌘', 'U'], desc: 'Underline' },
   { keys: ['Ctrl/⌘', 'F'], desc: 'Open Find' },
   { keys: ['Ctrl/⌘', 'H'], desc: 'Open Find & Replace' },
+  { keys: ['Ctrl/⌘', 'Shift', 'P'], desc: 'Show / Hide Preview' },
+  { keys: ['Ctrl/⌘', 'Shift', '/'], desc: 'Open Help' },
 ];
 
 const tools: { icon: Component; name: string; desc: string }[] = [

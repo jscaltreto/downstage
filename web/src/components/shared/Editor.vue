@@ -251,6 +251,10 @@ onMounted(async () => {
       (next) => { diagnostics.value = next; },
       openSearch,
       applySearchSummary,
+      (action) => {
+        if (action === 'toggle-preview') previewVisible.value = !previewVisible.value;
+        if (action === 'toggle-help') toggleHelp();
+      },
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     scheduleRender(props.content, props.style);
