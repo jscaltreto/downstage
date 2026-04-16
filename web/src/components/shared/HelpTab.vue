@@ -130,13 +130,13 @@ _underline_  ~strikethrough~</code></pre>
         <div
           v-for="t in tools"
           :key="t.name"
-          class="flex items-start gap-2.5 rounded-md bg-black/[0.03] px-3 py-2 dark:bg-white/[0.03]"
+          class="flex items-center gap-2.5 rounded-md bg-black/[0.03] px-3 py-2 dark:bg-white/[0.03]"
         >
-          <component :is="t.icon" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted" />
-          <div>
+          <component :is="t.icon" class="h-3.5 w-3.5 shrink-0 text-text-muted" />
+          <span>
             <span class="text-xs font-bold text-text-main">{{ t.name }}</span>
             <span class="ml-2 text-xs text-text-muted">{{ t.desc }}</span>
-          </div>
+          </span>
         </div>
       </div>
 
