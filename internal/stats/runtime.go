@@ -3,8 +3,7 @@ package stats
 import "strings"
 
 // Speaking rate presets in words per minute. These are coarse bands meant
-// to bracket likely pacing; they are not performance predictions. See
-// docs/stats.md for the rationale.
+// to bracket likely pacing; they are not performance predictions.
 const (
 	WPMSlow           = 110
 	WPMStandard       = 130

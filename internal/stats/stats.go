@@ -218,7 +218,6 @@ func appendSpokenText(b *strings.Builder, inlines []ast.Inline) {
 		case *ast.StrikethroughNode:
 			appendSpokenText(b, n.Content)
 		case *ast.InlineDirectionNode:
-			// skip — not spoken aloud
 		}
 	}
 }
