@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import IssuesTab from "../components/shared/IssuesTab.vue";
 import type { EditorDiagnostic } from "../core/types";
+import type { FilterSeverity } from "../core/issues";
 
 function mk(overrides: Partial<EditorDiagnostic>): EditorDiagnostic {
   return {
@@ -80,7 +81,7 @@ describe("IssuesTab", () => {
     ];
 
     const wrapper = mount(IssuesTab, {
-      props: { diagnostics, hiddenSeverities: new Set() },
+      props: { diagnostics, hiddenSeverities: new Set<FilterSeverity>() },
     });
 
     expect(wrapper.findAll("li")).toHaveLength(3);
@@ -93,7 +94,7 @@ describe("IssuesTab", () => {
 
     await infoPill!.trigger("click");
 
-    const updates = wrapper.emitted("update:hiddenSeverities") as Array<[Set<string>]>;
+    const updates = wrapper.emitted("update:hiddenSeverities") as Array<[Set<FilterSeverity>]>;
     expect(updates).toBeTruthy();
     const nextSet = updates[updates.length - 1][0];
     expect(Array.from(nextSet)).toEqual(["info"]);
@@ -108,7 +109,7 @@ describe("IssuesTab", () => {
     expect(rowsText.some((t) => t.includes("stray text"))).toBe(true);
 
     await infoPill!.trigger("click");
-    const allEmits = wrapper.emitted("update:hiddenSeverities") as Array<[Set<string>]>;
+    const allEmits = wrapper.emitted("update:hiddenSeverities") as Array<[Set<FilterSeverity>]>;
     const nextNext = allEmits[allEmits.length - 1][0];
     expect(Array.from(nextNext)).toEqual([]);
     await wrapper.setProps({ hiddenSeverities: nextNext });
@@ -119,7 +120,7 @@ describe("IssuesTab", () => {
   it("shows a 'all matching issues hidden' state when every pill is toggled off", async () => {
     const diagnostics: EditorDiagnostic[] = [mk({ severity: "warning", message: "x" })];
     const wrapper = mount(IssuesTab, {
-      props: { diagnostics, hiddenSeverities: new Set(["warning"]) },
+      props: { diagnostics, hiddenSeverities: new Set<FilterSeverity>(["warning"]) },
     });
 
     expect(wrapper.findAll("li")).toHaveLength(0);

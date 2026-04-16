@@ -11,6 +11,7 @@ import type {
   LSPCodeActionsResult,
   SpellcheckContext,
   DocumentSymbolsResult,
+  ManuscriptStats,
 } from "./core/types";
 
 declare const __APP_VERSION__: string;
@@ -81,6 +82,10 @@ class WebEnv implements EditorEnv {
 
   async tokenTypeNames(): Promise<string[]> {
     return Array.from(window.downstage.tokenTypeNames);
+  }
+
+  async stats(source: string): Promise<ManuscriptStats> {
+    return window.downstage.stats(source);
   }
 
   async renderHTML(source: string, style?: string): Promise<string> {

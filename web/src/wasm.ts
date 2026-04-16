@@ -7,6 +7,7 @@ import type {
   LSPCodeActionsResult,
   SpellcheckContext,
   DocumentSymbolsResult,
+  ManuscriptStats,
 } from "./core/types";
 
 declare class Go {
@@ -28,6 +29,7 @@ declare global {
       renderHTML(source: string, style?: string): string;
       renderPDF(source: string, style?: string): Uint8Array;
       semanticTokens(source: string): Uint32Array;
+      stats(source: string): ManuscriptStats;
       tokenTypeNames: string[];
     };
   }
@@ -136,6 +138,10 @@ export function renderHTML(source: string, style?: string): string {
 
 export function renderPDF(source: string, style?: string): Uint8Array {
   return window.downstage.renderPDF(source, style);
+}
+
+export function stats(source: string): ManuscriptStats {
+  return window.downstage.stats(source);
 }
 
 export function semanticTokens(source: string): Uint32Array {

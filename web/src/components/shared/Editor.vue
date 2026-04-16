@@ -3,14 +3,14 @@ import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick } from '
 import {
     Bold, Italic, Underline, MessageSquare, ChevronRight,
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
-    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Trash2, Search, ListTree
+    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Trash2, Search, ListTree, BarChart3
 } from 'lucide-vue-next';
 import { Engine, type SearchMode, type SearchSummary } from '../../core/engine';
 import type { SearchMatch, SearchOptions } from '../../core/search';
 import { issuesStatus, summarizeIssues } from '../../core/issues';
 import type { FilterSeverity } from '../../core/issues';
 import type { Store } from '../../core/store';
-import type { DocumentSymbol, EditorDiagnostic, EditorEnv } from '../../core/types';
+import type { DocumentSymbol, EditorDiagnostic, EditorEnv, ManuscriptStats } from '../../core/types';
 import PreviewFrame from './PreviewFrame.vue';
 import ToolbarButton from './ToolbarButton.vue';
 import BaseModal from './BaseModal.vue';
@@ -18,6 +18,7 @@ import WorkbenchDrawer, { type WorkbenchTab } from './WorkbenchDrawer.vue';
 import IssuesTab from './IssuesTab.vue';
 import FindReplaceTab from './FindReplaceTab.vue';
 import OutlineTab from './OutlineTab.vue';
+import StatsTab from './StatsTab.vue';
 
 const props = defineProps<{
   env: EditorEnv;
@@ -53,6 +54,8 @@ const searchFocusReplace = ref(false);
 const searchFocusNonce = ref(0);
 const diagnostics = ref<EditorDiagnostic[]>([]);
 const outlineSymbols = ref<DocumentSymbol[]>([]);
+const manuscriptStats = ref<ManuscriptStats | null>(null);
+const manuscriptStatsLoading = ref(false);
 const isTyping = ref(false);
 let typingTimer: number | null = null;
 const outlineDebounceMs = 300;
@@ -95,6 +98,9 @@ let lastRenderRequestId = 0;
 let renderTimer: number | null = null;
 let outlineRequestId = 0;
 let outlineTimer: number | null = null;
+let statsRequestId = 0;
+let statsTimer: number | null = null;
+const statsDebounceMs = 500;
 const v1DiagnosticCode = "v1-document";
 
 function scheduleOutlineRefresh(content: string) {
@@ -111,6 +117,27 @@ function scheduleOutlineRefresh(content: string) {
             outlineSymbols.value = [];
         }
     }, outlineDebounceMs);
+}
+
+function scheduleStatsRefresh(content: string) {
+    if (statsTimer) window.clearTimeout(statsTimer);
+    manuscriptStatsLoading.value = true;
+    statsTimer = window.setTimeout(async () => {
+        statsTimer = null;
+        const requestId = ++statsRequestId;
+        try {
+            const result = await props.env.stats(content);
+            if (requestId !== statsRequestId) return;
+            manuscriptStats.value = result;
+        } catch {
+            if (requestId !== statsRequestId) return;
+            manuscriptStats.value = null;
+        } finally {
+            if (requestId === statsRequestId) {
+                manuscriptStatsLoading.value = false;
+            }
+        }
+    }, statsDebounceMs);
 }
 
 function setV1DocumentDetected(detected: boolean) {
@@ -213,6 +240,7 @@ onMounted(async () => {
         emit('update:content', content);
         scheduleRender(content, props.style);
         scheduleOutlineRefresh(content);
+        scheduleStatsRefresh(content);
         if (info.userInput) {
           markTyping();
         }
@@ -227,6 +255,7 @@ onMounted(async () => {
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     scheduleRender(props.content, props.style);
     scheduleOutlineRefresh(props.content);
+    scheduleStatsRefresh(props.content);
   }
 });
 
@@ -234,6 +263,7 @@ onUnmounted(() => {
   engine?.destroy();
   if (renderTimer) window.clearTimeout(renderTimer);
   if (outlineTimer) window.clearTimeout(outlineTimer);
+  if (statsTimer) window.clearTimeout(statsTimer);
   if (typingTimer) window.clearTimeout(typingTimer);
 });
 
@@ -247,11 +277,14 @@ watch(() => props.content, (newContent) => {
   }
   scheduleRender(newContent, props.style);
   scheduleOutlineRefresh(newContent);
+  scheduleStatsRefresh(newContent);
 });
 
 watch(() => store.state.activeDraftId, () => {
   showV1Modal.value = false;
   diagnostics.value = [];
+  manuscriptStats.value = null;
+  manuscriptStatsLoading.value = true;
   engine?.refreshDiagnostics();
   engine?.clearSearch();
   searchMatches.value = [];
@@ -312,18 +345,25 @@ function jumpToSymbol(symbol: DocumentSymbol) {
     engine?.revealPosition(start.line, start.character);
 }
 
-function openIssuesTab() {
-    drawerTab.value = 'issues';
+function openWorkbenchTab(tab: WorkbenchTab) {
+    if (drawerOpen.value && drawerTab.value === tab) {
+        closeDrawer();
+        return;
+    }
+    drawerTab.value = tab;
     drawerOpen.value = true;
 }
 
 function toggleOutline() {
-    if (drawerOpen.value && drawerTab.value === 'outline') {
-        closeDrawer();
-        return;
-    }
-    drawerTab.value = 'outline';
-    drawerOpen.value = true;
+    openWorkbenchTab('outline');
+}
+
+function toggleStats() {
+    openWorkbenchTab('stats');
+}
+
+function openIssuesTab() {
+    openWorkbenchTab('issues');
 }
 
 function closeDrawer() {
@@ -385,6 +425,14 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                 title="Outline"
             >
                 <template #icon><ListTree class="w-4 h-4" /></template>
+            </ToolbarButton>
+
+            <ToolbarButton
+                @click="toggleStats"
+                :active="drawerOpen && drawerTab === 'stats'"
+                title="Stats"
+            >
+                <template #icon><BarChart3 class="w-4 h-4" /></template>
             </ToolbarButton>
         </div>
 
@@ -510,6 +558,9 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                         :symbols="outlineSymbols"
                         @jump="jumpToSymbol"
                     />
+                </template>
+                <template #stats>
+                    <StatsTab :stats="manuscriptStats" :loading="manuscriptStatsLoading" />
                 </template>
             </WorkbenchDrawer>
         </div>
