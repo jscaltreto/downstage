@@ -160,3 +160,34 @@ Hello.`
 	assert.Equal(t, uint32(0), edits[0].Range.Start.Line)
 	assert.True(t, strings.HasPrefix(edits[0].NewText, "## Dramatis Personae\n"))
 }
+
+func TestComputeCodeActions_InsertMissingDramatisPersonae_TargetsFirstDialoguePlay(t *testing.T) {
+	content := `# Compilation
+Author: Editor
+
+## Notes
+This is frontmatter prose.
+
+# Play One
+
+ALICE
+Hi.`
+
+	actions := codeActionsFor(t, content)
+
+	var add *protocol.CodeAction
+	for i := range actions {
+		if actions[i].Title == "Add Dramatis Personae section" {
+			add = &actions[i]
+			break
+		}
+	}
+	require.NotNil(t, add, "expected an add-DP-section action")
+
+	edits := add.Edit.Changes[protocol.DocumentURI("file:///test.ds")]
+	require.Len(t, edits, 1)
+	// The edit should land in the play that actually contains the dialogue,
+	// not in the compilation header or notes section.
+	assert.GreaterOrEqual(t, edits[0].Range.Start.Line, uint32(7))
+	assert.True(t, strings.HasPrefix(edits[0].NewText, "## Dramatis Personae\n"))
+}
