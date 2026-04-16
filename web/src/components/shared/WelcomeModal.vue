@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import BaseModal from './BaseModal.vue';
-import { AlertTriangle, BookOpen, Download } from 'lucide-vue-next';
+import { AlertTriangle, BookOpen, Download, HelpCircle } from 'lucide-vue-next';
 
 defineProps<{
   open: boolean;
@@ -8,7 +8,6 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'open-quick-reference'): void;
 }>();
 </script>
 
@@ -57,9 +56,11 @@ const emit = defineEmits<{
             <BookOpen class="h-5 w-5 text-text-main" />
           </div>
           <div class="space-y-2">
-            <p class="text-sm font-bold text-text-main">Need a quick syntax refresher?</p>
+            <p class="text-sm font-bold text-text-main">Need help?</p>
             <p class="text-sm leading-relaxed text-text-muted">
-              Open the quick reference whenever you need it, or view the
+              Click the
+              <HelpCircle class="mb-0.5 inline h-4 w-4" />
+              button in the toolbar for syntax, shortcuts, and editor features — or view the
               <a
                 class="font-bold text-brass-500 underline decoration-brass-500/40 underline-offset-2 hover:text-brass-400"
                 href="https://www.getdownstage.com/syntax/"
@@ -68,21 +69,15 @@ const emit = defineEmits<{
               >
                 Syntax Guide
               </a>
-              for the full spec with examples.
+              for the full spec.
             </p>
           </div>
         </div>
       </div>
 
-      <div class="flex flex-col gap-3 pt-1 sm:flex-row">
+      <div class="pt-1">
         <button
-          class="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-bold text-text-main transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-          @click="emit('open-quick-reference')"
-        >
-          Open Quick Reference
-        </button>
-        <button
-          class="flex-1 rounded-lg bg-brass-500 px-4 py-2.5 text-sm font-bold text-black transition-colors hover:bg-brass-400"
+          class="w-full rounded-lg bg-brass-500 px-4 py-2.5 text-sm font-bold text-black transition-colors hover:bg-brass-400"
           @click="emit('close')"
         >
           Start Writing

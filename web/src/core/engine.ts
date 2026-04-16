@@ -78,6 +78,7 @@ export class Engine {
     private onDiagnosticsChange: (diagnostics: EditorDiagnostic[]) => void = () => {},
     private onOpenSearch: (mode: SearchMode) => void = () => {},
     private onSearchChange: (summary: SearchSummary, matches: SearchMatch[]) => void = () => {},
+    private onAction: (action: string) => void = () => {},
   ) {}
 
   init(initialContent: string, isDark: boolean, spellcheckEnabled = false) {
@@ -103,30 +104,46 @@ export class Engine {
       },
     });
 
-    const searchKeymap = keymap.of([
+    const editorKeymap = keymap.of([
       {
         key: "Mod-f",
         preventDefault: true,
-        run: () => {
-          this.onOpenSearch("find");
-          return true;
-        },
+        run: () => { this.onOpenSearch("find"); return true; },
       },
       {
         key: "Mod-h",
         preventDefault: true,
-        run: () => {
-          this.onOpenSearch("replace");
-          return true;
-        },
+        run: () => { this.onOpenSearch("replace"); return true; },
       },
       {
         key: "Mod-Alt-f",
         preventDefault: true,
-        run: () => {
-          this.onOpenSearch("replace");
-          return true;
-        },
+        run: () => { this.onOpenSearch("replace"); return true; },
+      },
+      {
+        key: "Mod-b",
+        preventDefault: true,
+        run: () => { this.applyFormat("bold"); return true; },
+      },
+      {
+        key: "Mod-i",
+        preventDefault: true,
+        run: () => { this.applyFormat("italic"); return true; },
+      },
+      {
+        key: "Mod-u",
+        preventDefault: true,
+        run: () => { this.applyFormat("underline"); return true; },
+      },
+      {
+        key: "Mod-\\",
+        preventDefault: true,
+        run: () => { this.onAction("toggle-preview"); return true; },
+      },
+      {
+        key: "Mod-Shift-/",
+        preventDefault: true,
+        run: () => { this.onAction("toggle-help"); return true; },
       },
     ]);
 
@@ -136,7 +153,7 @@ export class Engine {
         extensions: [
           lineNumbers(),
           history(),
-          searchKeymap,
+          editorKeymap,
           keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
           themeCompartment.of(isDark ? oneDark : lightTheme),
           lintCompartment.of(this.createLintExtension()),

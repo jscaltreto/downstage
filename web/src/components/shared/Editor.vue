@@ -19,6 +19,8 @@ import IssuesTab from './IssuesTab.vue';
 import FindReplaceTab from './FindReplaceTab.vue';
 import OutlineTab from './OutlineTab.vue';
 import StatsTab from './StatsTab.vue';
+import HelpTab from './HelpTab.vue';
+import { shortcuts as sc } from '../../core/platform';
 
 const props = defineProps<{
   env: EditorEnv;
@@ -32,7 +34,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:content', value: string): void;
   (e: 'update:style', value: string): void;
-  (e: 'toggle-help'): void;
   (e: 'migration-state-change', value: boolean): void;
 }>();
 
@@ -251,6 +252,10 @@ onMounted(async () => {
       (next) => { diagnostics.value = next; },
       openSearch,
       applySearchSummary,
+      (action) => {
+        if (action === 'toggle-preview') previewVisible.value = !previewVisible.value;
+        if (action === 'toggle-help') toggleHelp();
+      },
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     scheduleRender(props.content, props.style);
@@ -362,6 +367,10 @@ function toggleStats() {
     openWorkbenchTab('stats');
 }
 
+function toggleHelp() {
+    openWorkbenchTab('help');
+}
+
 function openIssuesTab() {
     openWorkbenchTab('issues');
 }
@@ -387,9 +396,9 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
   <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-page-bg)]">
     <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex items-center justify-between gap-2 shadow-sm z-10">
         <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <ToolbarButton @click="handleFormat('bold')" title="Bold"><template #icon><Bold class="w-4 h-4" /></template></ToolbarButton>
-            <ToolbarButton @click="handleFormat('italic')" title="Italic"><template #icon><Italic class="w-4 h-4" /></template></ToolbarButton>
-            <ToolbarButton @click="handleFormat('underline')" title="Underline"><template #icon><Underline class="w-4 h-4" /></template></ToolbarButton>
+            <ToolbarButton @click="handleFormat('bold')" :title="sc.bold.tooltip"><template #icon><Bold class="w-4 h-4" /></template></ToolbarButton>
+            <ToolbarButton @click="handleFormat('italic')" :title="sc.italic.tooltip"><template #icon><Italic class="w-4 h-4" /></template></ToolbarButton>
+            <ToolbarButton @click="handleFormat('underline')" :title="sc.underline.tooltip"><template #icon><Underline class="w-4 h-4" /></template></ToolbarButton>
             
             <div class="w-px h-4 bg-black/10 dark:bg-white/10 mx-1"></div>
             
@@ -415,7 +424,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                 </template>
             </ToolbarButton>
 
-            <ToolbarButton @click="toggleSearch" title="Find &amp; Replace (Ctrl/Cmd+F)">
+            <ToolbarButton @click="toggleSearch" :title="sc.find.tooltip">
                 <template #icon><Search class="w-4 h-4" /></template>
             </ToolbarButton>
 
@@ -437,7 +446,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
         </div>
 
         <div class="flex items-center gap-1.5 border-l border-black/10 dark:border-white/10 pl-2">
-            <ToolbarButton @click="emit('toggle-help')" title="Help" class="w-8 h-8 !p-0 rounded-full font-bold" transparent>
+            <ToolbarButton @click="toggleHelp" :active="drawerOpen && drawerTab === 'help'" :title="sc.help.tooltip" class="w-8 h-8 !p-0 rounded-full font-bold" transparent>
                 <template #icon><HelpCircle class="w-5 h-5" /></template>
             </ToolbarButton>
 
@@ -467,7 +476,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
 
             <ToolbarButton 
                 @click="previewVisible = !previewVisible" 
-                :title="previewVisible ? 'Hide Preview' : 'Show Preview'"
+                :title="(previewVisible ? 'Hide Preview' : 'Show Preview') + ` (${sc.preview.keys})`"
                 class="w-8 h-8 !p-0 rounded-full"
                 :active="previewVisible"
                 transparent
@@ -514,7 +523,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                         v-if="!previewVisible"
                         @click="previewVisible = true"
                         class="w-12 h-12 rounded-full bg-brass-500 text-ember-950 shadow-2xl flex items-center justify-center hover:bg-brass-400 transition-all transform hover:scale-110"
-                        title="Show Preview"
+                        :title="`Show Preview (${sc.preview.keys})`"
                     >
                         <Eye class="w-6 h-6 text-ember-950" />
                     </button>
@@ -561,6 +570,9 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
                 </template>
                 <template #stats>
                     <StatsTab :stats="manuscriptStats" :loading="manuscriptStatsLoading" />
+                </template>
+                <template #help>
+                    <HelpTab :open-link="props.env.openURL" />
                 </template>
             </WorkbenchDrawer>
         </div>
