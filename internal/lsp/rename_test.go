@@ -267,9 +267,50 @@ Hi.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got, want := len(edit.Changes[renameURI]), 2; got != want {
-		t.Fatalf("expected %d edits from cue trigger, got %d", want, got)
+	edits := edit.Changes[renameURI]
+	if got, want := len(edits), 2; got != want {
+		t.Fatalf("expected %d edits from cue trigger, got %d: %+v", want, got, edits)
 	}
+
+	// The edit set must include the DP entry and the cue, with no
+	// overlapping ranges. VS Code rejects overlapping workspace edits
+	// with "Rename failed to apply edits".
+	assertNoOverlappingEdits(t, edits)
+	lines := map[uint32]bool{}
+	for _, e := range edits {
+		lines[e.Range.Start.Line] = true
+	}
+	if !lines[4] {
+		t.Errorf("expected DP entry at line 4 to be edited, got edits on lines %v", lines)
+	}
+	if !lines[10] {
+		t.Errorf("expected cue at line 10 to be edited, got edits on lines %v", lines)
+	}
+}
+
+// assertNoOverlappingEdits fails the test when any two edits target
+// ranges that overlap. VS Code requires non-overlapping edits in a
+// workspace edit; overlapping edits surface as "Rename failed to apply
+// edits" to the user with no LSP-side log.
+func assertNoOverlappingEdits(t *testing.T, edits []protocol.TextEdit) {
+	t.Helper()
+	for i := 0; i < len(edits); i++ {
+		for j := i + 1; j < len(edits); j++ {
+			if rangesOverlap(edits[i].Range, edits[j].Range) {
+				t.Fatalf("overlapping edits: %+v and %+v", edits[i], edits[j])
+			}
+		}
+	}
+}
+
+func rangesOverlap(a, b protocol.Range) bool {
+	if a.End.Line < b.Start.Line || (a.End.Line == b.Start.Line && a.End.Character <= b.Start.Character) {
+		return false
+	}
+	if b.End.Line < a.Start.Line || (b.End.Line == a.Start.Line && b.End.Character <= a.Start.Character) {
+		return false
+	}
+	return true
 }
 
 func TestComputeRename_RejectsConflictWithExistingName(t *testing.T) {

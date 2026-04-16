@@ -26,13 +26,32 @@ type renameTarget struct {
 	oldName string
 	// upperKey is the case-folded form used to match cues.
 	upperKey string
-	// declRange is the source range of the declaration token (the primary
-	// name entry or the specific alias entry).
-	declRange token.Range
+	// cursorRange is the range under the cursor — used by prepareRename
+	// to highlight the symbol. It is the dramatis personae entry when
+	// the cursor is on a declaration, or the cue range when the cursor
+	// is on a dialogue cue.
+	cursorRange token.Range
 	// kind tracks whether the declaration is the primary name or an alias.
 	kind renameKind
 	// aliasIndex is the alias position when kind == renameKindAlias.
 	aliasIndex int
+}
+
+// declRange returns the canonical declaration range for the target —
+// always the dramatis personae entry (primary name or alias), never a
+// cue. The cue walk in computeRename relies on this so the declaration
+// edit does not overlap with the cue edit when rename is triggered
+// from a cue.
+func (t *renameTarget) declRange() token.Range {
+	if t.character == nil {
+		return token.Range{}
+	}
+	switch t.kind {
+	case renameKindAlias:
+		return t.character.AliasRange(t.aliasIndex)
+	default:
+		return t.character.NameRange()
+	}
 }
 
 type renameKind int
@@ -52,7 +71,7 @@ func computePrepareRename(doc *ast.Document, pos protocol.Position) *protocol.Ra
 	if target == nil {
 		return nil
 	}
-	r := toLSPRange(target.declRange)
+	r := toLSPRange(target.cursorRange)
 	return &r
 }
 
@@ -78,8 +97,12 @@ func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Pos
 		return nil, errRenameInvalid
 	}
 
+	declRange := target.declRange()
+	if isZeroRange(declRange) {
+		return nil, errRenameInvalid
+	}
 	edits := []protocol.TextEdit{
-		{Range: toLSPRange(target.declRange), NewText: cleaned},
+		{Range: toLSPRange(declRange), NewText: cleaned},
 	}
 
 	// Restrict cue updates to the play that owns the target's DP scope.
@@ -89,7 +112,7 @@ func computeRename(doc *ast.Document, uri protocol.DocumentURI, pos protocol.Pos
 	// belonging to other plays. When the document uses the legacy
 	// document-wide DP (no top-level section owns one), play is nil and
 	// we fall back to a doc-wide walk.
-	scope := renameScope(doc, target.declRange.Start.Line)
+	scope := renameScope(doc, declRange.Start.Line)
 	visitDialoguesInScope(doc, scope, func(dlg *ast.Dialogue) {
 		cueName := strings.TrimSpace(dlg.Character)
 		if cueName == "" {
@@ -167,12 +190,12 @@ func scanCharactersForPosition(characters []ast.Character, pos protocol.Position
 		ch := &characters[i]
 		if positionInRange(pos, ch.NameRange()) && strings.TrimSpace(ch.Name) != "" {
 			return &renameTarget{
-				character:  ch,
-				oldName:    ch.Name,
-				upperKey:   strings.ToUpper(strings.TrimSpace(ch.Name)),
-				declRange:  ch.NameRange(),
-				kind:       renameKindPrimary,
-				aliasIndex: -1,
+				character:   ch,
+				oldName:     ch.Name,
+				upperKey:    strings.ToUpper(strings.TrimSpace(ch.Name)),
+				cursorRange: ch.NameRange(),
+				kind:        renameKindPrimary,
+				aliasIndex:  -1,
 			}
 		}
 		for ai, alias := range ch.Aliases {
@@ -182,12 +205,12 @@ func scanCharactersForPosition(characters []ast.Character, pos protocol.Position
 			}
 			if positionInRange(pos, r) && strings.TrimSpace(alias) != "" {
 				return &renameTarget{
-					character:  ch,
-					oldName:    alias,
-					upperKey:   strings.ToUpper(strings.TrimSpace(alias)),
-					declRange:  r,
-					kind:       renameKindAlias,
-					aliasIndex: ai,
+					character:   ch,
+					oldName:     alias,
+					upperKey:    strings.ToUpper(strings.TrimSpace(alias)),
+					cursorRange: r,
+					kind:        renameKindAlias,
+					aliasIndex:  ai,
 				}
 			}
 		}
@@ -196,7 +219,7 @@ func scanCharactersForPosition(characters []ast.Character, pos protocol.Position
 }
 
 func findRenameTargetInCue(doc *ast.Document, pos protocol.Position) *renameTarget {
-	cueName, nameRange := findCueAtPosition(doc, pos)
+	cueName, cueRange := findCueAtPosition(doc, pos)
 	if cueName == "" {
 		return nil
 	}
@@ -212,27 +235,26 @@ func findRenameTargetInCue(doc *ast.Document, pos protocol.Position) *renameTarg
 		return nil
 	}
 	upperCue := strings.ToUpper(strings.TrimSpace(cueName))
-	for _, set := range collectAllCharacters(dp) {
-		ch := set
+	for _, ch := range collectAllCharacters(dp) {
 		if strings.ToUpper(strings.TrimSpace(ch.Name)) == upperCue {
 			return &renameTarget{
-				character:  ch,
-				oldName:    ch.Name,
-				upperKey:   upperCue,
-				declRange:  nameRange,
-				kind:       renameKindPrimary,
-				aliasIndex: -1,
+				character:   ch,
+				oldName:     ch.Name,
+				upperKey:    upperCue,
+				cursorRange: cueRange,
+				kind:        renameKindPrimary,
+				aliasIndex:  -1,
 			}
 		}
 		for ai, alias := range ch.Aliases {
 			if strings.ToUpper(strings.TrimSpace(alias)) == upperCue {
 				return &renameTarget{
-					character:  ch,
-					oldName:    alias,
-					upperKey:   upperCue,
-					declRange:  nameRange,
-					kind:       renameKindAlias,
-					aliasIndex: ai,
+					character:   ch,
+					oldName:     alias,
+					upperKey:    upperCue,
+					cursorRange: cueRange,
+					kind:        renameKindAlias,
+					aliasIndex:  ai,
 				}
 			}
 		}
@@ -301,7 +323,7 @@ func findCueInNode(n ast.Node, pos protocol.Position) (string, token.Range) {
 // e.g. renaming BOB to JANE when JANE already exists, or renaming an
 // alias to a spelling already used by the same entry.
 func hasNameConflict(doc *ast.Document, target *renameTarget, newName string) bool {
-	dp := scopedDramatisPersonae(doc, target.declRange.Start.Line)
+	dp := scopedDramatisPersonae(doc, target.cursorRange.Start.Line)
 	if dp == nil {
 		return false
 	}
