@@ -1,5 +1,5 @@
 # Binaries
-downstage
+/downstage
 *.exe
 *.dll
 *.so
@@ -40,3 +40,6 @@ Thumbs.db
 .design_docs/
 .tmp/
 .codex
+web/src/wailsjs/
+cmd/downstage-write/frontend/
+cmd/downstage-write/build/

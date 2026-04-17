@@ -46,5 +46,7 @@ file overrides them for a subtree.
 
 - `internal/lsp/AGENTS.md` covers language-server work.
 - `internal/render/AGENTS.md` covers renderers and output targets.
+- `internal/desktop/AGENTS.md` covers the Wails desktop app backend.
 - `editors/vscode/AGENTS.md` covers the VS Code extension.
 - `web/AGENTS.md` covers the Vue-based web editor.
+- `web/src/desktop/AGENTS.md` covers the desktop frontend layer.

@@ -10,6 +10,7 @@ function withTrailingSlash(path: string): string {
 }
 
 const siteBasePath = withTrailingSlash(process.env.SITE_BASE_PATH || "/");
+const isDesktop = process.env.DESKTOP_BUILD === "true";
 
 function resolveAppVersion(): string {
   if (process.env.RELEASE_VERSION) {
@@ -26,7 +27,7 @@ function resolveAppVersion(): string {
 }
 
 export default defineConfig({
-  base: `${siteBasePath}editor/`,
+  base: isDesktop ? "./" : `${siteBasePath}editor/`,
   plugins: [
     vue(),
     tailwindcss(),
@@ -49,6 +50,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
+        desktop: resolve(__dirname, "desktop.html"),
       },
     },
   },
