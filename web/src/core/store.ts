@@ -46,7 +46,7 @@ export class Store {
     };
 
     window.matchMedia("(prefers-color-scheme: dark)").onchange = updateDark;
-    
+
     watch(() => this.state.theme, (newTheme) => {
       localStorage.setItem("downstage-theme", newTheme);
       updateDark();
@@ -54,7 +54,6 @@ export class Store {
   }
 
   toggleTheme() {
-    // If system or dark, switch to light. If light, switch to dark.
     if (this.state.isDark) {
         this.state.theme = "light";
     } else {

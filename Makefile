@@ -1,4 +1,4 @@
-.PHONY: all test lint fmt vet check clean render release-check release-snapshot wasm web web-dev web-e2e web-clean
+.PHONY: all test lint fmt vet check clean render release-check release-snapshot wasm web web-dev web-e2e web-clean desktop-dev desktop-build desktop-clean
 
 BINARY := downstage
 BUILD_DIR := build
@@ -9,7 +9,7 @@ CONDENSED_FILES := $(patsubst testdata/%.ds,$(BUILD_DIR)/%_condensed.pdf,$(DS_FI
 all: $(BINARY)
 
 $(BINARY):
-	go build -o $@ .
+	go build -o $@ ./cmd/downstage
 
 test:
 	go test ./...
@@ -67,3 +67,16 @@ web-clean:
 
 web/build:
 	mkdir -p web/build
+
+# --- Desktop app (Wails) ---
+
+desktop-dev:
+	@echo "Starting desktop app in dev mode..."
+	cd cmd/downstage-write && wails dev -tags webkit2_41
+
+desktop-build:
+	@echo "Building desktop app..."
+	cd cmd/downstage-write && wails build -tags webkit2_41
+
+desktop-clean:
+	rm -rf cmd/downstage-write/build/bin cmd/downstage-write/frontend

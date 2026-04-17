@@ -1,0 +1,16 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "downstage-write",
+  "outputfilename": "downstage-write",
+  "main": "./main.go",
+  "wailsjsdir": "../../web/src",
+  "frontend:dir": "./frontend",
+  "frontend:install": "cd ../../web && npm ci",
+  "frontend:build": "cd ../../web && DESKTOP_BUILD=true npm run build:desktop",
+  "frontend:dev:watcher": "npm --prefix ../../web run dev",
+  "frontend:dev:serverUrl": "http://localhost:5173",
+  "author": {
+    "name": "Jake",
+    "email": "jake@example.com"
+  }
+}
