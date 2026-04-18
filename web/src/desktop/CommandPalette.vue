@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import type { CommandMeta, DesktopCapabilities, ProjectFile } from './types';
+import type { CommandMeta, DesktopCapabilities, LibraryFile } from './types';
 import { dispatchCommand } from './dispatcher-registry';
 
 // Command palette overlay. Consumes the Go-declared catalog (labels,
@@ -9,14 +9,14 @@ import { dispatchCommand } from './dispatcher-registry';
 // CommandDispatcher's latest snapshot via the `disabledIds` prop.
 //
 // Two modes: "command" (default) shows every palette-visible command;
-// "file" swaps the source list for the current project's files and
+// "file" swaps the source list for the current library's files and
 // emits `select-file` on Enter.
 
 const props = defineProps<{
   open: boolean;
   mode: 'command' | 'file';
   env: DesktopCapabilities;
-  projectFiles: ProjectFile[];
+  libraryFiles: LibraryFile[];
   disabledIds: string[];
 }>();
 
@@ -58,7 +58,7 @@ interface Row {
 
 const rows = computed<Row[]>(() => {
   if (props.mode === 'file') {
-    return props.projectFiles.map<Row>((f) => ({
+    return props.libraryFiles.map<Row>((f) => ({
       key: `file:${f.path}`,
       label: f.name,
       secondary: f.path !== f.name ? f.path : 'File',

@@ -12,7 +12,7 @@ import type {
   ManuscriptStats,
   EditorPreferences,
 } from "./core/types";
-import type { CommandMeta, DesktopCapabilities, FileGitStatus, ProjectFile, Revision } from "./desktop/types";
+import type { CommandMeta, DesktopCapabilities, FileGitStatus, LibraryFile, Revision } from "./desktop/types";
 import { invokeRegisteredFlushSave } from "./desktop/flush-save";
 import { createPrefsCache } from "./desktop/prefs-cache";
 import { dispatchCommand } from "./desktop/dispatcher-registry";
@@ -157,24 +157,24 @@ class WailsBridge implements DesktopCapabilities {
   async loadActiveDraftId(): Promise<string | null> { return null; }
   async saveActiveDraftId(): Promise<void> {}
 
-  async openProjectFolder(): Promise<string> {
-    return App.OpenProjectFolder();
+  async changeLibraryLocation(): Promise<string> {
+    return App.ChangeLibraryLocation();
   }
 
-  async getProjectFiles(): Promise<ProjectFile[]> {
-    return App.GetProjectFiles();
+  async getLibraryFiles(): Promise<LibraryFile[]> {
+    return App.GetLibraryFiles();
   }
 
-  async readProjectFile(path: string): Promise<string> {
-    return App.ReadProjectFile(path);
+  async readLibraryFile(path: string): Promise<string> {
+    return App.ReadLibraryFile(path);
   }
 
-  async writeProjectFile(path: string, content: string): Promise<void> {
-    await App.WriteProjectFile(path, content);
+  async writeLibraryFile(path: string, content: string): Promise<void> {
+    await App.WriteLibraryFile(path, content);
   }
 
-  async createProjectFile(name: string, content: string): Promise<string> {
-    return await App.CreateProjectFile(name, content);
+  async createLibraryFile(name: string, content: string): Promise<string> {
+    return await App.CreateLibraryFile(name, content);
   }
 
   async snapshotFile(path: string, message: string): Promise<void> {
@@ -202,16 +202,16 @@ class WailsBridge implements DesktopCapabilities {
     };
   }
 
-  async getCurrentProject(): Promise<string> {
-    return App.GetCurrentProject();
+  async getCurrentLibrary(): Promise<string> {
+    return App.GetCurrentLibrary();
   }
 
   async getLastActiveFile(): Promise<string> {
     return App.GetLastActiveFile();
   }
 
-  async setActiveProjectFile(rel: string): Promise<void> {
-    await App.SetActiveProjectFile(rel);
+  async setActiveLibraryFile(rel: string): Promise<void> {
+    await App.SetActiveLibraryFile(rel);
   }
 
   async getSpellAllowlist(): Promise<string[]> {

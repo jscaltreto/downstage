@@ -72,16 +72,26 @@ type WindowState struct {
 
 // Config stores persistent user preferences across sessions.
 type Config struct {
-	LastProjectPath       string      `json:"lastProjectPath"`
-	LastActiveProjectFile string      `json:"lastActiveProjectFile"`
+	LastLibraryPath       string      `json:"lastLibraryPath"`
+	LastActiveLibraryFile string      `json:"lastActiveLibraryFile"`
 	Preferences           Preferences `json:"preferences"`
 	WindowState           WindowState `json:"windowState,omitempty"`
+}
+
+// legacyConfig is the v0 on-disk shape, before the project → library rename.
+// Marshaled into the same JSON document as Config for a one-shot upgrade
+// path: when the current-name fields are empty but the legacy fields are
+// populated, migrateLegacyConfig copies the values across. Both legacy
+// fields migrate together — dropping either silently loses user state.
+type legacyConfig struct {
+	LastProjectPath       string `json:"lastProjectPath,omitempty"`
+	LastActiveProjectFile string `json:"lastActiveProjectFile,omitempty"`
 }
 
 // App is the Wails application backend.
 type App struct {
 	ctx            context.Context
-	currentProject string
+	currentLibrary string
 	configPath     string
 	configMu       sync.Mutex // guards read-modify-write of the on-disk config
 
@@ -114,33 +124,33 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) initApp() {
 	config, _ := a.readConfig()
 
-	if config.LastProjectPath == "" {
+	if config.LastLibraryPath == "" {
 		home, err := os.UserHomeDir()
 		if err == nil {
 			defaultPath := filepath.Join(home, "Documents", "Downstage Plays")
 			_ = os.MkdirAll(defaultPath, 0755)
-			config.LastProjectPath = defaultPath
+			config.LastLibraryPath = defaultPath
 			_ = a.updateConfig(func(c *Config) {
-				c.LastProjectPath = defaultPath
+				c.LastLibraryPath = defaultPath
 			})
 		}
 	}
 
-	if config.LastProjectPath != "" {
-		if _, err := os.Stat(config.LastProjectPath); err == nil {
-			a.currentProject = config.LastProjectPath
+	if config.LastLibraryPath != "" {
+		if _, err := os.Stat(config.LastLibraryPath); err == nil {
+			a.currentLibrary = config.LastLibraryPath
 			_ = a.ensureGitRepo()
 		}
 	}
 }
 
 func (a *App) ensureGitRepo() error {
-	if a.currentProject == "" {
+	if a.currentLibrary == "" {
 		return nil
 	}
-	_, err := git.PlainOpen(a.currentProject)
+	_, err := git.PlainOpen(a.currentLibrary)
 	if err == git.ErrRepositoryNotExists {
-		_, err = git.PlainInit(a.currentProject, false)
+		_, err = git.PlainInit(a.currentLibrary, false)
 	}
 	return err
 }
@@ -158,6 +168,12 @@ func (a *App) readConfig() (Config, error) {
 // readConfigLocked performs the disk read; assumes configMu is already
 // held by the caller. Used by updateConfig to keep the whole RMW cycle
 // under a single lock acquisition.
+//
+// Legacy upgrade path: pre-rename builds wrote lastProjectPath and
+// lastActiveProjectFile. A config written by one of those old builds will
+// arrive here with the new-name fields empty. migrateLegacyConfig copies
+// the legacy values across in a single pass; the next writeConfig
+// persists the new shape and old keys stop appearing.
 func (a *App) readConfigLocked() (Config, error) {
 	var cfg Config
 	if a.configPath == "" {
@@ -173,7 +189,28 @@ func (a *App) readConfigLocked() (Config, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
+	migrateLegacyConfig(&cfg, data)
 	return cfg, nil
+}
+
+// migrateLegacyConfig fills empty new-name fields from the legacy
+// pre-rename JSON keys. Both legacy fields migrate together because
+// they are semantically paired — the active file only makes sense in
+// the context of its library.
+func migrateLegacyConfig(cfg *Config, raw []byte) {
+	if cfg.LastLibraryPath != "" && cfg.LastActiveLibraryFile != "" {
+		return
+	}
+	var legacy legacyConfig
+	if err := json.Unmarshal(raw, &legacy); err != nil {
+		return
+	}
+	if cfg.LastLibraryPath == "" && legacy.LastProjectPath != "" {
+		cfg.LastLibraryPath = legacy.LastProjectPath
+	}
+	if cfg.LastActiveLibraryFile == "" && legacy.LastActiveProjectFile != "" {
+		cfg.LastActiveLibraryFile = legacy.LastActiveProjectFile
+	}
 }
 
 // writeConfig persists the given Config verbatim. This is an EXPLICIT write
@@ -200,7 +237,7 @@ func (a *App) writeConfigLocked(cfg Config) error {
 
 // updateConfig is the single atomic read-modify-write path for Config.
 // It holds configMu for the duration of the callback so independent
-// subtree writers (Preferences, WindowState, LastActiveProjectFile) can
+// subtree writers (Preferences, WindowState, LastActiveLibraryFile) can
 // interleave at the Go level without dropping each other's changes.
 //
 // Callers mutate only the fields they own, leaving the rest of the
@@ -219,12 +256,12 @@ func (a *App) updateConfig(mutate func(*Config)) error {
 	return a.writeConfigLocked(cfg)
 }
 
-// SetActiveProjectFile persists the last-opened file for the active project.
-// Called from the frontend on file selection so `ReadProjectFile` doesn't
+// SetActiveLibraryFile persists the last-opened file for the active library.
+// Called from the frontend on file selection so `ReadLibraryFile` doesn't
 // touch config on every read.
-func (a *App) SetActiveProjectFile(rel string) error {
+func (a *App) SetActiveLibraryFile(rel string) error {
 	return a.updateConfig(func(c *Config) {
-		c.LastActiveProjectFile = rel
+		c.LastActiveLibraryFile = rel
 	})
 }
 
@@ -250,7 +287,7 @@ func (a *App) GetPreferences() (Preferences, error) {
 
 // SetPreferences replaces the entire Preferences block in Config via
 // updateConfig, so concurrent writes from other subtrees (WindowState,
-// LastActiveProjectFile) don't get lost. Non-preference fields are
+// LastActiveLibraryFile) don't get lost. Non-preference fields are
 // preserved.
 func (a *App) SetPreferences(prefs Preferences) error {
 	return a.updateConfig(func(c *Config) {
@@ -338,25 +375,25 @@ func (a *App) restoreWindowState() {
 	}
 }
 
-// safePath validates that relPath resolves to a location inside the project
+// safePath validates that relPath resolves to a location inside the library
 // root. It rejects:
-//   - absolute inputs (writers always work relative to the project)
+//   - absolute inputs (writers always work relative to the library)
 //   - any leaf symlink, whether its target exists, is dangling, or points
-//     inside or outside the project (writers don't need leaf symlinks, and
+//     inside or outside the library (writers don't need leaf symlinks, and
 //     allowing them opens a class of TOCTOU / dangling-leaf bypasses)
-//   - live symlink chains whose final target escapes the project root
+//   - live symlink chains whose final target escapes the library root
 func (a *App) safePath(relPath string) (string, error) {
-	if a.currentProject == "" {
-		return "", fmt.Errorf("no project open")
+	if a.currentLibrary == "" {
+		return "", fmt.Errorf("no library open")
 	}
 	if filepath.IsAbs(relPath) {
 		return "", fmt.Errorf("absolute paths are not allowed")
 	}
 	relPath = filepath.Clean(relPath)
 
-	root, err := filepath.EvalSymlinks(a.currentProject)
+	root, err := filepath.EvalSymlinks(a.currentLibrary)
 	if err != nil {
-		return "", fmt.Errorf("resolving project root: %w", err)
+		return "", fmt.Errorf("resolving library root: %w", err)
 	}
 	joined := filepath.Join(root, relPath)
 
@@ -365,7 +402,7 @@ func (a *App) safePath(relPath string) (string, error) {
 	// (permission, IO); propagate those.
 	if info, lerr := os.Lstat(joined); lerr == nil {
 		if info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("path escapes project root: leaf symlinks are not allowed")
+			return "", fmt.Errorf("path escapes library root: leaf symlinks are not allowed")
 		}
 	} else if !errors.Is(lerr, fs.ErrNotExist) {
 		return "", fmt.Errorf("stat path: %w", lerr)
@@ -374,19 +411,19 @@ func (a *App) safePath(relPath string) (string, error) {
 	target, err := filepath.EvalSymlinks(joined)
 	if err != nil {
 		// Path does not exist yet (a new file). Parent must resolve inside
-		// the project root.
+		// the library root.
 		parent := filepath.Dir(joined)
 		resolvedParent, perr := filepath.EvalSymlinks(parent)
 		if perr != nil {
 			return "", fmt.Errorf("resolving parent: %w", perr)
 		}
 		if !pathInsideRoot(resolvedParent, root) {
-			return "", fmt.Errorf("path escapes project root")
+			return "", fmt.Errorf("path escapes library root")
 		}
 		return joined, nil
 	}
 	if !pathInsideRoot(target, root) {
-		return "", fmt.Errorf("path escapes project root")
+		return "", fmt.Errorf("path escapes library root")
 	}
 	return target, nil
 }
@@ -400,13 +437,13 @@ func pathInsideRoot(p, root string) bool {
 	return strings.HasPrefix(p+string(filepath.Separator), root+string(filepath.Separator))
 }
 
-func (a *App) GetCurrentProject() string {
-	return a.currentProject
+func (a *App) GetCurrentLibrary() string {
+	return a.currentLibrary
 }
 
 func (a *App) GetLastActiveFile() string {
 	cfg, _ := a.readConfig()
-	return cfg.LastActiveProjectFile
+	return cfg.LastActiveLibraryFile
 }
 
 func (a *App) BrowserOpenURL(url string) {

@@ -19,8 +19,8 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
 
   const workspaceState = {
     activeFile: null as string | null,
-    projectFiles: [] as Array<{ path: string; name: string; updatedAt: string }>,
-    projectPath: null as string | null,
+    libraryFiles: [] as Array<{ path: string; name: string; updatedAt: string }>,
+    libraryPath: null as string | null,
     viewingRevisionHash: null as string | null,
   };
 
@@ -70,9 +70,9 @@ function asMap(entries: Array<[string, any]>) {
 }
 
 describe("command handlers", () => {
-  it("file.newPlay creates a file when a project is open", async () => {
+  it("file.newPlay creates a file when a library is open", async () => {
     const ctx = makeContext();
-    ctx.workspace.state.projectPath = "/p/alpha";
+    ctx.workspace.state.libraryPath = "/p/alpha";
     const cmds = asMap(createCommandHandlers(ctx));
     await cmds.get("file.newPlay")!.handler();
     expect(ctx.workspace.createFile).toHaveBeenCalled();
@@ -138,9 +138,9 @@ describe("command handlers", () => {
     expect(ctx.editor.applyFormat).toHaveBeenCalledWith("page-break");
   });
 
-  it("navigate.nextFile cycles forward through the project list", async () => {
+  it("navigate.nextFile cycles forward through the library list", async () => {
     const ctx = makeContext();
-    ctx.workspace.state.projectFiles = [
+    ctx.workspace.state.libraryFiles = [
       { path: "a.ds", name: "a.ds", updatedAt: "" },
       { path: "b.ds", name: "b.ds", updatedAt: "" },
       { path: "c.ds", name: "c.ds", updatedAt: "" },

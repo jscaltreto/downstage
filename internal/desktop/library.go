@@ -15,16 +15,19 @@ import (
 
 const dictionaryPath = ".downstage/dictionary.txt"
 
-// ProjectFile represents a .ds file in the project directory.
-type ProjectFile struct {
+// LibraryFile represents a .ds file in the library directory.
+type LibraryFile struct {
 	Path      string `json:"path"`
 	Name      string `json:"name"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
-func (a *App) OpenProjectFolder() (string, error) {
+// ChangeLibraryLocation shows a folder picker and switches the active
+// library to the chosen directory. Returns the selected path, or "" when
+// the user cancels.
+func (a *App) ChangeLibraryLocation() (string, error) {
 	selection, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Open Project Folder",
+		Title: "Choose Library Location",
 	})
 	if err != nil {
 		return "", err
@@ -32,38 +35,38 @@ func (a *App) OpenProjectFolder() (string, error) {
 	if selection == "" {
 		return "", nil
 	}
-	a.currentProject = selection
+	a.currentLibrary = selection
 
-	// Switch projects: update only the project fields. Prior to the
+	// Switch libraries: update only the library fields. Prior to the
 	// updateConfig migration this path wrote Config{...} wholesale,
 	// silently zeroing Preferences and WindowState every time the user
 	// changed folders. Now other subtrees are preserved.
 	if err := a.updateConfig(func(c *Config) {
-		c.LastProjectPath = selection
-		c.LastActiveProjectFile = ""
+		c.LastLibraryPath = selection
+		c.LastActiveLibraryFile = ""
 	}); err != nil {
-		slog.Warn("persisting project switch failed", "err", err)
+		slog.Warn("persisting library switch failed", "err", err)
 	}
 
 	_ = a.ensureGitRepo()
 	return selection, nil
 }
 
-func (a *App) GetProjectFiles() ([]ProjectFile, error) {
+func (a *App) GetLibraryFiles() ([]LibraryFile, error) {
 	// Always return a non-nil slice — encoding/json serializes a nil
 	// slice as `null`, which the frontend reads as null and crashes on
-	// `.length`. An empty project (no .ds files yet, common on a fresh
+	// `.length`. An empty library (no .ds files yet, common on a fresh
 	// install) must surface as `[]` to JS.
-	if a.currentProject == "" {
-		return []ProjectFile{}, nil
+	if a.currentLibrary == "" {
+		return []LibraryFile{}, nil
 	}
 
-	files := []ProjectFile{}
-	walkErr := filepath.WalkDir(a.currentProject, func(path string, d fs.DirEntry, err error) error {
+	files := []LibraryFile{}
+	walkErr := filepath.WalkDir(a.currentLibrary, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			// A single unreadable dir (permissions, IO) should not abort
 			// the whole listing — log and continue.
-			slog.Warn("project walk: skipping", "path", path, "err", err)
+			slog.Warn("library walk: skipping", "path", path, "err", err)
 			if d != nil && d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -80,14 +83,14 @@ func (a *App) GetProjectFiles() ([]ProjectFile, error) {
 		}
 		info, err := d.Info()
 		if err != nil {
-			slog.Warn("project walk: stat failed", "path", path, "err", err)
+			slog.Warn("library walk: stat failed", "path", path, "err", err)
 			return nil
 		}
-		rel, err := filepath.Rel(a.currentProject, path)
+		rel, err := filepath.Rel(a.currentLibrary, path)
 		if err != nil {
 			return err
 		}
-		files = append(files, ProjectFile{
+		files = append(files, LibraryFile{
 			Path:      rel,
 			Name:      info.Name(),
 			UpdatedAt: info.ModTime().Format(time.RFC3339),
@@ -104,7 +107,7 @@ func (a *App) GetProjectFiles() ([]ProjectFile, error) {
 	return files, nil
 }
 
-func (a *App) ReadProjectFile(relPath string) (string, error) {
+func (a *App) ReadLibraryFile(relPath string) (string, error) {
 	fullPath, err := a.safePath(relPath)
 	if err != nil {
 		return "", err
@@ -116,7 +119,7 @@ func (a *App) ReadProjectFile(relPath string) (string, error) {
 	return string(data), nil
 }
 
-func (a *App) WriteProjectFile(relPath string, content string) error {
+func (a *App) WriteLibraryFile(relPath string, content string) error {
 	fullPath, err := a.safePath(relPath)
 	if err != nil {
 		return err
@@ -127,9 +130,9 @@ func (a *App) WriteProjectFile(relPath string, content string) error {
 	return os.WriteFile(fullPath, []byte(content), 0644)
 }
 
-func (a *App) CreateProjectFile(name string, content string) (string, error) {
-	if a.currentProject == "" {
-		return "", fmt.Errorf("no project open")
+func (a *App) CreateLibraryFile(name string, content string) (string, error) {
+	if a.currentLibrary == "" {
+		return "", fmt.Errorf("no library open")
 	}
 
 	filename := name
@@ -163,10 +166,10 @@ func (a *App) CreateProjectFile(name string, content string) (string, error) {
 }
 
 func (a *App) dictionaryFile() string {
-	if a.currentProject == "" {
+	if a.currentLibrary == "" {
 		return ""
 	}
-	return filepath.Join(a.currentProject, dictionaryPath)
+	return filepath.Join(a.currentLibrary, dictionaryPath)
 }
 
 func (a *App) readDictionary() []string {
@@ -191,7 +194,7 @@ func (a *App) readDictionary() []string {
 func (a *App) writeDictionary(words []string) error {
 	path := a.dictionaryFile()
 	if path == "" {
-		return fmt.Errorf("no project open")
+		return fmt.Errorf("no library open")
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err

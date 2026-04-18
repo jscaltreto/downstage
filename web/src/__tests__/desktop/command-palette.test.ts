@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import CommandPalette from "../../desktop/CommandPalette.vue";
-import type { CommandMeta, DesktopCapabilities, ProjectFile } from "../../desktop/types";
+import type { CommandMeta, DesktopCapabilities, LibraryFile } from "../../desktop/types";
 
 // Minimal env stub — only the palette-facing methods are exercised.
 function makeEnv(commands: CommandMeta[]): DesktopCapabilities {
@@ -26,7 +26,7 @@ describe("CommandPalette", () => {
         open: true,
         mode: "command",
         env: makeEnv(baseCommands),
-        projectFiles: [],
+        libraryFiles: [],
         disabledIds: [],
       },
     });
@@ -42,7 +42,7 @@ describe("CommandPalette", () => {
         open: true,
         mode: "command",
         env: makeEnv(baseCommands),
-        projectFiles: [],
+        libraryFiles: [],
         disabledIds: [],
       },
     });
@@ -61,7 +61,7 @@ describe("CommandPalette", () => {
         open: true,
         mode: "command",
         env: makeEnv(baseCommands),
-        projectFiles: [],
+        libraryFiles: [],
         disabledIds: ["file.saveVersion"],
       },
     });
@@ -81,7 +81,7 @@ describe("CommandPalette", () => {
         open: true,
         mode: "command",
         env: makeEnv(baseCommands),
-        projectFiles: [],
+        libraryFiles: [],
         disabledIds: [],
       },
     });
@@ -92,7 +92,7 @@ describe("CommandPalette", () => {
   });
 
   it("file-picker mode swaps the source list", async () => {
-    const files: ProjectFile[] = [
+    const files: LibraryFile[] = [
       { path: "act-one.ds", name: "act-one.ds", updatedAt: "" },
       { path: "act-two.ds", name: "act-two.ds", updatedAt: "" },
     ];
@@ -101,7 +101,7 @@ describe("CommandPalette", () => {
         open: true,
         mode: "file",
         env: makeEnv(baseCommands),
-        projectFiles: files,
+        libraryFiles: files,
         disabledIds: [],
       },
     });
@@ -114,7 +114,7 @@ describe("CommandPalette", () => {
   });
 
   it("Enter on a file-mode row emits select-file with the path", async () => {
-    const files: ProjectFile[] = [
+    const files: LibraryFile[] = [
       { path: "play.ds", name: "play.ds", updatedAt: "" },
     ];
     const wrapper = mount(CommandPalette, {
@@ -122,7 +122,7 @@ describe("CommandPalette", () => {
         open: true,
         mode: "file",
         env: makeEnv(baseCommands),
-        projectFiles: files,
+        libraryFiles: files,
         disabledIds: [],
       },
     });

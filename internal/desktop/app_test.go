@@ -15,7 +15,7 @@ import (
 func testApp(t *testing.T) *App {
 	t.Helper()
 	dir := t.TempDir()
-	a := &App{currentProject: dir}
+	a := &App{currentLibrary: dir}
 	return a
 }
 
@@ -29,22 +29,22 @@ func testAppWithConfig(t *testing.T) *App {
 
 func TestSafePath_AllowsValidPaths(t *testing.T) {
 	a := testApp(t)
-	os.WriteFile(filepath.Join(a.currentProject, "play.ds"), []byte("test"), 0644)
+	os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("test"), 0644)
 
 	got, err := a.safePath("play.ds")
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(a.currentProject, "play.ds"), got)
+	assert.Equal(t, filepath.Join(a.currentLibrary, "play.ds"), got)
 }
 
 func TestSafePath_AllowsNestedPaths(t *testing.T) {
 	a := testApp(t)
-	sub := filepath.Join(a.currentProject, "subdir")
+	sub := filepath.Join(a.currentLibrary, "subdir")
 	os.MkdirAll(sub, 0755)
 	os.WriteFile(filepath.Join(sub, "play.ds"), []byte("test"), 0644)
 
 	got, err := a.safePath("subdir/play.ds")
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(a.currentProject, "subdir", "play.ds"), got)
+	assert.Equal(t, filepath.Join(a.currentLibrary, "subdir", "play.ds"), got)
 }
 
 func TestSafePath_AllowsNewFileInExistingDir(t *testing.T) {
@@ -52,7 +52,7 @@ func TestSafePath_AllowsNewFileInExistingDir(t *testing.T) {
 
 	got, err := a.safePath("newfile.ds")
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(a.currentProject, "newfile.ds"), got)
+	assert.Equal(t, filepath.Join(a.currentLibrary, "newfile.ds"), got)
 }
 
 func TestSafePath_BlocksTraversal(t *testing.T) {
@@ -74,19 +74,19 @@ func TestSafePath_BlocksSymlinkEscape(t *testing.T) {
 	outside := t.TempDir()
 	os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0644)
 
-	os.Symlink(outside, filepath.Join(a.currentProject, "escape"))
+	os.Symlink(outside, filepath.Join(a.currentLibrary, "escape"))
 
 	_, err := a.safePath("escape/secret.txt")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "path escapes project root")
+	assert.Contains(t, err.Error(), "path escapes library root")
 }
 
-func TestSafePath_NoProject(t *testing.T) {
+func TestSafePath_NoLibrary(t *testing.T) {
 	a := &App{}
 
 	_, err := a.safePath("anything.ds")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no project open")
+	assert.Contains(t, err.Error(), "no library open")
 }
 
 func TestSafePath_BlocksAbsoluteInput(t *testing.T) {
@@ -108,11 +108,11 @@ func TestSafePath_BlocksDanglingSymlinkLeafOutside(t *testing.T) {
 	outsideDir := t.TempDir()
 	target := filepath.Join(outsideDir, "does-not-exist")
 
-	require.NoError(t, os.Symlink(target, filepath.Join(a.currentProject, "leaf")))
+	require.NoError(t, os.Symlink(target, filepath.Join(a.currentLibrary, "leaf")))
 
 	_, err := a.safePath("leaf")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "path escapes project root")
+	assert.Contains(t, err.Error(), "path escapes library root")
 
 	// And confirm that no file was created at the outside target.
 	_, statErr := os.Stat(target)
@@ -125,8 +125,8 @@ func TestSafePath_BlocksDanglingSymlinkLeafOutside(t *testing.T) {
 func TestSafePath_BlocksDanglingSymlinkLeafInside(t *testing.T) {
 	a := testApp(t)
 
-	target := filepath.Join(a.currentProject, "nothing-here.ds")
-	require.NoError(t, os.Symlink(target, filepath.Join(a.currentProject, "leaf")))
+	target := filepath.Join(a.currentLibrary, "nothing-here.ds")
+	require.NoError(t, os.Symlink(target, filepath.Join(a.currentLibrary, "leaf")))
 
 	_, err := a.safePath("leaf")
 	assert.Error(t, err)
@@ -137,9 +137,9 @@ func TestSafePath_BlocksDanglingSymlinkLeafInside(t *testing.T) {
 func TestSafePath_BlocksLiveSymlinkLeafInsideRoot(t *testing.T) {
 	a := testApp(t)
 
-	target := filepath.Join(a.currentProject, "real.ds")
+	target := filepath.Join(a.currentLibrary, "real.ds")
 	require.NoError(t, os.WriteFile(target, []byte("content"), 0644))
-	require.NoError(t, os.Symlink(target, filepath.Join(a.currentProject, "leaf")))
+	require.NoError(t, os.Symlink(target, filepath.Join(a.currentLibrary, "leaf")))
 
 	_, err := a.safePath("leaf")
 	assert.Error(t, err)
@@ -149,50 +149,80 @@ func TestSafePath_BlocksLiveSymlinkLeafInsideRoot(t *testing.T) {
 func TestConfigRoundTrip(t *testing.T) {
 	a := testAppWithConfig(t)
 
-	require.NoError(t, a.writeConfig(Config{LastProjectPath: "/some/path"}))
-	require.NoError(t, a.SetActiveProjectFile("play.ds"))
+	require.NoError(t, a.writeConfig(Config{LastLibraryPath: "/some/path"}))
+	require.NoError(t, a.SetActiveLibraryFile("play.ds"))
 
 	data, err := os.ReadFile(a.configPath)
 	require.NoError(t, err)
 
 	var config Config
 	require.NoError(t, json.Unmarshal(data, &config))
-	assert.Equal(t, "/some/path", config.LastProjectPath)
-	assert.Equal(t, "play.ds", config.LastActiveProjectFile)
+	assert.Equal(t, "/some/path", config.LastLibraryPath)
+	assert.Equal(t, "play.ds", config.LastActiveLibraryFile)
 }
 
 // writeConfig is symmetric: empty fields clear. The old merge-based
-// saveConfig could not clear LastActiveProjectFile, which broke project
+// saveConfig could not clear LastActiveLibraryFile, which broke project
 // switches (the previous project's active file stayed behind).
 func TestConfigRoundTrip_ClearActiveFile(t *testing.T) {
 	a := testAppWithConfig(t)
 
-	require.NoError(t, a.SetActiveProjectFile("play.ds"))
-	require.NoError(t, a.writeConfig(Config{LastProjectPath: "/new", LastActiveProjectFile: ""}))
+	require.NoError(t, a.SetActiveLibraryFile("play.ds"))
+	require.NoError(t, a.writeConfig(Config{LastLibraryPath: "/new", LastActiveLibraryFile: ""}))
 
 	cfg, err := a.readConfig()
 	require.NoError(t, err)
-	assert.Equal(t, "/new", cfg.LastProjectPath)
-	assert.Equal(t, "", cfg.LastActiveProjectFile)
+	assert.Equal(t, "/new", cfg.LastLibraryPath)
+	assert.Equal(t, "", cfg.LastActiveLibraryFile)
 }
 
-// ReadProjectFile used to call saveConfig on every read — a disk write on
-// a hot path. The current contract is: config is only touched via
-// SetActiveProjectFile (on file switch) or OpenProjectFolder (on project
-// switch).
-func TestReadProjectFile_DoesNotWriteConfig(t *testing.T) {
+// Regression: a pre-rename config on disk uses `lastProjectPath` and
+// `lastActiveProjectFile`. readConfig must migrate both into the new
+// field names so the first launch after upgrade finds the user's library
+// and last-opened file. Dropping either is a data-loss bug.
+func TestReadConfig_MigratesLegacyFields(t *testing.T) {
 	a := testAppWithConfig(t)
-	require.NoError(t, os.WriteFile(filepath.Join(a.currentProject, "play.ds"), []byte("x"), 0644))
+
+	legacy := []byte(`{"lastProjectPath":"/old/library","lastActiveProjectFile":"play.ds"}`)
+	require.NoError(t, os.WriteFile(a.configPath, legacy, 0644))
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "/old/library", cfg.LastLibraryPath)
+	assert.Equal(t, "play.ds", cfg.LastActiveLibraryFile)
+}
+
+// Regression: when the new fields are already populated, a legacy field
+// must NOT clobber them. This handles the case where a user downgrades,
+// the old build writes both shapes, then they upgrade again.
+func TestReadConfig_NewFieldsTakePrecedenceOverLegacy(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	mixed := []byte(`{"lastLibraryPath":"/new","lastProjectPath":"/old"}`)
+	require.NoError(t, os.WriteFile(a.configPath, mixed, 0644))
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "/new", cfg.LastLibraryPath)
+}
+
+// ReadLibraryFile used to call saveConfig on every read — a disk write on
+// a hot path. The current contract is: config is only touched via
+// SetActiveLibraryFile (on file switch) or ChangeLibraryLocation (on library
+// switch).
+func TestReadLibraryFile_DoesNotWriteConfig(t *testing.T) {
+	a := testAppWithConfig(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("x"), 0644))
 
 	// Pre-seed config with a known value so we can detect mutation.
-	require.NoError(t, a.writeConfig(Config{LastProjectPath: "/x", LastActiveProjectFile: "prev.ds"}))
+	require.NoError(t, a.writeConfig(Config{LastLibraryPath: "/x", LastActiveLibraryFile: "prev.ds"}))
 	statBefore, err := os.Stat(a.configPath)
 	require.NoError(t, err)
 
 	// Small sleep so mtime would differ if a write did happen.
 	time.Sleep(10 * time.Millisecond)
 
-	_, err = a.ReadProjectFile("play.ds")
+	_, err = a.ReadLibraryFile("play.ds")
 	require.NoError(t, err)
 
 	statAfter, err := os.Stat(a.configPath)
@@ -201,123 +231,123 @@ func TestReadProjectFile_DoesNotWriteConfig(t *testing.T) {
 
 	cfg, err := a.readConfig()
 	require.NoError(t, err)
-	assert.Equal(t, "prev.ds", cfg.LastActiveProjectFile)
+	assert.Equal(t, "prev.ds", cfg.LastActiveLibraryFile)
 }
 
-func TestSetActiveProjectFile_Persists(t *testing.T) {
+func TestSetActiveLibraryFile_Persists(t *testing.T) {
 	a := testAppWithConfig(t)
 
-	require.NoError(t, a.SetActiveProjectFile("act1.ds"))
+	require.NoError(t, a.SetActiveLibraryFile("act1.ds"))
 
 	cfg, err := a.readConfig()
 	require.NoError(t, err)
-	assert.Equal(t, "act1.ds", cfg.LastActiveProjectFile)
+	assert.Equal(t, "act1.ds", cfg.LastActiveLibraryFile)
 }
 
-func TestCreateProjectFile_Dedup(t *testing.T) {
+func TestCreateLibraryFile_Dedup(t *testing.T) {
 	a := testApp(t)
 
-	path1, err := a.CreateProjectFile("test", "content1")
+	path1, err := a.CreateLibraryFile("test", "content1")
 	require.NoError(t, err)
 	assert.Equal(t, "test.ds", path1)
 
-	path2, err := a.CreateProjectFile("test", "content2")
+	path2, err := a.CreateLibraryFile("test", "content2")
 	require.NoError(t, err)
 	assert.Equal(t, "test-1.ds", path2)
 
-	path3, err := a.CreateProjectFile("test", "content3")
+	path3, err := a.CreateLibraryFile("test", "content3")
 	require.NoError(t, err)
 	assert.Equal(t, "test-2.ds", path3)
 }
 
-func TestCreateProjectFile_AddsSuffix(t *testing.T) {
+func TestCreateLibraryFile_AddsSuffix(t *testing.T) {
 	a := testApp(t)
 
-	path, err := a.CreateProjectFile("My Play", "content")
+	path, err := a.CreateLibraryFile("My Play", "content")
 	require.NoError(t, err)
 	assert.Equal(t, "My Play.ds", path)
 }
 
-func TestCreateProjectFile_PreservesSuffix(t *testing.T) {
+func TestCreateLibraryFile_PreservesSuffix(t *testing.T) {
 	a := testApp(t)
 
-	path, err := a.CreateProjectFile("play.ds", "content")
+	path, err := a.CreateLibraryFile("play.ds", "content")
 	require.NoError(t, err)
 	assert.Equal(t, "play.ds", path)
 }
 
-func TestGetProjectFiles_Filters(t *testing.T) {
+func TestGetLibraryFiles_Filters(t *testing.T) {
 	a := testApp(t)
 
-	os.WriteFile(filepath.Join(a.currentProject, "play.ds"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(a.currentProject, "readme.md"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(a.currentProject, "notes.txt"), []byte("test"), 0644)
+	os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("test"), 0644)
+	os.WriteFile(filepath.Join(a.currentLibrary, "readme.md"), []byte("test"), 0644)
+	os.WriteFile(filepath.Join(a.currentLibrary, "notes.txt"), []byte("test"), 0644)
 
-	gitDir := filepath.Join(a.currentProject, ".git")
+	gitDir := filepath.Join(a.currentLibrary, ".git")
 	os.MkdirAll(gitDir, 0755)
 	os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref"), 0644)
 
-	files, err := a.GetProjectFiles()
+	files, err := a.GetLibraryFiles()
 	require.NoError(t, err)
 	require.Len(t, files, 1)
 	assert.Equal(t, "play.ds", files[0].Name)
 }
 
-func TestGetProjectFiles_EmptyProjectReturnsEmptySlice(t *testing.T) {
-	// Regression: `var files []ProjectFile` returned a nil slice when no
+func TestGetLibraryFiles_EmptyLibraryReturnsEmptySlice(t *testing.T) {
+	// Regression: `var files []LibraryFile` returned a nil slice when no
 	// .ds files existed, which JSON-serialized as `null` and crashed the
 	// frontend's `.length` read on first launch of a fresh project.
 	a := testApp(t)
 
-	files, err := a.GetProjectFiles()
+	files, err := a.GetLibraryFiles()
 	require.NoError(t, err)
 	require.NotNil(t, files, "must return non-nil slice so JSON emits []")
 	require.Len(t, files, 0)
 }
 
-func TestGetProjectFiles_NoProjectReturnsEmptySlice(t *testing.T) {
-	// Same regression guard for the "no project open" short-circuit.
+func TestGetLibraryFiles_NoLibraryReturnsEmptySlice(t *testing.T) {
+	// Same regression guard for the "no library open" short-circuit.
 	a := &App{}
 
-	files, err := a.GetProjectFiles()
+	files, err := a.GetLibraryFiles()
 	require.NoError(t, err)
 	require.NotNil(t, files)
 	require.Len(t, files, 0)
 }
 
-func TestGetProjectFiles_SkipsDownstageDir(t *testing.T) {
+func TestGetLibraryFiles_SkipsDownstageDir(t *testing.T) {
 	a := testApp(t)
 
-	os.WriteFile(filepath.Join(a.currentProject, "play.ds"), []byte("test"), 0644)
-	dsDir := filepath.Join(a.currentProject, ".downstage")
+	os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("test"), 0644)
+	dsDir := filepath.Join(a.currentLibrary, ".downstage")
 	os.MkdirAll(dsDir, 0755)
 	os.WriteFile(filepath.Join(dsDir, "internal.ds"), []byte("test"), 0644)
 
-	files, err := a.GetProjectFiles()
+	files, err := a.GetLibraryFiles()
 	require.NoError(t, err)
 	require.Len(t, files, 1)
 	assert.Equal(t, "play.ds", files[0].Name)
 }
 
-func TestWriteProjectFile_NoAutoCommit(t *testing.T) {
+func TestWriteLibraryFile_NoAutoCommit(t *testing.T) {
 	a := testApp(t)
-	_, err := git.PlainInit(a.currentProject, false)
+	_, err := git.PlainInit(a.currentLibrary, false)
 	require.NoError(t, err)
 
-	err = a.WriteProjectFile("play.ds", "content")
+	err = a.WriteLibraryFile("play.ds", "content")
 	require.NoError(t, err)
 
-	r, err := git.PlainOpen(a.currentProject)
+	r, err := git.PlainOpen(a.currentLibrary)
 	require.NoError(t, err)
 
 	_, err = r.Head()
-	assert.Error(t, err, "should have no commits after WriteProjectFile")
+	assert.Error(t, err, "should have no commits after WriteLibraryFile")
 }
 
 func TestSnapshotFile(t *testing.T) {
 	a := testApp(t)
 
-	err := a.WriteProjectFile("play.ds", "content")
+	err := a.WriteLibraryFile("play.ds", "content")
 	require.NoError(t, err)
 
 	err = a.SnapshotFile("play.ds", "initial version")
@@ -332,10 +362,10 @@ func TestSnapshotFile(t *testing.T) {
 func TestGetRevisions_Order(t *testing.T) {
 	a := testApp(t)
 
-	a.WriteProjectFile("play.ds", "v1")
+	a.WriteLibraryFile("play.ds", "v1")
 	a.SnapshotFile("play.ds", "first")
 
-	a.WriteProjectFile("play.ds", "v2")
+	a.WriteLibraryFile("play.ds", "v2")
 	a.SnapshotFile("play.ds", "second")
 
 	revisions, err := a.GetRevisions("play.ds", 0)
@@ -345,7 +375,7 @@ func TestGetRevisions_Order(t *testing.T) {
 	assert.Equal(t, "first", revisions[1].Message)
 }
 
-func TestGetRevisions_NoProjectReturnsEmptySlice(t *testing.T) {
+func TestGetRevisions_NoLibraryReturnsEmptySlice(t *testing.T) {
 	a := &App{}
 
 	revisions, err := a.GetRevisions("play.ds", 0)
@@ -354,17 +384,17 @@ func TestGetRevisions_NoProjectReturnsEmptySlice(t *testing.T) {
 	require.Len(t, revisions, 0)
 }
 
-func TestReadProjectFile_BlocksTraversal(t *testing.T) {
+func TestReadLibraryFile_BlocksTraversal(t *testing.T) {
 	a := testApp(t)
 
-	_, err := a.ReadProjectFile("../../etc/passwd")
+	_, err := a.ReadLibraryFile("../../etc/passwd")
 	assert.Error(t, err)
 }
 
-func TestWriteProjectFile_BlocksTraversal(t *testing.T) {
+func TestWriteLibraryFile_BlocksTraversal(t *testing.T) {
 	a := testApp(t)
 
-	err := a.WriteProjectFile("../../tmp/evil.txt", "evil")
+	err := a.WriteLibraryFile("../../tmp/evil.txt", "evil")
 	assert.Error(t, err)
 }
 
@@ -428,12 +458,12 @@ func TestRemoveSpellAllowlistWord_NotFound(t *testing.T) {
 	assert.False(t, removed)
 }
 
-func TestSnapshotFile_NoProject_ReturnsError(t *testing.T) {
+func TestSnapshotFile_NoLibrary_ReturnsError(t *testing.T) {
 	a := &App{}
 
 	err := a.SnapshotFile("play.ds", "msg")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no project open")
+	assert.Contains(t, err.Error(), "no library open")
 }
 
 // After a snapshot the worktree is clean — a second call with the same
@@ -441,7 +471,7 @@ func TestSnapshotFile_NoProject_ReturnsError(t *testing.T) {
 // ErrNothingToSnapshot to show an informational toast rather than an error.
 func TestSnapshotFile_NothingToCommit_ReturnsSentinel(t *testing.T) {
 	a := testApp(t)
-	require.NoError(t, a.WriteProjectFile("play.ds", "content"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "content"))
 	require.NoError(t, a.SnapshotFile("play.ds", "first"))
 
 	err := a.SnapshotFile("play.ds", "noop")
@@ -459,7 +489,7 @@ func TestSnapshotFile_UsesGlobalGitIdentity(t *testing.T) {
 	gitconfig := "[user]\n\tname = Ada Lovelace\n\temail = ada@example.com\n"
 	require.NoError(t, os.WriteFile(filepath.Join(tmpHome, ".gitconfig"), []byte(gitconfig), 0644))
 
-	require.NoError(t, a.WriteProjectFile("play.ds", "content"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "content"))
 	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
 
 	revisions, err := a.GetRevisions("play.ds", 0)
@@ -477,7 +507,7 @@ func TestSnapshotFile_FallsBackToDefaultIdentity(t *testing.T) {
 	t.Setenv("HOME", tmpHome)
 	t.Setenv("XDG_CONFIG_HOME", "")
 
-	require.NoError(t, a.WriteProjectFile("play.ds", "content"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "content"))
 	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
 
 	revisions, err := a.GetRevisions("play.ds", 0)
@@ -486,13 +516,13 @@ func TestSnapshotFile_FallsBackToDefaultIdentity(t *testing.T) {
 	assert.Equal(t, defaultSnapshotAuthorName, revisions[0].Author)
 }
 
-func TestGetProjectFiles_Sorted(t *testing.T) {
+func TestGetLibraryFiles_Sorted(t *testing.T) {
 	a := testApp(t)
-	require.NoError(t, os.WriteFile(filepath.Join(a.currentProject, "zulu.ds"), []byte("z"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(a.currentProject, "Alpha.ds"), []byte("a"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(a.currentProject, "mike.ds"), []byte("m"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "zulu.ds"), []byte("z"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "Alpha.ds"), []byte("a"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "mike.ds"), []byte("m"), 0644))
 
-	files, err := a.GetProjectFiles()
+	files, err := a.GetLibraryFiles()
 	require.NoError(t, err)
 	require.Len(t, files, 3)
 
@@ -502,11 +532,11 @@ func TestGetProjectFiles_Sorted(t *testing.T) {
 
 func TestGetRevisions_BoundedByLimit(t *testing.T) {
 	a := testApp(t)
-	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
 	require.NoError(t, a.SnapshotFile("play.ds", "one"))
-	require.NoError(t, a.WriteProjectFile("play.ds", "v2"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v2"))
 	require.NoError(t, a.SnapshotFile("play.ds", "two"))
-	require.NoError(t, a.WriteProjectFile("play.ds", "v3"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v3"))
 	require.NoError(t, a.SnapshotFile("play.ds", "three"))
 
 	revisions, err := a.GetRevisions("play.ds", 2)
@@ -529,9 +559,9 @@ func TestDiagnosticSeverity_UnknownDefaultsToInfo(t *testing.T) {
 // behind the desktop restore flow.
 func TestReadFileAtRevision_ReturnsContentAtCommit(t *testing.T) {
 	a := testApp(t)
-	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
 	require.NoError(t, a.SnapshotFile("play.ds", "one"))
-	require.NoError(t, a.WriteProjectFile("play.ds", "v2"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v2"))
 	require.NoError(t, a.SnapshotFile("play.ds", "two"))
 
 	revisions, err := a.GetRevisions("play.ds", 0)
@@ -551,7 +581,7 @@ func TestReadFileAtRevision_ReturnsContentAtCommit(t *testing.T) {
 
 func TestReadFileAtRevision_UnknownHashReturnsError(t *testing.T) {
 	a := testApp(t)
-	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
 	require.NoError(t, a.SnapshotFile("play.ds", "one"))
 
 	_, err := a.ReadFileAtRevision("play.ds", "deadbeef")
@@ -597,23 +627,23 @@ func TestPreferences_DoesNotClobberNonPrefFields(t *testing.T) {
 	a := testAppWithConfig(t)
 
 	require.NoError(t, a.writeConfig(Config{
-		LastProjectPath:       "/tmp/project",
-		LastActiveProjectFile: "play.ds",
+		LastLibraryPath:       "/tmp/project",
+		LastActiveLibraryFile: "play.ds",
 	}))
 
 	require.NoError(t, a.SetPreferences(Preferences{Theme: "dark"}))
 
 	cfg, err := a.readConfig()
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp/project", cfg.LastProjectPath)
-	assert.Equal(t, "play.ds", cfg.LastActiveProjectFile)
+	assert.Equal(t, "/tmp/project", cfg.LastLibraryPath)
+	assert.Equal(t, "play.ds", cfg.LastActiveLibraryFile)
 	assert.Equal(t, "dark", cfg.Preferences.Theme)
 }
 
-// Switching projects (OpenProjectFolder) must not clear persisted
+// Switching projects (ChangeLibraryLocation) must not clear persisted
 // preferences. They live in the same Config but are logically decoupled
 // from the project pointer.
-func TestPreferences_SurvivesProjectSwitch(t *testing.T) {
+func TestPreferences_SurvivesLibrarySwitch(t *testing.T) {
 	a := testAppWithConfig(t)
 
 	require.NoError(t, a.SetPreferences(Preferences{
@@ -625,8 +655,8 @@ func TestPreferences_SurvivesProjectSwitch(t *testing.T) {
 	// write.
 	cfg, err := a.readConfig()
 	require.NoError(t, err)
-	cfg.LastProjectPath = "/tmp/other"
-	cfg.LastActiveProjectFile = ""
+	cfg.LastLibraryPath = "/tmp/other"
+	cfg.LastActiveLibraryFile = ""
 	require.NoError(t, a.writeConfig(cfg))
 
 	out, err := a.GetPreferences()
@@ -685,8 +715,8 @@ func TestWindowState_DoesNotClobberOtherFields(t *testing.T) {
 	a := testAppWithConfig(t)
 
 	require.NoError(t, a.writeConfig(Config{
-		LastProjectPath:       "/tmp/project",
-		LastActiveProjectFile: "play.ds",
+		LastLibraryPath:       "/tmp/project",
+		LastActiveLibraryFile: "play.ds",
 		Preferences:           Preferences{Theme: "dark", SidebarCollapsed: true},
 	}))
 
@@ -694,32 +724,32 @@ func TestWindowState_DoesNotClobberOtherFields(t *testing.T) {
 
 	cfg, err := a.readConfig()
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp/project", cfg.LastProjectPath)
-	assert.Equal(t, "play.ds", cfg.LastActiveProjectFile)
+	assert.Equal(t, "/tmp/project", cfg.LastLibraryPath)
+	assert.Equal(t, "play.ds", cfg.LastActiveLibraryFile)
 	assert.Equal(t, "dark", cfg.Preferences.Theme)
 	assert.True(t, cfg.Preferences.SidebarCollapsed)
 }
 
-// OpenProjectFolder previously called writeConfig(Config{...}) which
+// ChangeLibraryLocation previously called writeConfig(Config{...}) which
 // zeroed Preferences + WindowState on every project switch. The
 // updateConfig migration preserves them.
-func TestOpenProjectFolder_PreservesPrefsAndWindowState(t *testing.T) {
+func TestChangeLibraryLocation_PreservesPrefsAndWindowState(t *testing.T) {
 	a := testAppWithConfig(t)
 
 	require.NoError(t, a.SetPreferences(Preferences{Theme: "dark", SidebarCollapsed: true}))
 	require.NoError(t, a.SaveWindowBounds(1400, 900, 120, 60))
 
 	// Simulate the project-switch path — the same mutator
-	// OpenProjectFolder uses.
+	// ChangeLibraryLocation uses.
 	require.NoError(t, a.updateConfig(func(c *Config) {
-		c.LastProjectPath = "/tmp/other"
-		c.LastActiveProjectFile = ""
+		c.LastLibraryPath = "/tmp/other"
+		c.LastActiveLibraryFile = ""
 	}))
 
 	cfg, err := a.readConfig()
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp/other", cfg.LastProjectPath)
-	assert.Empty(t, cfg.LastActiveProjectFile)
+	assert.Equal(t, "/tmp/other", cfg.LastLibraryPath)
+	assert.Empty(t, cfg.LastActiveLibraryFile)
 	assert.Equal(t, "dark", cfg.Preferences.Theme)
 	assert.True(t, cfg.Preferences.SidebarCollapsed)
 	assert.Equal(t, 1400, cfg.WindowState.Width)
@@ -779,7 +809,7 @@ func TestVersion_HasFallback(t *testing.T) {
 
 func TestReadFileAtRevision_RejectsAbsolutePaths(t *testing.T) {
 	a := testApp(t)
-	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
 	require.NoError(t, a.SnapshotFile("play.ds", "one"))
 	revisions, _ := a.GetRevisions("play.ds", 0)
 
