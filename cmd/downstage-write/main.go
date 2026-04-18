@@ -21,11 +21,25 @@ func main() {
 	builtMenu := desktop.BuildMenu(app, nil)
 	app.SetInitialMenu(builtMenu)
 
+	// Pick the initial window size from persisted state if it looks
+	// sane. Fall back to the default when no state exists, when the
+	// stored dimensions are suspiciously small, or when reading fails.
+	// Position and maximize restore happen after OnStartup (see
+	// app.restoreWindowState) because Wails has no options-level hook
+	// for either.
+	width, height := 1024, 768
+	if ws, err := app.GetWindowState(); err == nil {
+		if ws.Width >= 400 && ws.Height >= 400 {
+			width = ws.Width
+			height = ws.Height
+		}
+	}
+
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:  "Downstage Write",
-		Width:  1024,
-		Height: 768,
+		Width:  width,
+		Height: height,
 		AssetServer: &assetserver.Options{
 			Assets: frontendAssets,
 		},

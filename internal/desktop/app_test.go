@@ -604,6 +604,131 @@ func TestPreferences_SurvivesProjectSwitch(t *testing.T) {
 	assert.True(t, out.SidebarCollapsed)
 }
 
+// GetWindowState returns a zero value when no state has been saved.
+func TestWindowState_DefaultZero(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	ws, err := a.GetWindowState()
+	require.NoError(t, err)
+	assert.Equal(t, WindowState{}, ws)
+}
+
+// SaveWindowBounds persists size+position and sets Placed=true so the
+// restore path distinguishes "never moved" from legitimate (0, 0).
+func TestWindowState_SaveBoundsRoundTrip(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	require.NoError(t, a.SaveWindowBounds(1400, 900, 120, 60))
+
+	ws, err := a.GetWindowState()
+	require.NoError(t, err)
+	assert.Equal(t, 1400, ws.Width)
+	assert.Equal(t, 900, ws.Height)
+	assert.Equal(t, 120, ws.X)
+	assert.Equal(t, 60, ws.Y)
+	assert.True(t, ws.Placed)
+	assert.False(t, ws.Maximized)
+}
+
+// SaveWindowMaximized flips the flag without touching persisted bounds.
+// The maximize-then-quit path relies on this: we want the previous
+// normal bounds preserved for the next unmaximize.
+func TestWindowState_MaximizedDoesNotClobberBounds(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	require.NoError(t, a.SaveWindowBounds(1400, 900, 120, 60))
+	require.NoError(t, a.SaveWindowMaximized(true))
+
+	ws, err := a.GetWindowState()
+	require.NoError(t, err)
+	assert.True(t, ws.Maximized)
+	assert.Equal(t, 1400, ws.Width)
+	assert.Equal(t, 900, ws.Height)
+	assert.Equal(t, 120, ws.X)
+	assert.Equal(t, 60, ws.Y)
+}
+
+// WindowState writes must not clobber Preferences or project fields.
+// This is the key guarantee of the updateConfig migration.
+func TestWindowState_DoesNotClobberOtherFields(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	require.NoError(t, a.writeConfig(Config{
+		LastProjectPath:       "/tmp/project",
+		LastActiveProjectFile: "play.ds",
+		Preferences:           Preferences{Theme: "dark", SidebarCollapsed: true},
+	}))
+
+	require.NoError(t, a.SaveWindowBounds(1400, 900, 120, 60))
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/project", cfg.LastProjectPath)
+	assert.Equal(t, "play.ds", cfg.LastActiveProjectFile)
+	assert.Equal(t, "dark", cfg.Preferences.Theme)
+	assert.True(t, cfg.Preferences.SidebarCollapsed)
+}
+
+// OpenProjectFolder previously called writeConfig(Config{...}) which
+// zeroed Preferences + WindowState on every project switch. The
+// updateConfig migration preserves them.
+func TestOpenProjectFolder_PreservesPrefsAndWindowState(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	require.NoError(t, a.SetPreferences(Preferences{Theme: "dark", SidebarCollapsed: true}))
+	require.NoError(t, a.SaveWindowBounds(1400, 900, 120, 60))
+
+	// Simulate the project-switch path — the same mutator
+	// OpenProjectFolder uses.
+	require.NoError(t, a.updateConfig(func(c *Config) {
+		c.LastProjectPath = "/tmp/other"
+		c.LastActiveProjectFile = ""
+	}))
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/other", cfg.LastProjectPath)
+	assert.Empty(t, cfg.LastActiveProjectFile)
+	assert.Equal(t, "dark", cfg.Preferences.Theme)
+	assert.True(t, cfg.Preferences.SidebarCollapsed)
+	assert.Equal(t, 1400, cfg.WindowState.Width)
+	assert.True(t, cfg.WindowState.Placed)
+}
+
+// Concurrent writers across subtrees (Preferences vs WindowState)
+// must each land in the final Config. The updateConfig lock guards
+// the RMW cycle, so interleaved goroutines can't lose each other's
+// subtrees.
+func TestConfig_ConcurrentSubtreeWritesPreserveBoth(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	const iterations = 40
+	done := make(chan struct{}, 2)
+
+	go func() {
+		for i := 0; i < iterations; i++ {
+			_ = a.SetPreferences(Preferences{Theme: "dark"})
+		}
+		done <- struct{}{}
+	}()
+	go func() {
+		for i := 0; i < iterations; i++ {
+			_ = a.SaveWindowBounds(1200, 800, 10, 20)
+		}
+		done <- struct{}{}
+	}()
+
+	<-done
+	<-done
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "dark", cfg.Preferences.Theme)
+	assert.Equal(t, 1200, cfg.WindowState.Width)
+	assert.Equal(t, 800, cfg.WindowState.Height)
+	assert.True(t, cfg.WindowState.Placed)
+}
+
 func TestReadFileAtRevision_RejectsAbsolutePaths(t *testing.T) {
 	a := testApp(t)
 	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))

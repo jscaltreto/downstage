@@ -42,6 +42,31 @@ const isV1Document = ref(false);
 const cursor = ref<{ line: number; col: number }>({ line: 1, col: 1 });
 const wordCount = ref(0);
 
+// Sidebar drag state. Mouse handlers are attached to `window` on drag
+// start so the mouse can leave the handle hitbox and still resize; they
+// detach on mouseup. `startX` and `startWidth` are captured at drag
+// start so intermediate moves don't accumulate floating error.
+let sidebarDragStartX = 0;
+let sidebarDragStartWidth = 0;
+function beginSidebarDrag(e: MouseEvent) {
+  sidebarDragStartX = e.clientX;
+  sidebarDragStartWidth = workspace.state.sidebarWidth;
+  document.body.style.cursor = 'col-resize';
+  window.addEventListener('mousemove', onSidebarDragMove);
+  window.addEventListener('mouseup', onSidebarDragEnd, { once: true });
+}
+function onSidebarDragMove(e: MouseEvent) {
+  const delta = e.clientX - sidebarDragStartX;
+  workspace.setSidebarWidth(sidebarDragStartWidth + delta);
+}
+function onSidebarDragEnd() {
+  window.removeEventListener('mousemove', onSidebarDragMove);
+  document.body.style.cursor = '';
+}
+function resetSidebarWidth() {
+  workspace.setSidebarWidth(256);
+}
+
 const toastManager = ref<InstanceType<typeof ToastManager> | null>(null);
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
 
@@ -138,6 +163,23 @@ onMounted(async () => {
     }
   }
 
+  // Drawer-tab restore. Workspace.init() hydrated `lastDrawerTab`; map
+  // "" → 'issues' default. Then watch the ref and persist every
+  // user-driven change so the next launch opens on the same tab.
+  if (workspace.state.lastDrawerTab) {
+    drawerTab.value = workspace.state.lastDrawerTab as WorkbenchTab;
+  }
+  watch(drawerTab, (next) => {
+    workspace.setLastDrawerTab(next);
+  });
+
+  // Live-save window bounds on resize. Position is captured at quit via
+  // BeforeClose (Wails has no cross-platform move event); size changes
+  // fire here. Debounced so a drag doesn't hammer Go. The backend
+  // refuses to overwrite normal bounds while maximized, so a maximized
+  // resize is a no-op.
+  window.addEventListener('resize', scheduleBoundsSave);
+
   isLoaded.value = true;
   registerFlushSave(() => flushSave());
 
@@ -198,12 +240,30 @@ onMounted(async () => {
 onUnmounted(() => {
   registerFlushSave(null);
   registerDispatcher(null);
+  window.removeEventListener('resize', scheduleBoundsSave);
+  if (boundsSaveTimer !== null) {
+    clearTimeout(boundsSaveTimer);
+    boundsSaveTimer = null;
+  }
   void flushSave();
   // Best-effort: drain any in-flight preference writes if the app tears
   // down through component unmount rather than through the Wails
   // before-close path (e.g. during tests, or SPA-style navigation).
   void props.env.flushPreferences();
 });
+
+// Debounce handle for the window-resize → saveWindowBoundsIfNormal
+// pipeline. 500ms lets a user's drag settle before we hit Go, which
+// is the window between "still dragging" and "final size reached"
+// visible to most humans.
+let boundsSaveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleBoundsSave() {
+  if (boundsSaveTimer !== null) clearTimeout(boundsSaveTimer);
+  boundsSaveTimer = setTimeout(() => {
+    boundsSaveTimer = null;
+    void props.env.saveWindowBoundsIfNormal();
+  }, 500);
+}
 
 // flushSave resolves when any pending debounced write is durable on disk.
 // It must be awaited before any state transition that could clobber
@@ -350,7 +410,8 @@ watch(activeContent, (newContent) => {
       <!-- Project Sidebar -->
       <aside
         v-if="!workspace.state.sidebarCollapsed && workspace.state.projectPath"
-        class="w-64 border-r border-border bg-[var(--color-page-surface)] flex flex-col shrink-0"
+        :style="{ width: workspace.state.sidebarWidth + 'px' }"
+        class="border-r border-border bg-[var(--color-page-surface)] flex flex-col shrink-0"
       >
         <div class="p-4 border-b border-border flex justify-between items-start bg-black/[0.02] dark:bg-white/[0.02]">
           <div class="min-w-0">
@@ -434,6 +495,17 @@ watch(activeContent, (newContent) => {
             </div>
         </div>
       </aside>
+
+      <div
+        v-if="!workspace.state.sidebarCollapsed && workspace.state.projectPath"
+        class="sidebar-resize-handle shrink-0"
+        role="separator"
+        aria-orientation="vertical"
+        :aria-valuenow="workspace.state.sidebarWidth"
+        title="Drag to resize sidebar — double-click to reset"
+        @mousedown.prevent="beginSidebarDrag"
+        @dblclick="resetSidebarWidth"
+      ></div>
 
       <div class="flex-1 relative flex flex-col overflow-hidden bg-[var(--color-page-bg)]">
         <div
@@ -552,6 +624,17 @@ watch(activeContent, (newContent) => {
 </template>
 
 <style>
+.sidebar-resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background-color 0.12s ease-out;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background: rgba(227, 168, 87, 0.25); /* brass-500 @ ~25% */
+}
+
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }

@@ -34,9 +34,14 @@ func (a *App) OpenProjectFolder() (string, error) {
 	}
 	a.currentProject = selection
 
-	// Switch projects wholesale — explicitly clear LastActiveProjectFile so
-	// we don't try to reopen the previous project's file path in this one.
-	if err := a.writeConfig(Config{LastProjectPath: selection, LastActiveProjectFile: ""}); err != nil {
+	// Switch projects: update only the project fields. Prior to the
+	// updateConfig migration this path wrote Config{...} wholesale,
+	// silently zeroing Preferences and WindowState every time the user
+	// changed folders. Now other subtrees are preserved.
+	if err := a.updateConfig(func(c *Config) {
+		c.LastProjectPath = selection
+		c.LastActiveProjectFile = ""
+	}); err != nil {
 		slog.Warn("persisting project switch failed", "err", err)
 	}
 
