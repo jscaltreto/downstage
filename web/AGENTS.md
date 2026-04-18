@@ -26,3 +26,6 @@ compiled from `cmd/wasm/main.go`.
 
 - `npm run build` must succeed after any TypeScript or Vue changes.
 - WASM changes require rebuilding via `make wasm` and manual browser testing.
+- Run `make web-e2e` when touching UI, editor integration, or WASM bindings.
+  New contributors need a one-time `npx --prefix web playwright install chromium`
+  before the E2E suite will run.

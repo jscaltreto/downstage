@@ -94,3 +94,64 @@ jobs:
           echo "| WASM   | \`${{ steps.wasm.outcome }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Web tests | \`${{ steps.web-test.outcome }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Site   | \`${{ steps.site.outcome }}\` |" >> "$GITHUB_STEP_SUMMARY"
+
+  web-e2e:
+    name: Web E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          check-latest: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web editor dependencies
+        run: npm --prefix web ci
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('web/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        run: npx --prefix web playwright install --with-deps chromium
+
+      - name: Build WASM
+        run: make wasm
+
+      - name: Build web bundle
+        run: npm --prefix web run build
+
+      - name: Run Playwright tests
+        run: npm --prefix web run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: web/test-results/
+          retention-days: 14
