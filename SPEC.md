@@ -572,6 +572,12 @@ Both formats support `--style standard` (default) and `--style condensed`:
 - **standard**: manuscript-oriented layout. Monospace font, centered character names above dialogue, indented dialogue margins.
 - **condensed**: compact reading layout. Serif font, inline character names (bold, followed by dialogue on the same line), tighter spacing.
 
+### PDF Page Size
+
+PDF output supports `--page-size letter` (default) and `--page-size a4`.
+Manuscript layout renders on the selected physical sheet. Condensed layout
+derives its logical page from that sheet: half-letter for Letter, A5 for A4.
+
 ### HTML Output
 
 HTML rendering produces a single self-contained `.html` file with an embedded stylesheet. The output uses semantic HTML with stable CSS class names for all major structures:

@@ -92,8 +92,8 @@ class WebEnv implements EditorEnv {
     return window.downstage.renderHTML(source, style);
   }
 
-  async renderPDF(source: string, style?: string): Promise<Uint8Array> {
-    return window.downstage.renderPDF(source, style);
+  async renderPDF(source: string, style?: string, pageSize?: string): Promise<Uint8Array> {
+    return window.downstage.renderPDF(source, style, pageSize);
   }
 
   async loadDrafts(): Promise<SavedDraft[]> {

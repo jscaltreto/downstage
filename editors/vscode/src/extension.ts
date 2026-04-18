@@ -10,13 +10,17 @@ import {
 	Trace,
 } from "vscode-languageclient/node";
 import {
+	buildPDFPreviewArgs,
+	buildPDFRenderArgs,
 	type VscodeFactories,
 	DownstageRenderError,
 	findTitleValueSelection,
 	getNewPlayTemplate,
+	getPageSizeDisplayName,
 	getPreviewHtml,
 	getRenderStyleDisplayName,
 	getSamplePlayTemplate,
+	getValidatedPageSize,
 	getValidatedRenderStyle,
 	isCueSuggestionLine,
 	parseRenderDiagnostics,
@@ -41,6 +45,7 @@ const settingServerPath = "server.path";
 const settingServerTrace = "server.trace";
 const settingAutoSuggestCues = "editor.autoSuggestCharacterCues";
 const settingRenderStyle = "render.style";
+const settingRenderPageSize = "render.pageSize";
 const settingOpenAfterRender = "render.openAfterRender";
 const settingPreviewDebounce = "preview.debounceMs";
 
@@ -506,6 +511,13 @@ function getRenderStyleSetting(): string {
 	);
 }
 
+function getRenderPageSizeSetting(): string {
+	return vscode.workspace.getConfiguration(configSection).get<string>(
+		settingRenderPageSize,
+		"letter",
+	);
+}
+
 function getOpenAfterRenderSetting(): boolean {
 	return vscode.workspace.getConfiguration(configSection).get<boolean>(
 		settingOpenAfterRender,
@@ -618,13 +630,17 @@ async function renderCurrentScript(styleOverride?: string): Promise<void> {
 	try {
 		const serverPath = await resolveServerCommand();
 		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
+		const pageSize = getValidatedPageSize(getRenderPageSizeSetting());
 		const styleName = getRenderStyleDisplayName(style);
-		outputChannel.appendLine(`Running: ${serverPath.expectedLocation} render --style ${style} ${inputPath}`);
+		const pageSizeName = getPageSizeDisplayName(pageSize);
+		outputChannel.appendLine(
+			`Running: ${serverPath.expectedLocation} render --style ${style} --page-size ${pageSize} ${inputPath}`,
+		);
 		outputChannel.show(true);
 		renderDiagnostics?.delete(editor.document.uri);
 
-		await runDownstageRender(serverPath.command, style, inputPath, outputChannel);
-		const message = `Rendered ${styleName} PDF: ${path.basename(outputPath)}`;
+		await runDownstageRender(serverPath.command, style, pageSize, inputPath, outputChannel);
+		const message = `Rendered ${styleName} PDF (${pageSizeName}): ${path.basename(outputPath)}`;
 
 		if (!getOpenAfterRenderSetting()) {
 			void vscode.window.showInformationMessage(message);
@@ -669,7 +685,9 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 	try {
 		const serverPath = await resolveServerCommand();
 		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
+		const pageSize = getValidatedPageSize(getRenderPageSizeSetting());
 		const styleName = getRenderStyleDisplayName(style);
+		const pageSizeName = getPageSizeDisplayName(pageSize);
 		const sourceName = path.basename(inputPath);
 		const tempPath = path.join(
 			os.tmpdir(),
@@ -677,7 +695,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 		);
 
 		outputChannel.appendLine(
-			`Running: ${serverPath.expectedLocation} render --stdin --stdout --format pdf --style ${style} --source-name ${sourceName}`,
+			`Running: ${serverPath.expectedLocation} render --stdin --stdout --format pdf --style ${style} --page-size ${pageSize} --source-name ${sourceName}`,
 		);
 		outputChannel.show(true);
 		renderDiagnostics?.delete(editor.document.uri);
@@ -686,12 +704,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 			let stderr = "";
 			const chunks: Buffer[] = [];
 
-			const child = spawn(serverPath.command, [
-				"render", "--stdin", "--stdout",
-				"--format", "pdf",
-				"--style", style,
-				"--source-name", sourceName,
-			], {
+			const child = spawn(serverPath.command, buildPDFPreviewArgs(style, pageSize, sourceName), {
 				cwd: path.dirname(inputPath),
 			});
 
@@ -736,7 +749,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 
 		await openRenderedPdf(vscode.Uri.file(tempPath));
 		void vscode.window.showInformationMessage(
-			`${styleName} preview: ${path.basename(inputPath)}`,
+			`${styleName} preview (${pageSizeName}): ${path.basename(inputPath)}`,
 		);
 	} catch (error) {
 		if (error instanceof DownstageRenderError) {
@@ -764,12 +777,13 @@ function getRenderOutputChannel(): vscode.OutputChannel {
 async function runDownstageRender(
 	serverPath: string,
 	style: string,
+	pageSize: string,
 	inputPath: string,
 	outputChannel: vscode.OutputChannel,
 ): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
 		let stderr = "";
-		const child = spawn(serverPath, ["render", "--style", style, inputPath], {
+		const child = spawn(serverPath, buildPDFRenderArgs(style, pageSize, inputPath), {
 			cwd: path.dirname(inputPath),
 		});
 

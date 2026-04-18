@@ -67,9 +67,7 @@ test.describe("v1 migration", () => {
       /Export to PDF/,
     );
 
-    const downloadPromise = page.waitForEvent("download", { timeout: 30_000 });
-    await editor.exportPdfButton.click();
-    const download = await downloadPromise;
+    const download = await editor.downloadPdf();
     const pdf = await readFile((await download.path())!);
     expect(pdf.slice(0, 5).toString("utf8")).toBe("%PDF-");
   });

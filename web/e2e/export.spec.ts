@@ -74,4 +74,28 @@ test.describe("export", () => {
     expect(buf.slice(0, 5).toString("utf8")).toBe("%PDF-");
     expect(buf.byteLength).toBeGreaterThan(1000);
   });
+
+  test("Export PDF dialog respects A4 selection and persists it", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    const download = await editor.downloadPdf("a4");
+    const pdfPath = await download.path();
+    const buf = await readFile(pdfPath!);
+    expect(buf.slice(0, 5).toString("utf8")).toBe("%PDF-");
+    expect(buf.byteLength).toBeGreaterThan(1000);
+
+    const stored = await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-page-size"),
+    );
+    expect(stored).toBe("a4");
+
+    // Reopen the dialog to confirm the prior selection is preselected.
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+    await expect(editor.pageSizeOption("a4")).toHaveAttribute("aria-checked", "true");
+  });
 });

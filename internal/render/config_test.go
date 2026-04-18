@@ -72,6 +72,54 @@ func TestParsePageSize(t *testing.T) {
 	}
 }
 
+func TestPageSizeSheetDimensions(t *testing.T) {
+	tests := []struct {
+		name string
+		size PageSize
+		want Dimensions
+	}{
+		{name: "letter", size: PageLetter, want: Dimensions{WidthMM: 215.9, HeightMM: 279.4}},
+		{name: "a4", size: PageA4, want: Dimensions{WidthMM: 210, HeightMM: 297}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.size.SheetDimensions()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestPageSizeSheetDimensionsRejectsUnknown(t *testing.T) {
+	_, err := PageSize("legal").SheetDimensions()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported page size")
+}
+
+func TestPageSizeCondensedDimensions(t *testing.T) {
+	tests := []struct {
+		name string
+		size PageSize
+		want Dimensions
+	}{
+		{name: "letter", size: PageLetter, want: Dimensions{WidthMM: 139.7, HeightMM: 215.9}},
+		{name: "a4", size: PageA4, want: Dimensions{WidthMM: 148, HeightMM: 210}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.size.CondensedPageDimensions()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestPageSizeCondensedDimensionsRejectsUnknown(t *testing.T) {
+	_, err := PageSize("legal").CondensedPageDimensions()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported page size")
+}
+
 func TestDefaultConfig(t *testing.T) {
 	got := DefaultConfig()
 

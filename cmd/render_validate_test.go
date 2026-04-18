@@ -87,6 +87,60 @@ func TestRunRenderRejectsHTMLOnlyPDFFlags(t *testing.T) {
 	}
 }
 
+func TestRunRenderRejectsUnsupportedPageSize(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("ALICE\nHello.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	renderPageSize = "legal"
+	renderOutput = t.TempDir() + "/out.pdf"
+
+	err := runRender(&cobra.Command{}, []string{input})
+	if err == nil || !strings.Contains(err.Error(), "unsupported page size") {
+		t.Fatalf("expected unsupported page size error, got %v", err)
+	}
+}
+
+func TestRunRenderSupportsA4CondensedPDF(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("# Test\n\nALICE\nHello.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	renderStyle = "condensed"
+	renderPageSize = "a4"
+	renderStdout = true
+
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	renderErr := runRender(&cobra.Command{}, []string{input})
+
+	w.Close()
+	os.Stdout = origStdout
+
+	if renderErr != nil {
+		t.Fatalf("expected A4 condensed PDF render to succeed, got: %v", renderErr)
+	}
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(buf.String(), "%PDF-") {
+		t.Fatalf("expected PDF magic bytes, got %q", buf.String()[:20])
+	}
+}
+
 func TestRunRenderStdoutAcceptsPDF(t *testing.T) {
 	resetRenderFlags()
 

@@ -69,13 +69,12 @@ type dialogueTextRun struct {
 	style string
 }
 
-func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
-	size := string(b.cfg.PageSize)
-	if b.cfg.PageSize == render.PageLetter {
-		size = "Letter"
+func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) error {
+	dim, err := b.cfg.PageSize.SheetDimensions()
+	if err != nil {
+		return err
 	}
-
-	b.pdf = fpdf.New("P", "mm", size, "")
+	b.pdf = newCustomSizePDF(dim.WidthMM, dim.HeightMM)
 
 	b.marginL = b.cfg.MarginLeft * pointsToMM
 	b.marginR = b.cfg.MarginRight * pointsToMM
@@ -117,6 +116,7 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) {
 	b.pendingInlinePlayFirstBodyPage = false
 	b.inlinePlaySections = nil
 	b.activeTopLevelSection = nil
+	return nil
 }
 
 func (b *pdfBase) installPageNumberFooter(offset, height float64) {

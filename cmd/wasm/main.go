@@ -258,6 +258,13 @@ func renderPDF(_ js.Value, args []js.Value) any {
 	if len(args) > 1 && args[1].String() == "condensed" {
 		cfg.Style = render.StyleCondensed
 	}
+	if len(args) > 2 && args[2].Truthy() {
+		pageSize, err := render.ParsePageSize(args[2].String())
+		if err != nil {
+			return js.Null()
+		}
+		cfg.PageSize = pageSize
+	}
 
 	var nr render.NodeRenderer
 	if cfg.Style == render.StyleCondensed {

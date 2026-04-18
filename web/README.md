@@ -3,8 +3,8 @@
 A browser-based Downstage editor with live preview, syntax highlighting,
 LSP-powered autocomplete and quick-fix code actions, browser-local draft
 storage, script-local spellcheck dictionaries, an Open Draft picker, and PDF
-export. The entire parsing and rendering pipeline runs client-side via
-WebAssembly — no server required.
+export with a page-size dialog. The entire parsing and rendering pipeline
+runs client-side via WebAssembly — no server required.
 
 ## Draft Storage
 
@@ -126,7 +126,7 @@ The WASM module exposes a global `downstage` object:
 | `completion(source, line, col)` | Source + 0-based LSP position | LSP `CompletionList` (`{isIncomplete, items[]}`) |
 | `codeActions(source, line, col, codes?)` | Source + 0-based LSP position + optional diagnostic-code filter | `{uri, actions: LSPCodeAction[]}` |
 | `renderHTML(source, style?)` | Source + optional style (`"standard"`/Manuscript or `"condensed"`/Acting Edition) | HTML string |
-| `renderPDF(source, style?)` | Source + optional style | `Uint8Array` (PDF bytes) |
+| `renderPDF(source, style?, pageSize?)` | Source + optional style and page size (`"letter"`/`"a4"`) | `Uint8Array` (PDF bytes) |
 | `semanticTokens(source)` | Source string | `Uint32Array` (delta-encoded LSP tokens) |
 | `tokenTypeNames` | — | `string[]` (token type legend) |
 

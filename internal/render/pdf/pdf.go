@@ -31,7 +31,9 @@ func (r *pdfRenderer) BeginDocument(doc *ast.Document, w io.Writer) error {
 	r.hasTitlePage = tp != nil
 	r.hasBody = render.DocumentHasRenderableBody(doc)
 	r.titlePageTitle = titlePageTitle(tp)
-	r.initPDF(loadBundledFont, defaultFontFamily)
+	if err := r.initPDF(loadBundledFont, defaultFontFamily); err != nil {
+		return err
+	}
 	applyDocumentMetadata(&r.pdfBase, tp)
 	r.outlineLevels = buildOutlineLevels(doc)
 	r.inlinePlaySections = make(map[*ast.Section]bool)

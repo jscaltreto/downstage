@@ -143,6 +143,7 @@ export function findTitleValueSelection(documentText: string): SelectionTarget {
 }
 
 const allowedRenderStyles = new Set(["standard", "condensed"]);
+const allowedPageSizes = new Set(["letter", "a4"]);
 
 export function getValidatedRenderStyle(style: string): string {
 	if (!allowedRenderStyles.has(style)) {
@@ -155,6 +156,45 @@ export function getRenderStyleDisplayName(style: string): string {
 	return getValidatedRenderStyle(style) === "condensed"
 		? "Acting Edition"
 		: "Manuscript";
+}
+
+export function getValidatedPageSize(pageSize: string): string {
+	if (!allowedPageSizes.has(pageSize)) {
+		throw new Error(`Unsupported page size: ${pageSize}`);
+	}
+	return pageSize;
+}
+
+export function getPageSizeDisplayName(pageSize: string): string {
+	return getValidatedPageSize(pageSize) === "a4" ? "A4" : "Letter";
+}
+
+export function buildPDFRenderArgs(
+	style: string,
+	pageSize: string,
+	inputPath: string,
+): string[] {
+	return [
+		"render",
+		"--style", getValidatedRenderStyle(style),
+		"--page-size", getValidatedPageSize(pageSize),
+		inputPath,
+	];
+}
+
+export function buildPDFPreviewArgs(
+	style: string,
+	pageSize: string,
+	sourceName: string,
+): string[] {
+	return [
+		"render",
+		"--stdin", "--stdout",
+		"--format", "pdf",
+		"--style", getValidatedRenderStyle(style),
+		"--page-size", getValidatedPageSize(pageSize),
+		"--source-name", sourceName,
+	];
 }
 
 export function getPreviewHtml(body: string): string {
