@@ -3,7 +3,7 @@ import { computed, provide, onMounted, onUnmounted, ref, watch, watchEffect } fr
 import {
     FolderOpen, FolderSync, FileText,
     BookOpen, Terminal, Sparkles, History,
-    RotateCcw, X, PanelLeft, PanelLeftClose
+    RotateCcw, X, PanelLeftClose
 } from 'lucide-vue-next';
 import { Store } from './core/store';
 import type { EditorEnv } from './core/types';
@@ -427,19 +427,6 @@ watch(activeContent, (newContent) => {
         </div>
       </aside>
 
-      <!-- Re-expand sidebar affordance. Mirrors the preview pane's
-           "show" pattern: when the user has collapsed the left rail,
-           this thin button sits flush against the editor's left edge
-           so the action is reachable without going back to the menu. -->
-      <button
-        v-if="workspace.state.sidebarCollapsed && workspace.state.projectPath"
-        @click="workspace.toggleSidebar()"
-        class="shrink-0 w-6 border-r border-border bg-[var(--color-page-surface)] flex items-center justify-center text-text-muted hover:text-brass-500 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
-        title="Show sidebar"
-      >
-        <PanelLeft class="w-4 h-4" />
-      </button>
-
       <div class="flex-1 relative flex flex-col overflow-hidden bg-[var(--color-page-bg)]">
         <div
           v-if="workspace.state.isLoadingFile"
@@ -500,7 +487,19 @@ watch(activeContent, (newContent) => {
             :remove-spell-allowlist-word="removeSpellAllowlistWord"
             @migration-state-change="isV1Document = $event"
             @open-spellcheck-settings="() => dispatcher?.dispatch('file.settings.spellcheck')"
-        />
+        >
+          <template #leadingActions>
+            <button
+              v-if="workspace.state.projectPath"
+              type="button"
+              @click="workspace.toggleSidebar()"
+              class="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-muted transition-colors"
+              :title="workspace.state.sidebarCollapsed ? 'Open Projects' : 'Close Projects'"
+            >
+              <FolderOpen class="w-4 h-4" />
+            </button>
+          </template>
+        </Editor>
         <div v-else class="flex-1 flex flex-col items-center justify-center text-text-muted p-12 text-center">
             <div class="w-16 h-16 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center mb-4 text-brass-500">
                 <BookOpen class="w-8 h-8 opacity-40" />
