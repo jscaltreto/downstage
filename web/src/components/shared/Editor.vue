@@ -83,6 +83,12 @@ const emit = defineEmits<{
   (e: 'update:drawerOpen', value: boolean): void;
   (e: 'update:drawerTab', value: WorkbenchTab): void;
   (e: 'update:searchRequest', value: { mode: SearchMode; nonce: number }): void;
+  // 1-based (line, col) of the selection head. Desktop host binds for
+  // the status bar; web ignores.
+  (e: 'update:cursor', value: { line: number; col: number }): void;
+  // Mirrors manuscriptStats.totalWords as it refreshes on the existing
+  // 500ms stats debounce. Emits 0 before the first stats result.
+  (e: 'update:wordCount', value: number): void;
   (e: 'migration-state-change', value: boolean): void;
   (e: 'open-spellcheck-settings'): void;
 }>();
@@ -202,9 +208,11 @@ function scheduleStatsRefresh(content: string) {
             const result = await props.env.stats(content);
             if (requestId !== statsRequestId) return;
             manuscriptStats.value = result;
+            emit('update:wordCount', result.totalWords);
         } catch {
             if (requestId !== statsRequestId) return;
             manuscriptStats.value = null;
+            emit('update:wordCount', 0);
         } finally {
             if (requestId === statsRequestId) {
                 manuscriptStatsLoading.value = false;
@@ -321,6 +329,7 @@ onMounted(async () => {
       (word) => props.addSpellAllowlistWord(word),
       (next) => { diagnostics.value = next; },
       applySearchSummary,
+      (pos) => emit('update:cursor', pos),
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     if (props.readOnly) engine.setReadOnly(true);
@@ -373,6 +382,7 @@ function resetTransientState() {
   diagnostics.value = [];
   manuscriptStats.value = null;
   manuscriptStatsLoading.value = true;
+  emit('update:wordCount', 0);
   engine?.refreshDiagnostics();
   engine?.clearSearch();
   searchMatches.value = [];

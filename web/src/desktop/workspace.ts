@@ -1,5 +1,5 @@
 import { reactive } from "vue";
-import type { DesktopCapabilities, ProjectFile, Revision } from "./types";
+import type { DesktopCapabilities, FileGitStatus, ProjectFile, Revision } from "./types";
 
 export interface WorkspaceState {
   projectPath: string | null;
@@ -9,6 +9,11 @@ export interface WorkspaceState {
   sidebarCollapsed: boolean;
   spellAllowlist: string[];
   isLoadingFile: boolean;
+  // Per-file git status for the status bar — null until an active file
+  // resolves. Dirty flips via a fast local path on save; HeadAt and the
+  // other fields come from the backend on file-switch / snapshot /
+  // restore and after a reconcile debounce.
+  gitStatus: FileGitStatus | null;
   // Revision-view mode: when a user clicks an older snapshot, these fields
   // carry the read-only preview. `activeFile` still points at the live file;
   // the banner + read-only editor read from viewingRevisionContent. Null
@@ -17,6 +22,12 @@ export interface WorkspaceState {
   viewingRevisionContent: string | null;
   viewingRevisionMeta: Revision | null;
 }
+
+// How long after the last save the workspace waits before re-querying
+// backend git status to confirm the dirty flag. Short enough that an
+// undo-to-HEAD clears the dot within a second or two; long enough that
+// a burst of keystrokes doesn't hammer go-git.
+const dirtyReconcileMs = 2000;
 
 // Prefix the Go backend uses for the "clean worktree after staging" sentinel.
 // Kept in sync with internal/desktop/git.go:ErrNothingToSnapshot.
@@ -40,6 +51,9 @@ export class Workspace {
   // toggleSidebar fired mid-init could overwrite the real value with the
   // placeholder.
   private hydrated = false;
+  // ReturnType<typeof setTimeout> covers both browser (number) and Node
+  // (NodeJS.Timeout) — the unit tests run in Node without a `window`.
+  private dirtyReconcileTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private env: DesktopCapabilities) {
     this.state = reactive<WorkspaceState>({
@@ -51,6 +65,7 @@ export class Workspace {
       sidebarCollapsed: false,
       spellAllowlist: [],
       isLoadingFile: false,
+      gitStatus: null,
       viewingRevisionHash: null,
       viewingRevisionContent: null,
       viewingRevisionMeta: null,
@@ -73,6 +88,8 @@ export class Workspace {
     this.state.projectPath = path;
     this.state.activeFile = null;
     this.state.revisions = [];
+    this.state.gitStatus = null;
+    this.cancelDirtyReconcile();
     this.clearRevisionView();
     this.state.projectFiles = await this.env.getProjectFiles();
     // Allowlist is project-scoped — reload after a project switch.
@@ -83,6 +100,7 @@ export class Workspace {
   async selectFile(path: string): Promise<string> {
     this.state.activeFile = path;
     this.clearRevisionView();
+    this.cancelDirtyReconcile();
     this.state.isLoadingFile = true;
     try {
       const content = await this.env.readProjectFile(path);
@@ -90,6 +108,7 @@ export class Workspace {
       // switch, instead of letting readProjectFile do it on every read.
       await this.env.setActiveProjectFile(path);
       await this.loadRevisions();
+      await this.refreshGitStatus();
       return content;
     } finally {
       this.state.isLoadingFile = false;
@@ -99,6 +118,12 @@ export class Workspace {
   async saveFile(content: string) {
     if (!this.state.activeFile) return;
     await this.env.writeProjectFile(this.state.activeFile, content);
+    // Fast path: flip dirty locally so the status bar dot appears with
+    // zero IPC latency. Correctness path: schedule a debounced
+    // refreshGitStatus so an undo-to-HEAD eventually clears the dot,
+    // which a monotonic markDirtyLocally alone could never do.
+    this.markDirtyLocally();
+    this.scheduleDirtyReconcile();
   }
 
   async createFile(name: string, content: string): Promise<string> {
@@ -111,6 +136,61 @@ export class Workspace {
     if (!this.state.activeFile) return;
     await this.env.snapshotFile(this.state.activeFile, message);
     await this.loadRevisions();
+    this.cancelDirtyReconcile();
+    await this.refreshGitStatus();
+  }
+
+  // refreshGitStatus pulls the backend's view of the active file into
+  // state.gitStatus. Called on file switch, snapshot, restore, and the
+  // debounced reconcile cycle after a save. A no-op when there is no
+  // active file.
+  async refreshGitStatus() {
+    const file = this.state.activeFile;
+    if (!file) {
+      this.state.gitStatus = null;
+      return;
+    }
+    try {
+      this.state.gitStatus = await this.env.getFileGitStatus(file);
+    } catch {
+      // Surface "unknown" rather than sticking with a stale cached
+      // value — the UI prefers showing nothing to showing wrong info.
+      this.state.gitStatus = null;
+    }
+  }
+
+  // markDirtyLocally is the fast path used right after a successful
+  // writeProjectFile. It only ever flips Dirty=true and is safe to call
+  // with no gitStatus cached (it materializes a minimal record in that
+  // case). HeadAt / HasHead stay untouched so the "Last snapshot"
+  // display doesn't regress.
+  markDirtyLocally() {
+    if (!this.state.activeFile) return;
+    const prev = this.state.gitStatus;
+    this.state.gitStatus = {
+      dirty: true,
+      headAt: prev?.headAt ?? "",
+      hasHead: prev?.hasHead ?? false,
+      untracked: prev?.untracked ?? !prev?.hasHead,
+      missing: false,
+    };
+  }
+
+  private scheduleDirtyReconcile() {
+    if (this.dirtyReconcileTimer !== null) {
+      clearTimeout(this.dirtyReconcileTimer);
+    }
+    this.dirtyReconcileTimer = setTimeout(() => {
+      this.dirtyReconcileTimer = null;
+      void this.refreshGitStatus();
+    }, dirtyReconcileMs);
+  }
+
+  private cancelDirtyReconcile() {
+    if (this.dirtyReconcileTimer !== null) {
+      clearTimeout(this.dirtyReconcileTimer);
+      this.dirtyReconcileTimer = null;
+    }
   }
 
   async loadRevisions() {
@@ -195,6 +275,8 @@ export class Workspace {
     }
 
     await this.loadRevisions();
+    this.cancelDirtyReconcile();
+    await this.refreshGitStatus();
     this.clearRevisionView();
     return revisionContent;
   }

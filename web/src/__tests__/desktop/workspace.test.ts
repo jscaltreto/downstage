@@ -81,6 +81,11 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
       const key = `${p}@${h}`;
       return state._contents[key] ?? "";
     }),
+    getFileGitStatus: (p: string) => record(`getFileGitStatus:${p}`, async () => (
+      (state as any)._gitStatus?.[p] ?? {
+        dirty: false, headAt: "2024-01-01T00:00:00Z", hasHead: true, untracked: false, missing: false,
+      }
+    )),
     getEditorPreferences: () => record("getEditorPreferences", async () => ({
       theme: "system" as const,
       previewHidden: false,
@@ -282,6 +287,114 @@ describe("Workspace", () => {
     ws.toggleSidebar();
 
     expect(env._calls.some((c) => c.startsWith("setSidebarCollapsed"))).toBe(false);
+  });
+
+  it("selectFile refreshes gitStatus from the env and caches it", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+      _contents: { "play.ds": "hello" },
+    });
+    (env as any)._gitStatus = {
+      "play.ds": { dirty: false, headAt: "2024-06-01T00:00:00Z", hasHead: true, untracked: false, missing: false },
+    };
+    const ws = new Workspace(env);
+
+    await ws.selectFile("play.ds");
+
+    expect(ws.state.gitStatus).toEqual({
+      dirty: false, headAt: "2024-06-01T00:00:00Z", hasHead: true, untracked: false, missing: false,
+    });
+    expect(env._calls).toContain("getFileGitStatus:play.ds");
+  });
+
+  it("saveFile flips gitStatus.dirty synchronously via the local fast path", async () => {
+    vi.useFakeTimers();
+    try {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+        _contents: { "play.ds": "hello" },
+      });
+      const ws = new Workspace(env);
+      await ws.selectFile("play.ds");
+      expect(ws.state.gitStatus?.dirty).toBe(false);
+
+      await ws.saveFile("hello world");
+
+      // Fast path — dirty is true without waiting for backend.
+      expect(ws.state.gitStatus?.dirty).toBe(true);
+      // Backend is not polled on every save — only after the debounced
+      // reconcile timer fires (advance past it below).
+      const refreshesBeforeDebounce = env._calls.filter((c) => c === "getFileGitStatus:play.ds").length;
+      // selectFile itself called refresh once; no additional calls yet.
+      expect(refreshesBeforeDebounce).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("scheduleDirtyReconcile refetches gitStatus after the debounce", async () => {
+    vi.useFakeTimers();
+    try {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+        _contents: { "play.ds": "hello" },
+      });
+      const ws = new Workspace(env);
+      await ws.selectFile("play.ds");
+
+      // Backend will now report clean (simulating an undo-to-HEAD).
+      (env as any)._gitStatus = {
+        "play.ds": { dirty: false, headAt: "2024-06-01T00:00:00Z", hasHead: true, untracked: false, missing: false },
+      };
+
+      await ws.saveFile("hello world");
+      expect(ws.state.gitStatus?.dirty).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(2100);
+      // Wait a microtask so the awaited refreshGitStatus resolves.
+      await Promise.resolve();
+
+      expect(ws.state.gitStatus?.dirty).toBe(false);
+      const refreshCount = env._calls.filter((c) => c === "getFileGitStatus:play.ds").length;
+      // Once from selectFile, once from the debounced reconcile.
+      expect(refreshCount).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("snapshotFile refreshes gitStatus (dirty should clear)", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+      _contents: { "play.ds": "hello" },
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.saveFile("dirty content");
+    expect(ws.state.gitStatus?.dirty).toBe(true);
+
+    await ws.snapshotFile("commit msg");
+
+    expect(ws.state.gitStatus?.dirty).toBe(false);
+  });
+
+  it("openFolder clears gitStatus", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+      _contents: { "play.ds": "hello" },
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    expect(ws.state.gitStatus).not.toBeNull();
+
+    await ws.openFolder();
+
+    expect(ws.state.gitStatus).toBeNull();
   });
 
   it("restoreRevision swallows 'nothing to snapshot' from the pre-restore backup", async () => {

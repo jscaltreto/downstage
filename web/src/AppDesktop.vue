@@ -3,7 +3,7 @@ import { computed, provide, onMounted, onUnmounted, ref, watch, watchEffect } fr
 import {
     FolderOpen, FolderSync, FileText,
     BookOpen, Terminal, Sparkles, History,
-    RotateCcw, X, PanelLeftClose
+    RotateCcw, X, PanelLeftClose, Plus
 } from 'lucide-vue-next';
 import { Store } from './core/store';
 import type { EditorEnv } from './core/types';
@@ -19,6 +19,7 @@ import ToastManager from './components/shared/ToastManager.vue';
 import Editor from './components/shared/Editor.vue';
 import CommandPalette from './desktop/CommandPalette.vue';
 import Settings from './desktop/Settings.vue';
+import StatusBar from './desktop/StatusBar.vue';
 
 const props = defineProps<{
   env: DesktopCapabilities;
@@ -33,6 +34,13 @@ const isLoaded = ref(false);
 const activeContent = ref("");
 const pageStyle = ref("standard");
 const isV1Document = ref(false);
+
+// Status-bar-bound editor telemetry. Editor.vue emits `update:cursor`
+// (1-based line/col) on every selection or doc change, and
+// `update:wordCount` whenever the 500ms stats debounce resolves.
+// Desktop host collects both into refs so the StatusBar can render.
+const cursor = ref<{ line: number; col: number }>({ line: 1, col: 1 });
+const wordCount = ref(0);
 
 const toastManager = ref<InstanceType<typeof ToastManager> | null>(null);
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
@@ -65,6 +73,14 @@ let saveTimer: number | null = null;
 // and by local UI handlers (sidebar buttons, welcome screen) that want
 // to dispatch the same commands the menu does.
 let dispatcher: CommandDispatcher | null = null;
+
+// Basename helpers used by the status bar.
+const projectNameBase = computed(
+  () => workspace.state.projectPath?.split(/[\\/]/).pop() ?? '',
+);
+const activeFileBase = computed(
+  () => workspace.state.activeFile?.split(/[\\/]/).pop() ?? '',
+);
 
 // `editorContent` is what the editor shows. While viewing an older
 // revision, we route the revision's content into the editor and keep the
@@ -278,14 +294,6 @@ watch(activeContent, (newContent) => {
 
 <template>
   <div class="h-screen flex flex-col bg-page-glow dark:bg-page-glow text-text-main overflow-hidden font-sans transition-colors duration-300">
-    <header v-if="isLoaded" class="flex items-center gap-4 px-5 py-2 bg-[var(--color-page-surface)] border-b border-border shadow-stage z-10">
-      <h1 class="font-serif text-sm font-bold text-text-main tracking-tight cursor-default">Downstage Write</h1>
-      <div v-if="workspace.state.projectPath" class="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 max-w-[300px]">
-        <FolderSync class="w-3 h-3 text-brass-500 shrink-0" />
-        <span class="text-[10px] font-bold text-text-muted truncate uppercase tracking-wider">{{ workspace.state.projectPath.split(/[\\/]/).pop() }}</span>
-      </div>
-    </header>
-
     <div v-if="!isLoaded" class="flex-1 flex items-center justify-center text-text-muted italic bg-[var(--color-page-bg)]">
       Loading Downstage editor...
     </div>
@@ -487,6 +495,8 @@ watch(activeContent, (newContent) => {
             :remove-spell-allowlist-word="removeSpellAllowlistWord"
             @migration-state-change="isV1Document = $event"
             @open-spellcheck-settings="() => dispatcher?.dispatch('file.settings.spellcheck')"
+            @update:cursor="cursor = $event"
+            @update:wordCount="wordCount = $event"
         >
           <template #leadingActions>
             <button
@@ -511,6 +521,16 @@ watch(activeContent, (newContent) => {
       </div>
     </main>
 
+    <StatusBar
+      :project-name="projectNameBase"
+      :active-file="activeFileBase"
+      :cursor="cursor"
+      :word-count="wordCount"
+      :git-status="workspace.state.gitStatus"
+      :has-project="!!workspace.state.projectPath"
+      :has-active-file="!!workspace.state.activeFile"
+      @open-folder="() => dispatcher?.dispatch('file.openFolder')"
+    />
     <ToastManager ref="toastManager" />
     <CommandPalette
       :open="paletteOpen"

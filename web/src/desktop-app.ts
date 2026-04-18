@@ -12,7 +12,7 @@ import type {
   ManuscriptStats,
   EditorPreferences,
 } from "./core/types";
-import type { CommandMeta, DesktopCapabilities, ProjectFile, Revision } from "./desktop/types";
+import type { CommandMeta, DesktopCapabilities, FileGitStatus, ProjectFile, Revision } from "./desktop/types";
 import { invokeRegisteredFlushSave } from "./desktop/flush-save";
 import { createPrefsCache } from "./desktop/prefs-cache";
 import { dispatchCommand } from "./desktop/dispatcher-registry";
@@ -183,6 +183,19 @@ class WailsBridge implements DesktopCapabilities {
 
   async readFileAtRevision(path: string, hash: string): Promise<string> {
     return await App.ReadFileAtRevision(path, hash);
+  }
+
+  async getFileGitStatus(path: string): Promise<FileGitStatus> {
+    const raw = await App.GetFileGitStatus(path);
+    // Defensive reshape so missing/typos in the generated Wails types
+    // can't leak undefined fields into the UI.
+    return {
+      dirty: !!raw?.dirty,
+      headAt: raw?.headAt ? String(raw.headAt) : "",
+      hasHead: !!raw?.hasHead,
+      untracked: !!raw?.untracked,
+      missing: !!raw?.missing,
+    };
   }
 
   async getCurrentProject(): Promise<string> {

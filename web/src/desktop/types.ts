@@ -13,6 +13,17 @@ export interface Revision {
   timestamp: string;
 }
 
+// Mirror of internal/desktop.FileGitStatus — the status-bar's dirty-dot
+// and "Last snapshot N ago" readings. The Go side is the source of
+// truth; see GetFileGitStatus for the semantics of each field.
+export interface FileGitStatus {
+  dirty: boolean;
+  headAt: string;
+  hasHead: boolean;
+  untracked: boolean;
+  missing: boolean;
+}
+
 export interface ProjectEnv {
   openProjectFolder(): Promise<string>;
   getProjectFiles(): Promise<ProjectFile[]>;
@@ -24,6 +35,9 @@ export interface ProjectEnv {
   // to avoid unbounded payloads on long-lived projects.
   getRevisions(path: string, limit?: number): Promise<Revision[]>;
   readFileAtRevision(path: string, hash: string): Promise<string>;
+  // Per-file status for the desktop status bar: dirty flag + last
+  // snapshot time + missing/untracked signals. See FileGitStatus.
+  getFileGitStatus(path: string): Promise<FileGitStatus>;
   getCurrentProject(): Promise<string>;
   getLastActiveFile(): Promise<string>;
   setActiveProjectFile(rel: string): Promise<void>;
