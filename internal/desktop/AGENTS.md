@@ -8,7 +8,8 @@ This package is the Go backend for the Wails-based desktop app ("Downstage
 Write"). It exposes methods that the Vue frontend calls via Wails bindings.
 All methods live on a single `*App` struct, split across focused files:
 
-- `app.go` — lifecycle, config persistence, `safePath` validation.
+- `app.go` — lifecycle, config persistence, `safePath` validation, the
+  `OnBeforeClose` hook.
 - `language.go` — parser/LSP bridge (parse, diagnostics, completions, etc.).
 - `project.go` — file CRUD, project folder management, spellcheck dictionary.
 - `render.go` — HTML/PDF rendering and save dialogs.
@@ -17,39 +18,95 @@ All methods live on a single `*App` struct, split across focused files:
 
 ## Critical Rules
 
-- **Path safety is non-negotiable.** Every method that accepts a relative file
-  path from the frontend must call `safePath()` before touching the filesystem.
-  `safePath` uses `filepath.EvalSymlinks` to resolve both the project root and
-  the target, rejecting anything that escapes the project directory — including
-  via symlinks. Do not bypass this for convenience.
+- **Path safety is non-negotiable.** Every method that accepts a relative
+  file path from the frontend must call `safePath()` before touching the
+  filesystem. `safePath` rejects:
+  - absolute inputs
+  - **any leaf symlink**, whether the target is live, dangling, inside, or
+    outside the project (this closes a class of TOCTOU / dangling-leaf
+    escapes that the previous parent-only check allowed)
+  - live symlink chains whose final target escapes the project root
+
+  Tests in `app_test.go` cover each of these explicitly — do not relax the
+  leaf-symlink rule without replacing those tests with something that
+  provides equivalent coverage.
+
 - **File writes and git commits are separate operations.** `WriteProjectFile`
   writes to disk only. `SnapshotFile` stages and commits. The frontend
-  auto-saves on a debounce timer; git snapshots are explicit user actions. Do
-  not re-couple these.
-- **Do not add auto-commit behavior.** Writers auto-save constantly. Committing
-  on every save produces useless git history. Snapshots should be deliberate.
+  auto-saves on a debounce timer; git snapshots are explicit user actions.
+  Do not re-couple these.
+
+- **Do not add auto-commit behavior.** Writers auto-save constantly.
+  Committing on every save produces useless git history. Snapshots should
+  be deliberate.
+
+- **Propagate errors. Do not swallow them.** Methods that represent
+  user-visible actions return `(T, error)` so the frontend can toast real
+  failures. Early "success-with-nil" returns (for things like "no project
+  open") are a bug — return an error and let the UI present it.
+  `SnapshotFile` uses `ErrNothingToSnapshot` as a typed sentinel when the
+  worktree is clean after staging; the frontend matches on the message
+  prefix `"downstage: nothing-to-snapshot"` to show an informational toast
+  instead of an error.
+
+- **Config is written explicitly, not on hot paths.** `ReadProjectFile`
+  must not touch the config. Use `SetActiveProjectFile` from the frontend
+  on file selection, and `writeConfig` directly when switching projects.
+  `writeConfig` is a verbatim write — it does not merge — so callers must
+  read first, mutate, and write. The `configMu` mutex guards the read-
+  modify-write cycle.
+
+- **Git commit authorship respects the user's global identity.**
+  `snapshotAuthor` reads `config.GlobalScope` (merging `~/.gitconfig` and
+  `$XDG_CONFIG_HOME/git/config`) and falls back to `Downstage Write
+  <hello@getdownstage.com>` only when no identity is configured.
 
 ## Shared vs Desktop Boundary
 
-- Parsing, diagnostics, completions, rendering, and all document semantics come
-  from `internal/parser`, `internal/lsp`, `internal/render`, etc. This package
-  is a thin bridge — it calls those packages and reshapes results for Wails
-  JSON serialization. Do not add document logic here.
-- The spellcheck dictionary lives at `.downstage/dictionary.txt` in the project
-  root. This is a project-level resource, not a per-file or per-draft concept.
+- Parsing, diagnostics, completions, rendering, and all document semantics
+  come from `internal/parser`, `internal/lsp`, `internal/render`, etc. This
+  package is a thin bridge — it calls those packages and reshapes results
+  for Wails JSON serialization. Do not add document logic here.
+- The spellcheck dictionary lives at `.downstage/dictionary.txt` in the
+  project root. This is a project-level resource, not a per-file or
+  per-draft concept.
+
+## `OnBeforeClose` Event Contract
+
+The Wails `OnBeforeClose` hook (`App.BeforeClose`) is how the backend makes
+the frontend's debounced auto-save reach disk on window close. The
+handshake is a pair of runtime events:
+
+- `downstage:before-close` — Go → frontend. Emitted by `BeforeClose`.
+- `downstage:flush-complete` — frontend → Go. Emitted by the frontend's
+  `before-close` handler once any pending `flushSave` completes.
+
+Ordering note: `EventsOnce` is registered **before** `EventsEmit` so a fast
+frontend cannot reply before Go subscribes. A 2-second timeout bounds the
+wait — a broken frontend must not lock the window closed.
+
+The frontend side of this contract lives in `web/src/desktop-app.ts` (the
+listener wraps the flush in try/finally so a flush error still releases
+the close).
 
 ## Generated Files
 
 - Wails generates TypeScript bindings in `web/src/wailsjs/`. These are
-  `.gitignored` and must not be committed. They are regenerated by `wails dev`
-  and `wails build`.
+  `.gitignored` and must not be committed. They are regenerated by
+  `wails dev` and `wails build`.
 
 ## Testing
 
-- Run `go test ./internal/desktop/` after changes here.
-- Test path traversal, symlink escape, config round-trips, file dedup, and
-  git snapshot behavior. Security-sensitive tests (safePath) must cover both
-  traversal and symlink cases.
+- Run `go test ./internal/desktop/ -race` after changes here. The `-race`
+  flag matters because `configMu` guards concurrent reads and writes.
+- Security-sensitive tests in `app_test.go` cover: path traversal,
+  absolute-path rejection, live symlink escape, **dangling symlink leaf
+  (inside and outside root)**, and live leaf symlink. Keep coverage for
+  each.
+- Snapshot tests cover: no-project error, clean-worktree sentinel, user
+  git identity, fallback identity.
+- Config tests cover: clear semantics, project-switch clears the active
+  file, `ReadProjectFile` no longer touches config.
 
 ## Validation
 

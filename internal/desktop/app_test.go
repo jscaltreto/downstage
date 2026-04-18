@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/stretchr/testify/assert"
@@ -88,11 +89,68 @@ func TestSafePath_NoProject(t *testing.T) {
 	assert.Contains(t, err.Error(), "no project open")
 }
 
+func TestSafePath_BlocksAbsoluteInput(t *testing.T) {
+	a := testApp(t)
+
+	_, err := a.safePath("/etc/passwd")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "absolute")
+}
+
+// Regression: a dangling symlink leaf whose target is outside the project
+// previously passed validation because EvalSymlinks(joined) errored and the
+// old code fell back to trusting the parent. os.WriteFile would then follow
+// the symlink outside the project.
+func TestSafePath_BlocksDanglingSymlinkLeafOutside(t *testing.T) {
+	a := testApp(t)
+
+	// Target outside the project that does not exist.
+	outsideDir := t.TempDir()
+	target := filepath.Join(outsideDir, "does-not-exist")
+
+	require.NoError(t, os.Symlink(target, filepath.Join(a.currentProject, "leaf")))
+
+	_, err := a.safePath("leaf")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "path escapes project root")
+
+	// And confirm that no file was created at the outside target.
+	_, statErr := os.Stat(target)
+	assert.True(t, os.IsNotExist(statErr), "target should not have been materialized")
+}
+
+// A dangling leaf symlink pointing inside the project is still rejected —
+// writers don't need leaf symlinks, and allowing them introduces a TOCTOU
+// window where the target could be swapped between safePath and the write.
+func TestSafePath_BlocksDanglingSymlinkLeafInside(t *testing.T) {
+	a := testApp(t)
+
+	target := filepath.Join(a.currentProject, "nothing-here.ds")
+	require.NoError(t, os.Symlink(target, filepath.Join(a.currentProject, "leaf")))
+
+	_, err := a.safePath("leaf")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "leaf symlinks are not allowed")
+}
+
+// Even a live symlink leaf pointing to a file inside the project is rejected.
+func TestSafePath_BlocksLiveSymlinkLeafInsideRoot(t *testing.T) {
+	a := testApp(t)
+
+	target := filepath.Join(a.currentProject, "real.ds")
+	require.NoError(t, os.WriteFile(target, []byte("content"), 0644))
+	require.NoError(t, os.Symlink(target, filepath.Join(a.currentProject, "leaf")))
+
+	_, err := a.safePath("leaf")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "leaf symlinks are not allowed")
+}
+
 func TestConfigRoundTrip(t *testing.T) {
 	a := testAppWithConfig(t)
 
-	a.saveConfig(Config{LastProjectPath: "/some/path"})
-	a.saveConfig(Config{LastActiveProjectFile: "play.ds"})
+	require.NoError(t, a.writeConfig(Config{LastProjectPath: "/some/path"}))
+	require.NoError(t, a.SetActiveProjectFile("play.ds"))
 
 	data, err := os.ReadFile(a.configPath)
 	require.NoError(t, err)
@@ -101,6 +159,59 @@ func TestConfigRoundTrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &config))
 	assert.Equal(t, "/some/path", config.LastProjectPath)
 	assert.Equal(t, "play.ds", config.LastActiveProjectFile)
+}
+
+// writeConfig is symmetric: empty fields clear. The old merge-based
+// saveConfig could not clear LastActiveProjectFile, which broke project
+// switches (the previous project's active file stayed behind).
+func TestConfigRoundTrip_ClearActiveFile(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	require.NoError(t, a.SetActiveProjectFile("play.ds"))
+	require.NoError(t, a.writeConfig(Config{LastProjectPath: "/new", LastActiveProjectFile: ""}))
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "/new", cfg.LastProjectPath)
+	assert.Equal(t, "", cfg.LastActiveProjectFile)
+}
+
+// ReadProjectFile used to call saveConfig on every read — a disk write on
+// a hot path. The current contract is: config is only touched via
+// SetActiveProjectFile (on file switch) or OpenProjectFolder (on project
+// switch).
+func TestReadProjectFile_DoesNotWriteConfig(t *testing.T) {
+	a := testAppWithConfig(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentProject, "play.ds"), []byte("x"), 0644))
+
+	// Pre-seed config with a known value so we can detect mutation.
+	require.NoError(t, a.writeConfig(Config{LastProjectPath: "/x", LastActiveProjectFile: "prev.ds"}))
+	statBefore, err := os.Stat(a.configPath)
+	require.NoError(t, err)
+
+	// Small sleep so mtime would differ if a write did happen.
+	time.Sleep(10 * time.Millisecond)
+
+	_, err = a.ReadProjectFile("play.ds")
+	require.NoError(t, err)
+
+	statAfter, err := os.Stat(a.configPath)
+	require.NoError(t, err)
+	assert.Equal(t, statBefore.ModTime(), statAfter.ModTime())
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "prev.ds", cfg.LastActiveProjectFile)
+}
+
+func TestSetActiveProjectFile_Persists(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	require.NoError(t, a.SetActiveProjectFile("act1.ds"))
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "act1.ds", cfg.LastActiveProjectFile)
 }
 
 func TestCreateProjectFile_Dedup(t *testing.T) {
@@ -190,7 +301,7 @@ func TestSnapshotFile(t *testing.T) {
 	err = a.SnapshotFile("play.ds", "initial version")
 	require.NoError(t, err)
 
-	revisions, err := a.GetRevisions("play.ds")
+	revisions, err := a.GetRevisions("play.ds", 0)
 	require.NoError(t, err)
 	require.Len(t, revisions, 1)
 	assert.Equal(t, "initial version", revisions[0].Message)
@@ -205,7 +316,7 @@ func TestGetRevisions_Order(t *testing.T) {
 	a.WriteProjectFile("play.ds", "v2")
 	a.SnapshotFile("play.ds", "second")
 
-	revisions, err := a.GetRevisions("play.ds")
+	revisions, err := a.GetRevisions("play.ds", 0)
 	require.NoError(t, err)
 	require.Len(t, revisions, 2)
 	assert.Equal(t, "second", revisions[0].Message)
@@ -284,4 +395,100 @@ func TestRemoveSpellAllowlistWord_NotFound(t *testing.T) {
 	removed, err := a.RemoveSpellAllowlistWord("Nebula")
 	require.NoError(t, err)
 	assert.False(t, removed)
+}
+
+func TestSnapshotFile_NoProject_ReturnsError(t *testing.T) {
+	a := &App{}
+
+	err := a.SnapshotFile("play.ds", "msg")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no project open")
+}
+
+// After a snapshot the worktree is clean — a second call with the same
+// contents must not create an empty commit. Frontend matches on
+// ErrNothingToSnapshot to show an informational toast rather than an error.
+func TestSnapshotFile_NothingToCommit_ReturnsSentinel(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.WriteProjectFile("play.ds", "content"))
+	require.NoError(t, a.SnapshotFile("play.ds", "first"))
+
+	err := a.SnapshotFile("play.ds", "noop")
+	assert.ErrorIs(t, err, ErrNothingToSnapshot)
+}
+
+// When a user has a global git identity configured, snapshots must be
+// attributed to them — not to the "Downstage Write" default.
+func TestSnapshotFile_UsesGlobalGitIdentity(t *testing.T) {
+	a := testApp(t)
+
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	gitconfig := "[user]\n\tname = Ada Lovelace\n\temail = ada@example.com\n"
+	require.NoError(t, os.WriteFile(filepath.Join(tmpHome, ".gitconfig"), []byte(gitconfig), 0644))
+
+	require.NoError(t, a.WriteProjectFile("play.ds", "content"))
+	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
+
+	revisions, err := a.GetRevisions("play.ds", 0)
+	require.NoError(t, err)
+	require.Len(t, revisions, 1)
+	assert.Equal(t, "Ada Lovelace", revisions[0].Author)
+}
+
+func TestSnapshotFile_FallsBackToDefaultIdentity(t *testing.T) {
+	a := testApp(t)
+
+	// Isolate from the developer's own gitconfig so the test is
+	// deterministic on any machine.
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	require.NoError(t, a.WriteProjectFile("play.ds", "content"))
+	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
+
+	revisions, err := a.GetRevisions("play.ds", 0)
+	require.NoError(t, err)
+	require.Len(t, revisions, 1)
+	assert.Equal(t, defaultSnapshotAuthorName, revisions[0].Author)
+}
+
+func TestGetProjectFiles_Sorted(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentProject, "zulu.ds"), []byte("z"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentProject, "Alpha.ds"), []byte("a"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentProject, "mike.ds"), []byte("m"), 0644))
+
+	files, err := a.GetProjectFiles()
+	require.NoError(t, err)
+	require.Len(t, files, 3)
+
+	paths := []string{files[0].Path, files[1].Path, files[2].Path}
+	assert.Equal(t, []string{"Alpha.ds", "mike.ds", "zulu.ds"}, paths)
+}
+
+func TestGetRevisions_BoundedByLimit(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.SnapshotFile("play.ds", "one"))
+	require.NoError(t, a.WriteProjectFile("play.ds", "v2"))
+	require.NoError(t, a.SnapshotFile("play.ds", "two"))
+	require.NoError(t, a.WriteProjectFile("play.ds", "v3"))
+	require.NoError(t, a.SnapshotFile("play.ds", "three"))
+
+	revisions, err := a.GetRevisions("play.ds", 2)
+	require.NoError(t, err)
+	assert.Len(t, revisions, 2)
+	// Newest first — limit cuts from the tail.
+	assert.Equal(t, "three", revisions[0].Message)
+	assert.Equal(t, "two", revisions[1].Message)
+}
+
+func TestDiagnosticSeverity_UnknownDefaultsToInfo(t *testing.T) {
+	// Zero-value DiagnosticSeverity is 0, which is not one of the known
+	// protocol constants. We deliberately default unknowns to "info" rather
+	// than "error" so an uncategorized diagnostic never blocks a user.
+	assert.Equal(t, "info", diagnosticSeverity(0))
 }

@@ -3,6 +3,7 @@ package desktop
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -19,7 +20,7 @@ type FileFilter struct {
 	Pattern     string `json:"pattern"`
 }
 
-func (a *App) RenderHTML(source string, style string) string {
+func (a *App) RenderHTML(source string, style string) (string, error) {
 	doc, _ := parser.Parse([]byte(source))
 	cfg := render.DefaultConfig()
 	cfg.SourceAnchors = true
@@ -30,14 +31,14 @@ func (a *App) RenderHTML(source string, style string) string {
 	nr := htmlrender.NewRenderer(cfg)
 	var buf bytes.Buffer
 	if err := render.Walk(nr, doc, &buf); err != nil {
-		return err.Error()
+		return "", fmt.Errorf("render html: %w", err)
 	}
 	html := buf.String()
 	slog.Debug("rendered HTML", "bytes", len(html))
-	return html
+	return html, nil
 }
 
-func (a *App) RenderPDF(source string, style string) string {
+func (a *App) RenderPDF(source string, style string) (string, error) {
 	doc, _ := parser.Parse([]byte(source))
 	cfg := render.DefaultConfig()
 	if style == "condensed" {
@@ -53,9 +54,9 @@ func (a *App) RenderPDF(source string, style string) string {
 
 	var buf bytes.Buffer
 	if err := render.Walk(nr, doc, &buf); err != nil {
-		return ""
+		return "", fmt.Errorf("render pdf: %w", err)
 	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes())
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 func (a *App) SaveFile(filename string, contentBase64 string, isBinary bool, filters []FileFilter) error {
