@@ -73,7 +73,11 @@ export class Engine {
     private parent: HTMLElement,
     private env: EditorEnv,
     private onDocChange: (content: string, info: { userInput: boolean }) => void,
-    private iframe: HTMLIFrameElement,
+    // Lazy accessor so the preview iframe can be mounted/unmounted
+    // under v-if without invalidating the engine. The scroll-sync
+    // plugin pulls a fresh reference on every sync; null means the
+    // preview isn't mounted right now and sync is a no-op.
+    private getIframe: () => HTMLIFrameElement | null,
     private getUserSpellAllowlist: () => string[],
     private addUserSpellAllowlistWord: (word: string) => Promise<boolean>,
     private onDiagnosticsChange: (diagnostics: EditorDiagnostic[]) => void = () => {},
@@ -131,7 +135,7 @@ export class Engine {
           searchExtension(),
           createDownstageHighlighter(this.env),
           createDownstageCompletion(this.env),
-          createScrollSyncPlugin(this.iframe),
+          createScrollSyncPlugin(this.getIframe),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {

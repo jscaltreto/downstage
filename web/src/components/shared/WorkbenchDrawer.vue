@@ -35,6 +35,20 @@ function toggleDock() {
   emit('update:dock', props.dock === 'right' ? 'bottom' : 'right');
 }
 
+// In right-dock mode the drawer is typically ~360 px wide — too narrow
+// for labeled tabs to fit without clipping. Hide labels and render
+// icon-only buttons; `title` attrs carry the readable name.
+const isCompact = computed(() => props.dock === 'right');
+// Class applied to every tab button. Keeps the label-or-icon branch
+// tidy and avoids copy-pasting the class string across five tabs.
+const tabButtonClass = computed(() => {
+  const base = 'flex items-center border-b-2 transition-colors text-[10px] font-bold uppercase tracking-[0.2em]';
+  const layout = isCompact.value ? 'justify-center px-2 py-2 gap-0' : 'gap-2 px-3 py-2.5';
+  return `${base} ${layout}`;
+});
+const tabActiveClass = 'border-brass-500 text-accent';
+const tabInactiveClass = 'border-transparent text-text-muted hover:text-text-main';
+
 // The closed/open root style differs per dock:
 //   bottom → animated height
 //   right  → fixed width (no height animation; v-if flip on open)
@@ -46,11 +60,16 @@ const rootStyle = computed<Record<string, string>>(() => {
 });
 
 const rootClass = computed(() => {
-  const base = 'shrink-0 flex flex-col bg-[var(--color-page-surface)] overflow-hidden transition-[height,width,border-color] duration-200 ease-out';
+  // Only animate the dimension that actually changes per dock mode —
+  // transitioning the orthogonal axis would be dead work that some
+  // compositors still allocate layers for.
+  const base = 'shrink-0 flex flex-col bg-[var(--color-page-surface)] overflow-hidden';
   if (props.dock === 'right') {
-    return `${base} ${props.open ? 'border-l border-border shadow-[-8px_0_24px_rgba(0,0,0,0.12)]' : 'border-l border-transparent'}`;
+    const right = 'transition-[width,border-color] duration-200 ease-out';
+    return `${base} ${right} ${props.open ? 'border-l border-border shadow-[-4px_0_12px_rgba(0,0,0,0.08)]' : 'border-l border-transparent'}`;
   }
-  return `${base} ${props.open ? 'border-t border-border shadow-[0_-8px_24px_rgba(0,0,0,0.12)]' : 'border-t border-transparent'}`;
+  const bottom = 'transition-[height,border-color] duration-200 ease-out';
+  return `${base} ${bottom} ${props.open ? 'border-t border-border shadow-[0_-4px_12px_rgba(0,0,0,0.08)]' : 'border-t border-transparent'}`;
 });
 
 // Drag state for the right-mode left-edge resize handle. Mirrors the
@@ -98,76 +117,75 @@ function onResizeEnd() {
     role="region"
     aria-label="Workbench"
   >
-    <header class="flex items-center justify-between gap-3 border-b border-border bg-[var(--color-toolbar-bg)] px-4">
-      <div class="flex items-center gap-1" role="tablist">
+    <header
+      class="flex items-center justify-between gap-2 border-b border-border bg-[var(--color-toolbar-bg)]"
+      :class="isCompact ? 'px-2' : 'px-4'"
+    >
+      <div class="flex items-center gap-1 min-w-0" role="tablist">
         <button
           type="button"
           role="tab"
           :aria-selected="activeTab === 'outline'"
-          class="flex items-center gap-2 px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] border-b-2 transition-colors"
-          :class="activeTab === 'outline'
-            ? 'border-brass-500 text-accent'
-            : 'border-transparent text-text-muted hover:text-text-main'"
+          :class="[tabButtonClass, activeTab === 'outline' ? tabActiveClass : tabInactiveClass]"
+          :title="isCompact ? 'Outline' : undefined"
+          :aria-label="isCompact ? 'Outline' : undefined"
           @click="switchTab('outline')"
         >
           <ListTree class="h-3.5 w-3.5" />
-          <span>Outline</span>
+          <span v-if="!isCompact">Outline</span>
         </button>
         <button
           type="button"
           role="tab"
           :aria-selected="activeTab === 'stats'"
-          class="flex items-center gap-2 px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] border-b-2 transition-colors"
-          :class="activeTab === 'stats'
-            ? 'border-brass-500 text-accent'
-            : 'border-transparent text-text-muted hover:text-text-main'"
+          :class="[tabButtonClass, activeTab === 'stats' ? tabActiveClass : tabInactiveClass]"
+          :title="isCompact ? 'Stats' : undefined"
+          :aria-label="isCompact ? 'Stats' : undefined"
           @click="switchTab('stats')"
         >
           <BarChart3 class="h-3.5 w-3.5" />
-          <span>Stats</span>
+          <span v-if="!isCompact">Stats</span>
         </button>
         <button
           type="button"
           role="tab"
           :aria-selected="activeTab === 'issues'"
-          class="flex items-center gap-2 px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] border-b-2 transition-colors"
-          :class="activeTab === 'issues'
-            ? 'border-brass-500 text-accent'
-            : 'border-transparent text-text-muted hover:text-text-main'"
+          :class="[tabButtonClass, activeTab === 'issues' ? tabActiveClass : tabInactiveClass]"
+          :title="isCompact ? `Issues${issuesBadge ? ` (${issuesBadge})` : ''}` : undefined"
+          :aria-label="isCompact ? 'Issues' : undefined"
           @click="switchTab('issues')"
         >
           <AlertTriangle class="h-3.5 w-3.5" />
-          <span>Issues</span>
+          <span v-if="!isCompact">Issues</span>
           <span
             v-if="issuesBadge && issuesBadge > 0"
             class="rounded-full bg-black/10 px-1.5 py-0.5 text-[9px] font-bold normal-case tracking-normal text-text-main dark:bg-white/10"
+            :class="isCompact ? 'ml-1' : ''"
           >{{ issuesBadge }}</span>
         </button>
         <button
           type="button"
           role="tab"
           :aria-selected="activeTab === 'find'"
-          class="flex items-center gap-2 px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] border-b-2 transition-colors"
-          :class="activeTab === 'find'
-            ? 'border-brass-500 text-accent'
-            : 'border-transparent text-text-muted hover:text-text-main'"
+          :class="[tabButtonClass, activeTab === 'find' ? tabActiveClass : tabInactiveClass]"
+          :title="isCompact ? 'Find & Replace' : undefined"
+          :aria-label="isCompact ? 'Find and Replace' : undefined"
           @click="switchTab('find')"
         >
           <Search class="h-3.5 w-3.5" />
-          <span>Find &amp; Replace</span>
+          <span v-if="!isCompact">Find &amp; Replace</span>
         </button>
         <button
           type="button"
           role="tab"
           :aria-selected="activeTab === 'help'"
-          class="flex items-center gap-2 px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] border-b-2 transition-colors"
-          :class="activeTab === 'help'
-            ? 'border-brass-500 text-accent'
-            : 'border-transparent text-text-muted hover:text-text-main'"
+          :class="[tabButtonClass, activeTab === 'help' ? tabActiveClass : tabInactiveClass]"
+          :title="isCompact ? 'Help' : undefined"
+          :aria-label="isCompact ? 'Help' : undefined"
           @click="switchTab('help')"
         >
           <HelpCircle class="h-3.5 w-3.5" />
-          <span>Help</span>
+          <span v-if="!isCompact">Help</span>
         </button>
       </div>
       <div class="flex items-center gap-1">
