@@ -95,6 +95,12 @@ so switching documents automatically invalidates a prior dismissal.
 - `npm run typecheck` must pass.
 - `npm run test` must pass (vitest). New desktop tests live under
   `web/src/__tests__/desktop/`.
-- Changes here should not break the web editor — verify with
-  `npm run build` (and the composite `npm run build:check` which runs
-  both web and desktop builds).
+- `npm run build` must pass. This is the web build only — it no longer
+  compiles `src/desktop-app.ts` since the vite split in batch 1.
+- The desktop bundle is produced by the Wails toolchain, not by calling
+  the npm script directly. Use `make desktop-build` (which invokes
+  `wails build`, which generates `web/src/wailsjs/` and then internally
+  calls `npm run build:desktop`). Running `npm run build:desktop`
+  standalone on a clean checkout will fail on the unresolved
+  `./wailsjs/go/desktop/App` import — this is expected and matches the
+  Wails workflow.
