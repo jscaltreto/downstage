@@ -103,8 +103,10 @@ func (a *App) SnapshotFile(relPath string, message string) error {
 const defaultRevisionLimit = 100
 
 func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
+	// Same nil-slice-is-null hazard as GetProjectFiles: always hand
+	// the frontend a real empty slice so `.length`/`.map` are safe.
 	if a.currentProject == "" {
-		return nil, nil
+		return []Revision{}, nil
 	}
 	if limit <= 0 {
 		limit = defaultRevisionLimit
