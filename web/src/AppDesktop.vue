@@ -3,7 +3,7 @@ import { computed, provide, onMounted, onUnmounted, ref, watch, watchEffect } fr
 import {
     FolderOpen, FolderSync, FileText,
     BookOpen, Terminal, Sparkles, History,
-    RotateCcw, X
+    RotateCcw, X, PanelLeft, PanelLeftClose
 } from 'lucide-vue-next';
 import { Store } from './core/store';
 import type { EditorEnv } from './core/types';
@@ -47,13 +47,13 @@ const searchRequest = ref<{ mode: SearchMode; nonce: number }>({ mode: 'find', n
 const paletteOpen = ref(false);
 const paletteMode = ref<'command' | 'file'>('command');
 const settingsOpen = ref(false);
-const settingsTab = ref<'editor' | 'appearance' | 'spellcheck'>('editor');
+const settingsTab = ref<'appearance' | 'spellcheck'>('appearance');
 
 function openPalette(mode: 'command' | 'file' = 'command') {
   paletteMode.value = mode;
   paletteOpen.value = true;
 }
-function openSettings(tab: 'editor' | 'appearance' | 'spellcheck' = 'editor') {
+function openSettings(tab: 'appearance' | 'spellcheck' = 'appearance') {
   settingsTab.value = tab;
   settingsOpen.value = true;
 }
@@ -349,9 +349,18 @@ watch(activeContent, (newContent) => {
             <h3 class="text-[10px] uppercase tracking-[0.2em] text-brass-500 font-bold">Project Files</h3>
             <p class="text-[10px] text-text-muted truncate mt-1 italic" :title="workspace.state.projectPath">{{ workspace.state.projectPath }}</p>
           </div>
-          <button @click="handleOpenFolder" class="text-text-muted hover:text-brass-500 transition-colors" title="Change Project Folder">
-            <FolderOpen class="w-4 h-4" />
-          </button>
+          <div class="flex items-center gap-1 shrink-0">
+            <button @click="handleOpenFolder" class="p-1 rounded text-text-muted hover:text-brass-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors" title="Change Project Folder">
+              <FolderOpen class="w-4 h-4" />
+            </button>
+            <button
+              @click="workspace.toggleSidebar()"
+              class="p-1 rounded text-text-muted hover:text-brass-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              title="Collapse sidebar"
+            >
+              <PanelLeftClose class="w-4 h-4" />
+            </button>
+          </div>
         </div>
         <nav v-if="workspace.state.projectFiles" class="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar border-b border-border">
           <button
@@ -417,6 +426,19 @@ watch(activeContent, (newContent) => {
             </div>
         </div>
       </aside>
+
+      <!-- Re-expand sidebar affordance. Mirrors the preview pane's
+           "show" pattern: when the user has collapsed the left rail,
+           this thin button sits flush against the editor's left edge
+           so the action is reachable without going back to the menu. -->
+      <button
+        v-if="workspace.state.sidebarCollapsed && workspace.state.projectPath"
+        @click="workspace.toggleSidebar()"
+        class="shrink-0 w-6 border-r border-border bg-[var(--color-page-surface)] flex items-center justify-center text-text-muted hover:text-brass-500 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
+        title="Show sidebar"
+      >
+        <PanelLeft class="w-4 h-4" />
+      </button>
 
       <div class="flex-1 relative flex flex-col overflow-hidden bg-[var(--color-page-bg)]">
         <div

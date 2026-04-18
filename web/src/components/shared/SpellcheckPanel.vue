@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Trash2 } from 'lucide-vue-next';
+import ToggleSwitch from './ToggleSwitch.vue';
 
 // Reusable spellcheck control surface. Web hosts this inside the
 // Editor's SpellCheck modal (click the toolbar button → modal opens
@@ -40,19 +41,7 @@ async function onRemoveWord(word: string) {
   <div class="flex flex-col gap-5 py-1">
     <label class="flex items-center justify-between gap-4 rounded-lg border border-border bg-black/5 px-4 py-3 dark:bg-white/5">
       <p class="text-sm font-bold text-text-main">Enable Spell Check</p>
-      <button
-        type="button"
-        role="switch"
-        :aria-checked="enabled"
-        class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors"
-        :class="enabled ? 'border-brass-500 bg-brass-500/80' : 'border-border bg-black/10 dark:bg-white/10'"
-        @click="enabled = !enabled"
-      >
-        <span
-          class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
-          :class="enabled ? 'translate-x-6' : 'translate-x-1'"
-        ></span>
-      </button>
+      <ToggleSwitch v-model="enabled" aria-label="Enable spell check" />
     </label>
 
     <div class="space-y-1">

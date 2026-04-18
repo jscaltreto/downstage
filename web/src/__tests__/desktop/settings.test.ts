@@ -4,9 +4,10 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { reactive } from "vue";
 import Settings from "../../desktop/Settings.vue";
 
-// Happy-dom-backed Settings tests. The dialog takes live Store and
-// Workspace references; reactive fakes are enough to verify each tab
-// writes to the right state without pulling in the real classes.
+// Settings dialog tests. Two real tabs — Appearance (theme) and
+// Spellcheck (enable toggle + custom wordlist). Transient view
+// toggles (show preview, show sidebar) live in the main UI, not
+// here, so they're not tested from this surface.
 
 function stubLocalStorage() {
   const store = new Map<string, string>();
@@ -52,26 +53,7 @@ function fakeWorkspace() {
 }
 
 describe("Settings dialog", () => {
-  it("renders the Editor tab with preview/spellcheck toggles bound to store state", async () => {
-    stubLocalStorage();
-    const store = fakeStore();
-    const workspace = fakeWorkspace();
-
-    const wrapper = mount(Settings, {
-      props: { open: true, tab: "editor", store: store as any, workspace: workspace as any },
-    });
-    await flushPromises();
-
-    const checkboxes = wrapper.findAll<HTMLInputElement>("input[type=checkbox]");
-    expect(checkboxes.length).toBeGreaterThanOrEqual(2);
-    // "Show Preview" is checked because previewHidden=false.
-    expect(checkboxes[0].element.checked).toBe(true);
-    // Click it → previewHidden flips to true.
-    await checkboxes[0].setValue(false);
-    expect(store.state.previewHidden).toBe(true);
-  });
-
-  it("renders the Appearance tab and switches theme via the Store setter", async () => {
+  it("shows only Appearance and Spellcheck tabs", async () => {
     stubLocalStorage();
     const store = fakeStore();
     const workspace = fakeWorkspace();
@@ -81,30 +63,48 @@ describe("Settings dialog", () => {
     });
     await flushPromises();
 
-    const buttons = wrapper.findAll("button").filter((b) => b.text() === "Dark");
-    expect(buttons.length).toBe(1);
-    await buttons[0].trigger("click");
+    const tabLabels = wrapper.findAll("nav button").map((b) => b.text());
+    expect(tabLabels).toEqual(["Appearance", "Spellcheck"]);
+  });
+
+  it("Appearance tab shows theme buttons and no sidebar/preview toggles", async () => {
+    stubLocalStorage();
+    const store = fakeStore();
+    const workspace = fakeWorkspace();
+
+    const wrapper = mount(Settings, {
+      props: { open: true, tab: "appearance", store: store as any, workspace: workspace as any },
+    });
+    await flushPromises();
+
+    // Theme options present.
+    const labels = wrapper.findAll("button").map((b) => b.text());
+    expect(labels).toContain("Light");
+    expect(labels).toContain("Dark");
+    expect(labels).toContain("Follow System");
+    // No sidebar/preview labels anywhere in the tab content.
+    const body = wrapper.text();
+    expect(body).not.toMatch(/sidebar/i);
+    expect(body).not.toMatch(/preview/i);
+  });
+
+  it("Appearance tab switches theme via the Store setter", async () => {
+    stubLocalStorage();
+    const store = fakeStore();
+    const workspace = fakeWorkspace();
+
+    const wrapper = mount(Settings, {
+      props: { open: true, tab: "appearance", store: store as any, workspace: workspace as any },
+    });
+    await flushPromises();
+
+    const dark = wrapper.findAll("button").find((b) => b.text() === "Dark")!;
+    await dark.trigger("click");
     expect(store.setTheme).toHaveBeenCalledWith("dark");
     expect(store.state.theme).toBe("dark");
   });
 
-  it("Appearance sidebar toggle calls workspace.toggleSidebar", async () => {
-    stubLocalStorage();
-    const store = fakeStore();
-    const workspace = fakeWorkspace();
-
-    const wrapper = mount(Settings, {
-      props: { open: true, tab: "appearance", store: store as any, workspace: workspace as any },
-    });
-    await flushPromises();
-
-    const checkboxes = wrapper.findAll<HTMLInputElement>("input[type=checkbox]");
-    const sidebarCheckbox = checkboxes[checkboxes.length - 1];
-    await sidebarCheckbox.trigger("change");
-    expect(workspace.toggleSidebar).toHaveBeenCalled();
-  });
-
-  it("Spellcheck tab renders the allowlist and can add/remove words", async () => {
+  it("Spellcheck tab renders the allowlist and can add words", async () => {
     stubLocalStorage();
     const store = fakeStore();
     const workspace = fakeWorkspace();
@@ -114,14 +114,39 @@ describe("Settings dialog", () => {
     });
     await flushPromises();
 
-    // Initial allowlist row ("Nebula") should render.
+    // Seed word renders.
     expect(wrapper.text()).toContain("Nebula");
 
-    // Type a new word and submit the form.
+    // Add a new word.
     const input = wrapper.find<HTMLInputElement>("input[type=text]");
     await input.setValue("Starfall");
     await wrapper.find("form").trigger("submit");
     await flushPromises();
     expect(workspace.addAllowlistWord).toHaveBeenCalledWith("Starfall");
+  });
+
+  it("Spellcheck tab's enable toggle is a ToggleSwitch (role=switch)", async () => {
+    stubLocalStorage();
+    const store = fakeStore();
+    const workspace = fakeWorkspace();
+
+    const wrapper = mount(Settings, {
+      props: { open: true, tab: "spellcheck", store: store as any, workspace: workspace as any },
+    });
+    await flushPromises();
+
+    // No checkbox inputs anywhere — the Spellcheck tab uses ToggleSwitch
+    // so the app's boolean affordance stays visually consistent.
+    const checkboxes = wrapper.findAll('input[type="checkbox"]');
+    expect(checkboxes.length).toBe(0);
+
+    // A role=switch button exists and reflects the current state.
+    const switches = wrapper.findAll('button[role="switch"]');
+    expect(switches.length).toBeGreaterThanOrEqual(1);
+    const spellSwitch = switches[0];
+    expect(spellSwitch.attributes("aria-checked")).toBe("true");
+
+    await spellSwitch.trigger("click");
+    expect(store.state.spellcheckDisabled).toBe(true);
   });
 });
