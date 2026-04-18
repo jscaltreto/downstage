@@ -313,6 +313,11 @@ make desktop-dev    # live-reloading dev build
 make desktop-build  # release build → cmd/downstage-write/build/bin/
 ```
 
+`make desktop-dev` (via `wails dev`) serves the real desktop entry
+(`desktop.html` → `AppDesktop.vue`) with HMR; it's independent of the
+browser-app dev flow at `make web-dev`, which keeps serving the Vue
+web editor at `/editor/`.
+
 #### Windows
 
 Windows uses WebView2, which ships with Windows 10 20H1+ and Windows 11.
