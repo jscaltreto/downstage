@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 import { execSync } from "node:child_process";
 import { resolve } from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -26,11 +26,29 @@ function resolveAppVersion(): string {
   }
 }
 
+// Wails expects the desktop frontend to be served from `index.html` in the
+// configured frontend dir. Our source HTML lives at `desktop.html` so the
+// web build can keep owning `index.html`. This plugin renames the HTML
+// asset at bundle generation so we don't need a post-build `mv` hack.
+function renameHtml(from: string, to: string): Plugin {
+  return {
+    name: "downstage-rename-html",
+    generateBundle(_opts, bundle) {
+      const asset = bundle[from];
+      if (!asset) return;
+      asset.fileName = to;
+      bundle[to] = asset;
+      delete bundle[from];
+    },
+  };
+}
+
 export default defineConfig({
   base: isDesktop ? "./" : `${siteBasePath}editor/`,
   plugins: [
     vue(),
     tailwindcss(),
+    ...(isDesktop ? [renameHtml("desktop.html", "index.html")] : []),
   ],
   // Tailwind v4 runs via its Vite plugin — we don't need PostCSS. But
   // Vite's PostCSS loader walks up looking for `postcss.config.js`, and
@@ -48,10 +66,9 @@ export default defineConfig({
     assetsDir: "assets",
     emptyOutDir: true,
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, "index.html"),
-        desktop: resolve(__dirname, "desktop.html"),
-      },
+      input: isDesktop
+        ? { desktop: resolve(__dirname, "desktop.html") }
+        : { main: resolve(__dirname, "index.html") },
     },
   },
   // Keep Vitest from picking up Playwright specs under `e2e/` — those run
