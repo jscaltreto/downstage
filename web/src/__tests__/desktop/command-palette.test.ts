@@ -13,7 +13,7 @@ function makeEnv(commands: CommandMeta[]): DesktopCapabilities {
 
 const baseCommands: CommandMeta[] = [
   { id: "file.newPlay", label: "New Play", category: "file", accelerator: "cmdorctrl+n" },
-  { id: "file.openFolder", label: "Open Folder…", category: "file", accelerator: "cmdorctrl+o" },
+  { id: "file.open", label: "Open…", category: "file", accelerator: "cmdorctrl+o" },
   { id: "file.saveVersion", label: "Save Version", category: "file", accelerator: "cmdorctrl+s" },
   { id: "file.settings.spellcheck", label: "Spellcheck Settings", category: "file", paletteHidden: true },
   { id: "view.commandPalette", label: "Command Palette…", category: "view", accelerator: "cmdorctrl+k" },

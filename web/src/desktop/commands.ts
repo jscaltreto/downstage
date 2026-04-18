@@ -46,7 +46,7 @@ export interface CommandContext {
     drawerTab: Ref<WorkbenchTab>;
     searchRequest: Ref<{ mode: SearchMode; nonce: number }>;
     openPalette: (mode?: "command" | "file") => void;
-    openSettings: (tab?: "appearance" | "spellcheck") => void;
+    openSettings: (tab?: "library" | "appearance" | "spellcheck") => void;
   };
 }
 
@@ -84,21 +84,10 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ui.searchRequest.value = { mode, nonce: ui.searchRequest.value.nonce + 1 };
   };
 
-  async function handleOpenFolder() {
-    await flushSave();
-    const path = await workspace.openFolder();
-    if (!path) return;
-    activeContent.value = "";
-    if (workspace.state.libraryFiles.length > 0) {
-      activeContent.value = await workspace.selectFile(workspace.state.libraryFiles[0].path);
-    }
-    toast.addToast(`Opened project: ${path.split(/[\\/]/).pop()}`, "success");
-  }
-
   async function handleNewPlay() {
     if (!workspace.state.libraryPath) {
-      await handleOpenFolder();
-      if (!workspace.state.libraryPath) return;
+      toast.addToast("No library open — set one in Settings > Library", "error");
+      return;
     }
     await flushSave();
     try {
@@ -107,6 +96,22 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
       toast.addToast("Created new play", "success");
     } catch (e: any) {
       toast.addToast(`Failed to create file: ${e?.message ?? e}`, "error");
+    }
+  }
+
+  async function handleOpen() {
+    await flushSave();
+    const absPath = await env.openExternalFileDialog();
+    if (!absPath) return;
+    try {
+      const content = await workspace.openExternalFile(absPath);
+      activeContent.value = content;
+      if (workspace.state.externalFile) {
+        const name = absPath.split(/[\\/]/).pop() ?? "file";
+        toast.addToast(`Opened ${name} read-only — use Add to Library to keep editing`, "info", 6000);
+      }
+    } catch (e: any) {
+      toast.addToast(`Failed to open file: ${e?.message ?? e}`, "error");
     }
   }
 
@@ -169,7 +174,7 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
   return [
     // File
     ["file.newPlay", { handler: handleNewPlay }],
-    ["file.openFolder", { handler: handleOpenFolder }],
+    ["file.open", { handler: handleOpen }],
     ["file.saveVersion", { handler: handleSaveVersion, isEnabled: hasActiveFileEditable }],
     ["file.exportPdf", { handler: handleExport, isEnabled: canExport }],
     ["file.settings", { handler: () => ui.openSettings() }],

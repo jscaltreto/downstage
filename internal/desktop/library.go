@@ -165,6 +165,168 @@ func (a *App) CreateLibraryFile(name string, content string) (string, error) {
 	return finalName, nil
 }
 
+// ExternalFileResult is returned by ReadExternalFile. When the chosen
+// path happens to live inside the current library, InsideLibrary is
+// true and RelativePath is its library-relative path — the frontend
+// should route through the normal selectFile flow instead of showing
+// the external-file banner.
+type ExternalFileResult struct {
+	Content       string `json:"content"`
+	InsideLibrary bool   `json:"insideLibrary"`
+	RelativePath  string `json:"relativePath"`
+}
+
+// externalFileMaxBytes caps how much we'll pull off disk for an
+// external .ds open. Plaintext manuscripts fit in well under 100 KiB;
+// the 5 MiB cap is 50× generous and guards against symlinks-to-huge-
+// files or malformed inputs.
+const externalFileMaxBytes = 5 * 1024 * 1024
+
+// OpenExternalFileDialog shows a native open-file dialog filtered to
+// .ds files. Returns the chosen absolute path, or "" when the user
+// cancels. This is a separate binding from ChangeLibraryLocation (a
+// directory picker) because the frontend's File → Open flow needs a
+// file picker, not a folder picker.
+func (a *App) OpenExternalFileDialog() (string, error) {
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Open File",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Downstage Files (*.ds)", Pattern: "*.ds"},
+		},
+	})
+}
+
+// ReadExternalFile reads a .ds file from an arbitrary absolute path
+// into memory for the read-only "File → Open" preview. Guards:
+//
+//   - absolute path required (File → Open dialog returns absolute paths;
+//     reject anything else at the boundary)
+//   - case-insensitive .ds extension required
+//   - leaf symlinks rejected (mirrors safePath's rule; guards against
+//     symlinks-to-hostile-targets)
+//   - size capped at externalFileMaxBytes
+//
+// When the resolved path lives inside the current library, returns
+// InsideLibrary=true + RelativePath so the frontend can route through
+// the normal selectFile flow — it should NOT present the external-file
+// banner for a file the library already owns.
+func (a *App) ReadExternalFile(absPath string) (ExternalFileResult, error) {
+	if !filepath.IsAbs(absPath) {
+		return ExternalFileResult{}, fmt.Errorf("absolute path required")
+	}
+	if !strings.HasSuffix(strings.ToLower(absPath), ".ds") {
+		return ExternalFileResult{}, fmt.Errorf("only .ds files can be opened")
+	}
+
+	// Reject leaf symlinks before following them. os.Lstat reveals the
+	// link itself; EvalSymlinks would quietly follow.
+	if info, err := os.Lstat(absPath); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return ExternalFileResult{}, fmt.Errorf("symlinks are not allowed")
+		}
+	} else {
+		return ExternalFileResult{}, fmt.Errorf("stat path: %w", err)
+	}
+
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return ExternalFileResult{}, fmt.Errorf("resolve path: %w", err)
+	}
+
+	// Detect in-library: a path under the active library should flow
+	// through the normal file-open path, not the external-file banner.
+	var insideLibrary bool
+	var relativePath string
+	if a.currentLibrary != "" {
+		if libRoot, err := filepath.EvalSymlinks(a.currentLibrary); err == nil {
+			if pathInsideRoot(resolved, libRoot) {
+				insideLibrary = true
+				if rel, err := filepath.Rel(libRoot, resolved); err == nil {
+					relativePath = filepath.ToSlash(rel)
+				}
+			}
+		}
+	}
+
+	// Size-cap the read. Anything larger is almost certainly not a
+	// manuscript the editor can render usefully.
+	f, err := os.Open(resolved)
+	if err != nil {
+		return ExternalFileResult{}, fmt.Errorf("open file: %w", err)
+	}
+	defer f.Close()
+	stat, err := f.Stat()
+	if err != nil {
+		return ExternalFileResult{}, fmt.Errorf("stat file: %w", err)
+	}
+	if stat.Size() > externalFileMaxBytes {
+		return ExternalFileResult{}, fmt.Errorf("file is too large (max %d bytes)", externalFileMaxBytes)
+	}
+
+	data, err := os.ReadFile(resolved)
+	if err != nil {
+		return ExternalFileResult{}, fmt.Errorf("read file: %w", err)
+	}
+	return ExternalFileResult{
+		Content:       string(data),
+		InsideLibrary: insideLibrary,
+		RelativePath:  relativePath,
+	}, nil
+}
+
+// AddExternalFileToLibrary copies absSrc into the current library under
+// destRelDir (empty string = library root) and returns the new path
+// relative to the library. Collision handling matches CreateLibraryFile:
+// an existing target name gets a `-N` suffix.
+func (a *App) AddExternalFileToLibrary(absSrc string, destRelDir string) (string, error) {
+	if a.currentLibrary == "" {
+		return "", fmt.Errorf("no library open")
+	}
+	if !filepath.IsAbs(absSrc) {
+		return "", fmt.Errorf("absolute source path required")
+	}
+	if !strings.HasSuffix(strings.ToLower(absSrc), ".ds") {
+		return "", fmt.Errorf("only .ds files can be added")
+	}
+
+	srcData, err := os.ReadFile(absSrc)
+	if err != nil {
+		return "", fmt.Errorf("read source: %w", err)
+	}
+
+	base := filepath.Base(absSrc)
+	// Strip `.ds` suffix for the collision-suffix loop so we get
+	// `foo-1.ds`, not `foo.ds-1`.
+	stem := strings.TrimSuffix(base, ".ds")
+	finalRel := base
+	counter := 1
+	for {
+		candidate := filepath.Join(destRelDir, finalRel)
+		fullPath, err := a.safePath(candidate)
+		if err != nil {
+			return "", err
+		}
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			break
+		}
+		finalRel = fmt.Sprintf("%s-%d.ds", stem, counter)
+		counter++
+	}
+
+	candidate := filepath.Join(destRelDir, finalRel)
+	fullPath, err := a.safePath(candidate)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return "", fmt.Errorf("make destination dir: %w", err)
+	}
+	if err := os.WriteFile(fullPath, srcData, 0644); err != nil {
+		return "", fmt.Errorf("write destination: %w", err)
+	}
+	return filepath.ToSlash(candidate), nil
+}
+
 func (a *App) dictionaryFile() string {
 	if a.currentLibrary == "" {
 		return ""

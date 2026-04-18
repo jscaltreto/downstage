@@ -3,30 +3,36 @@ import { ref, watch } from 'vue';
 import BaseModal from '../components/shared/BaseModal.vue';
 import type { Store } from '../core/store';
 import type { Workspace } from './workspace';
+import type { DesktopCapabilities } from './types';
 import AppearanceSettings from './settings/AppearanceSettings.vue';
 import SpellcheckSettings from './settings/SpellcheckSettings.vue';
+import LibrarySettings from './settings/LibrarySettings.vue';
 
-// Desktop Settings dialog. Only two tabs today — Appearance and
-// Spellcheck — because those are the only categories that actually
-// persist user preferences. Transient UI toggles (show preview, show
-// sidebar) don't live here; they have their own affordances in the
-// main UI (toolbar button, floating re-expand button, menu item, and
-// keyboard shortcut).
+// Desktop Settings dialog. Three tabs: Library, Appearance, Spellcheck.
+// Library is first because it's the only place to change the library
+// location now that the File menu no longer has "Open Folder…".
+// Transient UI toggles (show preview, show sidebar) don't live here;
+// they have their own affordances in the main UI.
 //
-// Project / Export / Git / Advanced get tabs when they have real
-// controls; placeholder tabs rot faster than they help.
+// Export / Git / Advanced get tabs when they have real controls;
+// placeholder tabs rot faster than they help.
 
-type SettingsTab = 'appearance' | 'spellcheck';
+type SettingsTab = 'library' | 'appearance' | 'spellcheck';
 
 const props = defineProps<{
   open: boolean;
   tab: SettingsTab;
   store: Store;
   workspace: Workspace;
+  env: DesktopCapabilities;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'close'): void;
+  // Bubbled by LibrarySettings when the user clicks "Change…". The
+  // parent runs the full library-switch flow (flushSave, switch,
+  // re-select first file, toast) so Settings stays presentational.
+  (e: 'change-library'): void;
 }>();
 
 const currentTab = ref<SettingsTab>(props.tab);
@@ -37,6 +43,7 @@ watch(() => props.open, (isOpen) => {
 });
 
 const tabs: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'library', label: 'Library' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'spellcheck', label: 'Spellcheck' },
 ];
@@ -69,7 +76,13 @@ const tabs: Array<{ id: SettingsTab; label: string }> = [
           </button>
         </nav>
         <div class="flex-1 min-w-0 overflow-y-auto custom-scrollbar pr-1">
-          <AppearanceSettings v-if="currentTab === 'appearance'" :store="store" />
+          <LibrarySettings
+            v-if="currentTab === 'library'"
+            :workspace="workspace"
+            :env="env"
+            @change-library="emit('change-library')"
+          />
+          <AppearanceSettings v-else-if="currentTab === 'appearance'" :store="store" />
           <SpellcheckSettings v-else-if="currentTab === 'spellcheck'" :store="store" :workspace="workspace" />
         </div>
       </div>

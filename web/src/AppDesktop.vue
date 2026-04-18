@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, provide, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue';
 import {
-    FolderOpen, FolderSync, FileText,
-    BookOpen, Terminal, Sparkles, History,
+    FolderOpen, FolderSync, FileText, FolderPlus,
+    BookOpen, Terminal, Sparkles, History, ExternalLink,
     RotateCcw, X, PanelLeftClose, Plus
 } from 'lucide-vue-next';
 import { Store } from './core/store';
@@ -80,13 +80,13 @@ const searchRequest = ref<{ mode: SearchMode; nonce: number }>({ mode: 'find', n
 const paletteOpen = ref(false);
 const paletteMode = ref<'command' | 'file'>('command');
 const settingsOpen = ref(false);
-const settingsTab = ref<'appearance' | 'spellcheck'>('appearance');
+const settingsTab = ref<'library' | 'appearance' | 'spellcheck'>('library');
 
 function openPalette(mode: 'command' | 'file' = 'command') {
   paletteMode.value = mode;
   paletteOpen.value = true;
 }
-function openSettings(tab: 'appearance' | 'spellcheck' = 'appearance') {
+function openSettings(tab: 'library' | 'appearance' | 'spellcheck' = 'library') {
   settingsTab.value = tab;
   settingsOpen.value = true;
 }
@@ -107,30 +107,45 @@ const activeFileBase = computed(
   () => workspace.state.activeFile?.split(/[\\/]/).pop() ?? '',
 );
 
-// `editorContent` is what the editor shows. While viewing an older
-// revision, we route the revision's content into the editor and keep the
-// live buffer in `activeContent` so exiting the view restores in-flight
-// edits. `editorContent` is a two-way binding; the setter drops writes
-// while viewing (editor is also read-only, so this is belt-and-suspenders).
+// `editorContent` is what the editor shows. Three branches:
+//   - external-file view (read-only) → externalFile.content
+//   - revision view (read-only) → viewingRevisionContent
+//   - live buffer → activeContent
+// The setter drops writes in both read-only modes; the editor is also
+// read-only in those modes, so this is belt-and-suspenders.
 const isViewingRevision = computed(
   () => workspace.state.viewingRevisionHash !== null,
 );
+const isViewingExternal = computed(
+  () => workspace.state.externalFile !== null,
+);
+const isEditorReadOnly = computed(
+  () => isViewingRevision.value || isViewingExternal.value,
+);
 
 const editorContent = computed<string>({
-  get: () =>
-    isViewingRevision.value
-      ? workspace.state.viewingRevisionContent ?? ""
-      : activeContent.value,
+  get: () => {
+    if (isViewingExternal.value) {
+      return workspace.state.externalFile?.content ?? "";
+    }
+    if (isViewingRevision.value) {
+      return workspace.state.viewingRevisionContent ?? "";
+    }
+    return activeContent.value;
+  },
   set: (value: string) => {
-    if (isViewingRevision.value) return;
+    if (isEditorReadOnly.value) return;
     activeContent.value = value;
   },
 });
 
-// documentKey identifies the buffer shown in the editor. While viewing a
-// revision, append the hash so the shared editor resets transient state
-// (diagnostics, search, stats, outline) when toggling in and out of view.
+// documentKey identifies the buffer shown in the editor. External and
+// revision views get distinct keys so the shared editor resets transient
+// state (diagnostics, search, stats, outline) when toggling modes.
 const editorDocumentKey = computed(() => {
+  if (isViewingExternal.value) {
+    return `external:${workspace.state.externalFile?.absPath ?? ""}`;
+  }
   if (!workspace.state.activeFile) return null;
   return workspace.state.viewingRevisionHash
     ? `${workspace.state.activeFile}@${workspace.state.viewingRevisionHash}`
@@ -278,11 +293,6 @@ async function flushSave(): Promise<void> {
   }
 }
 
-// Sidebar "Change library location" button fires this. Delegates to the
-// catalog command so the logic lives in one place.
-function handleOpenFolder() {
-  void dispatcher?.dispatch('file.openFolder');
-}
 // Welcome screen / empty-sidebar "New Play" button fires this.
 function handleNewPlay() {
   void dispatcher?.dispatch('file.newPlay');
@@ -293,6 +303,46 @@ function handleNewPlay() {
 // Settings, so this click has a narrower job than "open folder".
 function handleRevealLibrary() {
   void env.revealLibraryInExplorer();
+}
+
+// External-file banner helpers. openExternalFile is invoked via the
+// file.open command; these handlers wire the banner buttons.
+const externalFileBasename = computed(() => {
+  const abs = workspace.state.externalFile?.absPath ?? '';
+  return abs.split(/[\\/]/).pop() || abs;
+});
+
+async function handleAddExternalFileToLibrary() {
+  try {
+    const rel = await workspace.addExternalFileToLibrary("");
+    toastManager.value?.addToast(`Added ${rel} to your library`, "success");
+  } catch (e: any) {
+    toastManager.value?.addToast(
+      `Failed to add file to library: ${e?.message ?? e}`,
+      "error",
+    );
+  }
+}
+
+function handleCloseExternalFile() {
+  workspace.closeExternalFile();
+  activeContent.value = "";
+}
+
+// Settings > Library "Change…" button emits this. Runs the full switch
+// flow: flush the live buffer, change location via workspace, toast,
+// re-select the first file in the new library if any. Kept here (not
+// in commands.ts) because it's only invoked from Settings, not from
+// the menu / palette dispatcher.
+async function handleChangeLibraryLocation() {
+  await flushSave();
+  const path = await workspace.changeLibraryLocation();
+  if (!path) return;
+  activeContent.value = "";
+  if (workspace.state.libraryFiles.length > 0) {
+    activeContent.value = await workspace.selectFile(workspace.state.libraryFiles[0].path);
+  }
+  toastManager.value?.addToast(`Opened library: ${path.split(/[\\/]/).pop()}`, "success");
 }
 
 async function selectLibraryFile(path: string) {
@@ -365,42 +415,33 @@ watch(activeContent, (newContent) => {
       Loading Downstage editor...
     </div>
 
-    <!-- Welcome Screen -->
+    <!-- Welcome Screen. initApp auto-creates the default library at
+         ~/Documents/Downstage Plays so this view is only reached in the
+         degenerate case (deleted library, permissions issue). The
+         remedy is Settings — offer a direct path there and nothing
+         else. -->
     <div v-else-if="!workspace.state.libraryPath" class="flex-1 flex items-center justify-center bg-page-glow p-8">
         <div class="max-w-2xl w-full text-center">
             <div class="mb-12 inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-brass-500/10 text-brass-500 shadow-inner border border-brass-500/20">
                 <BookOpen class="w-10 h-10" />
             </div>
 
-            <h2 class="text-4xl font-serif font-bold text-text-main mb-4 tracking-tight">Ready to write?</h2>
+            <h2 class="text-4xl font-serif font-bold text-text-main mb-4 tracking-tight">Library unavailable</h2>
             <p class="text-lg text-text-muted mb-12 max-w-lg mx-auto leading-relaxed">
-                Downstage Write is a project-based editor. Open a folder to start writing your next masterpiece with local file access and Git versioning.
+                Downstage Write couldn't find your library. Open Settings to point it at a folder where your plays live.
             </p>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl mx-auto">
+            <div class="max-w-xs mx-auto">
                 <button
-                    @click="handleOpenFolder"
-                    class="flex flex-col items-center gap-4 p-8 rounded-2xl bg-[var(--color-page-surface)] border border-border hover:border-brass-500/50 hover:bg-black/5 dark:hover:bg-white/5 transition-all group text-left"
+                    @click="() => dispatcher?.dispatch('file.settings')"
+                    class="flex flex-col items-center gap-4 p-8 rounded-2xl bg-[var(--color-page-surface)] border border-border hover:border-brass-500/50 hover:bg-black/5 dark:hover:bg-white/5 transition-all group text-left w-full"
                 >
                     <div class="w-12 h-12 rounded-xl bg-brass-500/10 text-brass-500 flex items-center justify-center group-hover:scale-110 transition-transform">
                         <FolderOpen class="w-6 h-6" />
                     </div>
                     <div>
-                        <h3 class="font-bold text-text-main text-lg mb-1">Open Folder</h3>
-                        <p class="text-sm text-text-muted">Select an existing project or a fresh directory.</p>
-                    </div>
-                </button>
-
-                <button
-                    @click="handleNewPlay"
-                    class="flex flex-col items-center gap-4 p-8 rounded-2xl bg-[var(--color-page-surface)] border border-border hover:border-brass-500/50 hover:bg-black/5 dark:hover:bg-white/5 transition-all group text-left"
-                >
-                    <div class="w-12 h-12 rounded-xl bg-ember-600/10 text-ember-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Plus class="w-6 h-6" />
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-text-main text-lg mb-1">New Play</h3>
-                        <p class="text-sm text-text-muted">Create a new .ds file in a project folder.</p>
+                        <h3 class="font-bold text-text-main text-lg mb-1">Open Settings</h3>
+                        <p class="text-sm text-text-muted">Set your library location.</p>
                     </div>
                 </button>
             </div>
@@ -426,9 +467,6 @@ watch(activeContent, (newContent) => {
             <p class="text-[10px] text-text-muted truncate mt-1 italic" :title="workspace.state.libraryPath">{{ workspace.state.libraryPath }}</p>
           </div>
           <div class="flex items-center gap-1 shrink-0">
-            <button @click="handleOpenFolder" class="p-1 rounded text-text-muted hover:text-brass-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors" title="Change library location">
-              <FolderOpen class="w-4 h-4" />
-            </button>
             <button
               @click="workspace.toggleSidebar()"
               class="p-1 rounded text-text-muted hover:text-brass-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
@@ -522,6 +560,40 @@ watch(activeContent, (newContent) => {
           Loading file…
         </div>
         <div
+            v-if="isViewingExternal && workspace.state.externalFile"
+            class="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/30 text-ember-950 dark:text-amber-100 shadow-inner z-10"
+        >
+            <div class="flex items-center gap-3 min-w-0">
+                <ExternalLink class="w-4 h-4 shrink-0 text-amber-600" />
+                <div class="min-w-0">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">Viewing a file outside your library</p>
+                    <p class="text-xs truncate opacity-80" :title="workspace.state.externalFile.absPath">
+                        {{ externalFileBasename }} — read-only. Add to your library to keep editing.
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button
+                    type="button"
+                    @click="handleAddExternalFileToLibrary"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-brass-500 px-3 py-1.5 text-xs font-bold text-ember-950 transition-colors hover:bg-brass-400"
+                    title="Copy this file into your library and open it for editing."
+                >
+                    <FolderPlus class="w-3.5 h-3.5" />
+                    Add to Library
+                </button>
+                <button
+                    type="button"
+                    @click="handleCloseExternalFile"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-ember-950/10 dark:border-amber-100/20 px-2.5 py-1.5 text-xs font-bold text-ember-950/80 dark:text-amber-100/80 transition-colors hover:bg-ember-950/5 dark:hover:bg-amber-100/10"
+                    title="Close this file and return to the library"
+                >
+                    <X class="w-3.5 h-3.5" />
+                    Close
+                </button>
+            </div>
+        </div>
+        <div
             v-if="isViewingRevision && workspace.state.viewingRevisionMeta"
             class="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/30 text-ember-950 dark:text-amber-100 shadow-inner z-10"
         >
@@ -556,11 +628,11 @@ watch(activeContent, (newContent) => {
             </div>
         </div>
         <Editor
-            v-if="workspace.state.activeFile"
+            v-if="workspace.state.activeFile || isViewingExternal"
             ref="editorRef"
             :env="env as EditorEnv"
             :document-key="editorDocumentKey"
-            :read-only="isViewingRevision"
+            :read-only="isEditorReadOnly"
             v-model:content="editorContent"
             v-model:style="pageStyle"
             v-model:preview-hidden="store.state.previewHidden"
@@ -613,7 +685,6 @@ watch(activeContent, (newContent) => {
       :has-library="!!workspace.state.libraryPath"
       :has-active-file="!!workspace.state.activeFile"
       @reveal-library="handleRevealLibrary"
-      @open-folder="() => dispatcher?.dispatch('file.openFolder')"
     />
     <ToastManager ref="toastManager" />
     <CommandPalette
@@ -630,7 +701,9 @@ watch(activeContent, (newContent) => {
       :tab="settingsTab"
       :store="store"
       :workspace="workspace"
+      :env="env"
       @close="settingsOpen = false"
+      @change-library="handleChangeLibraryLocation"
     />
   </div>
 </template>
