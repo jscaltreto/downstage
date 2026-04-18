@@ -20,9 +20,12 @@ export interface ProjectEnv {
   writeProjectFile(path: string, content: string): Promise<void>;
   createProjectFile(name: string, content: string): Promise<string>;
   snapshotFile(path: string, message: string): Promise<void>;
-  getRevisions(path: string): Promise<Revision[]>;
+  // `limit <= 0` falls back to the server's default bound (currently 100)
+  // to avoid unbounded payloads on long-lived projects.
+  getRevisions(path: string, limit?: number): Promise<Revision[]>;
   getCurrentProject(): Promise<string>;
   getLastActiveFile(): Promise<string>;
+  setActiveProjectFile(rel: string): Promise<void>;
   getSpellAllowlist(): Promise<string[]>;
   addSpellAllowlistWord(word: string): Promise<boolean>;
   removeSpellAllowlistWord(word: string): Promise<boolean>;

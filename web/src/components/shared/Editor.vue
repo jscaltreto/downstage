@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick, toRef } from 'vue';
 import {
     Bold, Italic, Underline, MessageSquare, ChevronRight,
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
@@ -11,6 +11,7 @@ import { issuesStatus, summarizeIssues } from '../../core/issues';
 import type { FilterSeverity } from '../../core/issues';
 import type { Store } from '../../core/store';
 import type { DocumentSymbol, EditorDiagnostic, EditorEnv, ManuscriptStats } from '../../core/types';
+import { useDocumentLifecycle } from '../../core/useDocumentLifecycle';
 import PreviewFrame from './PreviewFrame.vue';
 import ToolbarButton from './ToolbarButton.vue';
 import BaseModal from './BaseModal.vue';
@@ -26,6 +27,12 @@ const props = defineProps<{
   env: EditorEnv;
   content: string;
   style: string;
+  // Host-provided identity for the active document. Web hosts pass the
+  // active draft ID; desktop hosts pass the active file's relative path.
+  // When this changes, the editor resets transient state (search,
+  // diagnostics, stats, outline, V1-modal suppression). `null` means no
+  // document is active.
+  documentKey: string | null;
   getSpellAllowlist: () => string[];
   addSpellAllowlistWord: (word: string) => Promise<boolean>;
   removeSpellAllowlistWord: (word: string) => Promise<boolean>;
@@ -92,8 +99,12 @@ const dictionaryWord = ref("");
 const spellAllowlist = computed(() => props.getSpellAllowlist());
 const v1DocumentDetected = ref(false);
 const showV1Modal = ref(false);
-const v1DismissedForDraftId = ref<string | null>(null);
 const isUpgradingV1 = ref(false);
+
+const { isV1Suppressed, suppressV1 } = useDocumentLifecycle(
+  toRef(props, 'documentKey'),
+  () => resetTransientState(),
+);
 
 let lastRenderRequestId = 0;
 let renderTimer: number | null = null;
@@ -162,14 +173,13 @@ async function scheduleRender(content: string, style: string) {
 
         if (hasV1Diagnostic) {
             renderedHtml.value = "";
-            if (v1DismissedForDraftId.value !== store.state.activeDraftId) {
+            if (!isV1Suppressed.value) {
                 showV1Modal.value = true;
             }
             return;
         }
 
         showV1Modal.value = false;
-        v1DismissedForDraftId.value = null;
 
         const html = await props.env.renderHTML(content, style);
         if (requestId === lastRenderRequestId) {
@@ -187,11 +197,10 @@ async function upgradeV1Document() {
         const result = await props.env.upgradeV1(currentContent);
         if (!result.changed) {
             showV1Modal.value = false;
-            v1DismissedForDraftId.value = store.state.activeDraftId;
+            suppressV1();
             return;
         }
 
-        v1DismissedForDraftId.value = null;
         showV1Modal.value = false;
         emit('update:content', result.source);
     } finally {
@@ -201,7 +210,7 @@ async function upgradeV1Document() {
 
 function dismissV1Modal() {
     showV1Modal.value = false;
-    v1DismissedForDraftId.value = store.state.activeDraftId;
+    suppressV1();
 }
 
 function openSearch(mode: SearchMode) {
@@ -285,7 +294,11 @@ watch(() => props.content, (newContent) => {
   scheduleStatsRefresh(newContent);
 });
 
-watch(() => store.state.activeDraftId, () => {
+// Invoked by useDocumentLifecycle whenever `props.documentKey` changes.
+// Keeping this here (rather than inline in the composable call) avoids a
+// forward-reference problem with the refs above, and keeps all reset logic
+// in one readable block.
+function resetTransientState() {
   showV1Modal.value = false;
   diagnostics.value = [];
   manuscriptStats.value = null;
@@ -296,7 +309,7 @@ watch(() => store.state.activeDraftId, () => {
   searchIndex.value = -1;
   searchError.value = null;
   searchInitialQuery.value = '';
-});
+}
 
 watch(() => props.style, (newStyle) => {
     if (engine) {

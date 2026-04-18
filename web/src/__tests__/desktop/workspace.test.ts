@@ -1,0 +1,162 @@
+import { describe, expect, it, vi } from "vitest";
+import { Workspace } from "../../desktop/workspace";
+import type { DesktopCapabilities, ProjectFile, Revision } from "../../desktop/types";
+
+function stubLocalStorage() {
+  const store = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    value: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => { store.set(k, v); },
+    },
+    configurable: true,
+  });
+}
+
+interface StubEnv extends DesktopCapabilities {
+  _calls: string[];
+  _files: ProjectFile[];
+  _contents: Record<string, string>;
+  _revisions: Revision[];
+  _openReturn: string;
+}
+
+function createEnv(initial?: Partial<StubEnv>): StubEnv {
+  const state = {
+    _calls: [],
+    _files: initial?._files ?? [],
+    _contents: initial?._contents ?? {},
+    _revisions: initial?._revisions ?? [],
+    _openReturn: initial?._openReturn ?? "/projects/alpha",
+  } as unknown as StubEnv;
+
+  const record = <T>(name: string, fn: () => T | Promise<T>) => {
+    state._calls.push(name);
+    return fn();
+  };
+
+  // EditorEnv pieces — mostly no-ops in these tests.
+  Object.assign(state, {
+    parse: async () => ({ errors: [] }),
+    diagnostics: async () => ({ diagnostics: [] }),
+    spellcheckContext: async () => ({ allowWords: [], ignoredRanges: [] }),
+    upgradeV1: async () => ({ source: "", changed: false }),
+    completion: async () => ({ isIncomplete: false, items: [] }),
+    codeActions: async () => ({ uri: "", actions: [] }),
+    documentSymbols: async () => ({ symbols: [] }),
+    semanticTokens: async () => new Uint32Array(),
+    tokenTypeNames: async () => [],
+    stats: async () => ({
+      acts: 0, scenes: 0, songs: 0, totalWords: 0, dialogueWords: 0,
+      lines: 0, stageDirections: 0, stageDirectionWords: 0, characters: [],
+      runtime: { preset: "", wordsPerMinute: 0, pauseFactor: 0, dialogueWords: 0, minutes: 0 },
+    }),
+    renderHTML: async () => "",
+    renderPDF: async () => new Uint8Array(),
+    loadDrafts: async () => [],
+    saveDrafts: async () => {},
+    loadActiveDraftId: async () => null,
+    saveActiveDraftId: async () => {},
+    saveFile: async () => {},
+    importLocalFile: async () => null,
+    openURL: async () => {},
+    getAppVersion: () => "test",
+
+    // ProjectEnv with call recording.
+    openProjectFolder: () => record("openProjectFolder", async () => state._openReturn),
+    getProjectFiles: () => record("getProjectFiles", async () => state._files),
+    readProjectFile: (p: string) => record(`readProjectFile:${p}`, async () => state._contents[p] ?? ""),
+    writeProjectFile: (p: string, c: string) => record(`writeProjectFile:${p}`, async () => {
+      state._contents[p] = c;
+    }),
+    createProjectFile: (name: string, content: string) => record(`createProjectFile:${name}`, async () => {
+      const path = `${name}.ds`;
+      state._files = [...state._files, { path, name: path, updatedAt: "" }];
+      state._contents[path] = content;
+      return path;
+    }),
+    snapshotFile: (p: string, m: string) => record(`snapshotFile:${p}:${m}`, async () => {}),
+    getRevisions: (p: string, _limit?: number) => record(`getRevisions:${p}`, async () => state._revisions),
+    getCurrentProject: () => record("getCurrentProject", async () => state._openReturn),
+    getLastActiveFile: () => record("getLastActiveFile", async () => ""),
+    setActiveProjectFile: (p: string) => record(`setActiveProjectFile:${p}`, async () => {}),
+    getSpellAllowlist: () => record("getSpellAllowlist", async () => []),
+    addSpellAllowlistWord: () => record("addSpellAllowlistWord", async () => true),
+    removeSpellAllowlistWord: () => record("removeSpellAllowlistWord", async () => true),
+  });
+
+  return state;
+}
+
+describe("Workspace", () => {
+  it("openFolder cancel (empty path) is a no-op on state", async () => {
+    stubLocalStorage();
+    const env = createEnv({ _openReturn: "" });
+    const ws = new Workspace(env);
+
+    const result = await ws.openFolder();
+
+    expect(result).toBeNull();
+    expect(ws.state.projectPath).toBeNull();
+    expect(ws.state.activeFile).toBeNull();
+  });
+
+  it("openFolder clears activeFile/revisions on successful switch", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+    });
+    const ws = new Workspace(env);
+    ws.state.activeFile = "old.ds";
+    ws.state.revisions = [{ hash: "abc", message: "m", author: "a", timestamp: "" }];
+
+    await ws.openFolder();
+
+    expect(ws.state.projectPath).toBe("/projects/alpha");
+    expect(ws.state.activeFile).toBeNull();
+    expect(ws.state.revisions).toEqual([]);
+    expect(ws.state.projectFiles.map(f => f.path)).toEqual(["play.ds"]);
+  });
+
+  it("selectFile sets activeFile, reads content, and loads revisions", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "hello" },
+      _revisions: [{ hash: "abc", message: "m", author: "a", timestamp: "" }],
+    });
+    const ws = new Workspace(env);
+
+    const content = await ws.selectFile("play.ds");
+
+    expect(content).toBe("hello");
+    expect(ws.state.activeFile).toBe("play.ds");
+    expect(ws.state.revisions.length).toBe(1);
+    // Ordering matters — activeFile must be set before readProjectFile so
+    // debounced saves captured in-flight see the right target file.
+    const readIndex = env._calls.indexOf("readProjectFile:play.ds");
+    const revisionsIndex = env._calls.indexOf("getRevisions:play.ds");
+    expect(readIndex).toBeGreaterThan(-1);
+    expect(revisionsIndex).toBeGreaterThan(readIndex);
+  });
+
+  it("saveFile is a no-op when no file is active", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    const ws = new Workspace(env);
+
+    await ws.saveFile("ignored");
+
+    expect(env._calls.some((c) => c.startsWith("writeProjectFile:"))).toBe(false);
+  });
+
+  it("createFile refreshes project files", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    const ws = new Workspace(env);
+
+    const path = await ws.createFile("Act One", "body");
+
+    expect(path).toBe("Act One.ds");
+    expect(ws.state.projectFiles.map(f => f.path)).toContain("Act One.ds");
+  });
+});

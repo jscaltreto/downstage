@@ -484,6 +484,7 @@ watch(activeContent, (newContent) => {
     <main v-else class="flex-1 overflow-hidden flex flex-col">
       <Editor
         :env="env"
+        :document-key="store.state.activeDraftId"
         v-model:content="activeContent"
         v-model:style="pageStyle"
         :get-spell-allowlist="() => activeSavedDraft?.spellAllowlist || []"
