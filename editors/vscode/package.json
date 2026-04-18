@@ -113,6 +113,15 @@
           "default": "standard",
           "markdownDescription": "Default export style. `standard` creates a Manuscript PDF. `condensed` creates an Acting Edition PDF."
         },
+        "downstage.render.pageSize": {
+          "type": "string",
+          "enum": [
+            "letter",
+            "a4"
+          ],
+          "default": "letter",
+          "markdownDescription": "Default PDF page size for manuscript and acting edition export."
+        },
         "downstage.render.openAfterRender": {
           "type": "boolean",
           "default": true,

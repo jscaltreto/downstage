@@ -29,7 +29,24 @@ export class EditorPage {
   }
 
   get exportPdfButton(): Locator {
-    return this.page.getByRole("button", { name: /Export PDF/ });
+    // The toolbar toggle and the confirm button inside the export dialog both
+    // read "Export PDF". Scope this accessor to the header so tests can still
+    // target the toolbar trigger unambiguously.
+    return this.page.locator("header").getByRole("button", { name: /Export PDF/ });
+  }
+
+  get exportDialog(): Locator {
+    return this.page.locator("dialog", {
+      has: this.page.getByRole("heading", { name: "Export PDF" }),
+    });
+  }
+
+  get exportConfirmButton(): Locator {
+    return this.exportDialog.locator('[data-testid="export-confirm"]');
+  }
+
+  pageSizeOption(value: "letter" | "a4"): Locator {
+    return this.exportDialog.locator(`button[data-page-size="${value}"]`);
   }
 
   // --- Workbench drawer ---
@@ -142,9 +159,15 @@ export class EditorPage {
     await expect(this.drawerTab(tab)).toHaveAttribute("aria-selected", "true");
   }
 
-  async downloadPdf(): Promise<Download> {
-    const downloadPromise = this.page.waitForEvent("download");
+  async downloadPdf(pageSize?: "letter" | "a4"): Promise<Download> {
     await this.exportPdfButton.click();
+    await expect(this.exportDialog).toBeVisible();
+    if (pageSize) {
+      await this.pageSizeOption(pageSize).click();
+      await expect(this.pageSizeOption(pageSize)).toHaveAttribute("aria-checked", "true");
+    }
+    const downloadPromise = this.page.waitForEvent("download");
+    await this.exportConfirmButton.click();
     return downloadPromise;
   }
 }

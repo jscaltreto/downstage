@@ -3,6 +3,7 @@ package render
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Style represents a rendering style variant.
@@ -28,18 +29,51 @@ type PageSize string
 
 const (
 	PageLetter PageSize = "letter"
-	PageA4     PageSize = "A4"
+	PageA4     PageSize = "a4"
 )
 
-// ParsePageSize converts a string to a PageSize.
+// Dimensions describes a physical or logical page size in millimeters.
+type Dimensions struct {
+	WidthMM  float64
+	HeightMM float64
+}
+
+// ParsePageSize converts a string to a PageSize. Accepts both "a4" and "A4"
+// spellings but normalizes to the canonical lowercase constant.
 func ParsePageSize(s string) (PageSize, error) {
-	switch s {
-	case "letter", "Letter":
+	switch {
+	case strings.EqualFold(s, string(PageLetter)):
 		return PageLetter, nil
-	case "a4", "A4":
+	case strings.EqualFold(s, string(PageA4)):
 		return PageA4, nil
 	default:
 		return "", fmt.Errorf("unsupported page size: %q", s)
+	}
+}
+
+// SheetDimensions returns the physical sheet size in millimeters for standard
+// PDF rendering.
+func (p PageSize) SheetDimensions() (Dimensions, error) {
+	switch p {
+	case PageLetter:
+		return Dimensions{WidthMM: 215.9, HeightMM: 279.4}, nil
+	case PageA4:
+		return Dimensions{WidthMM: 210, HeightMM: 297}, nil
+	default:
+		return Dimensions{}, fmt.Errorf("unsupported page size: %q", p)
+	}
+}
+
+// CondensedPageDimensions returns the acting-edition logical page size derived
+// from the selected physical sheet: half-letter for Letter, A5 for A4.
+func (p PageSize) CondensedPageDimensions() (Dimensions, error) {
+	switch p {
+	case PageLetter:
+		return Dimensions{WidthMM: 139.7, HeightMM: 215.9}, nil
+	case PageA4:
+		return Dimensions{WidthMM: 148, HeightMM: 210}, nil
+	default:
+		return Dimensions{}, fmt.Errorf("unsupported page size: %q", p)
 	}
 }
 

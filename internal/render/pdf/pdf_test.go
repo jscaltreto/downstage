@@ -518,6 +518,25 @@ func TestRender_A4PageSize(t *testing.T) {
 	assert.True(t, buf.Len() > 0)
 }
 
+func TestCondensedRenderer_UsesLetterDerivedPageSize(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	assert.InDelta(t, 139.7, r.pageW, 0.01)
+	assert.InDelta(t, 215.9, r.pageH, 0.01)
+}
+
+func TestCondensedRenderer_UsesA5ForA4ParentSheet(t *testing.T) {
+	cfg := render.DefaultConfig()
+	cfg.PageSize = render.PageA4
+
+	r := NewCondensedRenderer(cfg).(*condensedRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	assert.InDelta(t, 148, r.pageW, 0.01)
+	assert.InDelta(t, 210, r.pageH, 0.01)
+}
+
 func TestRender_InlineFormatting(t *testing.T) {
 	r := NewRenderer(render.DefaultConfig())
 	doc := &ast.Document{

@@ -175,9 +175,11 @@ Both formats support two styles via `--style`:
 - **`condensed`** (Acting Edition) — Acting edition format designed for rehearsal use. Character
   names inline with dialogue (e.g. `HAMLET. To be or not...`), tighter spacing.
 
-PDF uses Courier 12pt on letter-size pages for manuscript, and Libre Baskerville
-10pt on half-letter for acting edition. HTML produces a self-contained document with
-embedded CSS using semantic `.downstage-*` class names for custom styling.
+PDF also supports `--page-size letter` (default) and `--page-size a4`.
+Manuscript output renders on the selected sheet size. Acting edition output
+derives its logical page from that sheet size: half-letter for Letter, A5 for
+A4. HTML produces a self-contained document with embedded CSS using semantic
+`.downstage-*` class names for custom styling.
 
 ### Statistics
 

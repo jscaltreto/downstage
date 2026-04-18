@@ -4,10 +4,11 @@ import {
     Plus, FolderOpen, FileText, Download, Copy, ExternalLink, Trash2, FileOutput, Upload, AlertTriangle
 } from 'lucide-vue-next';
 import { Store } from './core/store';
-import type { EditorEnv, SavedDraft } from './core/types';
+import type { EditorEnv, ExportPdfOptions, PdfPageSize, SavedDraft } from './core/types';
 import ToolbarButton from './components/shared/ToolbarButton.vue';
 import BaseModal from './components/shared/BaseModal.vue';
 import DeleteConfirmationModal from './components/shared/DeleteConfirmationModal.vue';
+import ExportPdfModal from './components/shared/ExportPdfModal.vue';
 import ToastManager from './components/shared/ToastManager.vue';
 import Editor from './components/shared/Editor.vue';
 import WelcomeModal from './components/shared/WelcomeModal.vue';
@@ -20,11 +21,41 @@ const store = new Store(props.env);
 provide('store', store);
 
 const welcomeStorageKey = "downstage-editor-welcome-dismissed";
+const pageSizeStorageKey = "downstage-editor-export-page-size";
+const letterRegions = new Set(["CA", "MX", "PH", "US"]);
+
+function guessDefaultPageSize(): PdfPageSize {
+  if (typeof navigator === "undefined") return "a4";
+  const locales = navigator.languages && navigator.languages.length > 0
+    ? navigator.languages
+    : [navigator.language ?? ""];
+  for (const locale of locales) {
+    const region = locale.match(/-([A-Z]{2})$/u)?.[1];
+    if (region && letterRegions.has(region)) {
+      return "letter";
+    }
+  }
+  return "a4";
+}
+
+function readStoredPageSize(): PdfPageSize {
+  try {
+    const stored = localStorage.getItem(pageSizeStorageKey);
+    if (stored === "letter" || stored === "a4") {
+      return stored;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return guessDefaultPageSize();
+}
 
 const isLoaded = ref(false);
 const showDrafts = ref(false);
 const showWelcome = ref(false);
 const showNewPlayConfirm = ref(false);
+const showExportDialog = ref(false);
+const exportPageSize = ref<PdfPageSize>(readStoredPageSize());
 const activeContent = ref("");
 const pageStyle = ref("standard");
 const isV1Document = ref(false);
@@ -266,17 +297,29 @@ async function handleSave() {
     ]);
 }
 
-async function handleExport() {
+function handleExport() {
     if (isV1Document.value) {
         toastManager.value?.addToast("Upgrade this V1 document to V2 before exporting PDF", "error", 5000);
         return;
     }
 
+    showExportDialog.value = true;
+}
+
+async function handleExportConfirmed(opts: ExportPdfOptions) {
+    showExportDialog.value = false;
+    exportPageSize.value = opts.pageSize;
+    try {
+        localStorage.setItem(pageSizeStorageKey, opts.pageSize);
+    } catch {
+        // ignore storage errors
+    }
+
     const title = extractDocumentTitle(activeContent.value) || "untitled";
-    const styleSlug = pageStyle.value === "condensed" ? "acting-edition" : "manuscript";
+    const styleSlug = opts.style === "condensed" ? "acting-edition" : "manuscript";
     const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}.pdf`;
-    
-    const pdfBytes = await props.env.renderPDF(activeContent.value, pageStyle.value);
+
+    const pdfBytes = await props.env.renderPDF(activeContent.value, opts.style, opts.pageSize);
     await props.env.saveFile(filename, pdfBytes, [
         { displayName: "PDF Files (*.pdf)", pattern: "*.pdf" }
     ]);
@@ -483,6 +526,13 @@ watch(activeContent, (newContent) => {
     <WelcomeModal
         :open="showWelcome"
         @close="dismissWelcome"
+    />
+
+    <ExportPdfModal
+        :open="showExportDialog"
+        :initial-options="{ pageSize: exportPageSize, style: pageStyle === 'condensed' ? 'condensed' : 'standard' }"
+        @close="showExportDialog = false"
+        @confirm="handleExportConfirmed"
     />
 
     <ToastManager ref="toastManager" />

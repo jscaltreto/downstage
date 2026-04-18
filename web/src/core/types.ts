@@ -132,6 +132,14 @@ export interface EditorDiagnostic {
   code?: string;
 }
 
+export type PdfPageSize = "letter" | "a4";
+export type PdfExportStyle = "standard" | "condensed";
+
+export interface ExportPdfOptions {
+  pageSize: PdfPageSize;
+  style: PdfExportStyle;
+}
+
 export interface SavedDraft {
   id: string;
   title: string;
@@ -155,7 +163,7 @@ export interface EditorEnv {
 
   // Rendering
   renderHTML(source: string, style?: string): Promise<string>;
-  renderPDF(source: string, style?: string): Promise<Uint8Array>;
+  renderPDF(source: string, style?: string, pageSize?: PdfPageSize): Promise<Uint8Array>;
 
   // Persistence (Drafts)
   loadDrafts(): Promise<SavedDraft[]>;

@@ -13,18 +13,13 @@ const condensedLineHeight = 4.5 // mm
 const halfInchPt = 36.0         // 0.5 inch in points
 const condensedSmallGapFactor = 0.25
 
-// Half-letter page size: 5.5" x 8.5"
-const (
-	halfLetterW = 139.7 // mm
-	halfLetterH = 215.9 // mm
-)
-
 var _ render.NodeRenderer = (*condensedRenderer)(nil)
 var _ dialoguePaginationStrategy = (*condensedRenderer)(nil)
 
 // NewCondensedRenderer creates an acting-edition PDF NodeRenderer.
-// Uses half-letter page, Libre Baskerville serif font, and compact layout
-// with character name + dialogue on the same line.
+// Uses a half-sheet logical page derived from the selected sheet size
+// (half-letter for Letter, A5 for A4), Libre Baskerville serif font, and a
+// compact layout with character name + dialogue on the same line.
 func NewCondensedRenderer(cfg render.Config) render.NodeRenderer {
 	// Override config for acting edition defaults
 	cfg.FontSize = 10
@@ -55,7 +50,9 @@ func (r *condensedRenderer) BeginDocument(doc *ast.Document, w io.Writer) error 
 	r.hasTitlePage = tp != nil
 	r.hasBody = render.DocumentHasRenderableBody(doc)
 	r.titlePageTitle = titlePageTitle(tp)
-	r.initCondensedPDF()
+	if err := r.initCondensedPDF(); err != nil {
+		return err
+	}
 	applyDocumentMetadata(&r.pdfBase, tp)
 	r.outlineLevels = buildOutlineLevels(doc)
 	r.inlinePlaySections = make(map[*ast.Section]bool)
@@ -71,8 +68,12 @@ func (r *condensedRenderer) EndDocument(_ *ast.Document) error {
 	return r.pdf.Output(r.w)
 }
 
-func (r *condensedRenderer) initCondensedPDF() {
-	r.pdf = newCustomSizePDF(halfLetterW, halfLetterH)
+func (r *condensedRenderer) initCondensedPDF() error {
+	dim, err := r.cfg.PageSize.CondensedPageDimensions()
+	if err != nil {
+		return err
+	}
+	r.pdf = newCustomSizePDF(dim.WidthMM, dim.HeightMM)
 
 	r.marginL = r.cfg.MarginLeft * pointsToMM
 	r.marginR = r.cfg.MarginRight * pointsToMM
@@ -106,6 +107,7 @@ func (r *condensedRenderer) initCondensedPDF() {
 
 	r.pdf.AddPage()
 	r.fontStyle = ""
+	return nil
 }
 
 // --- Front matter ---

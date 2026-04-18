@@ -35,8 +35,9 @@ not blocked on file setup.
 ### PDF export
 
 Export the current script to either a Manuscript PDF or an Acting Edition PDF
-from the command palette. The generated file opens automatically unless you
-turn that off.
+from the command palette. Set `downstage.render.pageSize` to choose `letter`
+or `a4` for export and preview. The generated file opens automatically unless
+you turn that off.
 
 ### Writing Help
 
@@ -88,6 +89,7 @@ parentheticals, character cues, aliases, verse, and comments.
 | `downstage.server.trace` | string | `"off"` | Extra diagnostic logging for troubleshooting |
 | `downstage.editor.autoSuggestCharacterCues` | boolean | `true` | Auto-trigger cue suggestions on empty lines |
 | `downstage.render.style` | string | `"standard"` | Default export style. `standard` means Manuscript. `condensed` means Acting Edition |
+| `downstage.render.pageSize` | string | `"letter"` | Default PDF page size for manuscript and acting edition export. Supports `letter` and `a4` |
 | `downstage.render.openAfterRender` | boolean | `true` | Open PDF after rendering |
 | `downstage.preview.debounceMs` | number | `300` | Delay before re-rendering live preview (ms) |
 

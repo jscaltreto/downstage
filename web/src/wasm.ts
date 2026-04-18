@@ -27,7 +27,7 @@ declare global {
       codeActions(source: string, line: number, col: number, codes?: string[]): LSPCodeActionsResult;
       documentSymbols(source: string): DocumentSymbolsResult;
       renderHTML(source: string, style?: string): string;
-      renderPDF(source: string, style?: string): Uint8Array;
+      renderPDF(source: string, style?: string, pageSize?: string): Uint8Array;
       semanticTokens(source: string): Uint32Array;
       stats(source: string): ManuscriptStats;
       tokenTypeNames: string[];
@@ -136,8 +136,8 @@ export function renderHTML(source: string, style?: string): string {
   return window.downstage.renderHTML(source, style);
 }
 
-export function renderPDF(source: string, style?: string): Uint8Array {
-  return window.downstage.renderPDF(source, style);
+export function renderPDF(source: string, style?: string, pageSize?: string): Uint8Array {
+  return window.downstage.renderPDF(source, style, pageSize);
 }
 
 export function stats(source: string): ManuscriptStats {

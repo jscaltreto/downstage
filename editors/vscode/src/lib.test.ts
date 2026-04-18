@@ -1,6 +1,8 @@
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	buildPDFPreviewArgs,
+	buildPDFRenderArgs,
 	type DiagnosticLike,
 	type FoldingRangeLike,
 	type RangeLike,
@@ -10,9 +12,11 @@ import {
 	DownstageRenderError,
 	findTitleValueSelection,
 	getNewPlayTemplate,
+	getPageSizeDisplayName,
 	getPreviewHtml,
 	getRenderStyleDisplayName,
 	getSamplePlayTemplate,
+	getValidatedPageSize,
 	getValidatedRenderStyle,
 	isCueSuggestionLine,
 	parseRenderDiagnostics,
@@ -190,6 +194,54 @@ describe("getRenderStyleDisplayName", () => {
 
 	it("maps condensed to Acting Edition", () => {
 		expect(getRenderStyleDisplayName("condensed")).toBe("Acting Edition");
+	});
+});
+
+describe("getValidatedPageSize", () => {
+	it("accepts letter", () => {
+		expect(getValidatedPageSize("letter")).toBe("letter");
+	});
+
+	it("accepts a4", () => {
+		expect(getValidatedPageSize("a4")).toBe("a4");
+	});
+
+	it("rejects unknown page sizes", () => {
+		expect(() => getValidatedPageSize("legal")).toThrow("Unsupported page size");
+	});
+});
+
+describe("getPageSizeDisplayName", () => {
+	it("maps letter to Letter", () => {
+		expect(getPageSizeDisplayName("letter")).toBe("Letter");
+	});
+
+	it("maps a4 to A4", () => {
+		expect(getPageSizeDisplayName("a4")).toBe("A4");
+	});
+});
+
+describe("buildPDFRenderArgs", () => {
+	it("includes page size in render args", () => {
+		expect(buildPDFRenderArgs("condensed", "a4", "/tmp/play.ds")).toEqual([
+			"render",
+			"--style", "condensed",
+			"--page-size", "a4",
+			"/tmp/play.ds",
+		]);
+	});
+});
+
+describe("buildPDFPreviewArgs", () => {
+	it("includes page size in preview args", () => {
+		expect(buildPDFPreviewArgs("standard", "letter", "play.ds")).toEqual([
+			"render",
+			"--stdin", "--stdout",
+			"--format", "pdf",
+			"--style", "standard",
+			"--page-size", "letter",
+			"--source-name", "play.ds",
+		]);
 	});
 });
 
