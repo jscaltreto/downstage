@@ -27,6 +27,12 @@ export interface WorkspaceState {
   viewingRevisionHash: string | null;
   viewingRevisionContent: string | null;
   viewingRevisionMeta: Revision | null;
+  // External-file mode: populated when the user opened a .ds file from
+  // outside the library via File → Open. The editor is rendered read-
+  // only with an "Add to Library" banner until the user either imports
+  // the file or closes the view. `activeFile` is null while this is
+  // set, so the revisions panel / git status bar short-circuit cleanly.
+  externalFile: { absPath: string; content: string } | null;
 }
 
 // How long after the last save the workspace waits before re-querying
@@ -101,6 +107,7 @@ export class Workspace {
       viewingRevisionHash: null,
       viewingRevisionContent: null,
       viewingRevisionMeta: null,
+      externalFile: null,
     });
   }
 
@@ -122,13 +129,14 @@ export class Workspace {
     this.hydrated = true;
   }
 
-  async openFolder(): Promise<string | null> {
+  async changeLibraryLocation(): Promise<string | null> {
     const path = await this.env.changeLibraryLocation();
     if (!path) return null;
     this.state.libraryPath = path;
     this.state.activeFile = null;
     this.state.revisions = [];
     this.state.gitStatus = null;
+    this.state.externalFile = null;
     this.cancelDirtyReconcile();
     this.clearRevisionView();
     this.state.libraryFiles = await this.env.getLibraryFiles();
@@ -138,6 +146,9 @@ export class Workspace {
   }
 
   async selectFile(path: string): Promise<string> {
+    // Selecting a library file always exits external-file view — the
+    // editor now represents a real, editable file.
+    this.state.externalFile = null;
     this.state.activeFile = path;
     this.clearRevisionView();
     this.cancelDirtyReconcile();
@@ -153,6 +164,49 @@ export class Workspace {
     } finally {
       this.state.isLoadingFile = false;
     }
+  }
+
+  // openExternalFile implements the File → Open flow. The state
+  // transitions are sequenced so intermediate states are always
+  // coherent — see internal/desktop/AGENTS.md for the contract and
+  // the plan-review discussion.
+  async openExternalFile(absPath: string): Promise<string> {
+    const result = await this.env.readExternalFile(absPath);
+
+    if (result.insideLibrary) {
+      // Picked a file that lives inside the library. Clear external
+      // state first so selectFile cannot see lingering external mode,
+      // then route through the normal file-open path.
+      this.state.externalFile = null;
+      return this.selectFile(result.relativePath);
+    }
+
+    // Genuinely external — enter read-only mode.
+    this.clearRevisionView();
+    this.cancelDirtyReconcile();
+    this.state.activeFile = null;
+    this.state.gitStatus = null;
+    this.state.revisions = [];
+    this.state.externalFile = { absPath, content: result.content };
+    return result.content;
+  }
+
+  async addExternalFileToLibrary(destRelDir: string): Promise<string> {
+    const external = this.state.externalFile;
+    if (!external) {
+      throw new Error("no external file to add");
+    }
+    const newRel = await this.env.addExternalFileToLibrary(external.absPath, destRelDir);
+    this.state.libraryFiles = await this.env.getLibraryFiles();
+    // Clear external state before selectFile so the editor transitions
+    // cleanly from read-only external view to editable library file.
+    this.state.externalFile = null;
+    await this.selectFile(newRel);
+    return newRel;
+  }
+
+  closeExternalFile(): void {
+    this.state.externalFile = null;
   }
 
   async saveFile(content: string) {

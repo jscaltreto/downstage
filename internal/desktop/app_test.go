@@ -826,3 +826,107 @@ func TestReadFileAtRevision_RejectsAbsolutePaths(t *testing.T) {
 	_, err := a.ReadFileAtRevision("/etc/passwd", revisions[0].Hash)
 	assert.Error(t, err)
 }
+
+// --- External-file open flow ---
+
+func TestReadExternalFile_RejectsRelativePath(t *testing.T) {
+	a := testApp(t)
+	_, err := a.ReadExternalFile("play.ds")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "absolute path")
+}
+
+func TestReadExternalFile_RejectsNonDsExtension(t *testing.T) {
+	a := testApp(t)
+	tmp := t.TempDir()
+	bogus := filepath.Join(tmp, "readme.txt")
+	require.NoError(t, os.WriteFile(bogus, []byte("not a manuscript"), 0644))
+
+	_, err := a.ReadExternalFile(bogus)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), ".ds")
+}
+
+func TestReadExternalFile_RejectsLeafSymlink(t *testing.T) {
+	a := testApp(t)
+	tmp := t.TempDir()
+	target := filepath.Join(tmp, "real.ds")
+	link := filepath.Join(tmp, "link.ds")
+	require.NoError(t, os.WriteFile(target, []byte("real content"), 0644))
+	require.NoError(t, os.Symlink(target, link))
+
+	_, err := a.ReadExternalFile(link)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "symlink")
+}
+
+func TestReadExternalFile_ReadsContent(t *testing.T) {
+	a := testApp(t)
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "ext.ds")
+	require.NoError(t, os.WriteFile(path, []byte("# External\n"), 0644))
+
+	result, err := a.ReadExternalFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "# External\n", result.Content)
+}
+
+// A file that lives inside the current library should be flagged so
+// the frontend routes through the normal selectFile flow, not the
+// external-file banner.
+func TestReadExternalFile_DetectsInsideLibrary(t *testing.T) {
+	a := testApp(t)
+	inside := filepath.Join(a.currentLibrary, "sub", "doc.ds")
+	require.NoError(t, os.MkdirAll(filepath.Dir(inside), 0755))
+	require.NoError(t, os.WriteFile(inside, []byte("# Inside\n"), 0644))
+
+	result, err := a.ReadExternalFile(inside)
+	require.NoError(t, err)
+	assert.True(t, result.InsideLibrary)
+	assert.Equal(t, "sub/doc.ds", result.RelativePath)
+}
+
+func TestAddExternalFileToLibrary_CopiesToRoot(t *testing.T) {
+	a := testApp(t)
+	src := filepath.Join(t.TempDir(), "ext.ds")
+	require.NoError(t, os.WriteFile(src, []byte("hello"), 0644))
+
+	rel, err := a.AddExternalFileToLibrary(src, "")
+	require.NoError(t, err)
+	assert.Equal(t, "ext.ds", rel)
+
+	data, err := os.ReadFile(filepath.Join(a.currentLibrary, "ext.ds"))
+	require.NoError(t, err)
+	assert.Equal(t, "hello", string(data))
+}
+
+func TestAddExternalFileToLibrary_CollisionSuffix(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "ext.ds"), []byte("existing"), 0644))
+
+	src := filepath.Join(t.TempDir(), "ext.ds")
+	require.NoError(t, os.WriteFile(src, []byte("new"), 0644))
+
+	rel, err := a.AddExternalFileToLibrary(src, "")
+	require.NoError(t, err)
+	assert.Equal(t, "ext-1.ds", rel)
+}
+
+func TestAddExternalFileToLibrary_NoLibrary(t *testing.T) {
+	a := &App{}
+	src := filepath.Join(t.TempDir(), "ext.ds")
+	require.NoError(t, os.WriteFile(src, []byte("x"), 0644))
+
+	_, err := a.AddExternalFileToLibrary(src, "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no library open")
+}
+
+func TestAddExternalFileToLibrary_RejectsTraversal(t *testing.T) {
+	a := testApp(t)
+	src := filepath.Join(t.TempDir(), "ext.ds")
+	require.NoError(t, os.WriteFile(src, []byte("x"), 0644))
+
+	_, err := a.AddExternalFileToLibrary(src, "../outside")
+	assert.Error(t, err)
+}

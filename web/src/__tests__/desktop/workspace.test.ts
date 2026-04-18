@@ -64,6 +64,20 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
 
     // LibraryEnv with call recording.
     changeLibraryLocation: () => record("changeLibraryLocation", async () => state._openReturn),
+    revealLibraryInExplorer: () => record("revealLibraryInExplorer", async () => {}),
+    openExternalFileDialog: () => record("openExternalFileDialog", async () => ""),
+    readExternalFile: (absPath: string) => record(`readExternalFile:${absPath}`, async () => ({
+      content: (state as any)._externalContent?.[absPath] ?? "",
+      insideLibrary: !!(state as any)._externalInsideLibrary?.[absPath],
+      relativePath: (state as any)._externalRelativePath?.[absPath] ?? "",
+    })),
+    addExternalFileToLibrary: (absSrc: string, destRelDir: string) => record(
+      `addExternalFileToLibrary:${absSrc}:${destRelDir}`,
+      async () => {
+        const name = absSrc.split(/[\\/]/).pop() ?? "file.ds";
+        return destRelDir ? `${destRelDir}/${name}` : name;
+      },
+    ),
     getLibraryFiles: () => record("getLibraryFiles", async () => state._files),
     readLibraryFile: (p: string) => record(`readLibraryFile:${p}`, async () => state._contents[p] ?? ""),
     writeLibraryFile: (p: string, c: string) => record(`writeLibraryFile:${p}`, async () => {
@@ -129,19 +143,19 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
 }
 
 describe("Workspace", () => {
-  it("openFolder cancel (empty path) is a no-op on state", async () => {
+  it("changeLibraryLocation cancel (empty path) is a no-op on state", async () => {
     stubLocalStorage();
     const env = createEnv({ _openReturn: "" });
     const ws = new Workspace(env);
 
-    const result = await ws.openFolder();
+    const result = await ws.changeLibraryLocation();
 
     expect(result).toBeNull();
     expect(ws.state.libraryPath).toBeNull();
     expect(ws.state.activeFile).toBeNull();
   });
 
-  it("openFolder clears activeFile/revisions on successful switch", async () => {
+  it("changeLibraryLocation clears activeFile/revisions on successful switch", async () => {
     stubLocalStorage();
     const env = createEnv({
       _files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
@@ -150,7 +164,7 @@ describe("Workspace", () => {
     ws.state.activeFile = "old.ds";
     ws.state.revisions = [{ hash: "abc", message: "m", author: "a", timestamp: "" }];
 
-    await ws.openFolder();
+    await ws.changeLibraryLocation();
 
     expect(ws.state.libraryPath).toBe("/projects/alpha");
     expect(ws.state.activeFile).toBeNull();
@@ -400,7 +414,7 @@ describe("Workspace", () => {
     expect(ws.state.gitStatus?.dirty).toBe(false);
   });
 
-  it("openFolder clears gitStatus", async () => {
+  it("changeLibraryLocation clears gitStatus", async () => {
     stubLocalStorage();
     const env = createEnv({
       _files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
@@ -410,7 +424,7 @@ describe("Workspace", () => {
     await ws.selectFile("play.ds");
     expect(ws.state.gitStatus).not.toBeNull();
 
-    await ws.openFolder();
+    await ws.changeLibraryLocation();
 
     expect(ws.state.gitStatus).toBeNull();
   });
@@ -559,5 +573,68 @@ describe("Workspace", () => {
     const result = await ws.restoreRevision("abc", "clean");
     expect(result).toBe("older-content");
     expect(snapCount).toBe(2);
+  });
+
+  it("openExternalFile enters external view for paths outside the library", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    (env as any)._externalContent = { "/outside/foo.ds": "outside content" };
+    const ws = new Workspace(env);
+    ws.state.activeFile = "previous.ds";
+
+    const content = await ws.openExternalFile("/outside/foo.ds");
+
+    expect(content).toBe("outside content");
+    expect(ws.state.externalFile).toEqual({ absPath: "/outside/foo.ds", content: "outside content" });
+    // Entering external view clears active-file state so revisions/git
+    // status don't point at a ghost.
+    expect(ws.state.activeFile).toBeNull();
+  });
+
+  it("openExternalFile routes inside-library paths to selectFile", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "hello" },
+    });
+    (env as any)._externalInsideLibrary = { "/lib/play.ds": true };
+    (env as any)._externalRelativePath = { "/lib/play.ds": "play.ds" };
+    const ws = new Workspace(env);
+
+    const content = await ws.openExternalFile("/lib/play.ds");
+
+    // Took the in-library path: activeFile is set, externalFile is null.
+    expect(content).toBe("hello");
+    expect(ws.state.activeFile).toBe("play.ds");
+    expect(ws.state.externalFile).toBeNull();
+  });
+
+  it("addExternalFileToLibrary copies the file and transitions to editable mode", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "foo.ds": "hello" },
+    });
+    (env as any)._externalContent = { "/outside/foo.ds": "outside content" };
+    const ws = new Workspace(env);
+
+    await ws.openExternalFile("/outside/foo.ds");
+    expect(ws.state.externalFile).not.toBeNull();
+
+    const newPath = await ws.addExternalFileToLibrary("");
+    expect(newPath).toBe("foo.ds");
+    expect(ws.state.externalFile).toBeNull();
+    expect(ws.state.activeFile).toBe("foo.ds");
+  });
+
+  it("closeExternalFile clears external state", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    (env as any)._externalContent = { "/outside/foo.ds": "hi" };
+    const ws = new Workspace(env);
+
+    await ws.openExternalFile("/outside/foo.ds");
+    expect(ws.state.externalFile).not.toBeNull();
+
+    ws.closeExternalFile();
+    expect(ws.state.externalFile).toBeNull();
   });
 });

@@ -107,6 +107,35 @@ so switching documents automatically invalidates a prior dismissal.
 - `clearRevisionView()` is called on file switch, library switch, and after
   a successful restore so stale preview state never leaks across contexts.
 
+## External-File View (File → Open)
+
+- `File → Open` (Cmd/Ctrl-O) lets the user read a `.ds` file that lives
+  outside the library. The backend (`ReadExternalFile`) guards the
+  boundary: absolute path, `.ds` extension, no symlinks, 5 MiB cap.
+- `workspace.state.externalFile` holds the read-only preview
+  (`{ absPath, content }`). While this is non-null: `activeFile` is
+  null, the revisions panel and git status bar short-circuit, the
+  editor is `readOnly`, and the amber "Viewing a file outside your
+  library" banner is displayed.
+- `documentKey` while external is `external:${absPath}` so the shared
+  editor resets transient state (diagnostics, search, stats, outline,
+  V1-modal suppression) on entry and exit.
+- **Entry transitions** (in `workspace.openExternalFile`):
+  - `ReadExternalFile` reports `insideLibrary=true` for paths that
+    resolve under the active library. In that case, external state is
+    cleared first and the call routes through `selectFile(relativePath)`
+    — no banner for a file the library already owns.
+  - Otherwise, the live buffer is preserved via the auto-save watcher
+    (external mode doesn't write to disk), revision view is cleared,
+    dirty-reconcile is cancelled, and external state is set.
+- **Add-to-Library**: `workspace.addExternalFileToLibrary(destRelDir)`
+  copies the file into the library, refreshes the file listing,
+  clears external state, and calls `selectFile` on the new path. The
+  editor transitions from read-only to editable.
+- **Close**: `workspace.closeExternalFile()` drops external state
+  without mutating disk. The editor is blank until the user selects
+  a library file.
+
 ## Commands
 
 - `commands.ts` is the flat `Map<id, HandlerEntry>` of every app-level
@@ -133,9 +162,15 @@ so switching documents automatically invalidates a prior dismissal.
 
 ## Settings Dialog
 
-- `Settings.vue` wraps three real tabs: Editor, Appearance, Spellcheck.
-  No placeholder tabs for Library / Export / Git / Advanced — those get
-  added when they have real controls.
+- `Settings.vue` wraps three real tabs: Library, Appearance, Spellcheck.
+  The Library tab is first — it is the only place to change the library
+  location now that the File menu no longer has "Open Folder…".
+- `LibrarySettings.vue` emits `change-library`; `Settings.vue` re-emits
+  it; `AppDesktop.vue` runs the full switch flow (flushSave →
+  changeLibraryLocation → re-select first file → toast). Keeping the
+  flow in the host (not Settings) means Settings stays presentational
+  and `workspace.changeLibraryLocation` isn't exposed to the command
+  dispatcher.
 - The shared `SpellcheckPanel.vue` is the single spellcheck UI. The
   desktop Settings > Spellcheck tab and the web Editor's in-editor
   modal both mount it. Changing spellcheck UX = one file.

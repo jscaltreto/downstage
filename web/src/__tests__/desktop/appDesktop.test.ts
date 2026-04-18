@@ -83,6 +83,16 @@ function createEnv(init: { files?: LibraryFile[]; openReturn?: string } = {}): R
     // LibraryEnv with call recording
     changeLibraryLocation: async () => { record("changeLibraryLocation"); return openReturn; },
     revealLibraryInExplorer: async () => { record("revealLibraryInExplorer"); },
+    openExternalFileDialog: async () => { record("openExternalFileDialog"); return ""; },
+    readExternalFile: async (p) => {
+      record(`readExternalFile:${p}`);
+      return { content: "", insideLibrary: false, relativePath: "" };
+    },
+    addExternalFileToLibrary: async (src, dir) => {
+      record(`addExternalFileToLibrary:${src}:${dir}`);
+      const path = `${dir ? `${dir}/` : ""}ext.ds`;
+      return path;
+    },
     getLibraryFiles: async () => { record("getLibraryFiles"); return files; },
     readLibraryFile: async (p) => { record(`readLibraryFile:${p}`); return contents[p] ?? ""; },
     writeLibraryFile: async (p, c) => {
@@ -185,39 +195,6 @@ describe("AppDesktop flush ordering", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
-  });
-
-  it("handleOpenFolder flushes the pending save BEFORE opening the new folder", async () => {
-    const { wrapper, env } = await mountApp();
-
-    await typeInto(wrapper, "edit-A");
-
-    // The debounce has not fired yet.
-    expect(env._calls.some((c) => c.startsWith("writeLibraryFile:play.ds"))).toBe(false);
-
-    // Slow the write so we can prove it completes before changeLibraryLocation.
-    env._setWriteDelay(20);
-
-    env._setFiles([{ path: "other.ds", name: "other.ds", updatedAt: "" }]);
-    env._setOpenReturn("/projects/beta");
-
-    const handleOpen = (wrapper.vm as any).handleOpenFolder ?? null;
-    // handleOpenFolder is declared in <script setup>; not exposed by default.
-    // Instead, invoke by finding the "New Project" / "Open Folder" button —
-    // but the welcome screen has them. For robust test, click the sidebar's
-    // Open Folder button.
-    const openBtn = wrapper.findAll("button").find((b) => b.attributes("title") === "Change library location" || b.text().includes("Open Folder"));
-    expect(openBtn).toBeDefined();
-    openBtn!.trigger("click");
-
-    // Allow the pending save timer + write delay to complete.
-    await vi.advanceTimersByTimeAsync(1500);
-    await flushPromises();
-
-    const writeDone = env._calls.indexOf("writeLibraryFile:play.ds:done");
-    const openIdx = env._calls.indexOf("changeLibraryLocation");
-    expect(writeDone).toBeGreaterThanOrEqual(0);
-    expect(openIdx).toBeGreaterThan(writeDone);
   });
 
   it("file.saveVersion dispatched via command bus flushes before snapshot", async () => {

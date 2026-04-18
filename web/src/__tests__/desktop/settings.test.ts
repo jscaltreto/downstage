@@ -4,10 +4,10 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { reactive } from "vue";
 import Settings from "../../desktop/Settings.vue";
 
-// Settings dialog tests. Two real tabs — Appearance (theme) and
-// Spellcheck (enable toggle + custom wordlist). Transient view
-// toggles (show preview, show sidebar) live in the main UI, not
-// here, so they're not tested from this surface.
+// Settings dialog tests. Three real tabs — Library (location + reveal),
+// Appearance (theme), Spellcheck (enable toggle + custom wordlist).
+// Transient view toggles (show preview, show sidebar) live in the main
+// UI, not here, so they're not tested from this surface.
 
 function stubLocalStorage() {
   const store = new Map<string, string>();
@@ -36,6 +36,7 @@ function fakeWorkspace() {
   const state = reactive({
     sidebarCollapsed: false,
     spellAllowlist: ["Nebula"],
+    libraryPath: "/home/user/Documents/Downstage Plays",
   });
   return {
     state,
@@ -52,19 +53,26 @@ function fakeWorkspace() {
   };
 }
 
+function fakeEnv() {
+  return {
+    revealLibraryInExplorer: vi.fn(async () => {}),
+  };
+}
+
 describe("Settings dialog", () => {
-  it("shows only Appearance and Spellcheck tabs", async () => {
+  it("shows Library, Appearance, and Spellcheck tabs", async () => {
     stubLocalStorage();
     const store = fakeStore();
     const workspace = fakeWorkspace();
+    const env = fakeEnv();
 
     const wrapper = mount(Settings, {
-      props: { open: true, tab: "appearance", store: store as any, workspace: workspace as any },
+      props: { open: true, tab: "library", store: store as any, workspace: workspace as any, env: env as any },
     });
     await flushPromises();
 
     const tabLabels = wrapper.findAll("nav button").map((b) => b.text());
-    expect(tabLabels).toEqual(["Appearance", "Spellcheck"]);
+    expect(tabLabels).toEqual(["Library", "Appearance", "Spellcheck"]);
   });
 
   it("Appearance tab shows theme buttons and no sidebar/preview toggles", async () => {
@@ -73,7 +81,7 @@ describe("Settings dialog", () => {
     const workspace = fakeWorkspace();
 
     const wrapper = mount(Settings, {
-      props: { open: true, tab: "appearance", store: store as any, workspace: workspace as any },
+      props: { open: true, tab: "appearance", store: store as any, workspace: workspace as any, env: fakeEnv() as any },
     });
     await flushPromises();
 
@@ -94,7 +102,7 @@ describe("Settings dialog", () => {
     const workspace = fakeWorkspace();
 
     const wrapper = mount(Settings, {
-      props: { open: true, tab: "appearance", store: store as any, workspace: workspace as any },
+      props: { open: true, tab: "appearance", store: store as any, workspace: workspace as any, env: fakeEnv() as any },
     });
     await flushPromises();
 
@@ -110,7 +118,7 @@ describe("Settings dialog", () => {
     const workspace = fakeWorkspace();
 
     const wrapper = mount(Settings, {
-      props: { open: true, tab: "spellcheck", store: store as any, workspace: workspace as any },
+      props: { open: true, tab: "spellcheck", store: store as any, workspace: workspace as any, env: fakeEnv() as any },
     });
     await flushPromises();
 
@@ -131,7 +139,7 @@ describe("Settings dialog", () => {
     const workspace = fakeWorkspace();
 
     const wrapper = mount(Settings, {
-      props: { open: true, tab: "spellcheck", store: store as any, workspace: workspace as any },
+      props: { open: true, tab: "spellcheck", store: store as any, workspace: workspace as any, env: fakeEnv() as any },
     });
     await flushPromises();
 

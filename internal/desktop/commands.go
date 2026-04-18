@@ -64,7 +64,7 @@ type CommandMeta struct {
 // grep-navigating the codebase can reach them without reopening this file.
 const (
 	CmdFileNewPlay            = "file.newPlay"
-	CmdFileOpenFolder         = "file.openFolder"
+	CmdFileOpen               = "file.open"
 	CmdFileSaveVersion        = "file.saveVersion"
 	CmdFileExportPDF          = "file.exportPdf"
 	CmdFileSettings           = "file.settings"
@@ -110,7 +110,7 @@ func Commands() []Command {
 	return []Command{
 		// File
 		{ID: CmdFileNewPlay, Label: "New Play", Category: CategoryFile, Accelerator: "cmdorctrl+n", MenuPath: []string{"File"}},
-		{ID: CmdFileOpenFolder, Label: "Open Folder…", Category: CategoryFile, Accelerator: "cmdorctrl+o", MenuPath: []string{"File"}},
+		{ID: CmdFileOpen, Label: "Open…", Category: CategoryFile, Accelerator: "cmdorctrl+o", MenuPath: []string{"File"}},
 		{ID: CmdFileSaveVersion, Label: "Save Version", Category: CategoryFile, Accelerator: "cmdorctrl+s", MenuPath: []string{"File"}, BeforeSeparator: true},
 		{ID: CmdFileExportPDF, Label: "Export PDF…", Category: CategoryFile, Accelerator: "cmdorctrl+e", MenuPath: []string{"File"}},
 		{ID: CmdFileSettings, Label: "Settings…", Category: CategoryFile, Accelerator: "cmdorctrl+,", MenuPath: []string{"File"}, BeforeSeparator: true},

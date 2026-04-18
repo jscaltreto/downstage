@@ -24,12 +24,35 @@ export interface FileGitStatus {
   missing: boolean;
 }
 
+// Result of `readExternalFile`. Mirrors internal/desktop.ExternalFileResult.
+// When `insideLibrary` is true the caller should route through the normal
+// `selectFile` flow using `relativePath` — the external banner should not
+// appear for a file the library already owns.
+export interface ExternalFileResult {
+  content: string;
+  insideLibrary: boolean;
+  relativePath: string;
+}
+
 export interface LibraryEnv {
   changeLibraryLocation(): Promise<string>;
   // Opens the current library in the host OS's file explorer. No-op if
   // no library is currently open (the caller should keep a library
   // loaded — `initApp` auto-creates one on first launch).
   revealLibraryInExplorer(): Promise<void>;
+  // Opens a native "Open File…" dialog filtered to `.ds` files. Returns
+  // the chosen absolute path, or "" when the user cancels.
+  openExternalFileDialog(): Promise<string>;
+  // Reads a .ds file from an arbitrary absolute path for the read-only
+  // external-file preview. Guards: absolute path, .ds extension, no
+  // symlinks, max 5 MiB. When the path lives inside the active library,
+  // `insideLibrary` is true and the caller should route through the
+  // normal `readLibraryFile` / `selectFile` path.
+  readExternalFile(absPath: string): Promise<ExternalFileResult>;
+  // Copies an external .ds file into the library under `destRelDir`
+  // (empty string = library root). Returns the new path relative to
+  // the library. Collision handling adds a `-N` suffix.
+  addExternalFileToLibrary(absSrc: string, destRelDir: string): Promise<string>;
   getLibraryFiles(): Promise<LibraryFile[]>;
   readLibraryFile(path: string): Promise<string>;
   writeLibraryFile(path: string, content: string): Promise<void>;

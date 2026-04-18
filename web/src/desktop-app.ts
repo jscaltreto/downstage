@@ -12,7 +12,7 @@ import type {
   ManuscriptStats,
   EditorPreferences,
 } from "./core/types";
-import type { CommandMeta, DesktopCapabilities, FileGitStatus, LibraryFile, Revision } from "./desktop/types";
+import type { CommandMeta, DesktopCapabilities, ExternalFileResult, FileGitStatus, LibraryFile, Revision } from "./desktop/types";
 import { invokeRegisteredFlushSave } from "./desktop/flush-save";
 import { createPrefsCache } from "./desktop/prefs-cache";
 import { dispatchCommand } from "./desktop/dispatcher-registry";
@@ -163,6 +163,23 @@ class WailsBridge implements DesktopCapabilities {
 
   async revealLibraryInExplorer(): Promise<void> {
     await App.RevealLibraryInExplorer();
+  }
+
+  async openExternalFileDialog(): Promise<string> {
+    return App.OpenExternalFileDialog();
+  }
+
+  async readExternalFile(absPath: string): Promise<ExternalFileResult> {
+    const raw = await App.ReadExternalFile(absPath);
+    return {
+      content: raw?.content ?? "",
+      insideLibrary: !!raw?.insideLibrary,
+      relativePath: raw?.relativePath ? String(raw.relativePath) : "",
+    };
+  }
+
+  async addExternalFileToLibrary(absSrc: string, destRelDir: string): Promise<string> {
+    return App.AddExternalFileToLibrary(absSrc, destRelDir);
   }
 
   async getLibraryFiles(): Promise<LibraryFile[]> {
