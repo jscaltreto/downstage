@@ -322,8 +322,13 @@ function applySearchSummary(summary: SearchSummary, matches: SearchMatch[]) {
 onMounted(async () => {
   await nextTick();
 
-  const iframeEl = previewFrameComponent.value?.iframeEl;
-  if (editorContainer.value && iframeEl) {
+  // The iframe accessor is lazy on purpose. Desktop users may start
+  // with the preview hidden (pref), and we v-if the preview column
+  // (see below) so the iframe can be genuinely unmounted to work
+  // around a webkit2gtk compositing-layer bug. The engine lives as
+  // long as the editor; it just gets a fresh iframe reference
+  // whenever the preview is mounted.
+  if (editorContainer.value) {
     engine = new Engine(
       editorContainer.value,
       props.env,
@@ -336,7 +341,7 @@ onMounted(async () => {
           markTyping();
         }
       },
-      iframeEl,
+      () => previewFrameComponent.value?.iframeEl ?? null,
       () => props.getSpellAllowlist(),
       (word) => props.addSpellAllowlistWord(word),
       (next) => { diagnostics.value = next; },
@@ -521,7 +526,7 @@ defineExpose({
 
 <template>
   <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-page-bg)]">
-    <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex items-center justify-between gap-2 shadow-sm z-10">
+    <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             <!-- Leading host actions. Desktop puts the sidebar/project
                  toggle here; web leaves it empty. Keeping it as a slot
@@ -718,10 +723,63 @@ defineExpose({
             </WorkbenchDrawer>
         </div>
 
-        <!-- Right-docked drawer — rendered as a sibling of the editor
-             column and preview column. The slot set matches the
-             bottom-mode WorkbenchDrawer above; duplicating is the
-             cleanest option in Vue when the container has to change. -->
+        <!-- v-if (not v-show) so the iframe inside PreviewFrame is
+             actually unmounted when the preview is hidden. webkit2gtk
+             otherwise leaves the preview's compositing layer stranded
+             (ghost editor-toolbar paint in the editor body after the
+             preview has been visible at least once — reliably
+             reproducible as soon as the user hides the preview).
+             Engine accepts a lazy iframe getter, so remount-on-reopen
+             is transparent to the scroll-sync plugin. -->
+        <div v-if="previewVisible" class="flex-1 h-full bg-[var(--color-page-surface)] flex flex-col min-w-[300px]">
+            <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex justify-between items-center shadow-sm">
+                <h2 class="text-[10px] uppercase tracking-[0.2em] font-bold text-accent">Live Preview</h2>
+                <button @click="previewVisible = false" class="text-text-muted hover:text-text-main transition-colors" title="Hide Preview">
+                    <X class="w-4 h-4" />
+                </button>
+            </div>
+            <div class="flex-1 bg-white relative font-sans">
+                <div
+                    v-if="v1DocumentDetected"
+                    class="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-[linear-gradient(180deg,#f8efe2_0%,#fff8f1_100%)] px-8 text-center text-ember-950"
+                >
+                    <div class="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15 text-amber-700">
+                        <AlertTriangle class="h-7 w-7" />
+                    </div>
+                    <div class="max-w-md space-y-2">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">V1 Document</p>
+                        <h3 class="font-serif text-2xl font-bold leading-tight">Preview is disabled until this script is upgraded.</h3>
+                        <p class="text-sm leading-relaxed text-ember-900/75">
+                            This document matches the old Downstage V1 format. Rendering is unreliable in V2, so update the script before using preview or export.
+                        </p>
+                    </div>
+                    <div class="flex flex-col gap-3 sm:flex-row">
+                        <button
+                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-brass-500 px-4 py-2.5 text-sm font-bold text-ember-950 transition-colors hover:bg-brass-400 disabled:opacity-60"
+                            :disabled="isUpgradingV1"
+                            @click="upgradeV1Document"
+                        >
+                            <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isUpgradingV1 }" />
+                            {{ isUpgradingV1 ? 'Updating…' : 'Update Script to V2' }}
+                        </button>
+                        <button
+                            class="rounded-lg border border-ember-950/10 px-4 py-2.5 text-sm font-bold text-ember-950/80 transition-colors hover:bg-ember-950/5"
+                            @click="showV1Modal = true"
+                        >
+                            Why?
+                        </button>
+                    </div>
+                </div>
+                <PreviewFrame v-else ref="previewFrameComponent" :html="renderedHtml" />
+            </div>
+        </div>
+
+        <!-- Right-docked drawer — rendered after the preview so the
+             row reads editor → preview → drawer. Drawer's left-edge
+             resize handle lives on its own left side (i.e. against
+             the preview column). Slot set mirrors the bottom-mode
+             invocation above; duplicating is the cleanest option in
+             Vue when the parent container has to change. -->
         <WorkbenchDrawer
             v-if="drawerDock === 'right'"
             :open="drawerOpen"
@@ -772,49 +830,6 @@ defineExpose({
                 <HelpTab :open-link="props.env.openURL" />
             </template>
         </WorkbenchDrawer>
-
-        <div v-show="previewVisible" class="flex-1 h-full bg-[var(--color-page-surface)] flex flex-col min-w-[300px]">
-            <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex justify-between items-center shadow-sm">
-                <h2 class="text-[10px] uppercase tracking-[0.2em] font-bold text-accent">Live Preview</h2>
-                <button @click="previewVisible = false" class="text-text-muted hover:text-text-main transition-colors" title="Hide Preview">
-                    <X class="w-4 h-4" />
-                </button>
-            </div>
-            <div class="flex-1 bg-white relative font-sans">
-                <div
-                    v-if="v1DocumentDetected"
-                    class="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-[linear-gradient(180deg,#f8efe2_0%,#fff8f1_100%)] px-8 text-center text-ember-950"
-                >
-                    <div class="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15 text-amber-700">
-                        <AlertTriangle class="h-7 w-7" />
-                    </div>
-                    <div class="max-w-md space-y-2">
-                        <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">V1 Document</p>
-                        <h3 class="font-serif text-2xl font-bold leading-tight">Preview is disabled until this script is upgraded.</h3>
-                        <p class="text-sm leading-relaxed text-ember-900/75">
-                            This document matches the old Downstage V1 format. Rendering is unreliable in V2, so update the script before using preview or export.
-                        </p>
-                    </div>
-                    <div class="flex flex-col gap-3 sm:flex-row">
-                        <button
-                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-brass-500 px-4 py-2.5 text-sm font-bold text-ember-950 transition-colors hover:bg-brass-400 disabled:opacity-60"
-                            :disabled="isUpgradingV1"
-                            @click="upgradeV1Document"
-                        >
-                            <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isUpgradingV1 }" />
-                            {{ isUpgradingV1 ? 'Updating…' : 'Update Script to V2' }}
-                        </button>
-                        <button
-                            class="rounded-lg border border-ember-950/10 px-4 py-2.5 text-sm font-bold text-ember-950/80 transition-colors hover:bg-ember-950/5"
-                            @click="showV1Modal = true"
-                        >
-                            Why?
-                        </button>
-                    </div>
-                </div>
-                <PreviewFrame v-else ref="previewFrameComponent" :html="renderedHtml" />
-            </div>
-        </div>
 
     </div>
   </div>

@@ -1,4 +1,4 @@
-.PHONY: all test lint fmt vet check clean render release-check release-snapshot wasm web web-dev web-e2e web-clean desktop-dev desktop-build desktop-clean
+.PHONY: all test lint fmt vet check clean render release-check release-snapshot wasm web web-dev web-e2e web-clean desktop-dev desktop-build desktop-debug desktop-clean
 
 BINARY := downstage
 BUILD_DIR := build
@@ -83,6 +83,20 @@ desktop-dev:
 desktop-build:
 	@echo "Building desktop app (version $(VERSION))..."
 	cd cmd/downstage-write && wails build -tags webkit2_41 -ldflags "$(DESKTOP_LDFLAGS)"
+
+# Debug build: enables the WebKit Web Inspector so you can right-click
+# the running app and pick "Inspect Element". Wails -debug also opens
+# the inspector on startup.
+#
+# To make webkit2gtk's compositing layers visible, launch the binary
+# with:
+#   WEBKIT_SHOW_COMPOSITING_INDICATORS=1 \
+#     cmd/downstage-write/build/bin/downstage-write
+# That overlays a translucent tint per compositing layer — useful for
+# seeing which layer is holding stale paint after a reflow.
+desktop-debug:
+	@echo "Building desktop app in debug mode (version $(VERSION))..."
+	cd cmd/downstage-write && wails build -tags webkit2_41 -debug -devtools -ldflags "$(DESKTOP_LDFLAGS)"
 
 desktop-clean:
 	rm -rf cmd/downstage-write/build/bin cmd/downstage-write/frontend

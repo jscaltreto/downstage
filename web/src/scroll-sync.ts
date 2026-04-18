@@ -12,7 +12,13 @@ function absoluteTop(el: HTMLElement): number {
 
 export type SyncMode = 'center' | 'top';
 
-export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
+// createScrollSyncPlugin takes a lazy iframe accessor instead of a
+// static element so the preview column can be mounted/unmounted via
+// `v-if` (needed to work around a webkit2gtk compositing-layer bug
+// where hiding the preview via display:none leaves stale paint in the
+// editor column). When the accessor returns null, scroll-sync is a
+// no-op; on re-mount the fresh iframe is picked up transparently.
+export function createScrollSyncPlugin(getIframe: () => HTMLIFrameElement | null) {
   let rafId: ReturnType<typeof requestAnimationFrame> | null = null;
   let lastSyncLine = -1;
   let lastSyncMode: SyncMode | null = null;
@@ -24,6 +30,8 @@ export function createScrollSyncPlugin(iframe: HTMLIFrameElement) {
   }
 
   function syncToLine(view: EditorView, lineNumber: number, mode: SyncMode) {
+    const iframe = getIframe();
+    if (!iframe) return;
     let idoc: Document | null = null;
     try {
       idoc = iframe.contentDocument;
