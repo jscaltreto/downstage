@@ -107,6 +107,44 @@ so switching documents automatically invalidates a prior dismissal.
 - `clearRevisionView()` is called on file switch, project switch, and after
   a successful restore so stale preview state never leaks across contexts.
 
+## Commands
+
+- `commands.ts` is the flat `Map<id, HandlerEntry>` of every app-level
+  action. No labels, no accelerators, no categories — those are owned by
+  the Go catalog (`internal/desktop/commands.go`). The palette calls
+  `env.getCommands()` to fetch metadata; menu labels come from Go
+  directly.
+- `command-dispatcher.ts` looks up handlers by ID, checks `isEnabled()`,
+  and runs them. A disabled dispatch is a silent no-op — the surface
+  layer (menu item grey-out, palette row grey-out) is responsible for
+  communicating unavailability; handlers never police their own
+  preconditions.
+- The dispatcher maintains a reactive `disabledIds` set, recomputed in
+  a microtask-batched flush and pushed to Go via
+  `env.setDisabledCommands`. Diff-and-skip avoids wire traffic when the
+  set is stable across state blips.
+- Menu clicks arrive as Wails `command:execute` events. `desktop-app.ts`
+  subscribes once at module scope and routes through the
+  `dispatcher-registry`. `AppDesktop.vue` registers the live dispatcher
+  in `onMounted` and clears it in `onUnmounted`.
+- Adding a new command is: one entry in `internal/desktop/commands.go`
+  (ID, label, accelerator, menu path, category, palette visibility) +
+  one handler in `web/src/desktop/commands.ts`. Nothing else.
+
+## Settings Dialog
+
+- `Settings.vue` wraps three real tabs: Editor, Appearance, Spellcheck.
+  No placeholder tabs for Project / Export / Git / Advanced — those get
+  added when they have real controls.
+- The shared `SpellcheckPanel.vue` is the single spellcheck UI. The
+  desktop Settings > Spellcheck tab and the web Editor's in-editor
+  modal both mount it. Changing spellcheck UX = one file.
+- The in-editor SpellCheck toolbar button emits `open-spellcheck-settings`
+  on desktop (Editor's `externalSpellcheck: true` prop) so the host can
+  dispatch `file.settings.spellcheck` and open Settings on the
+  Spellcheck tab. On web the prop is false and the button opens the
+  local modal directly.
+
 ## Preferences
 
 - Desktop preferences live in the Go `Config.Preferences` struct. The

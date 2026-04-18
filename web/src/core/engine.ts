@@ -77,9 +77,7 @@ export class Engine {
     private getUserSpellAllowlist: () => string[],
     private addUserSpellAllowlistWord: (word: string) => Promise<boolean>,
     private onDiagnosticsChange: (diagnostics: EditorDiagnostic[]) => void = () => {},
-    private onOpenSearch: (mode: SearchMode) => void = () => {},
     private onSearchChange: (summary: SearchSummary, matches: SearchMatch[]) => void = () => {},
-    private onAction: (action: string) => void = () => {},
   ) {}
 
   init(initialContent: string, isDark: boolean, spellcheckEnabled = false) {
@@ -105,56 +103,16 @@ export class Engine {
       },
     });
 
-    const editorKeymap = keymap.of([
-      {
-        key: "Mod-f",
-        preventDefault: true,
-        run: () => { this.onOpenSearch("find"); return true; },
-      },
-      {
-        key: "Mod-h",
-        preventDefault: true,
-        run: () => { this.onOpenSearch("replace"); return true; },
-      },
-      {
-        key: "Mod-Alt-f",
-        preventDefault: true,
-        run: () => { this.onOpenSearch("replace"); return true; },
-      },
-      {
-        key: "Mod-b",
-        preventDefault: true,
-        run: () => { this.applyFormat("bold"); return true; },
-      },
-      {
-        key: "Mod-i",
-        preventDefault: true,
-        run: () => { this.applyFormat("italic"); return true; },
-      },
-      {
-        key: "Mod-u",
-        preventDefault: true,
-        run: () => { this.applyFormat("underline"); return true; },
-      },
-      {
-        key: "Mod-\\",
-        preventDefault: true,
-        run: () => { this.onAction("toggle-preview"); return true; },
-      },
-      {
-        key: "Mod-Shift-/",
-        preventDefault: true,
-        run: () => { this.onAction("toggle-help"); return true; },
-      },
-    ]);
-
+    // App-level shortcuts (Find, Bold, Toggle Preview, etc.) are owned by
+    // the native menu on desktop and by the command catalog on web. The
+    // engine deliberately stops registering them here so accelerators live
+    // in exactly one place. CM keeps only its framework keymaps below.
     this.view = new EditorView({
       state: EditorState.create({
         doc: initialContent,
         extensions: [
           lineNumbers(),
           history(),
-          editorKeymap,
           keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
           themeCompartment.of(isDark ? oneDark : lightTheme),
           lintCompartment.of(this.createLintExtension()),

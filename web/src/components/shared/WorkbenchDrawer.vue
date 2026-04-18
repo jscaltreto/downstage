@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { X, AlertTriangle, Search, ListTree, BarChart3, HelpCircle } from 'lucide-vue-next';
-
-export type WorkbenchTab = 'issues' | 'find' | 'outline' | 'stats' | 'help';
+import type { WorkbenchTab } from './workbench-tabs';
+export type { WorkbenchTab };
 
 defineProps<{
   open: boolean;

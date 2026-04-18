@@ -12,9 +12,10 @@ import type {
   ManuscriptStats,
   EditorPreferences,
 } from "./core/types";
-import type { DesktopCapabilities, ProjectFile, Revision } from "./desktop/types";
+import type { CommandMeta, DesktopCapabilities, ProjectFile, Revision } from "./desktop/types";
 import { invokeRegisteredFlushSave } from "./desktop/flush-save";
 import { createPrefsCache } from "./desktop/prefs-cache";
+import { dispatchCommand } from "./desktop/dispatcher-registry";
 
 // Structural shape of the Go Preferences struct. Intentionally not
 // imported from the Wails-generated module — this file keeps a thin
@@ -37,11 +38,21 @@ declare const __APP_VERSION__: string;
 // Event names MUST match internal/desktop/app.go.
 const EVT_BEFORE_CLOSE = "downstage:before-close";
 const EVT_FLUSH_COMPLETE = "downstage:flush-complete";
+const EVT_COMMAND_EXECUTE = "command:execute";
 
 // Tie the Wails lifecycle event to the active flushSave registered by
 // AppDesktop.vue. Registering happens in `desktop/flush-save.ts` — this
 // file only lives on the desktop build graph, so tests that mount the
 // component against an in-memory env don't need the Wails runtime loaded.
+// Native-menu click → TS dispatcher. AppDesktop.vue registers the live
+// dispatcher via the dispatcher-registry in onMounted. Subscribing at
+// module scope means we don't miss a click fired during Vue mount.
+EventsOn(EVT_COMMAND_EXECUTE, (id: unknown) => {
+  if (typeof id === "string") {
+    void dispatchCommand(id);
+  }
+});
+
 EventsOn(EVT_BEFORE_CLOSE, async () => {
   try {
     // Documents first — losing an unsaved edit is worse than losing a
@@ -227,6 +238,24 @@ class WailsBridge implements DesktopCapabilities {
 
   async flushPreferences(): Promise<void> {
     await this.prefs.flush();
+  }
+
+  async getCommands(): Promise<CommandMeta[]> {
+    const raw = await App.GetCommands();
+    // The Go binding returns `desktop.CommandMeta[]`; reshape defensively
+    // so TS callers see a consistent structural type even if the
+    // generated types drift.
+    return (raw ?? []).map((c: any) => ({
+      id: String(c?.id ?? ""),
+      label: String(c?.label ?? ""),
+      category: String(c?.category ?? ""),
+      accelerator: c?.accelerator ? String(c.accelerator) : undefined,
+      paletteHidden: !!c?.paletteHidden,
+    }));
+  }
+
+  async setDisabledCommands(ids: string[]): Promise<void> {
+    await App.SetDisabledCommands(ids);
   }
 
   async saveFile(filename: string, content: string | Uint8Array, filters?: { displayName: string; pattern: string }[]): Promise<void> {
