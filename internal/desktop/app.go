@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -24,6 +25,11 @@ const (
 	// beforeCloseTimeout bounds how long BeforeClose will wait on the
 	// frontend flush. A broken frontend must not lock the window closed.
 	beforeCloseTimeout = 2 * time.Second
+
+	// Menu-click fan-out event. The Click callback on every catalog-derived
+	// menu item emits this with the command ID; the frontend dispatcher
+	// subscribes once and routes by ID.
+	eventCommandExecute = "command:execute"
 )
 
 // Preferences captures every persisted UI preference the desktop app
@@ -52,6 +58,12 @@ type App struct {
 	currentProject string
 	configPath     string
 	configMu       sync.Mutex // guards read-modify-write of the on-disk config
+
+	// menuMu guards currentMenu and the SetDisabledCommands rebuild path.
+	// currentMenu is the most recently-applied *menu.Menu, kept so tests
+	// (and future state-reflection logic) can inspect the rendered tree.
+	menuMu      sync.Mutex
+	currentMenu *menu.Menu
 }
 
 func NewApp() *App {
@@ -264,6 +276,62 @@ func (a *App) GetLastActiveFile() string {
 
 func (a *App) BrowserOpenURL(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)
+}
+
+// SetInitialMenu is called from main() after BuildMenu produces the
+// startup menu. This lets SetDisabledCommands see the current tree even
+// before any user-driven state change. No lock is needed because main()
+// calls this strictly before wails.Run, but we take the lock anyway to
+// keep invariants uniform.
+func (a *App) SetInitialMenu(m *menu.Menu) {
+	a.menuMu.Lock()
+	defer a.menuMu.Unlock()
+	a.currentMenu = m
+}
+
+// GetCommands returns the palette-facing projection of the catalog.
+// The frontend calls this once on palette open to render labels and
+// categories. Handlers are keyed by ID on the frontend; metadata stays
+// authoritative here.
+func (a *App) GetCommands() []CommandMeta {
+	cmds := Commands()
+	out := make([]CommandMeta, 0, len(cmds))
+	for _, c := range cmds {
+		out = append(out, CommandMeta{
+			ID:            c.ID,
+			Label:         c.Label,
+			Category:      string(c.Category),
+			Accelerator:   c.Accelerator,
+			PaletteHidden: c.PaletteHidden,
+		})
+	}
+	return out
+}
+
+// SetDisabledCommands rebuilds the native menu with the listed IDs
+// flagged as Disabled, and applies the new menu via
+// runtime.MenuUpdateApplicationMenu. The frontend dispatcher calls this
+// after diff-and-skip so the wire is quiet when the disabled set is
+// stable across reactive blips.
+//
+// Ordering: the disabled-set diff happens on the frontend, so a no-op
+// call here means something genuinely changed. Still cheap enough to
+// rebuild unconditionally.
+func (a *App) SetDisabledCommands(ids []string) error {
+	set := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+
+	a.menuMu.Lock()
+	defer a.menuMu.Unlock()
+
+	next := BuildMenu(a, set)
+	a.currentMenu = next
+	if a.ctx != nil {
+		runtime.MenuUpdateApplicationMenu(a.ctx)
+	}
+	return nil
 }
 
 // BeforeClose is the Wails OnBeforeClose hook. It emits a flush-request

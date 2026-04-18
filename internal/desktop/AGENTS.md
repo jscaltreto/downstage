@@ -77,6 +77,24 @@ All methods live on a single `*App` struct, split across focused files:
   through `Preferences`. If a preference needs to survive restart, it
   belongs in the Go config, not in browser storage.
 
+- **The command catalog in `commands.go` is the single source of truth
+  for app-level command metadata.** Every menu label, accelerator, and
+  category lives there. `menu.go` builds the native `*menu.Menu` from
+  the catalog; `App.GetCommands()` exposes the palette-facing projection
+  to the frontend. The frontend's `commands.ts` is a flat
+  `Map<id, handler>` — no labels, no accelerators. Adding a command
+  is exactly one entry in each file. Changing a label or accelerator
+  is a Go-only edit; the frontend never declares those. Do not let
+  label/accelerator strings drift into TS.
+
+- **Menu clicks emit `command:execute`.** Each catalog item's Click
+  callback publishes the ID on the runtime event bus; the frontend's
+  single `EventsOn` subscriber dispatches through its command dispatcher.
+  `App.SetDisabledCommands(ids)` rebuilds the menu with `Disabled: true`
+  flags for the listed IDs and calls `MenuUpdateApplicationMenu`. The
+  frontend dispatcher diffs against its last-sent set before calling,
+  so a stable disabled set produces zero wire traffic.
+
 - **Git commit authorship respects the user's global identity.**
   `snapshotAuthor` reads `config.GlobalScope` (merging `~/.gitconfig` and
   `$XDG_CONFIG_HOME/git/config`) and falls back to `Downstage Write
