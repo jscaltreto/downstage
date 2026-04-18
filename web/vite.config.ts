@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { execSync } from "node:child_process";
+import { renameSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
@@ -30,15 +31,26 @@ function resolveAppVersion(): string {
 // configured frontend dir. Our source HTML lives at `desktop.html` so the
 // web build can keep owning `index.html`. This plugin renames the HTML
 // asset at bundle generation so we don't need a post-build `mv` hack.
-function renameHtml(from: string, to: string): Plugin {
+// Wails expects index.html in the frontend dir, but our source HTML is
+// desktop.html (so the web build can keep owning index.html). Rename on
+// disk after the bundle is written — Vite's HTML assets don't appear in
+// generateBundle's `bundle` object, so we can't intercept earlier.
+function renameHtmlOnDisk(from: string, to: string): Plugin {
+  let outDir = "";
   return {
     name: "downstage-rename-html",
-    generateBundle(_opts, bundle) {
-      const asset = bundle[from];
-      if (!asset) return;
-      asset.fileName = to;
-      bundle[to] = asset;
-      delete bundle[from];
+    apply: "build",
+    configResolved(config) {
+      outDir = config.build.outDir;
+    },
+    closeBundle() {
+      if (!outDir) return;
+      try {
+        renameSync(resolve(outDir, from), resolve(outDir, to));
+      } catch {
+        // If desktop.html wasn't produced (e.g. a non-desktop build) this
+        // is a no-op.
+      }
     },
   };
 }
@@ -48,7 +60,7 @@ export default defineConfig({
   plugins: [
     vue(),
     tailwindcss(),
-    ...(isDesktop ? [renameHtml("desktop.html", "index.html")] : []),
+    ...(isDesktop ? [renameHtmlOnDisk("desktop.html", "index.html")] : []),
   ],
   // Tailwind v4 runs via its Vite plugin — we don't need PostCSS. But
   // Vite's PostCSS loader walks up looking for `postcss.config.js`, and
