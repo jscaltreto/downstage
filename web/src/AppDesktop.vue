@@ -100,8 +100,8 @@ let saveTimer: number | null = null;
 let dispatcher: CommandDispatcher | null = null;
 
 // Basename helpers used by the status bar.
-const projectNameBase = computed(
-  () => workspace.state.projectPath?.split(/[\\/]/).pop() ?? '',
+const libraryNameBase = computed(
+  () => workspace.state.libraryPath?.split(/[\\/]/).pop() ?? '',
 );
 const activeFileBase = computed(
   () => workspace.state.activeFile?.split(/[\\/]/).pop() ?? '',
@@ -153,13 +153,13 @@ onMounted(async () => {
   await store.init();
   await workspace.init();
 
-  if (workspace.state.projectPath && workspace.state.projectFiles.length > 0) {
+  if (workspace.state.libraryPath && workspace.state.libraryFiles.length > 0) {
     const lastFile = await props.env.getLastActiveFile();
-    const exists = workspace.state.projectFiles.some(f => f.path === lastFile);
+    const exists = workspace.state.libraryFiles.some(f => f.path === lastFile);
     if (lastFile && exists) {
       activeContent.value = await workspace.selectFile(lastFile);
     } else {
-      activeContent.value = await workspace.selectFile(workspace.state.projectFiles[0].path);
+      activeContent.value = await workspace.selectFile(workspace.state.libraryFiles[0].path);
     }
   }
 
@@ -230,7 +230,7 @@ onMounted(async () => {
     // tracks them. Running dispatcher.scheduleRefresh inside the effect
     // is what actually kicks the microtask.
     void workspace.state.activeFile;
-    void workspace.state.projectFiles.length;
+    void workspace.state.libraryFiles.length;
     void workspace.state.viewingRevisionHash;
     void isV1Document.value;
     dispatcher?.scheduleRefresh();
@@ -278,7 +278,7 @@ async function flushSave(): Promise<void> {
   }
 }
 
-// Sidebar "Change Project Folder" button fires this. Delegates to the
+// Sidebar "Change library location" button fires this. Delegates to the
 // catalog command so the logic lives in one place.
 function handleOpenFolder() {
   void dispatcher?.dispatch('file.openFolder');
@@ -288,7 +288,7 @@ function handleNewPlay() {
   void dispatcher?.dispatch('file.newPlay');
 }
 
-async function selectProjectFile(path: string) {
+async function selectLibraryFile(path: string) {
   await flushSave();
   activeContent.value = await workspace.selectFile(path);
 }
@@ -359,7 +359,7 @@ watch(activeContent, (newContent) => {
     </div>
 
     <!-- Welcome Screen -->
-    <div v-else-if="!workspace.state.projectPath" class="flex-1 flex items-center justify-center bg-page-glow p-8">
+    <div v-else-if="!workspace.state.libraryPath" class="flex-1 flex items-center justify-center bg-page-glow p-8">
         <div class="max-w-2xl w-full text-center">
             <div class="mb-12 inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-brass-500/10 text-brass-500 shadow-inner border border-brass-500/20">
                 <BookOpen class="w-10 h-10" />
@@ -409,17 +409,17 @@ watch(activeContent, (newContent) => {
     <main v-else class="flex-1 overflow-hidden flex relative">
       <!-- Project Sidebar -->
       <aside
-        v-if="!workspace.state.sidebarCollapsed && workspace.state.projectPath"
+        v-if="!workspace.state.sidebarCollapsed && workspace.state.libraryPath"
         :style="{ width: workspace.state.sidebarWidth + 'px' }"
         class="border-r border-border bg-[var(--color-page-surface)] flex flex-col shrink-0"
       >
         <div class="p-4 border-b border-border flex justify-between items-start bg-black/[0.02] dark:bg-white/[0.02]">
           <div class="min-w-0">
-            <h3 class="text-[10px] uppercase tracking-[0.2em] text-brass-500 font-bold">Project Files</h3>
-            <p class="text-[10px] text-text-muted truncate mt-1 italic" :title="workspace.state.projectPath">{{ workspace.state.projectPath }}</p>
+            <h3 class="text-[10px] uppercase tracking-[0.2em] text-brass-500 font-bold">Library</h3>
+            <p class="text-[10px] text-text-muted truncate mt-1 italic" :title="workspace.state.libraryPath">{{ workspace.state.libraryPath }}</p>
           </div>
           <div class="flex items-center gap-1 shrink-0">
-            <button @click="handleOpenFolder" class="p-1 rounded text-text-muted hover:text-brass-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors" title="Change Project Folder">
+            <button @click="handleOpenFolder" class="p-1 rounded text-text-muted hover:text-brass-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors" title="Change library location">
               <FolderOpen class="w-4 h-4" />
             </button>
             <button
@@ -431,11 +431,11 @@ watch(activeContent, (newContent) => {
             </button>
           </div>
         </div>
-        <nav v-if="workspace.state.projectFiles" class="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar border-b border-border">
+        <nav v-if="workspace.state.libraryFiles" class="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar border-b border-border">
           <button
-            v-for="file in workspace.state.projectFiles"
+            v-for="file in workspace.state.libraryFiles"
             :key="file.path"
-            @click="selectProjectFile(file.path)"
+            @click="selectLibraryFile(file.path)"
             class="w-full text-left px-3 py-2 rounded text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 group border border-transparent"
             :class="workspace.state.activeFile === file.path ? 'bg-brass-500/10 text-brass-500 font-bold border-brass-500/20 shadow-sm' : 'text-text-main'"
           >
@@ -444,7 +444,7 @@ watch(activeContent, (newContent) => {
             <span class="truncate">{{ file.name }}</span>
           </button>
 
-          <div v-if="workspace.state.projectFiles.length === 0" class="p-4 text-center">
+          <div v-if="workspace.state.libraryFiles.length === 0" class="p-4 text-center">
             <p class="text-xs text-text-muted italic text-balance">This folder is empty. Create a new .ds file to get started.</p>
             <button @click="handleNewPlay" class="mt-3 px-3 py-1.5 rounded-lg bg-brass-500/10 text-brass-600 dark:text-brass-400 text-xs font-bold hover:bg-brass-500/20 transition-colors">Create Play</button>
           </div>
@@ -497,7 +497,7 @@ watch(activeContent, (newContent) => {
       </aside>
 
       <div
-        v-if="!workspace.state.sidebarCollapsed && workspace.state.projectPath"
+        v-if="!workspace.state.sidebarCollapsed && workspace.state.libraryPath"
         class="sidebar-resize-handle shrink-0"
         role="separator"
         aria-orientation="vertical"
@@ -576,7 +576,7 @@ watch(activeContent, (newContent) => {
         >
           <template #leadingActions>
             <button
-              v-if="workspace.state.projectPath"
+              v-if="workspace.state.libraryPath"
               type="button"
               @click="workspace.toggleSidebar()"
               class="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-muted transition-colors"
@@ -598,12 +598,12 @@ watch(activeContent, (newContent) => {
     </main>
 
     <StatusBar
-      :project-name="projectNameBase"
+      :library-name="libraryNameBase"
       :active-file="activeFileBase"
       :cursor="cursor"
       :word-count="wordCount"
       :git-status="workspace.state.gitStatus"
-      :has-project="!!workspace.state.projectPath"
+      :has-library="!!workspace.state.libraryPath"
       :has-active-file="!!workspace.state.activeFile"
       @open-folder="() => dispatcher?.dispatch('file.openFolder')"
     />
@@ -612,10 +612,10 @@ watch(activeContent, (newContent) => {
       :open="paletteOpen"
       :mode="paletteMode"
       :env="env"
-      :project-files="workspace.state.projectFiles"
+      :library-files="workspace.state.libraryFiles"
       :disabled-ids="dispatcher?.disabledIds() ?? []"
       @close="paletteOpen = false"
-      @select-file="async (path: string) => { paletteOpen = false; await selectProjectFile(path); }"
+      @select-file="async (path: string) => { paletteOpen = false; await selectLibraryFile(path); }"
     />
     <Settings
       :open="settingsOpen"

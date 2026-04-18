@@ -2,13 +2,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import AppDesktop from "../../AppDesktop.vue";
-import type { DesktopCapabilities, ProjectFile, Revision } from "../../desktop/types";
+import type { DesktopCapabilities, LibraryFile, Revision } from "../../desktop/types";
 import { dispatchCommand } from "../../desktop/dispatcher-registry";
 
 interface RecordedEnv extends DesktopCapabilities {
   _calls: string[];
   _setOpenReturn: (path: string) => void;
-  _setFiles: (files: ProjectFile[]) => void;
+  _setFiles: (files: LibraryFile[]) => void;
   _setContent: (path: string, content: string) => void;
   _writeDelayMs: number;
   _setWriteDelay: (ms: number) => void;
@@ -36,9 +36,9 @@ function stubDom() {
   });
 }
 
-function createEnv(init: { files?: ProjectFile[]; openReturn?: string } = {}): RecordedEnv {
+function createEnv(init: { files?: LibraryFile[]; openReturn?: string } = {}): RecordedEnv {
   let openReturn = init.openReturn ?? "/projects/alpha";
-  let files: ProjectFile[] = init.files ?? [];
+  let files: LibraryFile[] = init.files ?? [];
   const contents: Record<string, string> = {};
   const revisions: Revision[] = [];
   const calls: string[] = [];
@@ -80,20 +80,20 @@ function createEnv(init: { files?: ProjectFile[]; openReturn?: string } = {}): R
     openURL: async () => {},
     getAppVersion: () => "test",
 
-    // ProjectEnv with call recording
-    openProjectFolder: async () => { record("openProjectFolder"); return openReturn; },
-    getProjectFiles: async () => { record("getProjectFiles"); return files; },
-    readProjectFile: async (p) => { record(`readProjectFile:${p}`); return contents[p] ?? ""; },
-    writeProjectFile: async (p, c) => {
-      record(`writeProjectFile:${p}`);
+    // LibraryEnv with call recording
+    changeLibraryLocation: async () => { record("changeLibraryLocation"); return openReturn; },
+    getLibraryFiles: async () => { record("getLibraryFiles"); return files; },
+    readLibraryFile: async (p) => { record(`readLibraryFile:${p}`); return contents[p] ?? ""; },
+    writeLibraryFile: async (p, c) => {
+      record(`writeLibraryFile:${p}`);
       if (writeDelayMs > 0) {
         await new Promise((r) => setTimeout(r, writeDelayMs));
       }
       contents[p] = c;
-      record(`writeProjectFile:${p}:done`);
+      record(`writeLibraryFile:${p}:done`);
     },
-    createProjectFile: async (name) => {
-      record(`createProjectFile:${name}`);
+    createLibraryFile: async (name) => {
+      record(`createLibraryFile:${name}`);
       const path = `${name}.ds`;
       files = [...files, { path, name: path, updatedAt: "" }];
       contents[path] = "";
@@ -123,9 +123,9 @@ function createEnv(init: { files?: ProjectFile[]; openReturn?: string } = {}): R
     flushPreferences: async () => { record("flushPreferences"); },
     getCommands: async () => { record("getCommands"); return []; },
     setDisabledCommands: async (ids) => { record(`setDisabledCommands:${ids.join(",")}`); },
-    getCurrentProject: async () => { record("getCurrentProject"); return openReturn; },
+    getCurrentLibrary: async () => { record("getCurrentLibrary"); return openReturn; },
     getLastActiveFile: async () => { record("getLastActiveFile"); return ""; },
-    setActiveProjectFile: async (p) => { record(`setActiveProjectFile:${p}`); },
+    setActiveLibraryFile: async (p) => { record(`setActiveLibraryFile:${p}`); },
     getSpellAllowlist: async () => { record("getSpellAllowlist"); return []; },
     addSpellAllowlistWord: async () => { record("addSpellAllowlistWord"); return true; },
     removeSpellAllowlistWord: async () => { record("removeSpellAllowlistWord"); return true; },
@@ -157,7 +157,7 @@ const globalStubs = {
 
 // Helper: mount the component and run through the initial onMounted so the
 // workspace is populated. Returns the wrapper and the env.
-async function mountApp(opts: { files?: ProjectFile[] } = {}) {
+async function mountApp(opts: { files?: LibraryFile[] } = {}) {
   stubDom();
   const env = createEnv({ files: opts.files ?? [{ path: "play.ds", name: "play.ds", updatedAt: "" }] });
   env._setContent("play.ds", "old");
@@ -192,9 +192,9 @@ describe("AppDesktop flush ordering", () => {
     await typeInto(wrapper, "edit-A");
 
     // The debounce has not fired yet.
-    expect(env._calls.some((c) => c.startsWith("writeProjectFile:play.ds"))).toBe(false);
+    expect(env._calls.some((c) => c.startsWith("writeLibraryFile:play.ds"))).toBe(false);
 
-    // Slow the write so we can prove it completes before openProjectFolder.
+    // Slow the write so we can prove it completes before changeLibraryLocation.
     env._setWriteDelay(20);
 
     env._setFiles([{ path: "other.ds", name: "other.ds", updatedAt: "" }]);
@@ -205,7 +205,7 @@ describe("AppDesktop flush ordering", () => {
     // Instead, invoke by finding the "New Project" / "Open Folder" button —
     // but the welcome screen has them. For robust test, click the sidebar's
     // Open Folder button.
-    const openBtn = wrapper.findAll("button").find((b) => b.attributes("title") === "Change Project Folder" || b.text().includes("Open Folder"));
+    const openBtn = wrapper.findAll("button").find((b) => b.attributes("title") === "Change library location" || b.text().includes("Open Folder"));
     expect(openBtn).toBeDefined();
     openBtn!.trigger("click");
 
@@ -213,8 +213,8 @@ describe("AppDesktop flush ordering", () => {
     await vi.advanceTimersByTimeAsync(1500);
     await flushPromises();
 
-    const writeDone = env._calls.indexOf("writeProjectFile:play.ds:done");
-    const openIdx = env._calls.indexOf("openProjectFolder");
+    const writeDone = env._calls.indexOf("writeLibraryFile:play.ds:done");
+    const openIdx = env._calls.indexOf("changeLibraryLocation");
     expect(writeDone).toBeGreaterThanOrEqual(0);
     expect(openIdx).toBeGreaterThan(writeDone);
   });
@@ -235,7 +235,7 @@ describe("AppDesktop flush ordering", () => {
     await dispatchPromise;
     await flushPromises();
 
-    const writeDone = env._calls.indexOf("writeProjectFile:play.ds:done");
+    const writeDone = env._calls.indexOf("writeLibraryFile:play.ds:done");
     const snapIdx = env._calls.findIndex((c) => c.startsWith("snapshotFile:play.ds"));
     expect(writeDone, `calls: ${env._calls.join("\n  ")}`).toBeGreaterThanOrEqual(0);
     expect(snapIdx, `calls: ${env._calls.join("\n  ")}`).toBeGreaterThan(writeDone);
@@ -260,8 +260,8 @@ describe("AppDesktop flush ordering", () => {
     await vi.advanceTimersByTimeAsync(1500);
     await flushPromises();
 
-    const writeDone = env._calls.indexOf("writeProjectFile:play.ds:done");
-    const readOther = env._calls.indexOf("readProjectFile:other.ds");
+    const writeDone = env._calls.indexOf("writeLibraryFile:play.ds:done");
+    const readOther = env._calls.indexOf("readLibraryFile:other.ds");
     expect(writeDone).toBeGreaterThanOrEqual(0);
     expect(readOther).toBeGreaterThan(writeDone);
   });

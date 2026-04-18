@@ -8,10 +8,10 @@ This package is the Go backend for the Wails-based desktop app ("Downstage
 Write"). It exposes methods that the Vue frontend calls via Wails bindings.
 All methods live on a single `*App` struct, split across focused files:
 
-- `app.go` — lifecycle, config persistence, `safePath` validation, the
-  `OnBeforeClose` hook.
+- `app.go` — lifecycle, config persistence (including legacy-config
+  migration), `safePath` validation, the `OnBeforeClose` hook.
 - `language.go` — parser/LSP bridge (parse, diagnostics, completions, etc.).
-- `project.go` — file CRUD, project folder management, spellcheck dictionary.
+- `library.go` — file CRUD, library location management, spellcheck dictionary.
 - `render.go` — HTML/PDF rendering and save dialogs.
 - `git.go` — explicit git snapshotting and revision history.
 - `helpers.go` — shared utilities.
@@ -23,15 +23,15 @@ All methods live on a single `*App` struct, split across focused files:
   filesystem. `safePath` rejects:
   - absolute inputs
   - **any leaf symlink**, whether the target is live, dangling, inside, or
-    outside the project (this closes a class of TOCTOU / dangling-leaf
+    outside the library (this closes a class of TOCTOU / dangling-leaf
     escapes that the previous parent-only check allowed)
-  - live symlink chains whose final target escapes the project root
+  - live symlink chains whose final target escapes the library root
 
   Tests in `app_test.go` cover each of these explicitly — do not relax the
   leaf-symlink rule without replacing those tests with something that
   provides equivalent coverage.
 
-- **File writes and git commits are separate operations.** `WriteProjectFile`
+- **File writes and git commits are separate operations.** `WriteLibraryFile`
   writes to disk only. `SnapshotFile` stages and commits. The frontend
   auto-saves on a debounce timer; git snapshots are explicit user actions.
   Do not re-couple these.
@@ -39,7 +39,7 @@ All methods live on a single `*App` struct, split across focused files:
 - **`ReadFileAtRevision` is read-only.** It resolves a revision, walks the
   tree, and returns the blob content. It must not mutate state, touch the
   working copy, or create a new commit. The restore flow is orchestrated
-  by the frontend across `WriteProjectFile` + `SnapshotFile` calls.
+  by the frontend across `WriteLibraryFile` + `SnapshotFile` calls.
 
 - **Do not add auto-commit behavior.** Writers auto-save constantly.
   Committing on every save produces useless git history. Snapshots should
@@ -47,21 +47,26 @@ All methods live on a single `*App` struct, split across focused files:
 
 - **Propagate errors. Do not swallow them.** Methods that represent
   user-visible actions return `(T, error)` so the frontend can toast real
-  failures. Early "success-with-nil" returns (for things like "no project
+  failures. Early "success-with-nil" returns (for things like "no library
   open") are a bug — return an error and let the UI present it.
   `SnapshotFile` uses `ErrNothingToSnapshot` as a typed sentinel when the
   worktree is clean after staging; the frontend matches on the message
   prefix `"downstage: nothing-to-snapshot"` to show an informational toast
   instead of an error.
 
-- **Config is written explicitly, not on hot paths.** `ReadProjectFile`
-  must not touch the config. Use `SetActiveProjectFile` from the frontend
-  on file selection; project switches mutate only the project fields
-  (see `OpenProjectFolder`).
+- **Config is written explicitly, not on hot paths.** `ReadLibraryFile`
+  must not touch the config. Use `SetActiveLibraryFile` from the frontend
+  on file selection; library switches mutate only the library fields
+  (see `ChangeLibraryLocation`).
+- **Legacy config fields migrate via `migrateLegacyConfig`.** The
+  pre-rename JSON keys (`lastProjectPath`, `lastActiveProjectFile`) are
+  read by `readConfigLocked` and copied into the current-name fields
+  whenever the latter are empty. Both legacy keys must migrate together —
+  the active file only makes sense in the context of its library.
 - **All config writers must go through `updateConfig(func(*Config))`.**
   `updateConfig` holds `configMu` across the full read-modify-write so
   independent subtree writers (Preferences, WindowState,
-  LastActiveProjectFile) can't drop each other's changes. `readConfig`
+  LastActiveLibraryFile) can't drop each other's changes. `readConfig`
   and `writeConfig` still exist for external atomic reads and verbatim
   writes (tests), but any in-process RMW must use `updateConfig` —
   otherwise the mutex releases between read and write and two writers
@@ -114,7 +119,7 @@ All methods live on a single `*App` struct, split across focused files:
   package is a thin bridge — it calls those packages and reshapes results
   for Wails JSON serialization. Do not add document logic here.
 - The spellcheck dictionary lives at `.downstage/dictionary.txt` in the
-  project root. This is a project-level resource, not a per-file or
+  library root. This is a library-level resource, not a per-file or
   per-draft concept.
 
 ## `OnBeforeClose` Event Contract
@@ -149,10 +154,12 @@ the close).
   absolute-path rejection, live symlink escape, **dangling symlink leaf
   (inside and outside root)**, and live leaf symlink. Keep coverage for
   each.
-- Snapshot tests cover: no-project error, clean-worktree sentinel, user
+- Snapshot tests cover: no-library error, clean-worktree sentinel, user
   git identity, fallback identity.
-- Config tests cover: clear semantics, project-switch clears the active
-  file, `ReadProjectFile` no longer touches config.
+- Config tests cover: clear semantics, library-switch clears the active
+  file, `ReadLibraryFile` no longer touches config, legacy config
+  migration (pre-rename `lastProjectPath`/`lastActiveProjectFile`
+  carry across).
 
 ## Validation
 

@@ -4,9 +4,10 @@ import { FolderOpen } from 'lucide-vue-next';
 import type { FileGitStatus } from './types';
 
 // StatusBar is the desktop app's single bottom chrome strip. It carries:
-// - an always-clickable project-label (the sole persistent open-folder
-//   affordance — the welcome-screen button disappears once a project is
-//   open, so this is what the writer uses to switch projects mid-session)
+// - an always-clickable library-label (the sole persistent library-switch
+//   affordance — the welcome-screen button disappears once a library is
+//   open, so this is what the writer uses to change library location
+//   mid-session, until commit 3 retargets it to "reveal in OS explorer")
 // - the active file's basename
 // - 1-based cursor Ln/Col
 // - word count (from manuscriptStats.totalWords, 500ms debounced upstream)
@@ -14,12 +15,12 @@ import type { FileGitStatus } from './types';
 //   with a local fast-path dirty flag for instant feedback on save)
 
 const props = defineProps<{
-  projectName: string;
+  libraryName: string;
   activeFile: string;
   cursor: { line: number; col: number };
   wordCount: number;
   gitStatus: FileGitStatus | null;
-  hasProject: boolean;
+  hasLibrary: boolean;
   hasActiveFile: boolean;
 }>();
 
@@ -60,13 +61,13 @@ const snapshotLabel = computed(() => {
 
 const showDirty = computed(() => !!props.gitStatus?.dirty && !props.gitStatus?.missing);
 
-const projectButtonLabel = computed(() => {
-  if (!props.hasProject) return 'No project — Open folder…';
-  return props.projectName || 'Open folder…';
+const libraryButtonLabel = computed(() => {
+  if (!props.hasLibrary) return 'No library — Choose location…';
+  return props.libraryName || 'Choose location…';
 });
 
-const projectButtonTitle = computed(() => {
-  return props.hasProject ? 'Change project folder…' : 'Open a project folder';
+const libraryButtonTitle = computed(() => {
+  return props.hasLibrary ? 'Change library location…' : 'Choose a library location';
 });
 </script>
 
@@ -76,17 +77,18 @@ const projectButtonTitle = computed(() => {
     role="status"
     aria-label="Status bar"
   >
-    <!-- Left cluster: project + active file. Project is always a real
-         button; clicking it opens the folder picker regardless of
-         whether a project is already loaded. -->
+    <!-- Left cluster: library + active file. Library label is always a
+         real button; clicking it opens the folder picker regardless of
+         whether a library is already loaded. Commit 2 retargets this
+         click to "reveal library in OS file explorer". -->
     <button
       type="button"
       class="inline-flex items-center gap-1.5 text-text-main hover:text-brass-500 focus:outline-none focus:text-brass-500 transition-colors max-w-[240px] truncate"
-      :title="projectButtonTitle"
+      :title="libraryButtonTitle"
       @click="$emit('openFolder')"
     >
       <FolderOpen class="w-3 h-3 shrink-0 opacity-70" />
-      <span class="font-bold truncate">{{ projectButtonLabel }}</span>
+      <span class="font-bold truncate">{{ libraryButtonLabel }}</span>
     </button>
 
     <template v-if="hasActiveFile">

@@ -89,16 +89,16 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     const path = await workspace.openFolder();
     if (!path) return;
     activeContent.value = "";
-    if (workspace.state.projectFiles.length > 0) {
-      activeContent.value = await workspace.selectFile(workspace.state.projectFiles[0].path);
+    if (workspace.state.libraryFiles.length > 0) {
+      activeContent.value = await workspace.selectFile(workspace.state.libraryFiles[0].path);
     }
     toast.addToast(`Opened project: ${path.split(/[\\/]/).pop()}`, "success");
   }
 
   async function handleNewPlay() {
-    if (!workspace.state.projectPath) {
+    if (!workspace.state.libraryPath) {
       await handleOpenFolder();
-      if (!workspace.state.projectPath) return;
+      if (!workspace.state.libraryPath) return;
     }
     await flushSave();
     try {
@@ -152,7 +152,7 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
   // to the start; Prev at the start cycles to the end. Small niceness
   // over staying put, and more Finder-like.
   function navigateFile(direction: 1 | -1) {
-    const files = workspace.state.projectFiles;
+    const files = workspace.state.libraryFiles;
     if (files.length === 0) return;
     const current = workspace.state.activeFile;
     const currentIdx = files.findIndex((f) => f.path === current);
@@ -199,15 +199,15 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     // Navigate
     ["navigate.nextFile", {
       handler: () => navigateFile(1),
-      isEnabled: () => workspace.state.projectFiles.length > 1,
+      isEnabled: () => workspace.state.libraryFiles.length > 1,
     }],
     ["navigate.prevFile", {
       handler: () => navigateFile(-1),
-      isEnabled: () => workspace.state.projectFiles.length > 1,
+      isEnabled: () => workspace.state.libraryFiles.length > 1,
     }],
     ["navigate.goToFile", {
       handler: () => ui.openPalette("file"),
-      isEnabled: () => workspace.state.projectFiles.length > 0,
+      isEnabled: () => workspace.state.libraryFiles.length > 0,
     }],
 
     // Format — all go through the editor's imperative applyFormat hook.

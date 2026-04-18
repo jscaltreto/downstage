@@ -1,6 +1,6 @@
 import type { EditorEnv } from "../core/types";
 
-export interface ProjectFile {
+export interface LibraryFile {
   path: string;
   name: string;
   updatedAt: string;
@@ -24,23 +24,23 @@ export interface FileGitStatus {
   missing: boolean;
 }
 
-export interface ProjectEnv {
-  openProjectFolder(): Promise<string>;
-  getProjectFiles(): Promise<ProjectFile[]>;
-  readProjectFile(path: string): Promise<string>;
-  writeProjectFile(path: string, content: string): Promise<void>;
-  createProjectFile(name: string, content: string): Promise<string>;
+export interface LibraryEnv {
+  changeLibraryLocation(): Promise<string>;
+  getLibraryFiles(): Promise<LibraryFile[]>;
+  readLibraryFile(path: string): Promise<string>;
+  writeLibraryFile(path: string, content: string): Promise<void>;
+  createLibraryFile(name: string, content: string): Promise<string>;
   snapshotFile(path: string, message: string): Promise<void>;
   // `limit <= 0` falls back to the server's default bound (currently 100)
-  // to avoid unbounded payloads on long-lived projects.
+  // to avoid unbounded payloads on long-lived libraries.
   getRevisions(path: string, limit?: number): Promise<Revision[]>;
   readFileAtRevision(path: string, hash: string): Promise<string>;
   // Per-file status for the desktop status bar: dirty flag + last
   // snapshot time + missing/untracked signals. See FileGitStatus.
   getFileGitStatus(path: string): Promise<FileGitStatus>;
-  getCurrentProject(): Promise<string>;
+  getCurrentLibrary(): Promise<string>;
   getLastActiveFile(): Promise<string>;
-  setActiveProjectFile(rel: string): Promise<void>;
+  setActiveLibraryFile(rel: string): Promise<void>;
   getSpellAllowlist(): Promise<string[]>;
   addSpellAllowlistWord(word: string): Promise<boolean>;
   removeSpellAllowlistWord(word: string): Promise<boolean>;
@@ -98,4 +98,4 @@ export interface CommandMeta {
   paletteHidden?: boolean;
 }
 
-export interface DesktopCapabilities extends EditorEnv, ProjectEnv {}
+export interface DesktopCapabilities extends EditorEnv, LibraryEnv {}

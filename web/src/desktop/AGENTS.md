@@ -7,10 +7,10 @@ These instructions apply to `web/src/desktop/`.
 This directory contains the desktop-only frontend layer for the Wails app.
 It is separate from the shared editor core in `web/src/core/`.
 
-- `types.ts` — `ProjectEnv`, `DesktopCapabilities` interfaces, `ProjectFile`
+- `types.ts` — `LibraryEnv`, `DesktopCapabilities` interfaces, `LibraryFile`
   and `Revision` types. `DesktopCapabilities` extends `EditorEnv` (shared)
-  with `ProjectEnv` (desktop-only).
-- `workspace.ts` — `Workspace` class with reactive state for project
+  with `LibraryEnv` (desktop-only).
+- `workspace.ts` — `Workspace` class with reactive state for library
   files, active file, revisions, sidebar, **spell allowlist**,
   **`isLoadingFile`**, and **revision-view state** (`viewingRevisionHash`,
   `viewingRevisionContent`, `viewingRevisionMeta`). This is the desktop
@@ -23,23 +23,23 @@ It is separate from the shared editor core in `web/src/core/`.
 
 The Wails bridge class (`WailsBridge` in `desktop-app.ts`) implements
 `DesktopCapabilities`. `AppDesktop.vue` creates both a shared `Store`
-(theme, shared editor behavior) and a `Workspace` (project state).
+(theme, shared editor behavior) and a `Workspace` (library state).
 
 ## Shared vs Desktop Boundary
 
 - **`web/src/core/`** is shared between web and desktop. It must not
-  import from `web/src/desktop/` or reference project/workspace concepts.
+  import from `web/src/desktop/` or reference library/workspace concepts.
 - **`web/src/desktop/`** imports from `web/src/core/` (for `EditorEnv`)
   but not the other way around.
 - **`EditorEnv`** is the shared interface that `Editor.vue` depends on.
   Do not add desktop-only methods to it. Desktop capabilities go in
-  `ProjectEnv`.
+  `LibraryEnv`.
 - The shared `Store` manages drafts and theme. The desktop `Workspace`
-  manages project files, active file, revisions, and allowlist. Do not
+  manages library files, active file, revisions, and allowlist. Do not
   merge these.
 - The web app's draft system (`loadDrafts`, `saveDrafts`, etc.) is not
   used by desktop. `WailsBridge` returns empty/no-op for draft methods.
-  Desktop persistence is file-based via `ProjectEnv`.
+  Desktop persistence is file-based via `LibraryEnv`.
 
 ## `documentKey` Contract
 
@@ -65,12 +65,12 @@ so switching documents automatically invalidates a prior dismissal.
 - Git snapshots are explicit user actions ("Save Version" button), not
   tied to auto-save. Do not add auto-commit.
 - `flushSave()` is **async** and must be awaited. It clears the pending
-  timer and awaits the in-flight `writeProjectFile`. Every callsite that
+  timer and awaits the in-flight `writeLibraryFile`. Every callsite that
   transitions state in a way that could clobber `workspace.state.activeFile`
-  or the project root MUST `await flushSave()` first:
-  - folder switch (`handleOpenFolder`) — flush before
+  or the library root MUST `await flushSave()` first:
+  - library switch (`handleOpenFolder`) — flush before
     `workspace.openFolder` clears `activeFile`
-  - file switch (`selectProjectFile`)
+  - file switch (`selectLibraryFile`)
   - snapshot (`handleSnapshot`) — the commit must see just-written contents
   - export (`handleExport`) — kept for contract consistency
   - new file (`handleNewPlay`)
@@ -104,7 +104,7 @@ so switching documents automatically invalidates a prior dismissal.
   writes the revision content to disk → snapshots that as "Restore
   version ${short}". Both the pre-state and post-state are now in git, so
   "undo the restore" is itself a one-click restore of the backup commit.
-- `clearRevisionView()` is called on file switch, project switch, and after
+- `clearRevisionView()` is called on file switch, library switch, and after
   a successful restore so stale preview state never leaks across contexts.
 
 ## Commands
@@ -134,7 +134,7 @@ so switching documents automatically invalidates a prior dismissal.
 ## Settings Dialog
 
 - `Settings.vue` wraps three real tabs: Editor, Appearance, Spellcheck.
-  No placeholder tabs for Project / Export / Git / Advanced — those get
+  No placeholder tabs for Library / Export / Git / Advanced — those get
   added when they have real controls.
 - The shared `SpellcheckPanel.vue` is the single spellcheck UI. The
   desktop Settings > Spellcheck tab and the web Editor's in-editor
@@ -183,11 +183,11 @@ so switching documents automatically invalidates a prior dismissal.
 ## Spellcheck
 
 - The desktop spellcheck dictionary is stored at `.downstage/dictionary.txt`
-  in the project directory, managed by the Go backend.
+  in the library directory, managed by the Go backend.
 - `Workspace` owns the in-memory copy as `state.spellAllowlist`. Call
   `workspace.addAllowlistWord` / `workspace.removeAllowlistWord` — not
   the env directly — so the reactive state stays in sync.
-- The allowlist is refreshed on project switch (`openFolder`).
+- The allowlist is refreshed on library switch (`openFolder`).
 
 ## Validation
 

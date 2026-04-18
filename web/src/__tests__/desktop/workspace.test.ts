@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Workspace } from "../../desktop/workspace";
-import type { DesktopCapabilities, ProjectFile, Revision } from "../../desktop/types";
+import type { DesktopCapabilities, LibraryFile, Revision } from "../../desktop/types";
 
 function stubLocalStorage() {
   const store = new Map<string, string>();
@@ -15,7 +15,7 @@ function stubLocalStorage() {
 
 interface StubEnv extends DesktopCapabilities {
   _calls: string[];
-  _files: ProjectFile[];
+  _files: LibraryFile[];
   _contents: Record<string, string>;
   _revisions: Revision[];
   _openReturn: string;
@@ -62,14 +62,14 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
     openURL: async () => {},
     getAppVersion: () => "test",
 
-    // ProjectEnv with call recording.
-    openProjectFolder: () => record("openProjectFolder", async () => state._openReturn),
-    getProjectFiles: () => record("getProjectFiles", async () => state._files),
-    readProjectFile: (p: string) => record(`readProjectFile:${p}`, async () => state._contents[p] ?? ""),
-    writeProjectFile: (p: string, c: string) => record(`writeProjectFile:${p}`, async () => {
+    // LibraryEnv with call recording.
+    changeLibraryLocation: () => record("changeLibraryLocation", async () => state._openReturn),
+    getLibraryFiles: () => record("getLibraryFiles", async () => state._files),
+    readLibraryFile: (p: string) => record(`readLibraryFile:${p}`, async () => state._contents[p] ?? ""),
+    writeLibraryFile: (p: string, c: string) => record(`writeLibraryFile:${p}`, async () => {
       state._contents[p] = c;
     }),
-    createProjectFile: (name: string, content: string) => record(`createProjectFile:${name}`, async () => {
+    createLibraryFile: (name: string, content: string) => record(`createLibraryFile:${name}`, async () => {
       const path = `${name}.ds`;
       state._files = [...state._files, { path, name: path, updatedAt: "" }];
       state._contents[path] = content;
@@ -117,9 +117,9 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
     flushPreferences: () => record("flushPreferences", async () => {}),
     getCommands: () => record("getCommands", async () => []),
     setDisabledCommands: (ids: string[]) => record(`setDisabledCommands:${ids.join(",")}`, async () => {}),
-    getCurrentProject: () => record("getCurrentProject", async () => state._openReturn),
+    getCurrentLibrary: () => record("getCurrentLibrary", async () => state._openReturn),
     getLastActiveFile: () => record("getLastActiveFile", async () => ""),
-    setActiveProjectFile: (p: string) => record(`setActiveProjectFile:${p}`, async () => {}),
+    setActiveLibraryFile: (p: string) => record(`setActiveLibraryFile:${p}`, async () => {}),
     getSpellAllowlist: () => record("getSpellAllowlist", async () => []),
     addSpellAllowlistWord: () => record("addSpellAllowlistWord", async () => true),
     removeSpellAllowlistWord: () => record("removeSpellAllowlistWord", async () => true),
@@ -137,7 +137,7 @@ describe("Workspace", () => {
     const result = await ws.openFolder();
 
     expect(result).toBeNull();
-    expect(ws.state.projectPath).toBeNull();
+    expect(ws.state.libraryPath).toBeNull();
     expect(ws.state.activeFile).toBeNull();
   });
 
@@ -152,10 +152,10 @@ describe("Workspace", () => {
 
     await ws.openFolder();
 
-    expect(ws.state.projectPath).toBe("/projects/alpha");
+    expect(ws.state.libraryPath).toBe("/projects/alpha");
     expect(ws.state.activeFile).toBeNull();
     expect(ws.state.revisions).toEqual([]);
-    expect(ws.state.projectFiles.map(f => f.path)).toEqual(["play.ds"]);
+    expect(ws.state.libraryFiles.map(f => f.path)).toEqual(["play.ds"]);
   });
 
   it("selectFile sets activeFile, reads content, and loads revisions", async () => {
@@ -171,9 +171,9 @@ describe("Workspace", () => {
     expect(content).toBe("hello");
     expect(ws.state.activeFile).toBe("play.ds");
     expect(ws.state.revisions.length).toBe(1);
-    // Ordering matters — activeFile must be set before readProjectFile so
+    // Ordering matters — activeFile must be set before readLibraryFile so
     // debounced saves captured in-flight see the right target file.
-    const readIndex = env._calls.indexOf("readProjectFile:play.ds");
+    const readIndex = env._calls.indexOf("readLibraryFile:play.ds");
     const revisionsIndex = env._calls.indexOf("getRevisions:play.ds");
     expect(readIndex).toBeGreaterThan(-1);
     expect(revisionsIndex).toBeGreaterThan(readIndex);
@@ -186,10 +186,10 @@ describe("Workspace", () => {
 
     await ws.saveFile("ignored");
 
-    expect(env._calls.some((c) => c.startsWith("writeProjectFile:"))).toBe(false);
+    expect(env._calls.some((c) => c.startsWith("writeLibraryFile:"))).toBe(false);
   });
 
-  it("createFile refreshes project files", async () => {
+  it("createFile refreshes library files", async () => {
     stubLocalStorage();
     const env = createEnv();
     const ws = new Workspace(env);
@@ -197,7 +197,7 @@ describe("Workspace", () => {
     const path = await ws.createFile("Act One", "body");
 
     expect(path).toBe("Act One.ds");
-    expect(ws.state.projectFiles.map(f => f.path)).toContain("Act One.ds");
+    expect(ws.state.libraryFiles.map(f => f.path)).toContain("Act One.ds");
   });
 
   it("viewRevision loads content into preview state without touching the live buffer", async () => {
@@ -218,7 +218,7 @@ describe("Workspace", () => {
     // still the same file; the banner just overlays the view.
     expect(ws.state.activeFile).toBe("play.ds");
     // No write happens on view.
-    expect(env._calls.some((c) => c.startsWith("writeProjectFile:"))).toBe(false);
+    expect(env._calls.some((c) => c.startsWith("writeLibraryFile:"))).toBe(false);
   });
 
   it("clearRevisionView resets the preview state", async () => {
@@ -253,7 +253,7 @@ describe("Workspace", () => {
     expect(result).toBe("older-content");
     expect(ws.state.viewingRevisionHash).toBeNull();
     // The backup write must land before the backup snapshot.
-    const backupWrite = env._calls.indexOf("writeProjectFile:play.ds");
+    const backupWrite = env._calls.indexOf("writeLibraryFile:play.ds");
     const backupSnap = env._calls.findIndex((c) => c === "snapshotFile:play.ds:Auto-save before restore");
     expect(backupWrite).toBeGreaterThanOrEqual(0);
     expect(backupSnap).toBeGreaterThan(backupWrite);

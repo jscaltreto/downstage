@@ -1,11 +1,11 @@
 import { reactive } from "vue";
-import type { DesktopCapabilities, FileGitStatus, ProjectFile, Revision } from "./types";
+import type { DesktopCapabilities, FileGitStatus, LibraryFile, Revision } from "./types";
 
 export type DrawerDock = 'bottom' | 'right';
 
 export interface WorkspaceState {
-  projectPath: string | null;
-  projectFiles: ProjectFile[];
+  libraryPath: string | null;
+  libraryFiles: LibraryFile[];
   activeFile: string | null;
   revisions: Revision[];
   sidebarCollapsed: boolean;
@@ -85,8 +85,8 @@ export class Workspace {
 
   constructor(private env: DesktopCapabilities) {
     this.state = reactive<WorkspaceState>({
-      projectPath: null,
-      projectFiles: [],
+      libraryPath: null,
+      libraryFiles: [],
       activeFile: null,
       revisions: [],
       // Placeholder. Real values come from env pref reads in init.
@@ -105,9 +105,9 @@ export class Workspace {
   }
 
   async init() {
-    this.state.projectPath = await this.env.getCurrentProject();
-    if (this.state.projectPath) {
-      this.state.projectFiles = await this.env.getProjectFiles();
+    this.state.libraryPath = await this.env.getCurrentLibrary();
+    if (this.state.libraryPath) {
+      this.state.libraryFiles = await this.env.getLibraryFiles();
       this.state.spellAllowlist = await this.env.getSpellAllowlist();
     }
     this.state.sidebarCollapsed = await this.env.getSidebarCollapsed();
@@ -123,16 +123,16 @@ export class Workspace {
   }
 
   async openFolder(): Promise<string | null> {
-    const path = await this.env.openProjectFolder();
+    const path = await this.env.changeLibraryLocation();
     if (!path) return null;
-    this.state.projectPath = path;
+    this.state.libraryPath = path;
     this.state.activeFile = null;
     this.state.revisions = [];
     this.state.gitStatus = null;
     this.cancelDirtyReconcile();
     this.clearRevisionView();
-    this.state.projectFiles = await this.env.getProjectFiles();
-    // Allowlist is project-scoped — reload after a project switch.
+    this.state.libraryFiles = await this.env.getLibraryFiles();
+    // Allowlist is library-scoped — reload after a library switch.
     this.state.spellAllowlist = await this.env.getSpellAllowlist();
     return path;
   }
@@ -143,10 +143,10 @@ export class Workspace {
     this.cancelDirtyReconcile();
     this.state.isLoadingFile = true;
     try {
-      const content = await this.env.readProjectFile(path);
+      const content = await this.env.readLibraryFile(path);
       // Persist the active-file pointer explicitly here, once per file
-      // switch, instead of letting readProjectFile do it on every read.
-      await this.env.setActiveProjectFile(path);
+      // switch, instead of letting readLibraryFile do it on every read.
+      await this.env.setActiveLibraryFile(path);
       await this.loadRevisions();
       await this.refreshGitStatus();
       return content;
@@ -157,7 +157,7 @@ export class Workspace {
 
   async saveFile(content: string) {
     if (!this.state.activeFile) return;
-    await this.env.writeProjectFile(this.state.activeFile, content);
+    await this.env.writeLibraryFile(this.state.activeFile, content);
     // Fast path: flip dirty locally so the status bar dot appears with
     // zero IPC latency. Correctness path: schedule a debounced
     // refreshGitStatus so an undo-to-HEAD eventually clears the dot,
@@ -167,8 +167,8 @@ export class Workspace {
   }
 
   async createFile(name: string, content: string): Promise<string> {
-    const path = await this.env.createProjectFile(name, content);
-    this.state.projectFiles = await this.env.getProjectFiles();
+    const path = await this.env.createLibraryFile(name, content);
+    this.state.libraryFiles = await this.env.getLibraryFiles();
     return path;
   }
 
@@ -200,7 +200,7 @@ export class Workspace {
   }
 
   // markDirtyLocally is the fast path used right after a successful
-  // writeProjectFile. It only ever flips Dirty=true and is safe to call
+  // writeLibraryFile. It only ever flips Dirty=true and is safe to call
   // with no gitStatus cached (it materializes a minimal record in that
   // case). HeadAt / HasHead stay untouched so the "Last snapshot"
   // display doesn't regress.
@@ -290,7 +290,7 @@ export class Workspace {
     }
 
     // 1. Persist the in-memory live content so step 2 can capture it.
-    await this.env.writeProjectFile(file, liveContent);
+    await this.env.writeLibraryFile(file, liveContent);
 
     // 2. Snapshot the pre-restore state. If nothing to commit, HEAD is
     //    already a faithful backup — swallow the sentinel and continue.
@@ -302,7 +302,7 @@ export class Workspace {
 
     // 3. Read the revision content and write it into the working copy.
     const revisionContent = await this.env.readFileAtRevision(file, hash);
-    await this.env.writeProjectFile(file, revisionContent);
+    await this.env.writeLibraryFile(file, revisionContent);
 
     // 4. Commit the restore so it shows up in the revisions list. The
     //    pre-restore step guarantees we have something to diff against, but

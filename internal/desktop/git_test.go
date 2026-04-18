@@ -23,7 +23,7 @@ func TestGetFileGitStatus_CleanTrackedFile(t *testing.T) {
 	isolateGitIdentity(t)
 	a := testApp(t)
 
-	require.NoError(t, a.WriteProjectFile("play.ds", "content"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "content"))
 	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
 
 	st, err := a.GetFileGitStatus("play.ds")
@@ -39,9 +39,9 @@ func TestGetFileGitStatus_DirtyTrackedFile(t *testing.T) {
 	isolateGitIdentity(t)
 	a := testApp(t)
 
-	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
 	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
-	require.NoError(t, a.WriteProjectFile("play.ds", "v2"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v2"))
 
 	st, err := a.GetFileGitStatus("play.ds")
 	require.NoError(t, err)
@@ -55,12 +55,12 @@ func TestGetFileGitStatus_StagedChange(t *testing.T) {
 	isolateGitIdentity(t)
 	a := testApp(t)
 
-	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
 	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
-	require.NoError(t, a.WriteProjectFile("play.ds", "v2"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v2"))
 
 	// Stage the change without committing.
-	r, err := git.PlainOpen(a.currentProject)
+	r, err := git.PlainOpen(a.currentLibrary)
 	require.NoError(t, err)
 	w, err := r.Worktree()
 	require.NoError(t, err)
@@ -78,9 +78,9 @@ func TestGetFileGitStatus_NeverCommittedFile(t *testing.T) {
 	a := testApp(t)
 
 	// Init a repo so "no repo" isn't what we're testing here.
-	_, err := git.PlainInit(a.currentProject, false)
+	_, err := git.PlainInit(a.currentLibrary, false)
 	require.NoError(t, err)
-	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
 
 	st, err := a.GetFileGitStatus("play.ds")
 	require.NoError(t, err)
@@ -95,12 +95,12 @@ func TestGetFileGitStatus_DeletedOnDisk(t *testing.T) {
 	isolateGitIdentity(t)
 	a := testApp(t)
 
-	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
 	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
 
 	// Delete the working copy so Missing fires; git history still
 	// remembers it.
-	require.NoError(t, os.Remove(filepath.Join(a.currentProject, "play.ds")))
+	require.NoError(t, os.Remove(filepath.Join(a.currentLibrary, "play.ds")))
 
 	st, err := a.GetFileGitStatus("play.ds")
 	require.NoError(t, err)
@@ -112,8 +112,8 @@ func TestGetFileGitStatus_DeletedOnDisk(t *testing.T) {
 
 func TestGetFileGitStatus_NoRepo(t *testing.T) {
 	a := testApp(t)
-	// No git init. WriteProjectFile does not implicitly init.
-	require.NoError(t, os.WriteFile(filepath.Join(a.currentProject, "play.ds"), []byte("v1"), 0644))
+	// No git init. WriteLibraryFile does not implicitly init.
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("v1"), 0644))
 
 	st, err := a.GetFileGitStatus("play.ds")
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestGetFileGitStatus_BlocksTraversal(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestGetFileGitStatus_NoProject(t *testing.T) {
+func TestGetFileGitStatus_NoLibrary(t *testing.T) {
 	a := &App{}
 
 	_, err := a.GetFileGitStatus("play.ds")

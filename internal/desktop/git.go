@@ -55,20 +55,20 @@ func snapshotAuthor(r *git.Repository) *object.Signature {
 	return &object.Signature{Name: name, Email: email, When: time.Now()}
 }
 
-// SnapshotFile stages and commits a file in the project's Git repository.
+// SnapshotFile stages and commits a file in the library's Git repository.
 // This is an explicit user action, not called automatically on every save.
 // Returns ErrNothingToSnapshot when the working tree is clean after staging.
 func (a *App) SnapshotFile(relPath string, message string) error {
-	if a.currentProject == "" {
-		return fmt.Errorf("no project open")
+	if a.currentLibrary == "" {
+		return fmt.Errorf("no library open")
 	}
 	if _, err := a.safePath(relPath); err != nil {
 		return err
 	}
 
-	r, err := git.PlainOpen(a.currentProject)
+	r, err := git.PlainOpen(a.currentLibrary)
 	if errors.Is(err, git.ErrRepositoryNotExists) {
-		r, err = git.PlainInit(a.currentProject, false)
+		r, err = git.PlainInit(a.currentLibrary, false)
 	}
 	if err != nil {
 		return err
@@ -99,20 +99,20 @@ func (a *App) SnapshotFile(relPath string, message string) error {
 
 // defaultRevisionLimit bounds how many revisions GetRevisions returns when
 // the caller doesn't specify. Prevents unbounded IPC payloads on long-lived
-// projects; pagination can be added later if needed.
+// libraries; pagination can be added later if needed.
 const defaultRevisionLimit = 100
 
 func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
-	// Same nil-slice-is-null hazard as GetProjectFiles: always hand
+	// Same nil-slice-is-null hazard as GetLibraryFiles: always hand
 	// the frontend a real empty slice so `.length`/`.map` are safe.
-	if a.currentProject == "" {
+	if a.currentLibrary == "" {
 		return []Revision{}, nil
 	}
 	if limit <= 0 {
 		limit = defaultRevisionLimit
 	}
 
-	r, err := git.PlainOpen(a.currentProject)
+	r, err := git.PlainOpen(a.currentLibrary)
 	if errors.Is(err, git.ErrRepositoryNotExists) {
 		return []Revision{}, nil
 	}
@@ -147,11 +147,11 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 	return revisions, nil
 }
 
-// FileGitStatus summarizes git-level state for a single project file, as
+// FileGitStatus summarizes git-level state for a single library file, as
 // surfaced in the desktop status bar. Booleans are negative-semantic where
 // helpful so the zero value aligns with the common "tracked, clean" case.
 //
-//   - HasHead is true when at least one commit in the project's history
+//   - HasHead is true when at least one commit in the library's history
 //     has touched relPath. HeadAt carries that commit's timestamp.
 //   - Untracked is true when the file exists on disk but git has never
 //     seen it (no index entry, no history).
@@ -177,11 +177,11 @@ type FileGitStatus struct {
 // explicitly: a renamed-away or deleted file flips Missing=true and the
 // status bar shows a neutral label instead of stale metadata.
 //
-// When the project has no git repo yet, the file is reported as
+// When the library has no git repo yet, the file is reported as
 // untracked and dirty — "no snapshots exist" is the truthful read.
 func (a *App) GetFileGitStatus(relPath string) (FileGitStatus, error) {
-	if a.currentProject == "" {
-		return FileGitStatus{}, fmt.Errorf("no project open")
+	if a.currentLibrary == "" {
+		return FileGitStatus{}, fmt.Errorf("no library open")
 	}
 	fullPath, err := a.safePath(relPath)
 	if err != nil {
@@ -196,7 +196,7 @@ func (a *App) GetFileGitStatus(relPath string) (FileGitStatus, error) {
 		return FileGitStatus{}, fmt.Errorf("stat file: %w", statErr)
 	}
 
-	r, err := git.PlainOpen(a.currentProject)
+	r, err := git.PlainOpen(a.currentLibrary)
 	if errors.Is(err, git.ErrRepositoryNotExists) {
 		// No repo means there is no HEAD and no tracking information at
 		// all. A present-on-disk file is untracked+dirty; a missing file
@@ -275,8 +275,8 @@ func lastCommitTimeForPath(r *git.Repository, relPath string) (string, bool) {
 // exist on disk to have existed at an older revision). The hash must be a
 // full or prefix SHA that resolves to a single commit.
 func (a *App) ReadFileAtRevision(relPath string, hash string) (string, error) {
-	if a.currentProject == "" {
-		return "", fmt.Errorf("no project open")
+	if a.currentLibrary == "" {
+		return "", fmt.Errorf("no library open")
 	}
 	if _, err := a.safePath(relPath); err != nil {
 		// Allow the file to be absent from disk — we may be reading a
@@ -286,7 +286,7 @@ func (a *App) ReadFileAtRevision(relPath string, hash string) (string, error) {
 		return "", err
 	}
 
-	r, err := git.PlainOpen(a.currentProject)
+	r, err := git.PlainOpen(a.currentLibrary)
 	if err != nil {
 		return "", err
 	}

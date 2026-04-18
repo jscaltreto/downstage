@@ -7,25 +7,25 @@ import type { FileGitStatus } from "../../desktop/types";
 // StatusBar rendering tests. Owned-by-host behaviors (click dispatch,
 // data sourcing) are covered indirectly by AppDesktop tests; this file
 // pins the pure rendering contract: dirty dot, snapshot labels,
-// missing-file handling, and the always-enabled project button.
+// missing-file handling, and the always-enabled library button.
 
 function mountWith(props: Partial<{
-  projectName: string;
+  libraryName: string;
   activeFile: string;
   cursor: { line: number; col: number };
   wordCount: number;
   gitStatus: FileGitStatus | null;
-  hasProject: boolean;
+  hasLibrary: boolean;
   hasActiveFile: boolean;
 }> = {}) {
   return mount(StatusBar, {
     props: {
-      projectName: "",
+      libraryName: "",
       activeFile: "",
       cursor: { line: 1, col: 1 },
       wordCount: 0,
       gitStatus: null,
-      hasProject: false,
+      hasLibrary: false,
       hasActiveFile: false,
       ...props,
     },
@@ -41,37 +41,37 @@ describe("StatusBar", () => {
     vi.useRealTimers();
   });
 
-  it("project button is always enabled and shows empty-state copy when no project", () => {
-    const wrapper = mountWith({ hasProject: false });
+  it("library button is always enabled and shows empty-state copy when no library", () => {
+    const wrapper = mountWith({ hasLibrary: false });
     const btn = wrapper.find("button");
     expect(btn.exists()).toBe(true);
     expect((btn.element as HTMLButtonElement).disabled).toBe(false);
-    expect(btn.text()).toContain("No project");
+    expect(btn.text()).toContain("No library");
   });
 
-  it("emits openFolder when the project button is clicked", async () => {
-    const wrapper = mountWith({ hasProject: true, projectName: "alpha" });
+  it("emits openFolder when the library button is clicked", async () => {
+    const wrapper = mountWith({ hasLibrary: true, libraryName: "alpha" });
     await wrapper.find("button").trigger("click");
     expect(wrapper.emitted("openFolder")).toHaveLength(1);
   });
 
   it("renders cursor and word count only when an active file is present", () => {
     const withFile = mountWith({
-      hasProject: true, projectName: "alpha",
+      hasLibrary: true, libraryName: "alpha",
       hasActiveFile: true, activeFile: "play.ds",
       cursor: { line: 12, col: 7 }, wordCount: 1234,
     });
     expect(withFile.text()).toContain("Ln 12, Col 7");
     expect(withFile.text()).toContain("1,234 words");
 
-    const noFile = mountWith({ hasProject: true, projectName: "alpha" });
+    const noFile = mountWith({ hasLibrary: true, libraryName: "alpha" });
     expect(noFile.text()).not.toContain("Ln 1");
     expect(noFile.text()).not.toContain("words");
   });
 
   it("shows the dirty indicator when gitStatus.dirty and not missing", () => {
     const wrapper = mountWith({
-      hasProject: true, hasActiveFile: true, activeFile: "play.ds",
+      hasLibrary: true, hasActiveFile: true, activeFile: "play.ds",
       gitStatus: { dirty: true, headAt: "2026-04-17T23:55:00Z", hasHead: true, untracked: false, missing: false },
     });
     // amber-500 dot is a small span with rounded-full class.
@@ -80,7 +80,7 @@ describe("StatusBar", () => {
 
   it("omits the dirty dot when file is missing, even if dirty would otherwise be true", () => {
     const wrapper = mountWith({
-      hasProject: true, hasActiveFile: true, activeFile: "gone.ds",
+      hasLibrary: true, hasActiveFile: true, activeFile: "gone.ds",
       gitStatus: { dirty: true, headAt: "2026-04-01T00:00:00Z", hasHead: true, untracked: false, missing: true },
     });
     expect(wrapper.find("span.bg-amber-500").exists()).toBe(false);
@@ -100,7 +100,7 @@ describe("StatusBar", () => {
     ];
     for (const [iso, expected] of cases) {
       const wrapper = mountWith({
-        hasProject: true, hasActiveFile: true, activeFile: "play.ds",
+        hasLibrary: true, hasActiveFile: true, activeFile: "play.ds",
         gitStatus: { dirty: false, headAt: iso, hasHead: true, untracked: false, missing: false },
       });
       expect(wrapper.text()).toContain(`Last snapshot ${expected}`);
@@ -110,7 +110,7 @@ describe("StatusBar", () => {
 
   it("renders 'No snapshots' when a file has no history", () => {
     const wrapper = mountWith({
-      hasProject: true, hasActiveFile: true, activeFile: "new.ds",
+      hasLibrary: true, hasActiveFile: true, activeFile: "new.ds",
       gitStatus: { dirty: true, headAt: "", hasHead: false, untracked: true, missing: false },
     });
     expect(wrapper.text()).toContain("No snapshots");
