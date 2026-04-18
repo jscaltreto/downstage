@@ -22,6 +22,24 @@ compiled from `cmd/wasm/main.go`.
 - Leverage Tailwind utility classes for styling.
 - Do not check in `node_modules/`, `dist/`, or `*.wasm` files.
 
+## Preferences
+
+- Editor UI preferences (theme, previewHidden, spellcheckDisabled) round-trip
+  through `env.getEditorPreferences` / `env.setEditorPreferences`. Both the
+  browser env (`WebEnv` in `web-app.ts`) and the desktop env (`WailsBridge`
+  in `desktop-app.ts`) implement this pair — the web impl writes a single
+  `downstage-editor-prefs` localStorage blob; the desktop impl round-trips
+  the Go `Config.Preferences` struct. `Store` consumes the env methods and
+  is the single owner of pref state on both hosts.
+- `Editor.vue` takes `previewHidden` and `spellcheckDisabled` as v-model
+  props and must not touch any storage directly. Adding a new persisted
+  pref means: field on `EditorPreferences` (and the Go `Preferences` struct
+  mirror), state on `Store`, v-model on `Editor.vue`.
+- The parser for the web blob is `parseEditorPreferencesBlob` in
+  `web/src/core/editor-prefs.ts`. It is the single defensive boundary —
+  corrupt JSON, unknown theme strings, and wrong-typed fields fall back to
+  defaults without throwing.
+
 ## Validation
 
 - `npm run build` must succeed after any TypeScript or Vue changes.

@@ -479,6 +479,8 @@ watch(activeContent, (newContent) => {
             :read-only="isViewingRevision"
             v-model:content="editorContent"
             v-model:style="pageStyle"
+            v-model:preview-hidden="store.state.previewHidden"
+            v-model:spellcheck-disabled="store.state.spellcheckDisabled"
             :get-spell-allowlist="() => workspace.state.spellAllowlist"
             :add-spell-allowlist-word="addSpellAllowlistWord"
             :remove-spell-allowlist-word="removeSpellAllowlistWord"

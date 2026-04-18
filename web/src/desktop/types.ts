@@ -30,6 +30,12 @@ export interface ProjectEnv {
   getSpellAllowlist(): Promise<string[]>;
   addSpellAllowlistWord(word: string): Promise<boolean>;
   removeSpellAllowlistWord(word: string): Promise<boolean>;
+  // Desktop-only pref. Thin bool accessor on top of the same Go Config
+  // Preferences blob that backs getEditorPreferences; keeping it as two
+  // separate get/set methods avoids forcing the web env to model a field
+  // it doesn't have.
+  getSidebarCollapsed(): Promise<boolean>;
+  setSidebarCollapsed(collapsed: boolean): Promise<void>;
 }
 
 export interface DesktopCapabilities extends EditorEnv, ProjectEnv {}
