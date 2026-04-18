@@ -82,6 +82,7 @@ function createEnv(init: { files?: LibraryFile[]; openReturn?: string } = {}): R
 
     // LibraryEnv with call recording
     changeLibraryLocation: async () => { record("changeLibraryLocation"); return openReturn; },
+    revealLibraryInExplorer: async () => { record("revealLibraryInExplorer"); },
     getLibraryFiles: async () => { record("getLibraryFiles"); return files; },
     readLibraryFile: async (p) => { record(`readLibraryFile:${p}`); return contents[p] ?? ""; },
     writeLibraryFile: async (p, c) => {

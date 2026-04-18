@@ -288,6 +288,13 @@ function handleNewPlay() {
   void dispatcher?.dispatch('file.newPlay');
 }
 
+// Status-bar library label click: open the library folder in the host
+// OS's file explorer. The library location itself is managed through
+// Settings, so this click has a narrower job than "open folder".
+function handleRevealLibrary() {
+  void env.revealLibraryInExplorer();
+}
+
 async function selectLibraryFile(path: string) {
   await flushSave();
   activeContent.value = await workspace.selectFile(path);
@@ -605,6 +612,7 @@ watch(activeContent, (newContent) => {
       :git-status="workspace.state.gitStatus"
       :has-library="!!workspace.state.libraryPath"
       :has-active-file="!!workspace.state.activeFile"
+      @reveal-library="handleRevealLibrary"
       @open-folder="() => dispatcher?.dispatch('file.openFolder')"
     />
     <ToastManager ref="toastManager" />
