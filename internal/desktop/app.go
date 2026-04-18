@@ -430,7 +430,7 @@ func (a *App) ShowAboutDialog() error {
 	_, err := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
 		Type:    runtime.InfoDialog,
 		Title:   "About Downstage Write",
-		Message: fmt.Sprintf("Downstage Write\nVersion %s\nhttps://getdownstage.com", Version),
+		Message: fmt.Sprintf("Downstage Write\nVersion %s — Alpha preview\nhttps://getdownstage.com", Version),
 		Buttons: []string{"OK"},
 	})
 	return err

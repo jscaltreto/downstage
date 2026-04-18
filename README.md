@@ -279,6 +279,32 @@ npm run compile
 Then open the `editors/vscode` folder in VS Code and press `F5` to launch an
 Extension Development Host.
 
+### Desktop App (alpha)
+
+> **Alpha / pre-release.** The desktop app is under active development. No
+> pre-built binaries are published yet, the on-disk config format may still
+> change, and some workflows (drafts, cross-device sync, auto-update) are
+> unimplemented. Build from source and expect rough edges.
+
+[`cmd/downstage-write/`](cmd/downstage-write/) is a native desktop build —
+the same Vue editor wrapped in a [Wails](https://wails.io/) shell with a
+project-folder workflow: open a directory, edit `.ds` files in place,
+snapshot revisions with git, and restore older versions from a native
+menu + command palette.
+
+Prerequisites: Go 1.23+, Node 20+, and the Wails v2 CLI
+(`go install github.com/wailsapp/wails/v2/cmd/wails@latest`). On Linux,
+webkit2gtk 4.1 is required (`libwebkit2gtk-4.1-dev` on Debian/Ubuntu).
+
+```bash
+make desktop-dev    # live-reloading dev build
+make desktop-build  # release build → cmd/downstage-write/build/bin/
+```
+
+See [`internal/desktop/AGENTS.md`](internal/desktop/AGENTS.md) for the
+backend architecture and [`web/src/desktop/AGENTS.md`](web/src/desktop/AGENTS.md)
+for the frontend layer.
+
 ### Web Editor
 
 [**Start writing**](https://www.getdownstage.com/editor/) in the Web Editor, a
