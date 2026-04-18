@@ -161,6 +161,10 @@ class WailsBridge implements DesktopCapabilities {
     return App.ChangeLibraryLocation();
   }
 
+  async revealLibraryInExplorer(): Promise<void> {
+    await App.RevealLibraryInExplorer();
+  }
+
   async getLibraryFiles(): Promise<LibraryFile[]> {
     return App.GetLibraryFiles();
   }

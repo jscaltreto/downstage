@@ -25,7 +25,7 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  (e: 'openFolder'): void;
+  (e: 'revealLibrary'): void;
 }>();
 
 // formatRelativeTime renders a compact human-readable duration for the
@@ -62,12 +62,12 @@ const snapshotLabel = computed(() => {
 const showDirty = computed(() => !!props.gitStatus?.dirty && !props.gitStatus?.missing);
 
 const libraryButtonLabel = computed(() => {
-  if (!props.hasLibrary) return 'No library — Choose location…';
-  return props.libraryName || 'Choose location…';
+  if (!props.hasLibrary) return 'No library';
+  return props.libraryName || 'Library';
 });
 
 const libraryButtonTitle = computed(() => {
-  return props.hasLibrary ? 'Change library location…' : 'Choose a library location';
+  return props.hasLibrary ? 'Reveal library in file explorer' : 'No library loaded';
 });
 </script>
 
@@ -77,15 +77,16 @@ const libraryButtonTitle = computed(() => {
     role="status"
     aria-label="Status bar"
   >
-    <!-- Left cluster: library + active file. Library label is always a
-         real button; clicking it opens the folder picker regardless of
-         whether a library is already loaded. Commit 2 retargets this
-         click to "reveal library in OS file explorer". -->
+    <!-- Left cluster: library + active file. Library label is a button
+         that reveals the library folder in the host's file explorer —
+         the library's location is managed through Settings, not through
+         this click. -->
     <button
       type="button"
-      class="inline-flex items-center gap-1.5 text-text-main hover:text-brass-500 focus:outline-none focus:text-brass-500 transition-colors max-w-[240px] truncate"
+      class="inline-flex items-center gap-1.5 text-text-main hover:text-brass-500 focus:outline-none focus:text-brass-500 transition-colors max-w-[240px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
       :title="libraryButtonTitle"
-      @click="$emit('openFolder')"
+      :disabled="!hasLibrary"
+      @click="$emit('revealLibrary')"
     >
       <FolderOpen class="w-3 h-3 shrink-0 opacity-70" />
       <span class="font-bold truncate">{{ libraryButtonLabel }}</span>

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"sync"
 	"time"
@@ -448,6 +450,39 @@ func (a *App) GetLastActiveFile() string {
 
 func (a *App) BrowserOpenURL(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)
+}
+
+// RevealLibraryInExplorer opens the current library directory in the host
+// OS's file explorer. Used by the status-bar library label and the
+// Settings > Library "Reveal in File Explorer" button. Execs the
+// platform-native command with the library path as a single argument —
+// no shell interpolation, so a path with spaces or special characters
+// is safe.
+func (a *App) RevealLibraryInExplorer() error {
+	if a.currentLibrary == "" {
+		return fmt.Errorf("no library open")
+	}
+	if _, err := os.Stat(a.currentLibrary); err != nil {
+		return fmt.Errorf("library path unavailable: %w", err)
+	}
+
+	var cmd *exec.Cmd
+	switch goruntime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", a.currentLibrary)
+	case "windows":
+		cmd = exec.Command("explorer", a.currentLibrary)
+	case "linux":
+		cmd = exec.Command("xdg-open", a.currentLibrary)
+	default:
+		return fmt.Errorf("reveal not supported on %s", goruntime.GOOS)
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("reveal failed: %w", err)
+	}
+	// Detach — we don't want to wait for the file manager to exit.
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // ShowAboutDialog surfaces a native info dialog carrying the app name

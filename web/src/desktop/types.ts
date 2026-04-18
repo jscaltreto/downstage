@@ -26,6 +26,10 @@ export interface FileGitStatus {
 
 export interface LibraryEnv {
   changeLibraryLocation(): Promise<string>;
+  // Opens the current library in the host OS's file explorer. No-op if
+  // no library is currently open (the caller should keep a library
+  // loaded — `initApp` auto-creates one on first launch).
+  revealLibraryInExplorer(): Promise<void>;
   getLibraryFiles(): Promise<LibraryFile[]>;
   readLibraryFile(path: string): Promise<string>;
   writeLibraryFile(path: string, content: string): Promise<void>;

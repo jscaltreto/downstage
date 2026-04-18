@@ -41,18 +41,19 @@ describe("StatusBar", () => {
     vi.useRealTimers();
   });
 
-  it("library button is always enabled and shows empty-state copy when no library", () => {
+  it("library button is disabled and shows empty-state copy when no library", () => {
     const wrapper = mountWith({ hasLibrary: false });
     const btn = wrapper.find("button");
     expect(btn.exists()).toBe(true);
-    expect((btn.element as HTMLButtonElement).disabled).toBe(false);
+    // No library means nothing to reveal — button goes inert.
+    expect((btn.element as HTMLButtonElement).disabled).toBe(true);
     expect(btn.text()).toContain("No library");
   });
 
-  it("emits openFolder when the library button is clicked", async () => {
+  it("emits revealLibrary when the library button is clicked", async () => {
     const wrapper = mountWith({ hasLibrary: true, libraryName: "alpha" });
     await wrapper.find("button").trigger("click");
-    expect(wrapper.emitted("openFolder")).toHaveLength(1);
+    expect(wrapper.emitted("revealLibrary")).toHaveLength(1);
   });
 
   it("renders cursor and word count only when an active file is present", () => {

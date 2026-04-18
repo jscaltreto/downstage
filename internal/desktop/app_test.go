@@ -206,6 +206,16 @@ func TestReadConfig_NewFieldsTakePrecedenceOverLegacy(t *testing.T) {
 	assert.Equal(t, "/new", cfg.LastLibraryPath)
 }
 
+// RevealLibraryInExplorer must refuse to spawn anything when no library
+// is open. The positive path shells out to a platform-native command,
+// which we don't cover in unit tests.
+func TestRevealLibraryInExplorer_NoLibrary(t *testing.T) {
+	a := &App{}
+	err := a.RevealLibraryInExplorer()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no library open")
+}
+
 // ReadLibraryFile used to call saveConfig on every read — a disk write on
 // a hot path. The current contract is: config is only touched via
 // SetActiveLibraryFile (on file switch) or ChangeLibraryLocation (on library
