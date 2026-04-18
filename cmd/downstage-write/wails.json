@@ -7,7 +7,7 @@
   "frontend:dir": "./frontend",
   "frontend:install": "npm --prefix ../../../web ci",
   "frontend:build": "npm --prefix ../../../web run build:desktop",
-  "frontend:dev:watcher": "npm --prefix ../../../web run dev",
+  "frontend:dev:watcher": "npm --prefix ../../../web run dev:desktop",
   "frontend:dev:serverUrl": "http://localhost:5173",
   "author": {
     "name": "Jake",

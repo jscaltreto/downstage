@@ -7,6 +7,7 @@
     "build": "vite build",
     "build:desktop": "cross-env DESKTOP_BUILD=true vite build --outDir ../cmd/downstage-write/frontend",
     "dev": "vite",
+    "dev:desktop": "cross-env DESKTOP_BUILD=true vite",
     "preview:strict": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && vitest run",

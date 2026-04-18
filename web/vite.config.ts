@@ -10,6 +10,8 @@ function withTrailingSlash(path: string): string {
   return path.endsWith("/") ? path : `${path}/`;
 }
 
+import { computeBase } from "./src/vite-base";
+
 const siteBasePath = withTrailingSlash(process.env.SITE_BASE_PATH || "/");
 const isDesktop = process.env.DESKTOP_BUILD === "true";
 
@@ -25,6 +27,26 @@ function resolveAppVersion(): string {
   } catch {
     return "dev";
   }
+}
+
+// Wails expects its webview's root (`/`) to serve the desktop entry,
+// and Wails' dev proxy injects the runtime into whatever comes back.
+// Vite dev serves `index.html` at `/` by default, so in desktop mode
+// we rewrite `/` → `/desktop.html` in the dev middleware. Keeps the
+// web build untouched.
+function serveDesktopAtRoot(): Plugin {
+  return {
+    name: "downstage-serve-desktop-at-root",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        if (req.url === "/" || req.url === "/index.html") {
+          req.url = "/desktop.html";
+        }
+        next();
+      });
+    },
+  };
 }
 
 // Wails expects the desktop frontend to be served from `index.html` in the
@@ -55,12 +77,12 @@ function renameHtmlOnDisk(from: string, to: string): Plugin {
   };
 }
 
-export default defineConfig({
-  base: isDesktop ? "./" : `${siteBasePath}editor/`,
+export default defineConfig(({ command }) => ({
+  base: computeBase(isDesktop, command, siteBasePath),
   plugins: [
     vue(),
     tailwindcss(),
-    ...(isDesktop ? [renameHtmlOnDisk("desktop.html", "index.html")] : []),
+    ...(isDesktop ? [serveDesktopAtRoot(), renameHtmlOnDisk("desktop.html", "index.html")] : []),
   ],
   // Tailwind v4 runs via its Vite plugin — we don't need PostCSS. But
   // Vite's PostCSS loader walks up looking for `postcss.config.js`, and
@@ -78,9 +100,9 @@ export default defineConfig({
     assetsDir: "assets",
     emptyOutDir: true,
     rollupOptions: {
-      input: isDesktop
+      input: (isDesktop
         ? { desktop: resolve(__dirname, "desktop.html") }
-        : { main: resolve(__dirname, "index.html") },
+        : { main: resolve(__dirname, "index.html") }) as Record<string, string>,
     },
   },
   // Keep Vitest from picking up Playwright specs under `e2e/` — those run
@@ -88,4 +110,4 @@ export default defineConfig({
   test: {
     exclude: ["node_modules", "dist", "e2e/**"],
   },
-});
+}));
