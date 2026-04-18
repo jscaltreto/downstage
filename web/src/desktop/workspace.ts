@@ -7,6 +7,8 @@ export interface WorkspaceState {
   activeFile: string | null;
   revisions: Revision[];
   sidebarCollapsed: boolean;
+  spellAllowlist: string[];
+  isLoadingFile: boolean;
 }
 
 export class Workspace {
@@ -19,7 +21,10 @@ export class Workspace {
       activeFile: null,
       revisions: [],
       sidebarCollapsed:
+        typeof localStorage !== "undefined" &&
         localStorage.getItem("downstage-sidebar-collapsed") === "true",
+      spellAllowlist: [],
+      isLoadingFile: false,
     });
   }
 
@@ -27,6 +32,7 @@ export class Workspace {
     this.state.projectPath = await this.env.getCurrentProject();
     if (this.state.projectPath) {
       this.state.projectFiles = await this.env.getProjectFiles();
+      this.state.spellAllowlist = await this.env.getSpellAllowlist();
     }
   }
 
@@ -37,14 +43,24 @@ export class Workspace {
     this.state.activeFile = null;
     this.state.revisions = [];
     this.state.projectFiles = await this.env.getProjectFiles();
+    // Allowlist is project-scoped — reload after a project switch.
+    this.state.spellAllowlist = await this.env.getSpellAllowlist();
     return path;
   }
 
   async selectFile(path: string): Promise<string> {
     this.state.activeFile = path;
-    const content = await this.env.readProjectFile(path);
-    await this.loadRevisions();
-    return content;
+    this.state.isLoadingFile = true;
+    try {
+      const content = await this.env.readProjectFile(path);
+      // Persist the active-file pointer explicitly here, once per file
+      // switch, instead of letting readProjectFile do it on every read.
+      await this.env.setActiveProjectFile(path);
+      await this.loadRevisions();
+      return content;
+    } finally {
+      this.state.isLoadingFile = false;
+    }
   }
 
   async saveFile(content: string) {
@@ -78,11 +94,29 @@ export class Workspace {
     }
   }
 
+  async addAllowlistWord(word: string): Promise<boolean> {
+    const added = await this.env.addSpellAllowlistWord(word);
+    if (added) {
+      this.state.spellAllowlist = await this.env.getSpellAllowlist();
+    }
+    return added;
+  }
+
+  async removeAllowlistWord(word: string): Promise<boolean> {
+    const removed = await this.env.removeSpellAllowlistWord(word);
+    if (removed) {
+      this.state.spellAllowlist = await this.env.getSpellAllowlist();
+    }
+    return removed;
+  }
+
   toggleSidebar() {
     this.state.sidebarCollapsed = !this.state.sidebarCollapsed;
-    localStorage.setItem(
-      "downstage-sidebar-collapsed",
-      String(this.state.sidebarCollapsed),
-    );
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(
+        "downstage-sidebar-collapsed",
+        String(this.state.sidebarCollapsed),
+      );
+    }
   }
 }

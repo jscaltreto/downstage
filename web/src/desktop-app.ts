@@ -12,11 +12,32 @@ import type {
   ManuscriptStats,
 } from "./core/types";
 import type { DesktopCapabilities, ProjectFile, Revision } from "./desktop/types";
+import { invokeRegisteredFlushSave } from "./desktop/flush-save";
 
 // @ts-ignore — generated at build time by Wails
 import * as App from "./wailsjs/go/desktop/App";
+// @ts-ignore — generated at build time by Wails
+import { EventsOn, EventsEmit } from "./wailsjs/runtime/runtime";
 
 declare const __APP_VERSION__: string;
+
+// Event names MUST match internal/desktop/app.go.
+const EVT_BEFORE_CLOSE = "downstage:before-close";
+const EVT_FLUSH_COMPLETE = "downstage:flush-complete";
+
+// Tie the Wails lifecycle event to the active flushSave registered by
+// AppDesktop.vue. Registering happens in `desktop/flush-save.ts` — this
+// file only lives on the desktop build graph, so tests that mount the
+// component against an in-memory env don't need the Wails runtime loaded.
+EventsOn(EVT_BEFORE_CLOSE, async () => {
+  try {
+    await invokeRegisteredFlushSave();
+  } catch (e) {
+    console.error("before-close flush failed:", e);
+  } finally {
+    EventsEmit(EVT_FLUSH_COMPLETE);
+  }
+});
 
 class WailsBridge implements DesktopCapabilities {
   async parse(source: string): Promise<{ errors: ParseError[] }> {
@@ -73,7 +94,7 @@ class WailsBridge implements DesktopCapabilities {
   }
 
   async renderHTML(source: string, style?: string): Promise<string> {
-    return App.RenderHTML(source, style || "standard");
+    return await App.RenderHTML(source, style || "standard");
   }
 
   async renderPDF(source: string, style?: string): Promise<Uint8Array> {
@@ -115,8 +136,8 @@ class WailsBridge implements DesktopCapabilities {
     await App.SnapshotFile(path, message);
   }
 
-  async getRevisions(path: string): Promise<Revision[]> {
-    return await App.GetRevisions(path);
+  async getRevisions(path: string, limit?: number): Promise<Revision[]> {
+    return await App.GetRevisions(path, limit ?? 0);
   }
 
   async getCurrentProject(): Promise<string> {
@@ -125,6 +146,10 @@ class WailsBridge implements DesktopCapabilities {
 
   async getLastActiveFile(): Promise<string> {
     return App.GetLastActiveFile();
+  }
+
+  async setActiveProjectFile(rel: string): Promise<void> {
+    await App.SetActiveProjectFile(rel);
   }
 
   async getSpellAllowlist(): Promise<string[]> {
@@ -168,32 +193,6 @@ class WailsBridge implements DesktopCapabilities {
   }
 }
 
-async function start() {
-  const scripts = ["/wails/ipc.js", "/wails/runtime.js"];
-  for (const src of scripts) {
-    await new Promise<void>((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = src;
-      script.onload = () => resolve();
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-
-  const deadline = Date.now() + 5000;
-  while (Date.now() < deadline) {
-    if ((window as any).go?.desktop?.App) break;
-    await new Promise(r => setTimeout(r, 50));
-  }
-  if (!(window as any).go?.desktop?.App) {
-    document.body.innerHTML =
-      '<div style="color:white;padding:20px;">Failed to initialize Wails runtime</div>';
-    return;
-  }
-
-  const env = new WailsBridge();
-  const app = createApp(AppDesktop, { env });
-  app.mount("#app");
-}
-
-start();
+const env = new WailsBridge();
+const app = createApp(AppDesktop, { env });
+app.mount("#app");

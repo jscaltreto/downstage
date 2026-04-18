@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, provide, onMounted, onUnmounted, ref, watch } from 'vue';
+import { provide, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
-    Plus, FolderOpen, Copy, Download, X, FolderSync, FileText, FileOutput, Sun, Moon,
+    Plus, FolderOpen, Copy, FolderSync, FileText, FileOutput, Sun, Moon,
     BookOpen, Terminal, Sparkles, PanelLeftClose, PanelLeft, History, Save
 } from 'lucide-vue-next';
 import { Store } from './core/store';
 import type { EditorEnv } from './core/types';
 import type { DesktopCapabilities } from './desktop/types';
 import { Workspace } from './desktop/workspace';
+import { registerFlushSave } from './desktop/flush-save';
 import ToolbarButton from './components/shared/ToolbarButton.vue';
 import ToastManager from './components/shared/ToastManager.vue';
 import Editor from './components/shared/Editor.vue';
@@ -25,7 +26,6 @@ const isLoaded = ref(false);
 const activeContent = ref("");
 const pageStyle = ref("standard");
 const isV1Document = ref(false);
-const spellAllowlist = ref<string[]>([]);
 
 const toastManager = ref<InstanceType<typeof ToastManager> | null>(null);
 
@@ -34,7 +34,6 @@ let saveTimer: number | null = null;
 onMounted(async () => {
   await store.init();
   await workspace.init();
-  spellAllowlist.value = await props.env.getSpellAllowlist();
 
   if (workspace.state.projectPath && workspace.state.projectFiles.length > 0) {
     const lastFile = await props.env.getLastActiveFile();
@@ -47,29 +46,37 @@ onMounted(async () => {
   }
 
   isLoaded.value = true;
+  registerFlushSave(() => flushSave());
 });
 
 onUnmounted(() => {
-  flushSave();
+  registerFlushSave(null);
+  void flushSave();
 });
 
-function flushSave() {
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-    saveTimer = null;
-    if (workspace.state.activeFile) {
-      workspace.saveFile(activeContent.value);
-    }
+// flushSave resolves when any pending debounced write is durable on disk.
+// It must be awaited before any state transition that could clobber
+// `workspace.state.activeFile` or change the project root — otherwise the
+// inner guard in `workspace.saveFile` drops the write silently.
+async function flushSave(): Promise<void> {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (workspace.state.activeFile) {
+    await workspace.saveFile(activeContent.value);
   }
 }
 
 async function handleOpenFolder() {
+  // Flush the previous project's pending edit BEFORE the folder switch —
+  // `workspace.openFolder` clears `state.activeFile` on success, which
+  // would cause an unawaited flush to no-op.
+  await flushSave();
+
   const path = await workspace.openFolder();
   if (!path) return;
 
-  flushSave();
   activeContent.value = "";
-  spellAllowlist.value = await props.env.getSpellAllowlist();
 
   if (workspace.state.projectFiles.length > 0) {
     activeContent.value = await workspace.selectFile(workspace.state.projectFiles[0].path);
@@ -78,7 +85,7 @@ async function handleOpenFolder() {
 }
 
 async function selectProjectFile(path: string) {
-  flushSave();
+  await flushSave();
   activeContent.value = await workspace.selectFile(path);
 }
 
@@ -87,6 +94,8 @@ async function handleNewPlay() {
     await handleOpenFolder();
     if (!workspace.state.projectPath) return;
   }
+
+  await flushSave();
 
   const template = `# Untitled Play\nSubtitle: A Play in One Act\nAuthor: Your Name\nDate: ${new Date().getFullYear()}\nDraft: First\n\n## Dramatis Personae\n\nPROTAGONIST - Add your cast here\n\n## ACT I\n\n### SCENE 1\n\n> Describe the setting here.\n\nPROTAGONIST\nWrite your opening lines here.\n`;
 
@@ -104,15 +113,24 @@ async function handleCopy() {
   toastManager.value?.addToast("Copied to clipboard", "success");
 }
 
+const nothingToSnapshotPrefix = "downstage: nothing-to-snapshot";
+
 async function handleSnapshot() {
   if (!workspace.state.activeFile) return;
-  flushSave();
+  // Must await — otherwise the snapshot can race the pending write and
+  // commit stale disk contents.
+  await flushSave();
   const filename = workspace.state.activeFile.split(/[\\/]/).pop() || "file";
   try {
     await workspace.snapshotFile(`Snapshot ${filename}`);
     toastManager.value?.addToast("Version saved", "success");
   } catch (e: any) {
-    toastManager.value?.addToast(`Failed to save version: ${e.message}`, "error");
+    const message = String(e?.message ?? e);
+    if (message.includes(nothingToSnapshotPrefix)) {
+      toastManager.value?.addToast("No changes to snapshot", "info");
+    } else {
+      toastManager.value?.addToast(`Failed to save version: ${message}`, "error");
+    }
   }
 }
 
@@ -122,31 +140,27 @@ async function handleExport() {
     return;
   }
 
-  flushSave();
+  await flushSave();
   const title = activeContent.value.match(/^#\s+(.+)$/m)?.[1]?.trim() || "untitled";
   const styleSlug = pageStyle.value === "condensed" ? "acting-edition" : "manuscript";
   const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}.pdf`;
 
-  const pdfBytes = await props.env.renderPDF(activeContent.value, pageStyle.value);
-  await props.env.saveFile(filename, pdfBytes, [
-    { displayName: "PDF Files (*.pdf)", pattern: "*.pdf" },
-  ]);
+  try {
+    const pdfBytes = await props.env.renderPDF(activeContent.value, pageStyle.value);
+    await props.env.saveFile(filename, pdfBytes, [
+      { displayName: "PDF Files (*.pdf)", pattern: "*.pdf" },
+    ]);
+  } catch (e: any) {
+    toastManager.value?.addToast(`Failed to export PDF: ${e?.message ?? e}`, "error");
+  }
 }
 
 async function addSpellAllowlistWord(word: string) {
-  const added = await props.env.addSpellAllowlistWord(word);
-  if (added) {
-    spellAllowlist.value = await props.env.getSpellAllowlist();
-  }
-  return added;
+  return workspace.addAllowlistWord(word);
 }
 
 async function removeSpellAllowlistWord(word: string) {
-  const removed = await props.env.removeSpellAllowlistWord(word);
-  if (removed) {
-    spellAllowlist.value = await props.env.getSpellAllowlist();
-  }
-  return removed;
+  return workspace.removeAllowlistWord(word);
 }
 
 watch(activeContent, (newContent) => {
@@ -191,6 +205,14 @@ watch(activeContent, (newContent) => {
             :disabled="isV1Document"
             :title="isV1Document ? 'Upgrade this V1 document before exporting PDF' : 'Export to PDF'"
           ><template #icon><FileOutput class="w-4 h-4" /></template>Export PDF</ToolbarButton>
+          <button
+            @click="store.toggleTheme()"
+            class="p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-muted transition-colors"
+            :title="store.state.isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'"
+          >
+            <Sun v-if="store.state.isDark" class="w-4 h-4" />
+            <Moon v-else class="w-4 h-4" />
+          </button>
         </div>
       </div>
     </header>
@@ -308,12 +330,19 @@ watch(activeContent, (newContent) => {
       </aside>
 
       <div class="flex-1 relative flex flex-col overflow-hidden bg-[var(--color-page-bg)]">
+        <div
+          v-if="workspace.state.isLoadingFile"
+          class="absolute inset-0 z-20 flex items-center justify-center bg-[var(--color-page-bg)]/70 text-text-muted italic text-sm"
+        >
+          Loading file…
+        </div>
         <Editor
             v-if="workspace.state.activeFile"
             :env="env as EditorEnv"
+            :document-key="workspace.state.activeFile"
             v-model:content="activeContent"
             v-model:style="pageStyle"
-            :get-spell-allowlist="() => spellAllowlist"
+            :get-spell-allowlist="() => workspace.state.spellAllowlist"
             :add-spell-allowlist-word="addSpellAllowlistWord"
             :remove-spell-allowlist-word="removeSpellAllowlistWord"
             @migration-state-change="isV1Document = $event"
