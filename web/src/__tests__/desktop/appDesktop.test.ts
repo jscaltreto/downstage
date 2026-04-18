@@ -105,6 +105,7 @@ function createEnv(init: { files?: ProjectFile[]; openReturn?: string } = {}): R
     setEditorPreferences: async (prefs) => { record(`setEditorPreferences:${JSON.stringify(prefs)}`); },
     getSidebarCollapsed: async () => { record("getSidebarCollapsed"); return false; },
     setSidebarCollapsed: async (c) => { record(`setSidebarCollapsed:${c}`); },
+    flushPreferences: async () => { record("flushPreferences"); },
     getCurrentProject: async () => { record("getCurrentProject"); return openReturn; },
     getLastActiveFile: async () => { record("getLastActiveFile"); return ""; },
     setActiveProjectFile: async (p) => { record(`setActiveProjectFile:${p}`); },

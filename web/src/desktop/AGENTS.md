@@ -113,8 +113,17 @@ so switching documents automatically invalidates a prior dismissal.
   frontend never touches `localStorage` for preferences — reads go through
   `env.getEditorPreferences` (shared) and `env.getSidebarCollapsed`
   (desktop-only); writes go through the matching setters. Both are thin
-  projections over a single Go `Preferences` struct, so read-modify-write
-  semantics end-to-end.
+  projections over a single Go `Preferences` struct.
+- **Atomicity** on desktop comes from `prefs-cache.ts`. It holds the
+  authoritative in-memory snapshot and serializes backend writes through
+  a promise chain, so a theme toggle and a sidebar toggle arriving
+  back-to-back can't lose each other's field via independent R-M-W
+  cycles. Do not bypass the cache with direct `App.GetPreferences` /
+  `App.SetPreferences` calls.
+- **Durability** comes from `env.flushPreferences()`. The Wails
+  before-close handler awaits it after the document flush so an
+  in-flight pref write isn't dropped on window quit. When adding a new
+  shutdown path, flush preferences there too.
 - `Store` owns theme/previewHidden/spellcheckDisabled on both hosts. On
   desktop, Store's env is `WailsBridge`, so persistence automatically
   flows to `~/.config/downstage/config.json` — no desktop-specific pref

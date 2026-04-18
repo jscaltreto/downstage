@@ -14,6 +14,18 @@ import type {
 } from "./core/types";
 import type { DesktopCapabilities, ProjectFile, Revision } from "./desktop/types";
 import { invokeRegisteredFlushSave } from "./desktop/flush-save";
+import { createPrefsCache } from "./desktop/prefs-cache";
+
+// Structural shape of the Go Preferences struct. Intentionally not
+// imported from the Wails-generated module — this file keeps a thin
+// structural copy so unit tests that don't have wailsjs/ available can
+// reason about the type.
+interface WailsPreferences {
+  theme?: string;
+  previewHidden?: boolean;
+  spellcheckDisabled?: boolean;
+  sidebarCollapsed?: boolean;
+}
 
 // @ts-ignore — generated at build time by Wails
 import * as App from "./wailsjs/go/desktop/App";
@@ -32,7 +44,12 @@ const EVT_FLUSH_COMPLETE = "downstage:flush-complete";
 // component against an in-memory env don't need the Wails runtime loaded.
 EventsOn(EVT_BEFORE_CLOSE, async () => {
   try {
+    // Documents first — losing an unsaved edit is worse than losing a
+    // sidebar toggle, so prioritize the file flush if one is stalled.
     await invokeRegisteredFlushSave();
+    // Then preferences — the cache's chain may still have unresolved
+    // writes from a late toggle; await them before releasing the close.
+    await env.flushPreferences();
   } catch (e) {
     console.error("before-close flush failed:", e);
   } finally {
@@ -41,6 +58,18 @@ EventsOn(EVT_BEFORE_CLOSE, async () => {
 });
 
 class WailsBridge implements DesktopCapabilities {
+  // All pref reads and writes go through this cache — it maintains the
+  // authoritative in-memory snapshot of the Go Preferences struct and
+  // serializes writes back through App.SetPreferences so concurrent
+  // updates from Store (theme/preview/spellcheck) and Workspace (sidebar)
+  // can't race through independent read-modify-write cycles.
+  private prefs = createPrefsCache<WailsPreferences>({
+    load: async () => {
+      const all = await App.GetPreferences();
+      return (all ?? {}) as WailsPreferences;
+    },
+    save: async (p) => { await App.SetPreferences(p); },
+  });
   async parse(source: string): Promise<{ errors: ParseError[] }> {
     const errors = await App.Parse(source);
     return { errors };
@@ -169,32 +198,35 @@ class WailsBridge implements DesktopCapabilities {
     return App.RemoveSpellAllowlistWord(word);
   }
 
-  // Preferences — both env projections read and write through the single
-  // Go Preferences struct. Reads apply the theme default on the frontend
-  // side too (the Go getter already normalizes, but defensive double-bolt
-  // here costs nothing).
+  // Preferences — both env projections delegate to the shared prefs cache
+  // so interleaved writes can't lose each other's fields. Reads apply
+  // the theme default on the frontend too (the Go getter normalizes,
+  // but the cache surfaces whatever is on disk and the web env does the
+  // same defensive normalization).
   async getEditorPreferences(): Promise<EditorPreferences> {
-    const all = await App.GetPreferences();
+    const all = await this.prefs.get();
     return {
-      theme: ((all?.theme as EditorPreferences["theme"]) || "system"),
-      previewHidden: !!all?.previewHidden,
-      spellcheckDisabled: !!all?.spellcheckDisabled,
+      theme: ((all.theme as EditorPreferences["theme"]) || "system"),
+      previewHidden: !!all.previewHidden,
+      spellcheckDisabled: !!all.spellcheckDisabled,
     };
   }
 
   async setEditorPreferences(prefs: EditorPreferences): Promise<void> {
-    const all = await App.GetPreferences();
-    await App.SetPreferences({ ...all, ...prefs });
+    await this.prefs.update(prefs);
   }
 
   async getSidebarCollapsed(): Promise<boolean> {
-    const all = await App.GetPreferences();
-    return !!all?.sidebarCollapsed;
+    const all = await this.prefs.get();
+    return !!all.sidebarCollapsed;
   }
 
   async setSidebarCollapsed(collapsed: boolean): Promise<void> {
-    const all = await App.GetPreferences();
-    await App.SetPreferences({ ...all, sidebarCollapsed: collapsed });
+    await this.prefs.update({ sidebarCollapsed: collapsed });
+  }
+
+  async flushPreferences(): Promise<void> {
+    await this.prefs.flush();
   }
 
   async saveFile(filename: string, content: string | Uint8Array, filters?: { displayName: string; pattern: string }[]): Promise<void> {
