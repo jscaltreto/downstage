@@ -36,6 +36,9 @@ export interface ProjectEnv {
   // it doesn't have.
   getSidebarCollapsed(): Promise<boolean>;
   setSidebarCollapsed(collapsed: boolean): Promise<void>;
+  // Awaits completion of any in-flight preference write. Called on
+  // window-close so a debounced toggle isn't lost when the user quits.
+  flushPreferences(): Promise<void>;
 }
 
 export interface DesktopCapabilities extends EditorEnv, ProjectEnv {}

@@ -95,6 +95,10 @@ onMounted(async () => {
 onUnmounted(() => {
   registerFlushSave(null);
   void flushSave();
+  // Best-effort: drain any in-flight preference writes if the app tears
+  // down through component unmount rather than through the Wails
+  // before-close path (e.g. during tests, or SPA-style navigation).
+  void props.env.flushPreferences();
 });
 
 // flushSave resolves when any pending debounced write is durable on disk.
