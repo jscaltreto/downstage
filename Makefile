@@ -70,6 +70,16 @@ web/build:
 
 # --- Desktop app (Wails) ---
 
+# Build tags differ per host: webkit2gtk on Linux, native webview on
+# macOS (WKWebView) and Windows (WebView2) — no Go build tag needed
+# there. Windows users should invoke `scripts/build-desktop.ps1` rather
+# than `make`, since GNU make isn't shipped with Windows by default.
+ifeq ($(shell uname -s 2>/dev/null),Linux)
+    DESKTOP_TAGS := -tags webkit2_41
+else
+    DESKTOP_TAGS :=
+endif
+
 # Version string surfaced in the About dialog via ldflags. `git describe`
 # produces something like `v0.3.1-12-g329f5e6-dirty`; falls back to "dev"
 # in non-git contexts. Overridable: `make desktop-build VERSION=1.2.3`.
@@ -78,11 +88,11 @@ DESKTOP_LDFLAGS := -X github.com/jscaltreto/downstage/internal/desktop.Version=$
 
 desktop-dev:
 	@echo "Starting desktop app in dev mode (version $(VERSION))..."
-	cd cmd/downstage-write && wails dev -tags webkit2_41 -ldflags "$(DESKTOP_LDFLAGS)"
+	cd cmd/downstage-write && wails dev $(DESKTOP_TAGS) -ldflags "$(DESKTOP_LDFLAGS)"
 
 desktop-build:
 	@echo "Building desktop app (version $(VERSION))..."
-	cd cmd/downstage-write && wails build -tags webkit2_41 -ldflags "$(DESKTOP_LDFLAGS)"
+	cd cmd/downstage-write && wails build $(DESKTOP_TAGS) -ldflags "$(DESKTOP_LDFLAGS)"
 
 # Debug build: enables the WebKit Web Inspector so you can right-click
 # the running app and pick "Inspect Element". Wails -debug also opens
@@ -96,7 +106,7 @@ desktop-build:
 # seeing which layer is holding stale paint after a reflow.
 desktop-debug:
 	@echo "Building desktop app in debug mode (version $(VERSION))..."
-	cd cmd/downstage-write && wails build -tags webkit2_41 -debug -devtools -ldflags "$(DESKTOP_LDFLAGS)"
+	cd cmd/downstage-write && wails build $(DESKTOP_TAGS) -debug -devtools -ldflags "$(DESKTOP_LDFLAGS)"
 
 desktop-clean:
 	rm -rf cmd/downstage-write/build/bin cmd/downstage-write/frontend

@@ -292,14 +292,44 @@ project-folder workflow: open a directory, edit `.ds` files in place,
 snapshot revisions with git, and restore older versions from a native
 menu + command palette.
 
-Prerequisites: Go 1.23+, Node 20+, and the Wails v2 CLI
-(`go install github.com/wailsapp/wails/v2/cmd/wails@latest`). On Linux,
-webkit2gtk 4.1 is required (`libwebkit2gtk-4.1-dev` on Debian/Ubuntu).
+#### Shared prerequisites (all platforms)
+
+- Go 1.23+
+- Node 20+
+- Wails v2 CLI: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- Frontend deps: `npm --prefix web install` (one-time)
+
+Run `wails doctor` after installing the CLI — it lists anything else your
+system is missing.
+
+#### Linux / macOS
+
+Linux additionally needs webkit2gtk 4.1
+(`sudo apt install libwebkit2gtk-4.1-dev` on Debian/Ubuntu; equivalents
+via `dnf`/`pacman` on other distros). macOS has no extra system packages.
 
 ```bash
 make desktop-dev    # live-reloading dev build
 make desktop-build  # release build → cmd/downstage-write/build/bin/
 ```
+
+#### Windows
+
+Windows uses WebView2, which ships with Windows 10 20H1+ and Windows 11.
+On older Windows, install the Evergreen runtime from Microsoft. No other
+system packages are needed.
+
+Since GNU make isn't part of Windows, use the bundled PowerShell wrapper
+(from the repo root):
+
+```powershell
+.\scripts\build-desktop.ps1           # release build
+.\scripts\build-desktop.ps1 -Mode dev # hot-reload dev mode
+```
+
+The binary lands at `cmd\downstage-write\build\bin\downstage-write.exe`.
+
+---
 
 See [`internal/desktop/AGENTS.md`](internal/desktop/AGENTS.md) for the
 backend architecture and [`web/src/desktop/AGENTS.md`](web/src/desktop/AGENTS.md)
