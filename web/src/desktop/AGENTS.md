@@ -11,9 +11,10 @@ It is separate from the shared editor core in `web/src/core/`.
   and `Revision` types. `DesktopCapabilities` extends `EditorEnv` (shared)
   with `ProjectEnv` (desktop-only).
 - `workspace.ts` — `Workspace` class with reactive state for project
-  files, active file, revisions, sidebar, **spell allowlist**, and
-  **`isLoadingFile`**. This is the desktop equivalent of the web's
-  draft-based state management.
+  files, active file, revisions, sidebar, **spell allowlist**,
+  **`isLoadingFile`**, and **revision-view state** (`viewingRevisionHash`,
+  `viewingRevisionContent`, `viewingRevisionMeta`). This is the desktop
+  equivalent of the web's draft-based state management.
 - `flush-save.ts` — a tiny registry so the desktop-only Wails
   `before-close` listener can call `AppDesktop.vue`'s flush function
   without the Vue component having to import the Wails runtime directly.
@@ -80,6 +81,31 @@ so switching documents automatically invalidates a prior dismissal.
   `registerFlushSave` on mount; `desktop-app.ts` subscribes to the event
   and invokes it. Don't rely on `onUnmounted` firing on window-quit —
   browsers/webviews don't guarantee it.
+
+## Revision View and Restore
+
+- Clicking an entry in the Versions sidebar puts the editor in **revision
+  view mode**: `workspace.state.viewingRevisionHash` is set, the banner
+  appears above `Editor.vue`, and the editor is rendered read-only
+  (`readOnly` prop on the shared editor). `activeFile` is unchanged so the
+  revisions list and file context stay correct.
+- While viewing, `AppDesktop.vue`'s `editorContent` computed routes the
+  revision content into the editor; the live buffer (`activeContent`) is
+  preserved. Copy and Export use `editorContent` so they operate on what
+  the user is actually seeing. Save Version is hidden in revision-view
+  mode.
+- `documentKey` passed to `Editor.vue` is `${activeFile}@${hash}` while
+  viewing a revision so the shared editor resets transient state
+  (diagnostics, search, stats, outline, V1-modal suppression) when
+  toggling in and out of view.
+- **Restore is a "revert, not a rollback."** `Workspace.restoreRevision`
+  writes the live buffer to disk → snapshots it as "Auto-save before
+  restore" (tolerating `nothing-to-snapshot` when HEAD already matches) →
+  writes the revision content to disk → snapshots that as "Restore
+  version ${short}". Both the pre-state and post-state are now in git, so
+  "undo the restore" is itself a one-click restore of the backup commit.
+- `clearRevisionView()` is called on file switch, project switch, and after
+  a successful restore so stale preview state never leaks across contexts.
 
 ## Spellcheck
 

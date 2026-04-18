@@ -34,6 +34,7 @@ export interface SearchSummary {
 
 const themeCompartment = new Compartment();
 const lintCompartment = new Compartment();
+const readOnlyCompartment = new Compartment();
 
 // Simple light theme for CodeMirror
 const lightTheme = EditorView.theme({
@@ -157,6 +158,12 @@ export class Engine {
           keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
           themeCompartment.of(isDark ? oneDark : lightTheme),
           lintCompartment.of(this.createLintExtension()),
+          // Start editable; host toggles via setReadOnly when viewing an
+          // older revision.
+          readOnlyCompartment.of([
+            EditorState.readOnly.of(false),
+            EditorView.editable.of(true),
+          ]),
           customTheme,
           searchExtension(),
           createDownstageHighlighter(this.env),
@@ -262,6 +269,18 @@ export class Engine {
     if (!this.view) return;
     this.view.dispatch({
       effects: themeCompartment.reconfigure(isDark ? oneDark : lightTheme),
+    });
+  }
+
+  // setReadOnly toggles the editor between editable and read-only. Used by
+  // the desktop host when showing a historical revision.
+  setReadOnly(readOnly: boolean) {
+    if (!this.view) return;
+    this.view.dispatch({
+      effects: readOnlyCompartment.reconfigure([
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
+      ]),
     });
   }
 

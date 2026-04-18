@@ -23,20 +23,30 @@ import StatsTab from './StatsTab.vue';
 import HelpTab from './HelpTab.vue';
 import { shortcuts as sc } from '../../core/platform';
 
-const props = defineProps<{
-  env: EditorEnv;
-  content: string;
-  style: string;
-  // Host-provided identity for the active document. Web hosts pass the
-  // active draft ID; desktop hosts pass the active file's relative path.
-  // When this changes, the editor resets transient state (search,
-  // diagnostics, stats, outline, V1-modal suppression). `null` means no
-  // document is active.
-  documentKey: string | null;
-  getSpellAllowlist: () => string[];
-  addSpellAllowlistWord: (word: string) => Promise<boolean>;
-  removeSpellAllowlistWord: (word: string) => Promise<boolean>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    env: EditorEnv;
+    content: string;
+    style: string;
+    // Host-provided identity for the active document. Web hosts pass the
+    // active draft ID; desktop hosts pass the active file's relative path
+    // (plus the revision hash while viewing an older snapshot). When this
+    // changes, the editor resets transient state (search, diagnostics,
+    // stats, outline, V1-modal suppression). `null` means no document is
+    // active.
+    documentKey: string | null;
+    // Optional read-only mode — the desktop host sets this while the user
+    // is viewing a historical revision so keystrokes don't mutate the
+    // preview.
+    readOnly?: boolean;
+    getSpellAllowlist: () => string[];
+    addSpellAllowlistWord: (word: string) => Promise<boolean>;
+    removeSpellAllowlistWord: (word: string) => Promise<boolean>;
+  }>(),
+  {
+    readOnly: false,
+  },
+);
 
 const emit = defineEmits<{
   (e: 'update:content', value: string): void;
@@ -267,6 +277,7 @@ onMounted(async () => {
       },
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
+    if (props.readOnly) engine.setReadOnly(true);
     scheduleRender(props.content, props.style);
     scheduleOutlineRefresh(props.content);
     scheduleStatsRefresh(props.content);
@@ -283,6 +294,10 @@ onUnmounted(() => {
 
 watch(() => store.state.isDark, (isDark) => {
   engine?.setTheme(isDark);
+});
+
+watch(() => props.readOnly, (readOnly) => {
+  engine?.setReadOnly(readOnly);
 });
 
 watch(() => props.content, (newContent) => {

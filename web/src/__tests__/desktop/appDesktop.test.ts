@@ -100,6 +100,7 @@ function createEnv(init: { files?: ProjectFile[]; openReturn?: string } = {}): R
     },
     snapshotFile: async (p, m) => { record(`snapshotFile:${p}:${m}`); },
     getRevisions: async (p, _limit) => { record(`getRevisions:${p}`); return revisions; },
+    readFileAtRevision: async (p, h) => { record(`readFileAtRevision:${p}:${h}`); return contents[p] ?? ""; },
     getCurrentProject: async () => { record("getCurrentProject"); return openReturn; },
     getLastActiveFile: async () => { record("getLastActiveFile"); return ""; },
     setActiveProjectFile: async (p) => { record(`setActiveProjectFile:${p}`); },
@@ -113,7 +114,7 @@ function createEnv(init: { files?: ProjectFile[]; openReturn?: string } = {}): R
 const globalStubs = {
   Editor: {
     name: "Editor",
-    props: ["env", "content", "style", "documentKey", "getSpellAllowlist", "addSpellAllowlistWord", "removeSpellAllowlistWord"],
+    props: ["env", "content", "style", "documentKey", "readOnly", "getSpellAllowlist", "addSpellAllowlistWord", "removeSpellAllowlistWord"],
     template: '<div class="editor-stub" />',
   },
   ToastManager: {
