@@ -3,10 +3,12 @@ package desktop
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
@@ -139,4 +141,49 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 	}
 
 	return revisions, nil
+}
+
+// ReadFileAtRevision returns the contents of relPath at the given commit.
+// Used by the frontend to preview and restore older versions. The path is
+// validated with safePath (input hygiene only — the file need not currently
+// exist on disk to have existed at an older revision). The hash must be a
+// full or prefix SHA that resolves to a single commit.
+func (a *App) ReadFileAtRevision(relPath string, hash string) (string, error) {
+	if a.currentProject == "" {
+		return "", fmt.Errorf("no project open")
+	}
+	if _, err := a.safePath(relPath); err != nil {
+		// Allow the file to be absent from disk — we may be reading a
+		// revision of a file that was later renamed or deleted. safePath
+		// rejects traversal/absolute/symlink inputs regardless.
+		// If it failed for any of THOSE reasons, refuse.
+		return "", err
+	}
+
+	r, err := git.PlainOpen(a.currentProject)
+	if err != nil {
+		return "", err
+	}
+
+	resolved, err := r.ResolveRevision(plumbing.Revision(hash))
+	if err != nil {
+		return "", fmt.Errorf("resolving revision %q: %w", hash, err)
+	}
+	commit, err := r.CommitObject(*resolved)
+	if err != nil {
+		return "", fmt.Errorf("loading commit %s: %w", resolved.String(), err)
+	}
+	tree, err := commit.Tree()
+	if err != nil {
+		return "", err
+	}
+
+	// go-git uses forward-slash paths in trees. Normalize to avoid surprises
+	// on Windows where callers might pass backslashes.
+	treePath := filepath.ToSlash(filepath.Clean(relPath))
+	file, err := tree.File(treePath)
+	if err != nil {
+		return "", fmt.Errorf("file %q not found in revision %s: %w", relPath, resolved.String()[:7], err)
+	}
+	return file.Contents()
 }

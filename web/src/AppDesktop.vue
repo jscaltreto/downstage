@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { provide, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, provide, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
     Plus, FolderOpen, Copy, FolderSync, FileText, FileOutput, Sun, Moon,
-    BookOpen, Terminal, Sparkles, PanelLeftClose, PanelLeft, History, Save
+    BookOpen, Terminal, Sparkles, PanelLeftClose, PanelLeft, History, Save,
+    RotateCcw, X
 } from 'lucide-vue-next';
 import { Store } from './core/store';
 import type { EditorEnv } from './core/types';
@@ -30,6 +31,48 @@ const isV1Document = ref(false);
 const toastManager = ref<InstanceType<typeof ToastManager> | null>(null);
 
 let saveTimer: number | null = null;
+
+// `editorContent` is what the editor shows. While viewing an older
+// revision, we route the revision's content into the editor and keep the
+// live buffer in `activeContent` so exiting the view restores in-flight
+// edits. `editorContent` is a two-way binding; the setter drops writes
+// while viewing (editor is also read-only, so this is belt-and-suspenders).
+const isViewingRevision = computed(
+  () => workspace.state.viewingRevisionHash !== null,
+);
+
+const editorContent = computed<string>({
+  get: () =>
+    isViewingRevision.value
+      ? workspace.state.viewingRevisionContent ?? ""
+      : activeContent.value,
+  set: (value: string) => {
+    if (isViewingRevision.value) return;
+    activeContent.value = value;
+  },
+});
+
+// documentKey identifies the buffer shown in the editor. While viewing a
+// revision, append the hash so the shared editor resets transient state
+// (diagnostics, search, stats, outline) when toggling in and out of view.
+const editorDocumentKey = computed(() => {
+  if (!workspace.state.activeFile) return null;
+  return workspace.state.viewingRevisionHash
+    ? `${workspace.state.activeFile}@${workspace.state.viewingRevisionHash}`
+    : workspace.state.activeFile;
+});
+
+function formatRevisionTimestamp(ts: string): string {
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return ts;
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 onMounted(async () => {
   await store.init();
@@ -89,6 +132,41 @@ async function selectProjectFile(path: string) {
   activeContent.value = await workspace.selectFile(path);
 }
 
+async function handleViewRevision(hash: string) {
+  // Flush in-flight edits before switching buffers so unwritten changes
+  // aren't lost when the user exits the preview.
+  await flushSave();
+  try {
+    await workspace.viewRevision(hash);
+  } catch (e: any) {
+    toastManager.value?.addToast(
+      `Failed to load version: ${e?.message ?? e}`,
+      "error",
+    );
+  }
+}
+
+function handleExitRevisionView() {
+  workspace.clearRevisionView();
+}
+
+async function handleRestoreRevision() {
+  const hash = workspace.state.viewingRevisionHash;
+  if (!hash) return;
+  try {
+    // Pass the live buffer (not the revision content) — restoreRevision
+    // snapshots it before overwriting so the restore is itself reversible.
+    const restored = await workspace.restoreRevision(hash, activeContent.value);
+    activeContent.value = restored;
+    toastManager.value?.addToast("Version restored", "success");
+  } catch (e: any) {
+    toastManager.value?.addToast(
+      `Failed to restore version: ${e?.message ?? e}`,
+      "error",
+    );
+  }
+}
+
 async function handleNewPlay() {
   if (!workspace.state.projectPath) {
     await handleOpenFolder();
@@ -109,7 +187,9 @@ async function handleNewPlay() {
 }
 
 async function handleCopy() {
-  await navigator.clipboard.writeText(activeContent.value);
+  // Copy what's actually on screen. While previewing a revision, that's
+  // the revision text, not the live buffer.
+  await navigator.clipboard.writeText(editorContent.value);
   toastManager.value?.addToast("Copied to clipboard", "success");
 }
 
@@ -141,12 +221,14 @@ async function handleExport() {
   }
 
   await flushSave();
-  const title = activeContent.value.match(/^#\s+(.+)$/m)?.[1]?.trim() || "untitled";
+  // Export whatever the user is looking at — live buffer or revision preview.
+  const source = editorContent.value;
+  const title = source.match(/^#\s+(.+)$/m)?.[1]?.trim() || "untitled";
   const styleSlug = pageStyle.value === "condensed" ? "acting-edition" : "manuscript";
   const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}.pdf`;
 
   try {
-    const pdfBytes = await props.env.renderPDF(activeContent.value, pageStyle.value);
+    const pdfBytes = await props.env.renderPDF(source, pageStyle.value);
     await props.env.saveFile(filename, pdfBytes, [
       { displayName: "PDF Files (*.pdf)", pattern: "*.pdf" },
     ]);
@@ -198,7 +280,7 @@ watch(activeContent, (newContent) => {
         <div class="flex items-center gap-2">
           <ToolbarButton @click="handleNewPlay" title="New Play"><template #icon><Plus class="w-4 h-4" /></template>New Play</ToolbarButton>
           <ToolbarButton v-if="workspace.state.activeFile" @click="handleCopy" title="Copy Content"><template #icon><Copy class="w-4 h-4" /></template>Copy</ToolbarButton>
-          <ToolbarButton v-if="workspace.state.activeFile" @click="handleSnapshot" title="Save Version"><template #icon><Save class="w-4 h-4" /></template>Save Version</ToolbarButton>
+          <ToolbarButton v-if="workspace.state.activeFile && !isViewingRevision" @click="handleSnapshot" title="Save Version"><template #icon><Save class="w-4 h-4" /></template>Save Version</ToolbarButton>
           <ToolbarButton
             v-if="workspace.state.activeFile"
             @click="handleExport"
@@ -311,17 +393,37 @@ watch(activeContent, (newContent) => {
                 </h3>
             </div>
             <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                <div
+                <button
+                    v-if="workspace.state.revisions.length > 0"
+                    type="button"
+                    @click="handleExitRevisionView"
+                    class="w-full text-left p-2 rounded transition-colors border"
+                    :class="!isViewingRevision
+                        ? 'bg-brass-500/10 border-brass-500/20 text-brass-500 font-bold'
+                        : 'border-transparent hover:bg-black/5 dark:hover:bg-white/5 text-text-main'"
+                    :title="isViewingRevision ? 'Return to current version' : 'Current version'"
+                >
+                    <div class="text-[11px] font-bold truncate flex items-center gap-1.5">
+                        <FolderSync v-if="!isViewingRevision" class="w-3 h-3" />
+                        <span>Current (editing)</span>
+                    </div>
+                </button>
+                <button
                     v-for="rev in workspace.state.revisions"
                     :key="rev.hash"
-                    class="p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors group cursor-default"
+                    type="button"
+                    @click="handleViewRevision(rev.hash)"
+                    class="w-full text-left p-2 rounded transition-colors border"
+                    :class="workspace.state.viewingRevisionHash === rev.hash
+                        ? 'bg-brass-500/10 border-brass-500/20 text-brass-500'
+                        : 'border-transparent hover:bg-black/5 dark:hover:bg-white/5 text-text-main'"
+                    :title="`Preview this version (${formatRevisionTimestamp(rev.timestamp)})`"
                 >
-                    <div class="text-[11px] font-bold text-text-main truncate">{{ rev.message }}</div>
-                    <div class="flex justify-between items-center mt-1">
-                        <span class="text-[9px] text-text-muted uppercase tracking-wider font-mono opacity-60">{{ rev.hash.substring(0, 7) }}</span>
-                        <span class="text-[9px] text-text-muted italic">{{ new Date(rev.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}</span>
+                    <div class="text-[11px] font-bold truncate">{{ rev.message }}</div>
+                    <div class="flex justify-end items-center mt-1">
+                        <span class="text-[9px] text-text-muted italic">{{ formatRevisionTimestamp(rev.timestamp) }}</span>
                     </div>
-                </div>
+                </button>
                 <div v-if="workspace.state.revisions.length === 0" class="p-4 text-center">
                     <p class="text-[10px] text-text-muted italic">No versions yet. Click "Save Version" to create one.</p>
                 </div>
@@ -336,11 +438,46 @@ watch(activeContent, (newContent) => {
         >
           Loading file…
         </div>
+        <div
+            v-if="isViewingRevision && workspace.state.viewingRevisionMeta"
+            class="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/30 text-ember-950 dark:text-amber-100 shadow-inner z-10"
+        >
+            <div class="flex items-center gap-3 min-w-0">
+                <History class="w-4 h-4 shrink-0 text-amber-600" />
+                <div class="min-w-0">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">Viewing older version</p>
+                    <p class="text-xs truncate opacity-80">
+                        "{{ workspace.state.viewingRevisionMeta.message }}" — saved {{ formatRevisionTimestamp(workspace.state.viewingRevisionMeta.timestamp) }}
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button
+                    type="button"
+                    @click="handleRestoreRevision"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-brass-500 px-3 py-1.5 text-xs font-bold text-ember-950 transition-colors hover:bg-brass-400"
+                    title="Replace the current version with this one. A backup snapshot of the current version is saved first."
+                >
+                    <RotateCcw class="w-3.5 h-3.5" />
+                    Restore this version
+                </button>
+                <button
+                    type="button"
+                    @click="handleExitRevisionView"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-ember-950/10 dark:border-amber-100/20 px-2.5 py-1.5 text-xs font-bold text-ember-950/80 dark:text-amber-100/80 transition-colors hover:bg-ember-950/5 dark:hover:bg-amber-100/10"
+                    title="Return to the current editable version"
+                >
+                    <X class="w-3.5 h-3.5" />
+                    Return to current
+                </button>
+            </div>
+        </div>
         <Editor
             v-if="workspace.state.activeFile"
             :env="env as EditorEnv"
-            :document-key="workspace.state.activeFile"
-            v-model:content="activeContent"
+            :document-key="editorDocumentKey"
+            :read-only="isViewingRevision"
+            v-model:content="editorContent"
             v-model:style="pageStyle"
             :get-spell-allowlist="() => workspace.state.spellAllowlist"
             :add-spell-allowlist-word="addSpellAllowlistWord"

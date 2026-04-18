@@ -36,6 +36,11 @@ All methods live on a single `*App` struct, split across focused files:
   auto-saves on a debounce timer; git snapshots are explicit user actions.
   Do not re-couple these.
 
+- **`ReadFileAtRevision` is read-only.** It resolves a revision, walks the
+  tree, and returns the blob content. It must not mutate state, touch the
+  working copy, or create a new commit. The restore flow is orchestrated
+  by the frontend across `WriteProjectFile` + `SnapshotFile` calls.
+
 - **Do not add auto-commit behavior.** Writers auto-save constantly.
   Committing on every save produces useless git history. Snapshots should
   be deliberate.

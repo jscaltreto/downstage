@@ -140,6 +140,10 @@ class WailsBridge implements DesktopCapabilities {
     return await App.GetRevisions(path, limit ?? 0);
   }
 
+  async readFileAtRevision(path: string, hash: string): Promise<string> {
+    return await App.ReadFileAtRevision(path, hash);
+  }
+
   async getCurrentProject(): Promise<string> {
     return App.GetCurrentProject();
   }

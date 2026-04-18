@@ -77,6 +77,10 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
     }),
     snapshotFile: (p: string, m: string) => record(`snapshotFile:${p}:${m}`, async () => {}),
     getRevisions: (p: string, _limit?: number) => record(`getRevisions:${p}`, async () => state._revisions),
+    readFileAtRevision: (p: string, h: string) => record(`readFileAtRevision:${p}:${h}`, async () => {
+      const key = `${p}@${h}`;
+      return state._contents[key] ?? "";
+    }),
     getCurrentProject: () => record("getCurrentProject", async () => state._openReturn),
     getLastActiveFile: () => record("getLastActiveFile", async () => ""),
     setActiveProjectFile: (p: string) => record(`setActiveProjectFile:${p}`, async () => {}),
@@ -158,5 +162,94 @@ describe("Workspace", () => {
 
     expect(path).toBe("Act One.ds");
     expect(ws.state.projectFiles.map(f => f.path)).toContain("Act One.ds");
+  });
+
+  it("viewRevision loads content into preview state without touching the live buffer", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "live", "play.ds@abc": "older" },
+      _revisions: [{ hash: "abc", message: "initial draft", author: "a", timestamp: "2026-04-17T00:00:00Z" }],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+
+    await ws.viewRevision("abc");
+
+    expect(ws.state.viewingRevisionHash).toBe("abc");
+    expect(ws.state.viewingRevisionContent).toBe("older");
+    expect(ws.state.viewingRevisionMeta?.message).toBe("initial draft");
+    // selectFile stays put — the active file (and its revisions list) is
+    // still the same file; the banner just overlays the view.
+    expect(ws.state.activeFile).toBe("play.ds");
+    // No write happens on view.
+    expect(env._calls.some((c) => c.startsWith("writeProjectFile:"))).toBe(false);
+  });
+
+  it("clearRevisionView resets the preview state", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "live", "play.ds@abc": "older" },
+      _revisions: [{ hash: "abc", message: "m", author: "a", timestamp: "" }],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+
+    ws.clearRevisionView();
+
+    expect(ws.state.viewingRevisionHash).toBeNull();
+    expect(ws.state.viewingRevisionContent).toBeNull();
+    expect(ws.state.viewingRevisionMeta).toBeNull();
+  });
+
+  it("restoreRevision snapshots the live state, overwrites with the revision, then snapshots the restore", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "originally-saved", "play.ds@abc": "older-content" },
+      _revisions: [{ hash: "abc", message: "old draft", author: "a", timestamp: "" }],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+
+    const result = await ws.restoreRevision("abc", "live-unsaved-edits");
+
+    expect(result).toBe("older-content");
+    expect(ws.state.viewingRevisionHash).toBeNull();
+    // The backup write must land before the backup snapshot.
+    const backupWrite = env._calls.indexOf("writeProjectFile:play.ds");
+    const backupSnap = env._calls.findIndex((c) => c === "snapshotFile:play.ds:Auto-save before restore");
+    expect(backupWrite).toBeGreaterThanOrEqual(0);
+    expect(backupSnap).toBeGreaterThan(backupWrite);
+    // The revision content is then read (the restore-time read, not the
+    // earlier view-time one) and written over the working copy.
+    const readRev = env._calls.lastIndexOf("readFileAtRevision:play.ds:abc");
+    expect(readRev).toBeGreaterThan(backupSnap);
+    // The restore commit is the final state-mutating step.
+    const restoreSnap = env._calls.findIndex((c) => c.startsWith("snapshotFile:play.ds:Restore version"));
+    expect(restoreSnap).toBeGreaterThan(readRev);
+  });
+
+  it("restoreRevision swallows 'nothing to snapshot' from the pre-restore backup", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "clean", "play.ds@abc": "older-content" },
+      _revisions: [{ hash: "abc", message: "m", author: "a", timestamp: "" }],
+    });
+    // Backup snapshot fires "nothing to snapshot". Restore snapshot succeeds.
+    let snapCount = 0;
+    env.snapshotFile = async (p: string, m: string) => {
+      env._calls.push(`snapshotFile:${p}:${m}`);
+      snapCount++;
+      if (snapCount === 1) {
+        throw new Error("downstage: nothing-to-snapshot");
+      }
+    };
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+
+    const result = await ws.restoreRevision("abc", "clean");
+    expect(result).toBe("older-content");
+    expect(snapCount).toBe(2);
   });
 });

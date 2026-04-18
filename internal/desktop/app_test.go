@@ -492,3 +492,47 @@ func TestDiagnosticSeverity_UnknownDefaultsToInfo(t *testing.T) {
 	// than "error" so an uncategorized diagnostic never blocks a user.
 	assert.Equal(t, "info", diagnosticSeverity(0))
 }
+
+// ReadFileAtRevision must return the blob content at the named commit,
+// even if the working copy has since diverged. This is the core primitive
+// behind the desktop restore flow.
+func TestReadFileAtRevision_ReturnsContentAtCommit(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.SnapshotFile("play.ds", "one"))
+	require.NoError(t, a.WriteProjectFile("play.ds", "v2"))
+	require.NoError(t, a.SnapshotFile("play.ds", "two"))
+
+	revisions, err := a.GetRevisions("play.ds", 0)
+	require.NoError(t, err)
+	require.Len(t, revisions, 2)
+	// revisions[1] is the older commit ("one") — its blob should be "v1"
+	// even though the working copy is now "v2".
+	content, err := a.ReadFileAtRevision("play.ds", revisions[1].Hash)
+	require.NoError(t, err)
+	assert.Equal(t, "v1", content)
+
+	// Newest revision round-trips too.
+	content, err = a.ReadFileAtRevision("play.ds", revisions[0].Hash)
+	require.NoError(t, err)
+	assert.Equal(t, "v2", content)
+}
+
+func TestReadFileAtRevision_UnknownHashReturnsError(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.SnapshotFile("play.ds", "one"))
+
+	_, err := a.ReadFileAtRevision("play.ds", "deadbeef")
+	assert.Error(t, err)
+}
+
+func TestReadFileAtRevision_RejectsAbsolutePaths(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))
+	require.NoError(t, a.SnapshotFile("play.ds", "one"))
+	revisions, _ := a.GetRevisions("play.ds", 0)
+
+	_, err := a.ReadFileAtRevision("/etc/passwd", revisions[0].Hash)
+	assert.Error(t, err)
+}

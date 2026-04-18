@@ -23,6 +23,7 @@ export interface ProjectEnv {
   // `limit <= 0` falls back to the server's default bound (currently 100)
   // to avoid unbounded payloads on long-lived projects.
   getRevisions(path: string, limit?: number): Promise<Revision[]>;
+  readFileAtRevision(path: string, hash: string): Promise<string>;
   getCurrentProject(): Promise<string>;
   getLastActiveFile(): Promise<string>;
   setActiveProjectFile(rel: string): Promise<void>;
