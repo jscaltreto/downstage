@@ -487,6 +487,8 @@ watch(activeContent, (newContent) => {
         :document-key="store.state.activeDraftId"
         v-model:content="activeContent"
         v-model:style="pageStyle"
+        v-model:preview-hidden="store.state.previewHidden"
+        v-model:spellcheck-disabled="store.state.spellcheckDisabled"
         :get-spell-allowlist="() => activeSavedDraft?.spellAllowlist || []"
         :add-spell-allowlist-word="addSpellAllowlistWord"
         :remove-spell-allowlist-word="removeSpellAllowlistWord"

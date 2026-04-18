@@ -10,6 +10,7 @@ import type {
   SpellcheckContext,
   DocumentSymbolsResult,
   ManuscriptStats,
+  EditorPreferences,
 } from "./core/types";
 import type { DesktopCapabilities, ProjectFile, Revision } from "./desktop/types";
 import { invokeRegisteredFlushSave } from "./desktop/flush-save";
@@ -166,6 +167,34 @@ class WailsBridge implements DesktopCapabilities {
 
   async removeSpellAllowlistWord(word: string): Promise<boolean> {
     return App.RemoveSpellAllowlistWord(word);
+  }
+
+  // Preferences — both env projections read and write through the single
+  // Go Preferences struct. Reads apply the theme default on the frontend
+  // side too (the Go getter already normalizes, but defensive double-bolt
+  // here costs nothing).
+  async getEditorPreferences(): Promise<EditorPreferences> {
+    const all = await App.GetPreferences();
+    return {
+      theme: ((all?.theme as EditorPreferences["theme"]) || "system"),
+      previewHidden: !!all?.previewHidden,
+      spellcheckDisabled: !!all?.spellcheckDisabled,
+    };
+  }
+
+  async setEditorPreferences(prefs: EditorPreferences): Promise<void> {
+    const all = await App.GetPreferences();
+    await App.SetPreferences({ ...all, ...prefs });
+  }
+
+  async getSidebarCollapsed(): Promise<boolean> {
+    const all = await App.GetPreferences();
+    return !!all?.sidebarCollapsed;
+  }
+
+  async setSidebarCollapsed(collapsed: boolean): Promise<void> {
+    const all = await App.GetPreferences();
+    await App.SetPreferences({ ...all, sidebarCollapsed: collapsed });
   }
 
   async saveFile(filename: string, content: string | Uint8Array, filters?: { displayName: string; pattern: string }[]): Promise<void> {

@@ -61,6 +61,22 @@ All methods live on a single `*App` struct, split across focused files:
   read first, mutate, and write. The `configMu` mutex guards the read-
   modify-write cycle.
 
+- **Preferences are the single source of truth for persisted UI state.**
+  All desktop-side UI preferences (theme, previewHidden, spellcheckDisabled,
+  sidebarCollapsed) live in the nested `Preferences` struct inside
+  `Config`. They are exposed via exactly one bound pair:
+  `GetPreferences()` and `SetPreferences(prefs)`. Writers always read,
+  mutate, and write the full struct; there are no per-field setters by
+  design. `GetPreferences` normalizes an empty `Theme` to `"system"` so
+  callers never have to know which fields carry sentinels. Do not
+  introduce per-field Wails bindings for new preferences — add fields to
+  `Preferences` and use the existing pair.
+
+- **Do not reintroduce `localStorage` on the desktop side.** The webview
+  has `localStorage`, but everything persisted on desktop must round-trip
+  through `Preferences`. If a preference needs to survive restart, it
+  belongs in the Go config, not in browser storage.
+
 - **Git commit authorship respects the user's global identity.**
   `snapshotAuthor` reads `config.GlobalScope` (merging `~/.gitconfig` and
   `$XDG_CONFIG_HOME/git/config`) and falls back to `Downstage Write

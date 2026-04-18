@@ -107,6 +107,32 @@ so switching documents automatically invalidates a prior dismissal.
 - `clearRevisionView()` is called on file switch, project switch, and after
   a successful restore so stale preview state never leaks across contexts.
 
+## Preferences
+
+- Desktop preferences live in the Go `Config.Preferences` struct. The
+  frontend never touches `localStorage` for preferences — reads go through
+  `env.getEditorPreferences` (shared) and `env.getSidebarCollapsed`
+  (desktop-only); writes go through the matching setters. Both are thin
+  projections over a single Go `Preferences` struct, so read-modify-write
+  semantics end-to-end.
+- `Store` owns theme/previewHidden/spellcheckDisabled on both hosts. On
+  desktop, Store's env is `WailsBridge`, so persistence automatically
+  flows to `~/.config/downstage/config.json` — no desktop-specific pref
+  code path.
+- `Workspace` owns `sidebarCollapsed`. It reads via
+  `env.getSidebarCollapsed()` in `init()` and writes via
+  `env.setSidebarCollapsed(next)` in `toggleSidebar`.
+- **Hydration guard is mandatory.** Both `Store` and `Workspace` construct
+  reactive state with placeholder defaults. The env-backed `init()` is
+  async — if a persistence watcher fires before init completes, it will
+  overwrite the real stored value with the placeholder. Both classes gate
+  persistence on a private `hydrated: boolean` that only flips to `true`
+  after the env read resolves. When adding a new persisted pref, wire it
+  through the same gate.
+- `Editor.vue` must not touch `localStorage` or Wails bindings for
+  preferences. It accepts `previewHidden` and `spellcheckDisabled` as
+  v-model props; the host owns state and persistence.
+
 ## Spellcheck
 
 - The desktop spellcheck dictionary is stored at `.downstage/dictionary.txt`

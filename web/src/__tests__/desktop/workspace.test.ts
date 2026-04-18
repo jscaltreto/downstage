@@ -81,6 +81,16 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
       const key = `${p}@${h}`;
       return state._contents[key] ?? "";
     }),
+    getEditorPreferences: () => record("getEditorPreferences", async () => ({
+      theme: "system" as const,
+      previewHidden: false,
+      spellcheckDisabled: false,
+    })),
+    setEditorPreferences: (prefs: any) => record(`setEditorPreferences:${JSON.stringify(prefs)}`, async () => {}),
+    getSidebarCollapsed: () => record("getSidebarCollapsed", async () => (state as any)._sidebarCollapsed ?? false),
+    setSidebarCollapsed: (c: boolean) => record(`setSidebarCollapsed:${c}`, async () => {
+      (state as any)._sidebarCollapsed = c;
+    }),
     getCurrentProject: () => record("getCurrentProject", async () => state._openReturn),
     getLastActiveFile: () => record("getLastActiveFile", async () => ""),
     setActiveProjectFile: (p: string) => record(`setActiveProjectFile:${p}`, async () => {}),
@@ -228,6 +238,47 @@ describe("Workspace", () => {
     // The restore commit is the final state-mutating step.
     const restoreSnap = env._calls.findIndex((c) => c.startsWith("snapshotFile:play.ds:Restore version"));
     expect(restoreSnap).toBeGreaterThan(readRev);
+  });
+
+  it("loads sidebarCollapsed from env and ignores legacy localStorage key", async () => {
+    stubLocalStorage();
+    // Plant the legacy key — Workspace must NOT read it after the refactor.
+    localStorage.setItem("downstage-sidebar-collapsed", "true");
+    const env = createEnv();
+    (env as any)._sidebarCollapsed = false;
+
+    const ws = new Workspace(env);
+    await ws.init();
+
+    // env value wins; legacy localStorage key is ignored.
+    expect(ws.state.sidebarCollapsed).toBe(false);
+    expect(env._calls).toContain("getSidebarCollapsed");
+  });
+
+  it("toggleSidebar persists via env, not localStorage", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    const ws = new Workspace(env);
+    await ws.init();
+
+    ws.toggleSidebar();
+
+    expect(ws.state.sidebarCollapsed).toBe(true);
+    expect(env._calls).toContain("setSidebarCollapsed:true");
+    // Legacy key should not be written.
+    expect(localStorage.getItem("downstage-sidebar-collapsed")).toBeNull();
+  });
+
+  it("hydration guard: pre-init toggleSidebar does not persist", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    const ws = new Workspace(env);
+
+    // Pre-init mutation — watcher would otherwise fire and overwrite the
+    // stored value with the placeholder default.
+    ws.toggleSidebar();
+
+    expect(env._calls.some((c) => c.startsWith("setSidebarCollapsed"))).toBe(false);
   });
 
   it("restoreRevision swallows 'nothing to snapshot' from the pre-restore backup", async () => {

@@ -39,18 +39,28 @@ const props = withDefaults(
     // is viewing a historical revision so keystrokes don't mutate the
     // preview.
     readOnly?: boolean;
+    // Host-owned editor preferences. v-modelled so toolbar toggles emit
+    // back up; the host (Store on web, Workspace on desktop) persists via
+    // env. Editor.vue is deliberately storage-ignorant — it never touches
+    // localStorage or Wails bindings for these.
+    previewHidden?: boolean;
+    spellcheckDisabled?: boolean;
     getSpellAllowlist: () => string[];
     addSpellAllowlistWord: (word: string) => Promise<boolean>;
     removeSpellAllowlistWord: (word: string) => Promise<boolean>;
   }>(),
   {
     readOnly: false,
+    previewHidden: false,
+    spellcheckDisabled: false,
   },
 );
 
 const emit = defineEmits<{
   (e: 'update:content', value: string): void;
   (e: 'update:style', value: string): void;
+  (e: 'update:previewHidden', value: boolean): void;
+  (e: 'update:spellcheckDisabled', value: boolean): void;
   (e: 'migration-state-change', value: boolean): void;
 }>();
 
@@ -60,8 +70,19 @@ const previewFrameComponent = ref<InstanceType<typeof PreviewFrame> | null>(null
 const renderedHtml = ref("");
 let engine: Engine | null = null;
 
-const previewVisible = ref(localStorage.getItem("downstage-editor-preview-hidden") !== "true");
-const spellcheckEnabled = ref(localStorage.getItem("downstage-editor-spellcheck-disabled") !== "true");
+// Preview/spellcheck are prop-driven so the host can persist them however
+// it wants (localStorage on web, Go config on desktop). Flip the prop
+// semantics to positive here because the rest of this component reads
+// "visible" / "enabled"; the negative names match the persisted keys and
+// keep zero-value JSON aligned with the default.
+const previewVisible = computed<boolean>({
+  get: () => !props.previewHidden,
+  set: (visible) => emit('update:previewHidden', !visible),
+});
+const spellcheckEnabled = computed<boolean>({
+  get: () => !props.spellcheckDisabled,
+  set: (enabled) => emit('update:spellcheckDisabled', !enabled),
+});
 const drawerOpen = ref(false);
 const drawerTab = ref<WorkbenchTab>('issues');
 const searchMatches = ref<SearchMatch[]>([]);
@@ -332,15 +353,17 @@ watch(() => props.style, (newStyle) => {
     }
 });
 
+// previewVisible/spellcheckEnabled are computed over props now; their
+// persistence lives in the host's Store/Workspace. These watchers handle
+// the side effects only — refreshing the preview when it re-appears and
+// toggling CodeMirror spellcheck.
 watch(previewVisible, (visible) => {
-    localStorage.setItem("downstage-editor-preview-hidden", String(!visible));
     if (visible && engine) {
         scheduleRender(engine.getContent(), props.style);
     }
 });
 
 watch(spellcheckEnabled, (enabled) => {
-    localStorage.setItem("downstage-editor-spellcheck-disabled", String(!enabled));
     engine?.setSpellcheckEnabled(enabled);
 });
 

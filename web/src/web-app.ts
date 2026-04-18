@@ -4,6 +4,7 @@ import AppWeb from "./AppWeb.vue";
 import { initWasm, upgradeV1 as upgradeV1Wasm } from "./wasm";
 import type {
   EditorEnv,
+  EditorPreferences,
   ExportPdfOptions,
   SavedDraft,
   ParseError,
@@ -14,11 +15,13 @@ import type {
   DocumentSymbolsResult,
   ManuscriptStats,
 } from "./core/types";
+import { parseEditorPreferencesBlob } from "./core/editor-prefs";
 
 declare const __APP_VERSION__: string;
 
 const draftsStorageKey = "downstage-editor-drafts";
 const activeDraftStorageKey = "downstage-editor-active-draft";
+const editorPrefsStorageKey = "downstage-editor-prefs";
 
 function isValidDraft(obj: any): obj is SavedDraft {
   return (
@@ -180,6 +183,18 @@ class WebEnv implements EditorEnv {
 
   async openURL(url: string): Promise<void> {
     window.open(url, "_blank");
+  }
+
+  async getEditorPreferences(): Promise<EditorPreferences> {
+    return parseEditorPreferencesBlob(localStorage.getItem(editorPrefsStorageKey));
+  }
+
+  async setEditorPreferences(prefs: EditorPreferences): Promise<void> {
+    try {
+      localStorage.setItem(editorPrefsStorageKey, JSON.stringify(prefs));
+    } catch (e) {
+      console.error("failed to save editor prefs to storage:", e);
+    }
   }
 
   getAppVersion(): string {

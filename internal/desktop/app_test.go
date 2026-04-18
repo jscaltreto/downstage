@@ -527,6 +527,83 @@ func TestReadFileAtRevision_UnknownHashReturnsError(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// GetPreferences must round-trip every field SetPreferences wrote. This is
+// the contract Store/Workspace relies on; a regression here breaks
+// persisted UI prefs silently.
+func TestPreferences_RoundTrip(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	in := Preferences{
+		Theme:              "dark",
+		PreviewHidden:      true,
+		SpellcheckDisabled: true,
+		SidebarCollapsed:   true,
+	}
+	require.NoError(t, a.SetPreferences(in))
+
+	out, err := a.GetPreferences()
+	require.NoError(t, err)
+	assert.Equal(t, in, out)
+}
+
+// Fresh install: Theme empty in JSON → normalized to "system". Other
+// zero-value booleans match the default behavior so no normalization is
+// needed there.
+func TestPreferences_DefaultTheme(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	out, err := a.GetPreferences()
+	require.NoError(t, err)
+	assert.Equal(t, "system", out.Theme)
+	assert.False(t, out.PreviewHidden)
+	assert.False(t, out.SpellcheckDisabled)
+	assert.False(t, out.SidebarCollapsed)
+}
+
+// SetPreferences must not clobber non-preference Config fields. If it did,
+// persisting a theme change would forget the user's last project path.
+func TestPreferences_DoesNotClobberNonPrefFields(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	require.NoError(t, a.writeConfig(Config{
+		LastProjectPath:       "/tmp/project",
+		LastActiveProjectFile: "play.ds",
+	}))
+
+	require.NoError(t, a.SetPreferences(Preferences{Theme: "dark"}))
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/project", cfg.LastProjectPath)
+	assert.Equal(t, "play.ds", cfg.LastActiveProjectFile)
+	assert.Equal(t, "dark", cfg.Preferences.Theme)
+}
+
+// Switching projects (OpenProjectFolder) must not clear persisted
+// preferences. They live in the same Config but are logically decoupled
+// from the project pointer.
+func TestPreferences_SurvivesProjectSwitch(t *testing.T) {
+	a := testAppWithConfig(t)
+
+	require.NoError(t, a.SetPreferences(Preferences{
+		Theme:            "dark",
+		SidebarCollapsed: true,
+	}))
+
+	// Simulate the project-switch code path: read, mutate project pointer,
+	// write.
+	cfg, err := a.readConfig()
+	require.NoError(t, err)
+	cfg.LastProjectPath = "/tmp/other"
+	cfg.LastActiveProjectFile = ""
+	require.NoError(t, a.writeConfig(cfg))
+
+	out, err := a.GetPreferences()
+	require.NoError(t, err)
+	assert.Equal(t, "dark", out.Theme)
+	assert.True(t, out.SidebarCollapsed)
+}
+
 func TestReadFileAtRevision_RejectsAbsolutePaths(t *testing.T) {
 	a := testApp(t)
 	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))

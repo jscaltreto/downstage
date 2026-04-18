@@ -151,6 +151,19 @@ export interface SavedDraft {
   spellAllowlist: string[];
 }
 
+export type Theme = "light" | "dark" | "system";
+
+// EditorPreferences are the UI preferences owned by the shared editor and
+// Store. Each host persists them differently — the web host round-trips a
+// single `downstage-editor-prefs` localStorage blob, the desktop host
+// round-trips the Go Config's `Preferences` block. Shape matches on both
+// sides so `Editor.vue` and `Store` can stay host-agnostic.
+export interface EditorPreferences {
+  theme: Theme;
+  previewHidden: boolean;
+  spellcheckDisabled: boolean;
+}
+
 export interface EditorEnv {
   // Parsing and Diagnostics
   parse(source: string): Promise<{ errors: ParseError[] }>;
@@ -178,6 +191,12 @@ export interface EditorEnv {
   saveFile(filename: string, content: string | Uint8Array, filters?: { displayName: string; pattern: string }[]): Promise<void>;
   importLocalFile(): Promise<{ name: string; content: string } | null>;
   openURL(url: string): Promise<void>;
+
+  // Preferences — full-struct R-M-W. The env is the single source of truth
+  // for persisted preference state; callers read, mutate, write the whole
+  // struct back. No partial patches, no backend merge.
+  getEditorPreferences(): Promise<EditorPreferences>;
+  setEditorPreferences(prefs: EditorPreferences): Promise<void>;
 
   // Metadata
   getAppVersion(): string;

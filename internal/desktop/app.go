@@ -26,10 +26,24 @@ const (
 	beforeCloseTimeout = 2 * time.Second
 )
 
+// Preferences captures every persisted UI preference the desktop app
+// exposes. It lives inside Config as a single nested struct so the
+// frontend can round-trip the whole thing as one typed unit. Fields use
+// negative-semantic booleans (hidden/disabled/collapsed) so the JSON
+// zero value aligns with the default behavior — no pointer gymnastics,
+// no config version tag required.
+type Preferences struct {
+	Theme              string `json:"theme,omitempty"`              // "", "light", "dark", "system"
+	PreviewHidden      bool   `json:"previewHidden,omitempty"`      // default false (visible)
+	SpellcheckDisabled bool   `json:"spellcheckDisabled,omitempty"` // default false (enabled)
+	SidebarCollapsed   bool   `json:"sidebarCollapsed,omitempty"`   // default false (expanded)
+}
+
 // Config stores persistent user preferences across sessions.
 type Config struct {
-	LastProjectPath       string `json:"lastProjectPath"`
-	LastActiveProjectFile string `json:"lastActiveProjectFile"`
+	LastProjectPath       string      `json:"lastProjectPath"`
+	LastActiveProjectFile string      `json:"lastActiveProjectFile"`
+	Preferences           Preferences `json:"preferences"`
 }
 
 // App is the Wails application backend.
@@ -140,6 +154,40 @@ func (a *App) SetActiveProjectFile(rel string) error {
 		return err
 	}
 	cfg.LastActiveProjectFile = rel
+	return a.writeConfig(cfg)
+}
+
+// defaultTheme is applied by GetPreferences when the persisted theme is
+// the zero value (""). "system" means "follow OS preference" which is what
+// a brand-new install should do before the user picks.
+const defaultTheme = "system"
+
+// GetPreferences returns the persisted preferences with defaults applied.
+// Unknown/empty Theme is normalized to "system" so the frontend never has
+// to know which fields carry a sentinel.
+func (a *App) GetPreferences() (Preferences, error) {
+	cfg, err := a.readConfig()
+	if err != nil {
+		return Preferences{}, err
+	}
+	prefs := cfg.Preferences
+	if prefs.Theme == "" {
+		prefs.Theme = defaultTheme
+	}
+	return prefs, nil
+}
+
+// SetPreferences replaces the entire Preferences block in Config. The
+// read-modify-write cycle is serialized by configMu (inside the
+// readConfig/writeConfig pair), so concurrent SetPreferences calls can't
+// interleave and lose fields. Non-preference Config fields
+// (LastProjectPath, LastActiveProjectFile) are preserved.
+func (a *App) SetPreferences(prefs Preferences) error {
+	cfg, err := a.readConfig()
+	if err != nil {
+		return err
+	}
+	cfg.Preferences = prefs
 	return a.writeConfig(cfg)
 }
 

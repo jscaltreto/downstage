@@ -33,15 +33,22 @@ function isNothingToSnapshotError(e: unknown): boolean {
 export class Workspace {
   public state: WorkspaceState;
 
+  // hydrated guards any persistence side effects that might otherwise fire
+  // during the window between constructor and init() completion. The
+  // constructor seeds state with placeholder defaults; the env read
+  // populates the real values in init(). Without the guard, a naive
+  // toggleSidebar fired mid-init could overwrite the real value with the
+  // placeholder.
+  private hydrated = false;
+
   constructor(private env: DesktopCapabilities) {
     this.state = reactive<WorkspaceState>({
       projectPath: null,
       projectFiles: [],
       activeFile: null,
       revisions: [],
-      sidebarCollapsed:
-        typeof localStorage !== "undefined" &&
-        localStorage.getItem("downstage-sidebar-collapsed") === "true",
+      // Placeholder. Real value comes from env.getSidebarCollapsed in init.
+      sidebarCollapsed: false,
       spellAllowlist: [],
       isLoadingFile: false,
       viewingRevisionHash: null,
@@ -56,6 +63,8 @@ export class Workspace {
       this.state.projectFiles = await this.env.getProjectFiles();
       this.state.spellAllowlist = await this.env.getSpellAllowlist();
     }
+    this.state.sidebarCollapsed = await this.env.getSidebarCollapsed();
+    this.hydrated = true;
   }
 
   async openFolder(): Promise<string | null> {
@@ -208,11 +217,9 @@ export class Workspace {
 
   toggleSidebar() {
     this.state.sidebarCollapsed = !this.state.sidebarCollapsed;
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(
-        "downstage-sidebar-collapsed",
-        String(this.state.sidebarCollapsed),
-      );
-    }
+    // Persist via env. Guard on hydrated so an accidental pre-init toggle
+    // doesn't clobber the real stored value with the placeholder default.
+    if (!this.hydrated) return;
+    void this.env.setSidebarCollapsed(this.state.sidebarCollapsed);
   }
 }

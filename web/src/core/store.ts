@@ -1,12 +1,14 @@
 import { reactive, watch } from "vue";
-import type { EditorEnv, SavedDraft } from "./types";
+import type { EditorEnv, EditorPreferences, SavedDraft, Theme } from "./types";
 
-export type Theme = "light" | "dark" | "system";
+export type { Theme } from "./types";
 
 export interface State {
   drafts: SavedDraft[];
   activeDraftId: string | null;
   theme: Theme;
+  previewHidden: boolean;
+  spellcheckDisabled: boolean;
   isDark: boolean;
   appVersion: string;
 }
@@ -18,21 +20,39 @@ function extractDocumentTitle(content: string) {
 export class Store {
   public state: State;
 
+  // hydrated guards the persistence watcher. Before init() finishes the
+  // reactive `state` holds placeholder defaults; letting the watcher fire
+  // during that window would overwrite whatever the env has on disk with
+  // those placeholders. Flip to true as the final step of init().
+  private hydrated = false;
+
   constructor(private env: EditorEnv) {
-    this.state = reactive({
+    this.state = reactive<State>({
       drafts: [],
       activeDraftId: null,
-      theme: (localStorage.getItem("downstage-theme") as Theme) || "system",
+      theme: "system",
+      previewHidden: false,
+      spellcheckDisabled: false,
       isDark: false,
       appVersion: env.getAppVersion(),
     });
 
     this.initTheme();
+    this.initPreferencePersistence();
   }
 
   async init() {
     this.state.drafts = await this.env.loadDrafts();
     this.state.activeDraftId = await this.env.loadActiveDraftId();
+
+    const prefs = await this.env.getEditorPreferences();
+    this.state.theme = prefs.theme;
+    this.state.previewHidden = prefs.previewHidden;
+    this.state.spellcheckDisabled = prefs.spellcheckDisabled;
+
+    // Final step — open the persistence gate only after the env read
+    // settles, so nothing we just wrote into state echoes back out.
+    this.hydrated = true;
   }
 
   private initTheme() {
@@ -47,10 +67,35 @@ export class Store {
 
     window.matchMedia("(prefers-color-scheme: dark)").onchange = updateDark;
 
-    watch(() => this.state.theme, (newTheme) => {
-      localStorage.setItem("downstage-theme", newTheme);
+    watch(() => this.state.theme, () => {
       updateDark();
     }, { immediate: true });
+  }
+
+  private initPreferencePersistence() {
+    // Single watcher over all three editor-pref fields. When any of them
+    // changes after hydration, snapshot the full EditorPreferences and
+    // hand the whole thing to the env — matches the backend's full-struct
+    // write contract.
+    watch(
+      () => ({
+        theme: this.state.theme,
+        previewHidden: this.state.previewHidden,
+        spellcheckDisabled: this.state.spellcheckDisabled,
+      }),
+      (snapshot) => {
+        if (!this.hydrated) return;
+        void this.persistEditorPreferences(snapshot);
+      },
+    );
+  }
+
+  private async persistEditorPreferences(prefs: EditorPreferences) {
+    try {
+      await this.env.setEditorPreferences(prefs);
+    } catch (e) {
+      console.error("failed to persist editor preferences:", e);
+    }
   }
 
   toggleTheme() {
