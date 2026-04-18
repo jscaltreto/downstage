@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "build:desktop": "DESKTOP_BUILD=true vite build --outDir ../cmd/downstage-write/frontend",
+    "build:desktop": "cross-env DESKTOP_BUILD=true vite build --outDir ../cmd/downstage-write/frontend",
     "dev": "vite",
     "preview:strict": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
@@ -37,6 +37,7 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@vue/test-utils": "^2.4.6",
+    "cross-env": "^10.1.0",
     "happy-dom": "^20.8.9",
     "typescript": "^5.8.0",
     "vite": "^8.0.8",
