@@ -189,6 +189,12 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["view.toggleIssues", { handler: () => toggleDrawerTab("issues"), isEnabled: hasActiveFile }],
     ["view.toggleOutline", { handler: () => toggleDrawerTab("outline"), isEnabled: hasActiveFile }],
     ["view.toggleStats", { handler: () => toggleDrawerTab("stats"), isEnabled: hasActiveFile }],
+    ["view.toggleDrawerDock", {
+      handler: () => {
+        const next = workspace.state.drawerDock === "right" ? "bottom" : "right";
+        workspace.setDrawerDock(next);
+      },
+    }],
 
     // Navigate
     ["navigate.nextFile", {
@@ -221,5 +227,6 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["help.toggle", { handler: () => toggleDrawerTab("help"), isEnabled: hasActiveFile }],
     ["help.github", { handler: () => env.openURL("https://github.com/jscaltreto/downstage") }],
     ["help.docs", { handler: () => env.openURL("https://getdownstage.com/docs") }],
+    ["help.about", { handler: () => env.showAboutDialog() }],
   ];
 }

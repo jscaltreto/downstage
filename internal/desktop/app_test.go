@@ -729,6 +729,23 @@ func TestConfig_ConcurrentSubtreeWritesPreserveBoth(t *testing.T) {
 	assert.True(t, cfg.WindowState.Placed)
 }
 
+// ShowAboutDialog must not panic when Wails hasn't initialized the
+// runtime context — defensive early-return covers edge cases like the
+// dialog being dispatched during teardown or tests.
+func TestShowAboutDialog_NoCtxNoPanic(t *testing.T) {
+	a := &App{}
+	assert.NotPanics(t, func() {
+		_ = a.ShowAboutDialog()
+	})
+}
+
+// Version defaults to "dev" when ldflags doesn't inject anything.
+// Release builds override this via -X; we only assert the fallback
+// here so the About dialog never shows an empty version string.
+func TestVersion_HasFallback(t *testing.T) {
+	assert.NotEmpty(t, Version)
+}
+
 func TestReadFileAtRevision_RejectsAbsolutePaths(t *testing.T) {
 	a := testApp(t)
 	require.NoError(t, a.WriteProjectFile("play.ds", "v1"))

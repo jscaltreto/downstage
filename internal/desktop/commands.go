@@ -74,12 +74,13 @@ const (
 	CmdEditFindReplace = "edit.findReplace"
 	CmdEditCopyAll     = "edit.copyAll"
 
-	CmdViewCommandPalette = "view.commandPalette"
-	CmdViewTogglePreview  = "view.togglePreview"
-	CmdViewToggleSidebar  = "view.toggleSidebar"
-	CmdViewToggleIssues   = "view.toggleIssues"
-	CmdViewToggleOutline  = "view.toggleOutline"
-	CmdViewToggleStats    = "view.toggleStats"
+	CmdViewCommandPalette   = "view.commandPalette"
+	CmdViewTogglePreview    = "view.togglePreview"
+	CmdViewToggleSidebar    = "view.toggleSidebar"
+	CmdViewToggleIssues     = "view.toggleIssues"
+	CmdViewToggleOutline    = "view.toggleOutline"
+	CmdViewToggleStats      = "view.toggleStats"
+	CmdViewToggleDrawerDock = "view.toggleDrawerDock"
 
 	CmdNavigateNextFile = "navigate.nextFile"
 	CmdNavigatePrevFile = "navigate.prevFile"
@@ -98,6 +99,7 @@ const (
 	CmdHelpToggle = "help.toggle"
 	CmdHelpGitHub = "help.github"
 	CmdHelpDocs   = "help.docs"
+	CmdHelpAbout  = "help.about"
 )
 
 // Commands returns the canonical ordered catalog. The order governs the
@@ -130,6 +132,7 @@ func Commands() []Command {
 		{ID: CmdViewToggleIssues, Label: "Issues", Category: CategoryView, MenuPath: []string{"View"}, BeforeSeparator: true},
 		{ID: CmdViewToggleOutline, Label: "Outline", Category: CategoryView, MenuPath: []string{"View"}},
 		{ID: CmdViewToggleStats, Label: "Stats", Category: CategoryView, MenuPath: []string{"View"}},
+		{ID: CmdViewToggleDrawerDock, Label: "Toggle Drawer Dock", Category: CategoryView, MenuPath: []string{"View"}, BeforeSeparator: true},
 
 		// Navigate
 		{ID: CmdNavigateNextFile, Label: "Next File", Category: CategoryNavigate, MenuPath: []string{"Navigate"}},
@@ -151,5 +154,6 @@ func Commands() []Command {
 		{ID: CmdHelpToggle, Label: "View Help", Category: CategoryHelp, Accelerator: "cmdorctrl+shift+/", MenuPath: []string{"Help"}},
 		{ID: CmdHelpGitHub, Label: "GitHub", Category: CategoryHelp, MenuPath: []string{"Help"}, BeforeSeparator: true},
 		{ID: CmdHelpDocs, Label: "Documentation", Category: CategoryHelp, MenuPath: []string{"Help"}},
+		{ID: CmdHelpAbout, Label: "About Downstage Write…", Category: CategoryHelp, MenuPath: []string{"Help"}, BeforeSeparator: true},
 	}
 }

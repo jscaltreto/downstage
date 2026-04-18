@@ -70,13 +70,19 @@ web/build:
 
 # --- Desktop app (Wails) ---
 
+# Version string surfaced in the About dialog via ldflags. `git describe`
+# produces something like `v0.3.1-12-g329f5e6-dirty`; falls back to "dev"
+# in non-git contexts. Overridable: `make desktop-build VERSION=1.2.3`.
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+DESKTOP_LDFLAGS := -X github.com/jscaltreto/downstage/internal/desktop.Version=$(VERSION)
+
 desktop-dev:
-	@echo "Starting desktop app in dev mode..."
-	cd cmd/downstage-write && wails dev -tags webkit2_41
+	@echo "Starting desktop app in dev mode (version $(VERSION))..."
+	cd cmd/downstage-write && wails dev -tags webkit2_41 -ldflags "$(DESKTOP_LDFLAGS)"
 
 desktop-build:
-	@echo "Building desktop app..."
-	cd cmd/downstage-write && wails build -tags webkit2_41
+	@echo "Building desktop app (version $(VERSION))..."
+	cd cmd/downstage-write && wails build -tags webkit2_41 -ldflags "$(DESKTOP_LDFLAGS)"
 
 desktop-clean:
 	rm -rf cmd/downstage-write/build/bin cmd/downstage-write/frontend

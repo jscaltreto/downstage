@@ -1,6 +1,8 @@
 import { reactive } from "vue";
 import type { DesktopCapabilities, FileGitStatus, ProjectFile, Revision } from "./types";
 
+export type DrawerDock = 'bottom' | 'right';
+
 export interface WorkspaceState {
   projectPath: string | null;
   projectFiles: ProjectFile[];
@@ -9,6 +11,8 @@ export interface WorkspaceState {
   sidebarCollapsed: boolean;
   sidebarWidth: number;
   lastDrawerTab: string;
+  drawerDock: DrawerDock;
+  drawerRightWidth: number;
   spellAllowlist: string[];
   isLoadingFile: boolean;
   // Per-file git status for the status bar — null until an active file
@@ -38,10 +42,18 @@ export const minSidebarWidth = 180;
 export const maxSidebarWidth = 600;
 export const defaultSidebarWidth = 256;
 
-// Debounce between rapid mouse-drag sidebar updates and the backend
-// persistence call. The reactive state updates at frame rate; the
+// Drawer right-dock width clamps and default. 240 is narrow enough to
+// be a hint pane; 800 is enough to host Find & Replace comfortably
+// while leaving the editor usable on a 13" display.
+export const minDrawerRightWidth = 240;
+export const maxDrawerRightWidth = 800;
+export const defaultDrawerRightWidth = 360;
+
+// Debounce between rapid mouse-drag sidebar/drawer updates and the
+// backend persistence call. Reactive state updates at frame rate; the
 // persisted prefs-cache write only needs to catch up on pause.
 const sidebarPersistDebounceMs = 300;
+const drawerWidthPersistDebounceMs = 300;
 
 // Prefix the Go backend uses for the "clean worktree after staging" sentinel.
 // Kept in sync with internal/desktop/git.go:ErrNothingToSnapshot.
@@ -69,6 +81,7 @@ export class Workspace {
   // (NodeJS.Timeout) — the unit tests run in Node without a `window`.
   private dirtyReconcileTimer: ReturnType<typeof setTimeout> | null = null;
   private sidebarPersistTimer: ReturnType<typeof setTimeout> | null = null;
+  private drawerWidthPersistTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private env: DesktopCapabilities) {
     this.state = reactive<WorkspaceState>({
@@ -80,6 +93,8 @@ export class Workspace {
       sidebarCollapsed: false,
       sidebarWidth: defaultSidebarWidth,
       lastDrawerTab: "",
+      drawerDock: "bottom",
+      drawerRightWidth: defaultDrawerRightWidth,
       spellAllowlist: [],
       isLoadingFile: false,
       gitStatus: null,
@@ -99,6 +114,11 @@ export class Workspace {
     const storedWidth = await this.env.getSidebarWidth();
     this.state.sidebarWidth = storedWidth > 0 ? clampSidebarWidth(storedWidth) : defaultSidebarWidth;
     this.state.lastDrawerTab = await this.env.getLastDrawerTab();
+    this.state.drawerDock = await this.env.getDrawerDock();
+    const storedDrawerWidth = await this.env.getDrawerRightWidth();
+    this.state.drawerRightWidth = storedDrawerWidth > 0
+      ? clampDrawerRightWidth(storedDrawerWidth)
+      : defaultDrawerRightWidth;
     this.hydrated = true;
   }
 
@@ -351,9 +371,37 @@ export class Workspace {
     if (!this.hydrated) return;
     void this.env.setLastDrawerTab(id);
   }
+
+  // setDrawerDock flips the workbench drawer between bottom (default)
+  // and right (vertical side-dock). Persists through the prefs cache.
+  setDrawerDock(dock: DrawerDock) {
+    this.state.drawerDock = dock;
+    if (!this.hydrated) return;
+    void this.env.setDrawerDock(dock);
+  }
+
+  // setDrawerRightWidth updates the reactive width (so the resize
+  // handle redraws at frame rate) and debounces the backend write.
+  setDrawerRightWidth(px: number) {
+    const next = clampDrawerRightWidth(px);
+    this.state.drawerRightWidth = next;
+    if (!this.hydrated) return;
+    if (this.drawerWidthPersistTimer !== null) {
+      clearTimeout(this.drawerWidthPersistTimer);
+    }
+    this.drawerWidthPersistTimer = setTimeout(() => {
+      this.drawerWidthPersistTimer = null;
+      void this.env.setDrawerRightWidth(next);
+    }, drawerWidthPersistDebounceMs);
+  }
 }
 
 function clampSidebarWidth(px: number): number {
   if (!Number.isFinite(px)) return defaultSidebarWidth;
   return Math.max(minSidebarWidth, Math.min(maxSidebarWidth, Math.round(px)));
+}
+
+function clampDrawerRightWidth(px: number): number {
+  if (!Number.isFinite(px)) return defaultDrawerRightWidth;
+  return Math.max(minDrawerRightWidth, Math.min(maxDrawerRightWidth, Math.round(px)));
 }

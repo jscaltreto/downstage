@@ -565,10 +565,14 @@ watch(activeContent, (newContent) => {
             :get-spell-allowlist="() => workspace.state.spellAllowlist"
             :add-spell-allowlist-word="addSpellAllowlistWord"
             :remove-spell-allowlist-word="removeSpellAllowlistWord"
+            :drawer-dock="workspace.state.drawerDock"
+            :drawer-right-width="workspace.state.drawerRightWidth"
             @migration-state-change="isV1Document = $event"
             @open-spellcheck-settings="() => dispatcher?.dispatch('file.settings.spellcheck')"
             @update:cursor="cursor = $event"
             @update:wordCount="wordCount = $event"
+            @update:drawerDock="workspace.setDrawerDock($event)"
+            @update:drawerRightWidth="workspace.setDrawerRightWidth($event)"
         >
           <template #leadingActions>
             <button

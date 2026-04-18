@@ -105,6 +105,15 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
       (state as any)._lastDrawerTab = id;
     }),
     saveWindowBoundsIfNormal: () => record("saveWindowBoundsIfNormal", async () => {}),
+    getDrawerDock: () => record("getDrawerDock", async () => (state as any)._drawerDock ?? "bottom"),
+    setDrawerDock: (dock: 'bottom' | 'right') => record(`setDrawerDock:${dock}`, async () => {
+      (state as any)._drawerDock = dock;
+    }),
+    getDrawerRightWidth: () => record("getDrawerRightWidth", async () => (state as any)._drawerRightWidth ?? 0),
+    setDrawerRightWidth: (px: number) => record(`setDrawerRightWidth:${px}`, async () => {
+      (state as any)._drawerRightWidth = px;
+    }),
+    showAboutDialog: () => record("showAboutDialog", async () => {}),
     flushPreferences: () => record("flushPreferences", async () => {}),
     getCommands: () => record("getCommands", async () => []),
     setDisabledCommands: (ids: string[]) => record(`setDisabledCommands:${ids.join(",")}`, async () => {}),
@@ -467,6 +476,55 @@ describe("Workspace", () => {
     await ws2.init();
     expect(ws2.state.sidebarWidth).toBe(256);
     expect(ws2.state.lastDrawerTab).toBe("");
+  });
+
+  it("init loads drawerDock + drawerRightWidth; zero width falls back to default", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    (env as any)._drawerDock = "right";
+    (env as any)._drawerRightWidth = 420;
+
+    const ws = new Workspace(env);
+    await ws.init();
+    expect(ws.state.drawerDock).toBe("right");
+    expect(ws.state.drawerRightWidth).toBe(420);
+
+    const ws2 = new Workspace(createEnv());
+    await ws2.init();
+    expect(ws2.state.drawerDock).toBe("bottom");
+    expect(ws2.state.drawerRightWidth).toBe(360);
+  });
+
+  it("setDrawerDock mirrors to state and persists via env", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    const ws = new Workspace(env);
+    await ws.init();
+    ws.setDrawerDock("right");
+    expect(ws.state.drawerDock).toBe("right");
+    expect(env._calls).toContain("setDrawerDock:right");
+  });
+
+  it("setDrawerRightWidth clamps and debounces persistence", async () => {
+    vi.useFakeTimers();
+    try {
+      stubLocalStorage();
+      const env = createEnv();
+      const ws = new Workspace(env);
+      await ws.init();
+
+      ws.setDrawerRightWidth(100); // below min → 240
+      expect(ws.state.drawerRightWidth).toBe(240);
+      ws.setDrawerRightWidth(9000); // above max → 800
+      expect(ws.state.drawerRightWidth).toBe(800);
+
+      expect(env._calls.filter((c) => c.startsWith("setDrawerRightWidth:"))).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(400);
+      const calls = env._calls.filter((c) => c.startsWith("setDrawerRightWidth:"));
+      expect(calls).toEqual(["setDrawerRightWidth:800"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("setLastDrawerTab persists and reflects on state", async () => {

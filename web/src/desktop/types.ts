@@ -65,6 +65,17 @@ export interface ProjectEnv {
   // last known normal size. Called from a debounced window.resize
   // listener.
   saveWindowBoundsIfNormal(): Promise<void>;
+  // Drawer dock persistence. "bottom" (default) keeps the historical
+  // layout; "right" docks the workbench drawer as a vertical column
+  // between editor and preview.
+  getDrawerDock(): Promise<'bottom' | 'right'>;
+  setDrawerDock(dock: 'bottom' | 'right'): Promise<void>;
+  getDrawerRightWidth(): Promise<number>;
+  setDrawerRightWidth(px: number): Promise<void>;
+  // Native info dialog carrying the build's version string. One-button
+  // "OK" box; callers don't need to await anything beyond "dialog was
+  // shown".
+  showAboutDialog(): Promise<void>;
   // Awaits completion of any in-flight preference write. Called on
   // window-close so a debounced toggle isn't lost when the user quits.
   flushPreferences(): Promise<void>;

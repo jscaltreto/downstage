@@ -45,6 +45,10 @@ type Preferences struct {
 	SidebarCollapsed   bool   `json:"sidebarCollapsed,omitempty"`   // default false (expanded)
 	SidebarWidth       int    `json:"sidebarWidth,omitempty"`       // px; 0 → frontend default 256
 	LastDrawerTab      string `json:"lastDrawerTab,omitempty"`      // "" → 'issues'
+	// DrawerDock is "bottom" (default) or "right". Empty string falls
+	// back to "bottom" so first-run matches the historical layout.
+	DrawerDock       string `json:"drawerDock,omitempty"`
+	DrawerRightWidth int    `json:"drawerRightWidth,omitempty"` // px; 0 → frontend default 360
 }
 
 // WindowState persists window geometry so the desktop app reopens where
@@ -407,6 +411,29 @@ func (a *App) GetLastActiveFile() string {
 
 func (a *App) BrowserOpenURL(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)
+}
+
+// ShowAboutDialog surfaces a native info dialog carrying the app name
+// and current version. The version string is injected via ldflags
+// (see version.go) so release builds show a real tag and dev builds
+// show "dev".
+//
+// This uses runtime.MessageDialog rather than the macOS
+// NSApplicationOrderFrontStandardAboutPanel, which Wails v2 does not
+// expose. On macOS, menu.AppMenu()'s stock About item remains —
+// accepted as a harmless duplicate in exchange for Windows/Linux
+// users gaining an About they otherwise lack.
+func (a *App) ShowAboutDialog() error {
+	if a.ctx == nil {
+		return nil
+	}
+	_, err := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+		Type:    runtime.InfoDialog,
+		Title:   "About Downstage Write",
+		Message: fmt.Sprintf("Downstage Write\nVersion %s\nhttps://getdownstage.com", Version),
+		Buttons: []string{"OK"},
+	})
+	return err
 }
 
 // SetInitialMenu is called from main() after BuildMenu produces the
