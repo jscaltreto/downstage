@@ -2,6 +2,8 @@ package desktop
 
 import (
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,7 +33,13 @@ func (a *App) OpenProjectFolder() (string, error) {
 		return "", nil
 	}
 	a.currentProject = selection
-	a.saveConfig(Config{LastProjectPath: selection})
+
+	// Switch projects wholesale — explicitly clear LastActiveProjectFile so
+	// we don't try to reopen the previous project's file path in this one.
+	if err := a.writeConfig(Config{LastProjectPath: selection, LastActiveProjectFile: ""}); err != nil {
+		slog.Warn("persisting project switch failed", "err", err)
+	}
+
 	_ = a.ensureGitRepo()
 	return selection, nil
 }
@@ -42,28 +50,49 @@ func (a *App) GetProjectFiles() ([]ProjectFile, error) {
 	}
 
 	var files []ProjectFile
-	err := filepath.Walk(a.currentProject, func(path string, info os.FileInfo, err error) error {
+	walkErr := filepath.WalkDir(a.currentProject, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			// A single unreadable dir (permissions, IO) should not abort
+			// the whole listing — log and continue.
+			slog.Warn("project walk: skipping", "path", path, "err", err)
+			if d != nil && d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			if name := d.Name(); name == ".git" || name == ".downstage" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".ds") {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			slog.Warn("project walk: stat failed", "path", path, "err", err)
+			return nil
+		}
+		rel, err := filepath.Rel(a.currentProject, path)
 		if err != nil {
 			return err
 		}
-		if info.IsDir() && (info.Name() == ".git" || info.Name() == ".downstage") {
-			return filepath.SkipDir
-		}
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".ds") {
-			rel, err := filepath.Rel(a.currentProject, path)
-			if err != nil {
-				return err
-			}
-			files = append(files, ProjectFile{
-				Path:      rel,
-				Name:      info.Name(),
-				UpdatedAt: info.ModTime().Format(time.RFC3339),
-			})
-		}
+		files = append(files, ProjectFile{
+			Path:      rel,
+			Name:      info.Name(),
+			UpdatedAt: info.ModTime().Format(time.RFC3339),
+		})
 		return nil
 	})
+	if walkErr != nil {
+		return files, walkErr
+	}
 
-	return files, err
+	sort.SliceStable(files, func(i, j int) bool {
+		return strings.ToLower(files[i].Path) < strings.ToLower(files[j].Path)
+	})
+	return files, nil
 }
 
 func (a *App) ReadProjectFile(relPath string) (string, error) {
@@ -75,7 +104,6 @@ func (a *App) ReadProjectFile(relPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	a.saveConfig(Config{LastActiveProjectFile: relPath})
 	return string(data), nil
 }
 
