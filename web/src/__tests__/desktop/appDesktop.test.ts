@@ -102,6 +102,10 @@ function createEnv(init: { files?: ProjectFile[]; openReturn?: string } = {}): R
     snapshotFile: async (p, m) => { record(`snapshotFile:${p}:${m}`); },
     getRevisions: async (p, _limit) => { record(`getRevisions:${p}`); return revisions; },
     readFileAtRevision: async (p, h) => { record(`readFileAtRevision:${p}:${h}`); return contents[p] ?? ""; },
+    getFileGitStatus: async (p) => {
+      record(`getFileGitStatus:${p}`);
+      return { dirty: false, headAt: "", hasHead: false, untracked: true, missing: false };
+    },
     getEditorPreferences: async () => ({ theme: "system", previewHidden: false, spellcheckDisabled: false }),
     setEditorPreferences: async (prefs) => { record(`setEditorPreferences:${JSON.stringify(prefs)}`); },
     getSidebarCollapsed: async () => { record("getSidebarCollapsed"); return false; },

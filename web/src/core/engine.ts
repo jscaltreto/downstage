@@ -78,6 +78,11 @@ export class Engine {
     private addUserSpellAllowlistWord: (word: string) => Promise<boolean>,
     private onDiagnosticsChange: (diagnostics: EditorDiagnostic[]) => void = () => {},
     private onSearchChange: (summary: SearchSummary, matches: SearchMatch[]) => void = () => {},
+    // Cursor (selection head) position, 1-based line/col. Fires on
+    // selection change and on doc change. Desktop host uses it for the
+    // status bar; web ignores. Defaults to a no-op so existing
+    // constructor sites keep working.
+    private onCursorChange: (pos: { line: number; col: number }) => void = () => {},
   ) {}
 
   init(initialContent: string, isDark: boolean, spellcheckEnabled = false) {
@@ -135,6 +140,14 @@ export class Engine {
                 return typeof evt === "string" && (evt.startsWith("input") || evt.startsWith("delete"));
               });
               this.onDocChange(update.state.doc.toString(), { userInput });
+            }
+            if (update.selectionSet || update.docChanged) {
+              const head = update.state.selection.main.head;
+              const line = update.state.doc.lineAt(head);
+              this.onCursorChange({
+                line: line.number,
+                col: head - line.from + 1,
+              });
             }
             const lintChanged = update.transactions.some((tr) =>
               tr.effects.some((effect) => effect.is(setDiagnosticsEffect)),
