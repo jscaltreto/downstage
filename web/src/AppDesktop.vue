@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, provide, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, provide, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue';
 import {
-    Plus, FolderOpen, Copy, FolderSync, FileText, FileOutput, Sun, Moon,
-    BookOpen, Terminal, Sparkles, PanelLeftClose, PanelLeft, History, Save,
+    FolderOpen, FolderSync, FileText,
+    BookOpen, Terminal, Sparkles, History,
     RotateCcw, X
 } from 'lucide-vue-next';
 import { Store } from './core/store';
@@ -10,9 +10,15 @@ import type { EditorEnv } from './core/types';
 import type { DesktopCapabilities } from './desktop/types';
 import { Workspace } from './desktop/workspace';
 import { registerFlushSave } from './desktop/flush-save';
-import ToolbarButton from './components/shared/ToolbarButton.vue';
+import { CommandDispatcher } from './desktop/command-dispatcher';
+import { createCommandHandlers, type CommandContext } from './desktop/commands';
+import { registerDispatcher } from './desktop/dispatcher-registry';
+import type { WorkbenchTab } from './components/shared/workbench-tabs';
+import type { SearchMode } from './core/engine';
 import ToastManager from './components/shared/ToastManager.vue';
 import Editor from './components/shared/Editor.vue';
+import CommandPalette from './desktop/CommandPalette.vue';
+import Settings from './desktop/Settings.vue';
 
 const props = defineProps<{
   env: DesktopCapabilities;
@@ -29,8 +35,36 @@ const pageStyle = ref("standard");
 const isV1Document = ref(false);
 
 const toastManager = ref<InstanceType<typeof ToastManager> | null>(null);
+const editorRef = ref<InstanceType<typeof Editor> | null>(null);
+
+// Host-owned drawer + search state (lifted out of Editor.vue so commands
+// can open specific tabs / trigger search from the menu).
+const drawerOpen = ref(false);
+const drawerTab = ref<WorkbenchTab>('issues');
+const searchRequest = ref<{ mode: SearchMode; nonce: number }>({ mode: 'find', nonce: 0 });
+
+// Host-owned palette + settings dialog state.
+const paletteOpen = ref(false);
+const paletteMode = ref<'command' | 'file'>('command');
+const settingsOpen = ref(false);
+const settingsTab = ref<'editor' | 'appearance' | 'spellcheck'>('editor');
+
+function openPalette(mode: 'command' | 'file' = 'command') {
+  paletteMode.value = mode;
+  paletteOpen.value = true;
+}
+function openSettings(tab: 'editor' | 'appearance' | 'spellcheck' = 'editor') {
+  settingsTab.value = tab;
+  settingsOpen.value = true;
+}
 
 let saveTimer: number | null = null;
+
+// Dispatcher is instantiated on mount (needs env + refs ready) and is
+// referenced by both the menu event listener (via dispatcher-registry)
+// and by local UI handlers (sidebar buttons, welcome screen) that want
+// to dispatch the same commands the menu does.
+let dispatcher: CommandDispatcher | null = null;
 
 // `editorContent` is what the editor shows. While viewing an older
 // revision, we route the revision's content into the editor and keep the
@@ -90,10 +124,64 @@ onMounted(async () => {
 
   isLoaded.value = true;
   registerFlushSave(() => flushSave());
+
+  // Dispatcher setup: build the context, wire handlers, register the
+  // dispatcher with the module-scope event subscriber, and kick off the
+  // first disabled-set push so the menu renders with the right Disabled
+  // flags on launch.
+  dispatcher = new CommandDispatcher({
+    setDisabledCommands: (ids) => props.env.setDisabledCommands(ids),
+  });
+
+  const ctx: CommandContext = {
+    env: props.env,
+    store,
+    workspace,
+    toast: {
+      addToast: (message, kind, durationMs) =>
+        toastManager.value?.addToast(message, kind, durationMs),
+    },
+    activeContent,
+    editorContent,
+    pageStyle,
+    isV1Document,
+    isViewingRevision,
+    flushSave,
+    editor: {
+      applyFormat: (action: string) => editorRef.value?.applyFormat(action),
+    },
+    ui: {
+      drawerOpen,
+      drawerTab,
+      searchRequest,
+      openPalette,
+      openSettings,
+    },
+  };
+  for (const [id, entry] of createCommandHandlers(ctx)) {
+    dispatcher.register(id, entry);
+  }
+  registerDispatcher(dispatcher);
+
+  // React to any state that an isEnabled predicate might read. Vue
+  // batches these into one microtask; the dispatcher further diffs the
+  // resulting set against the last one it sent to Go so quiet state
+  // changes produce zero wire traffic.
+  watchEffect(() => {
+    // Touch the reactive fields the predicates care about so watchEffect
+    // tracks them. Running dispatcher.scheduleRefresh inside the effect
+    // is what actually kicks the microtask.
+    void workspace.state.activeFile;
+    void workspace.state.projectFiles.length;
+    void workspace.state.viewingRevisionHash;
+    void isV1Document.value;
+    dispatcher?.scheduleRefresh();
+  });
 });
 
 onUnmounted(() => {
   registerFlushSave(null);
+  registerDispatcher(null);
   void flushSave();
   // Best-effort: drain any in-flight preference writes if the app tears
   // down through component unmount rather than through the Wails
@@ -114,21 +202,14 @@ async function flushSave(): Promise<void> {
   }
 }
 
-async function handleOpenFolder() {
-  // Flush the previous project's pending edit BEFORE the folder switch —
-  // `workspace.openFolder` clears `state.activeFile` on success, which
-  // would cause an unawaited flush to no-op.
-  await flushSave();
-
-  const path = await workspace.openFolder();
-  if (!path) return;
-
-  activeContent.value = "";
-
-  if (workspace.state.projectFiles.length > 0) {
-    activeContent.value = await workspace.selectFile(workspace.state.projectFiles[0].path);
-  }
-  toastManager.value?.addToast(`Opened project: ${path.split(/[\\/]/).pop()}`, "success");
+// Sidebar "Change Project Folder" button fires this. Delegates to the
+// catalog command so the logic lives in one place.
+function handleOpenFolder() {
+  void dispatcher?.dispatch('file.openFolder');
+}
+// Welcome screen / empty-sidebar "New Play" button fires this.
+function handleNewPlay() {
+  void dispatcher?.dispatch('file.newPlay');
 }
 
 async function selectProjectFile(path: string) {
@@ -171,75 +252,11 @@ async function handleRestoreRevision() {
   }
 }
 
-async function handleNewPlay() {
-  if (!workspace.state.projectPath) {
-    await handleOpenFolder();
-    if (!workspace.state.projectPath) return;
-  }
-
-  await flushSave();
-
-  const template = `# Untitled Play\nSubtitle: A Play in One Act\nAuthor: Your Name\nDate: ${new Date().getFullYear()}\nDraft: First\n\n## Dramatis Personae\n\nPROTAGONIST - Add your cast here\n\n## ACT I\n\n### SCENE 1\n\n> Describe the setting here.\n\nPROTAGONIST\nWrite your opening lines here.\n`;
-
-  try {
-    const path = await workspace.createFile("Untitled Play", template);
-    activeContent.value = await workspace.selectFile(path);
-    toastManager.value?.addToast("Created new play", "success");
-  } catch (e: any) {
-    toastManager.value?.addToast(`Failed to create file: ${e.message}`, "error");
-  }
-}
-
-async function handleCopy() {
-  // Copy what's actually on screen. While previewing a revision, that's
-  // the revision text, not the live buffer.
-  await navigator.clipboard.writeText(editorContent.value);
-  toastManager.value?.addToast("Copied to clipboard", "success");
-}
-
-const nothingToSnapshotPrefix = "downstage: nothing-to-snapshot";
-
-async function handleSnapshot() {
-  if (!workspace.state.activeFile) return;
-  // Must await — otherwise the snapshot can race the pending write and
-  // commit stale disk contents.
-  await flushSave();
-  const filename = workspace.state.activeFile.split(/[\\/]/).pop() || "file";
-  try {
-    await workspace.snapshotFile(`Snapshot ${filename}`);
-    toastManager.value?.addToast("Version saved", "success");
-  } catch (e: any) {
-    const message = String(e?.message ?? e);
-    if (message.includes(nothingToSnapshotPrefix)) {
-      toastManager.value?.addToast("No changes to snapshot", "info");
-    } else {
-      toastManager.value?.addToast(`Failed to save version: ${message}`, "error");
-    }
-  }
-}
-
-async function handleExport() {
-  if (isV1Document.value) {
-    toastManager.value?.addToast("Upgrade this V1 document to V2 before exporting PDF", "error", 5000);
-    return;
-  }
-
-  await flushSave();
-  // Export whatever the user is looking at — live buffer or revision preview.
-  const source = editorContent.value;
-  const title = source.match(/^#\s+(.+)$/m)?.[1]?.trim() || "untitled";
-  const styleSlug = pageStyle.value === "condensed" ? "acting-edition" : "manuscript";
-  const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}.pdf`;
-
-  try {
-    const pdfBytes = await props.env.renderPDF(source, pageStyle.value);
-    await props.env.saveFile(filename, pdfBytes, [
-      { displayName: "PDF Files (*.pdf)", pattern: "*.pdf" },
-    ]);
-  } catch (e: any) {
-    toastManager.value?.addToast(`Failed to export PDF: ${e?.message ?? e}`, "error");
-  }
-}
+// File-level commands (new play, open folder, copy all, save version,
+// export PDF) live in web/src/desktop/commands.ts. They're registered
+// with the CommandDispatcher in onMounted below. Sidebar-contextual
+// actions (file switch, revision view/restore) stay as local functions
+// because they're not on the menu or palette.
 
 async function addSpellAllowlistWord(word: string) {
   return workspace.addAllowlistWord(word);
@@ -261,45 +278,11 @@ watch(activeContent, (newContent) => {
 
 <template>
   <div class="h-screen flex flex-col bg-page-glow dark:bg-page-glow text-text-main overflow-hidden font-sans transition-colors duration-300">
-    <header v-if="isLoaded" class="flex items-center justify-between gap-5 px-5 py-3.5 bg-[var(--color-page-surface)] border-b border-border shadow-stage z-10">
-      <div class="flex items-center gap-4">
-        <button
-            @click="workspace.toggleSidebar()"
-            class="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-muted transition-colors"
-            :title="workspace.state.sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'"
-        >
-            <PanelLeft v-if="workspace.state.sidebarCollapsed" class="w-5 h-5" />
-            <PanelLeftClose v-else class="w-5 h-5" />
-        </button>
-
-        <h1 class="font-serif text-xl font-bold text-text-main tracking-tight cursor-default">Downstage Write</h1>
-
-        <div v-if="workspace.state.projectPath" class="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 max-w-[300px]">
-            <FolderSync class="w-3 h-3 text-brass-500 shrink-0" />
-            <span class="text-[10px] font-bold text-text-muted truncate uppercase tracking-wider">{{ workspace.state.projectPath.split(/[\\/]/).pop() }}</span>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2">
-          <ToolbarButton @click="handleNewPlay" title="New Play"><template #icon><Plus class="w-4 h-4" /></template>New Play</ToolbarButton>
-          <ToolbarButton v-if="workspace.state.activeFile" @click="handleCopy" title="Copy Content"><template #icon><Copy class="w-4 h-4" /></template>Copy</ToolbarButton>
-          <ToolbarButton v-if="workspace.state.activeFile && !isViewingRevision" @click="handleSnapshot" title="Save Version"><template #icon><Save class="w-4 h-4" /></template>Save Version</ToolbarButton>
-          <ToolbarButton
-            v-if="workspace.state.activeFile"
-            @click="handleExport"
-            :disabled="isV1Document"
-            :title="isV1Document ? 'Upgrade this V1 document before exporting PDF' : 'Export to PDF'"
-          ><template #icon><FileOutput class="w-4 h-4" /></template>Export PDF</ToolbarButton>
-          <button
-            @click="store.toggleTheme()"
-            class="p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-muted transition-colors"
-            :title="store.state.isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'"
-          >
-            <Sun v-if="store.state.isDark" class="w-4 h-4" />
-            <Moon v-else class="w-4 h-4" />
-          </button>
-        </div>
+    <header v-if="isLoaded" class="flex items-center gap-4 px-5 py-2 bg-[var(--color-page-surface)] border-b border-border shadow-stage z-10">
+      <h1 class="font-serif text-sm font-bold text-text-main tracking-tight cursor-default">Downstage Write</h1>
+      <div v-if="workspace.state.projectPath" class="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 max-w-[300px]">
+        <FolderSync class="w-3 h-3 text-brass-500 shrink-0" />
+        <span class="text-[10px] font-bold text-text-muted truncate uppercase tracking-wider">{{ workspace.state.projectPath.split(/[\\/]/).pop() }}</span>
       </div>
     </header>
 
@@ -478,6 +461,7 @@ watch(activeContent, (newContent) => {
         </div>
         <Editor
             v-if="workspace.state.activeFile"
+            ref="editorRef"
             :env="env as EditorEnv"
             :document-key="editorDocumentKey"
             :read-only="isViewingRevision"
@@ -485,10 +469,15 @@ watch(activeContent, (newContent) => {
             v-model:style="pageStyle"
             v-model:preview-hidden="store.state.previewHidden"
             v-model:spellcheck-disabled="store.state.spellcheckDisabled"
+            v-model:drawer-open="drawerOpen"
+            v-model:drawer-tab="drawerTab"
+            v-model:search-request="searchRequest"
+            :external-spellcheck="true"
             :get-spell-allowlist="() => workspace.state.spellAllowlist"
             :add-spell-allowlist-word="addSpellAllowlistWord"
             :remove-spell-allowlist-word="removeSpellAllowlistWord"
             @migration-state-change="isV1Document = $event"
+            @open-spellcheck-settings="() => dispatcher?.dispatch('file.settings.spellcheck')"
         />
         <div v-else class="flex-1 flex flex-col items-center justify-center text-text-muted p-12 text-center">
             <div class="w-16 h-16 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center mb-4 text-brass-500">
@@ -502,6 +491,22 @@ watch(activeContent, (newContent) => {
     </main>
 
     <ToastManager ref="toastManager" />
+    <CommandPalette
+      :open="paletteOpen"
+      :mode="paletteMode"
+      :env="env"
+      :project-files="workspace.state.projectFiles"
+      :disabled-ids="dispatcher?.disabledIds() ?? []"
+      @close="paletteOpen = false"
+      @select-file="async (path: string) => { paletteOpen = false; await selectProjectFile(path); }"
+    />
+    <Settings
+      :open="settingsOpen"
+      :tab="settingsTab"
+      :store="store"
+      :workspace="workspace"
+      @close="settingsOpen = false"
+    />
   </div>
 </template>
 

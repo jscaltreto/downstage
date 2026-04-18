@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick, toRef }
 import {
     Bold, Italic, Underline, MessageSquare, ChevronRight,
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
-    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Trash2, Search, ListTree, BarChart3
+    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Search, ListTree, BarChart3
 } from 'lucide-vue-next';
 import { Engine, type SearchMode, type SearchSummary } from '../../core/engine';
 import type { SearchMatch, SearchOptions } from '../../core/search';
@@ -15,6 +15,7 @@ import { useDocumentLifecycle } from '../../core/useDocumentLifecycle';
 import PreviewFrame from './PreviewFrame.vue';
 import ToolbarButton from './ToolbarButton.vue';
 import BaseModal from './BaseModal.vue';
+import SpellcheckPanel from './SpellcheckPanel.vue';
 import WorkbenchDrawer, { type WorkbenchTab } from './WorkbenchDrawer.vue';
 import IssuesTab from './IssuesTab.vue';
 import FindReplaceTab from './FindReplaceTab.vue';
@@ -45,6 +46,20 @@ const props = withDefaults(
     // localStorage or Wails bindings for these.
     previewHidden?: boolean;
     spellcheckDisabled?: boolean;
+    // Host-owned drawer state. Lifted from Editor.vue so commands
+    // (palette / menu) can open specific tabs directly. Editor reacts
+    // through the v-model; toolbar clicks emit back up.
+    drawerOpen?: boolean;
+    drawerTab?: WorkbenchTab;
+    // Host-owned search trigger. The nonce changes when a host action
+    // wants the editor to open its search drawer in `mode`. Editor watches
+    // nonce, not mode, so unrelated mode reads don't retrigger.
+    searchRequest?: { mode: SearchMode; nonce: number };
+    // When true, the toolbar SpellCheck button emits `open-spellcheck-settings`
+    // instead of opening the built-in modal. Desktop sets this so the
+    // Settings > Spellcheck tab is the single pref surface; web leaves it
+    // false and keeps the modal.
+    externalSpellcheck?: boolean;
     getSpellAllowlist: () => string[];
     addSpellAllowlistWord: (word: string) => Promise<boolean>;
     removeSpellAllowlistWord: (word: string) => Promise<boolean>;
@@ -53,6 +68,10 @@ const props = withDefaults(
     readOnly: false,
     previewHidden: false,
     spellcheckDisabled: false,
+    drawerOpen: false,
+    drawerTab: 'issues',
+    searchRequest: () => ({ mode: 'find' as SearchMode, nonce: 0 }),
+    externalSpellcheck: false,
   },
 );
 
@@ -61,7 +80,11 @@ const emit = defineEmits<{
   (e: 'update:style', value: string): void;
   (e: 'update:previewHidden', value: boolean): void;
   (e: 'update:spellcheckDisabled', value: boolean): void;
+  (e: 'update:drawerOpen', value: boolean): void;
+  (e: 'update:drawerTab', value: WorkbenchTab): void;
+  (e: 'update:searchRequest', value: { mode: SearchMode; nonce: number }): void;
   (e: 'migration-state-change', value: boolean): void;
+  (e: 'open-spellcheck-settings'): void;
 }>();
 
 const store = inject<Store>('store')!;
@@ -83,8 +106,16 @@ const spellcheckEnabled = computed<boolean>({
   get: () => !props.spellcheckDisabled,
   set: (enabled) => emit('update:spellcheckDisabled', !enabled),
 });
-const drawerOpen = ref(false);
-const drawerTab = ref<WorkbenchTab>('issues');
+// Host-owned drawer state surfaced as computed so the rest of this file
+// doesn't need to care that it's an emitted prop.
+const drawerOpen = computed<boolean>({
+  get: () => props.drawerOpen,
+  set: (v) => emit('update:drawerOpen', v),
+});
+const drawerTab = computed<WorkbenchTab>({
+  get: () => props.drawerTab,
+  set: (v) => emit('update:drawerTab', v),
+});
 const searchMatches = ref<SearchMatch[]>([]);
 const searchIndex = ref(-1);
 const searchError = ref<string | null>(null);
@@ -126,7 +157,6 @@ const editorHideClasses = computed(() => {
   return classes;
 });
 const showSpellcheckModal = ref(false);
-const dictionaryWord = ref("");
 const spellAllowlist = computed(() => props.getSpellAllowlist());
 const v1DocumentDetected = ref(false);
 const showV1Modal = ref(false);
@@ -290,12 +320,7 @@ onMounted(async () => {
       () => props.getSpellAllowlist(),
       (word) => props.addSpellAllowlistWord(word),
       (next) => { diagnostics.value = next; },
-      openSearch,
       applySearchSummary,
-      (action) => {
-        if (action === 'toggle-preview') previewVisible.value = !previewVisible.value;
-        if (action === 'toggle-help') toggleHelp();
-      },
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     if (props.readOnly) engine.setReadOnly(true);
@@ -319,6 +344,15 @@ watch(() => store.state.isDark, (isDark) => {
 
 watch(() => props.readOnly, (readOnly) => {
   engine?.setReadOnly(readOnly);
+});
+
+// Host-driven search opener. The host bumps `searchRequest.nonce` when a
+// menu command or palette entry wants the editor to open its find
+// drawer; watching the nonce (not mode) means unrelated re-renders
+// don't retrigger the opener.
+watch(() => props.searchRequest.nonce, (nonce, prev) => {
+  if (nonce === prev) return;
+  openSearch(props.searchRequest.mode);
 });
 
 watch(() => props.content, (newContent) => {
@@ -377,19 +411,20 @@ function toggleStyle() {
     emit('update:style', nextStyle);
 }
 
-async function addDictionaryWord() {
-    const added = await props.addSpellAllowlistWord(dictionaryWord.value);
+async function addDictionaryWordFromPanel(word: string): Promise<boolean> {
+    const added = await props.addSpellAllowlistWord(word);
     if (added) {
-        dictionaryWord.value = "";
         engine?.refreshDiagnostics();
     }
+    return added;
 }
 
-async function removeDictionaryWord(word: string) {
+async function removeDictionaryWordFromPanel(word: string): Promise<boolean> {
     const removed = await props.removeSpellAllowlistWord(word);
     if (removed) {
         engine?.refreshDiagnostics();
     }
+    return removed;
 }
 
 function jumpToDiagnostic(d: EditorDiagnostic) {
@@ -432,6 +467,16 @@ function closeDrawer() {
     engine?.focus();
 }
 
+function handleSpellcheckClick() {
+    // Desktop lifts spellcheck into Settings > Spellcheck; web keeps the
+    // inline modal. One prop flip decides which.
+    if (props.externalSpellcheck) {
+        emit('open-spellcheck-settings');
+    } else {
+        showSpellcheckModal.value = true;
+    }
+}
+
 function onSearch(opts: SearchOptions) {
     if (!engine) return;
     engine.setSearch(opts);
@@ -441,6 +486,15 @@ function onFindPrev() { engine?.findPrev(); }
 function onReplaceOne(replacement: string) { engine?.replaceCurrent(replacement); }
 function onReplaceAll(replacement: string) { engine?.replaceAll(replacement); }
 function onJumpMatch(index: number) { engine?.selectMatch(index); }
+
+// Narrow imperative surface for the host. Only applyFormat — everything
+// else the host needs (drawer tabs, search open, preview toggle) flows
+// through v-model props or Store/Workspace reactive state. Keep this
+// interface small; every expose here is a little bit of the shared
+// editor becoming an app shell.
+defineExpose({
+  applyFormat: (action: string) => handleFormat(action),
+});
 </script>
 
 <template>
@@ -462,7 +516,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
 
             <div class="w-px h-4 bg-black/10 dark:bg-white/10 mx-1"></div>
 
-            <ToolbarButton @click="showSpellcheckModal = true" title="Spell Check">
+            <ToolbarButton @click="handleSpellcheckClick" title="Spell Check">
                 <template #icon>
                     <span class="relative flex h-4 w-4 items-center justify-center">
                         <SpellCheck class="h-4 w-4" :class="{ 'opacity-45': !spellcheckEnabled }" />
@@ -681,78 +735,20 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
     message="Control spell check and manage custom words for this script only."
     @close="showSpellcheckModal = false"
   >
-    <div class="flex flex-col gap-5 py-1">
-        <label class="flex items-center justify-between gap-4 rounded-lg border border-border bg-black/5 px-4 py-3 dark:bg-white/5">
-            <p class="text-sm font-bold text-text-main">Enable Spell Check</p>
-            <button
-                type="button"
-                role="switch"
-                :aria-checked="spellcheckEnabled"
-                class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors"
-                :class="spellcheckEnabled ? 'border-brass-500 bg-brass-500/80' : 'border-border bg-black/10 dark:bg-white/10'"
-                @click="spellcheckEnabled = !spellcheckEnabled"
-            >
-                <span
-                    class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
-                    :class="spellcheckEnabled ? 'translate-x-6' : 'translate-x-1'"
-                ></span>
-            </button>
-        </label>
-
-        <div class="space-y-1">
-            <p class="text-sm font-bold text-text-main">Script Dictionary</p>
-            <p class="text-xs leading-relaxed text-text-muted">
-                Add custom words for this draft. These entries do not affect any other script.
-            </p>
-        </div>
-
-        <form class="flex gap-2" @submit.prevent="addDictionaryWord">
-            <input
-                v-model="dictionaryWord"
-                type="text"
-                class="flex-1 rounded-lg border border-border bg-black/5 px-3 py-2 text-sm text-text-main outline-none transition-colors placeholder:text-text-muted focus:border-brass-500 dark:bg-white/5"
-                placeholder="Add a custom word"
-            />
-            <button
-                type="submit"
-                class="rounded-lg bg-brass-500 px-4 py-2 text-sm font-bold text-ember-950 transition-colors hover:bg-brass-400 disabled:opacity-50"
-                :disabled="dictionaryWord.trim().length === 0"
-            >
-                Add
-            </button>
-        </form>
-
-        <div v-if="spellAllowlist.length === 0" class="rounded-lg border border-dashed border-border bg-black/5 px-4 py-6 text-center text-sm text-text-muted dark:bg-white/5">
-            No custom words yet.
-        </div>
-
-        <div v-else class="flex flex-col gap-2">
-            <div
-                v-for="word in spellAllowlist"
-                :key="word"
-                class="flex items-center justify-between gap-3 rounded-lg border border-border bg-black/5 px-3 py-2 dark:bg-white/5"
-            >
-                <span class="font-mono text-sm text-text-main">{{ word }}</span>
-                <button
-                    type="button"
-                    class="rounded-md p-2 text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
-                    :title="`Remove ${word} from this script dictionary`"
-                    @click="removeDictionaryWord(word)"
-                >
-                    <Trash2 class="h-4 w-4" />
-                </button>
-            </div>
-        </div>
-
-        <div class="flex justify-end pt-2">
-            <button
-                type="button"
-                class="rounded-lg border border-border px-4 py-2 text-sm font-bold text-text-main transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                @click="showSpellcheckModal = false"
-            >
-                OK
-            </button>
-        </div>
+    <SpellcheckPanel
+      v-model:enabled="spellcheckEnabled"
+      :allowlist="spellAllowlist"
+      :add-word="addDictionaryWordFromPanel"
+      :remove-word="removeDictionaryWordFromPanel"
+    />
+    <div class="flex justify-end pt-2">
+      <button
+        type="button"
+        class="rounded-lg border border-border px-4 py-2 text-sm font-bold text-text-main transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+        @click="showSpellcheckModal = false"
+      >
+        OK
+      </button>
     </div>
   </BaseModal>
 

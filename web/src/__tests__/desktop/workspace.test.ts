@@ -92,6 +92,8 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
       (state as any)._sidebarCollapsed = c;
     }),
     flushPreferences: () => record("flushPreferences", async () => {}),
+    getCommands: () => record("getCommands", async () => []),
+    setDisabledCommands: (ids: string[]) => record(`setDisabledCommands:${ids.join(",")}`, async () => {}),
     getCurrentProject: () => record("getCurrentProject", async () => state._openReturn),
     getLastActiveFile: () => record("getLastActiveFile", async () => ""),
     setActiveProjectFile: (p: string) => record(`setActiveProjectFile:${p}`, async () => {}),

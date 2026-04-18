@@ -39,6 +39,23 @@ export interface ProjectEnv {
   // Awaits completion of any in-flight preference write. Called on
   // window-close so a debounced toggle isn't lost when the user quits.
   flushPreferences(): Promise<void>;
+  // Palette-facing catalog. Labels + categories + accelerators come from
+  // the Go catalog so there's no duplicate UI text on the TS side.
+  getCommands(): Promise<CommandMeta[]>;
+  // Push the latest disabled-command set to the native menu. The host
+  // computes this via the CommandDispatcher's microtask-diffed refresh;
+  // this method is the wire.
+  setDisabledCommands(ids: string[]): Promise<void>;
+}
+
+// Palette-facing projection of the Go catalog — no Click callbacks, no
+// menu path. Mirrors internal/desktop/commands.go's CommandMeta.
+export interface CommandMeta {
+  id: string;
+  label: string;
+  category: string;
+  accelerator?: string;
+  paletteHidden?: boolean;
 }
 
 export interface DesktopCapabilities extends EditorEnv, ProjectEnv {}

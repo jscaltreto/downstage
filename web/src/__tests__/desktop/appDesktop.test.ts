@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import AppDesktop from "../../AppDesktop.vue";
 import type { DesktopCapabilities, ProjectFile, Revision } from "../../desktop/types";
+import { dispatchCommand } from "../../desktop/dispatcher-registry";
 
 interface RecordedEnv extends DesktopCapabilities {
   _calls: string[];
@@ -106,6 +107,8 @@ function createEnv(init: { files?: ProjectFile[]; openReturn?: string } = {}): R
     getSidebarCollapsed: async () => { record("getSidebarCollapsed"); return false; },
     setSidebarCollapsed: async (c) => { record(`setSidebarCollapsed:${c}`); },
     flushPreferences: async () => { record("flushPreferences"); },
+    getCommands: async () => { record("getCommands"); return []; },
+    setDisabledCommands: async (ids) => { record(`setDisabledCommands:${ids.join(",")}`); },
     getCurrentProject: async () => { record("getCurrentProject"); return openReturn; },
     getLastActiveFile: async () => { record("getLastActiveFile"); return ""; },
     setActiveProjectFile: async (p) => { record(`setActiveProjectFile:${p}`); },
@@ -202,18 +205,20 @@ describe("AppDesktop flush ordering", () => {
     expect(openIdx).toBeGreaterThan(writeDone);
   });
 
-  it("handleSnapshot flushes the pending save BEFORE committing", async () => {
+  it("file.saveVersion dispatched via command bus flushes before snapshot", async () => {
     const { wrapper, env } = await mountApp();
 
     await typeInto(wrapper, "edit-snapshot");
     env._setWriteDelay(20);
 
-    const saveButtons = wrapper.findAll("button").filter((b) => b.text().includes("Save Version"));
-    expect(saveButtons.length).toBe(1);
-    const saveBtn = saveButtons[0];
-    saveBtn.trigger("click");
-
+    // Dispatch the command the way the menu would. `dispatchCommand`
+    // reads the dispatcher registered by AppDesktop in onMounted.
+    // Under fake timers, the handler's internal flushSave → 20ms write
+    // delay won't progress without advanceTimersByTimeAsync, so fire
+    // and advance concurrently.
+    const dispatchPromise = dispatchCommand("file.saveVersion");
     await vi.advanceTimersByTimeAsync(1500);
+    await dispatchPromise;
     await flushPromises();
 
     const writeDone = env._calls.indexOf("writeProjectFile:play.ds:done");
