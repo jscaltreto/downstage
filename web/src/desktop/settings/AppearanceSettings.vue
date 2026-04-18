@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import type { Store, Theme } from '../../core/store';
-import type { Workspace } from '../workspace';
+
+// Appearance preferences. Only theme today. Sidebar visibility and
+// preview visibility used to live here but they're transient view
+// toggles, not persisted preferences — those belong to the main UI
+// (sidebar chevron, preview eye button, menu, keyboard shortcuts).
 
 const props = defineProps<{
   store: Store;
-  workspace: Workspace;
 }>();
 
 const themes: Array<{ id: Theme; label: string }> = [
@@ -39,18 +42,5 @@ function setTheme(t: Theme) {
         </button>
       </div>
     </div>
-
-    <label class="flex items-center justify-between gap-4 rounded-lg border border-border bg-black/5 px-4 py-3 dark:bg-white/5">
-      <div class="min-w-0">
-        <p class="text-sm font-bold text-text-main">Collapse Sidebar</p>
-        <p class="text-xs text-text-muted">Hide the project file list and versions.</p>
-      </div>
-      <input
-        type="checkbox"
-        class="scale-125"
-        :checked="workspace.state.sidebarCollapsed"
-        @change="workspace.toggleSidebar()"
-      />
-    </label>
   </div>
 </template>

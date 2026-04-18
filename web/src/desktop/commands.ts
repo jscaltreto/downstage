@@ -46,7 +46,7 @@ export interface CommandContext {
     drawerTab: Ref<WorkbenchTab>;
     searchRequest: Ref<{ mode: SearchMode; nonce: number }>;
     openPalette: (mode?: "command" | "file") => void;
-    openSettings: (tab?: "editor" | "appearance" | "spellcheck") => void;
+    openSettings: (tab?: "appearance" | "spellcheck") => void;
   };
 }
 
