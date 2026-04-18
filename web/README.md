@@ -63,6 +63,45 @@ make web-dev
 
 After Go changes, rebuild with `make wasm` and refresh the browser.
 
+## End-to-End Tests
+
+The web editor has a Playwright-based E2E suite in `web/e2e/` that runs the
+built bundle in real Chromium and exercises user flows — drafts, import /
+export, workbench tabs, share links, and V1 migration.
+
+### First-time setup
+
+```bash
+npm --prefix web ci
+npx --prefix web playwright install chromium
+```
+
+The `playwright install` step is not triggered by `npm ci`, so new contributors
+must run it once to fetch the browser binary into `~/.cache/ms-playwright/`.
+
+### Running the suite
+
+From the repo root:
+
+```bash
+# Full chain: rebuild WASM, rebuild the bundle, then run Playwright.
+make web-e2e
+
+# Interactive debug UI (assumes `make web` has already run):
+npm --prefix web run test:e2e:ui
+```
+
+Running `npm run test:e2e` directly is unsupported — it assumes
+`web/build/downstage.wasm` and `web/dist/` already exist. Use `make web-e2e`
+as the entrypoint.
+
+### CI
+
+The `web-e2e` job in `.github/workflows/ci.yml` caches the Playwright
+browser install keyed on `web/package-lock.json`, builds WASM + bundle, runs
+the suite in headless Chromium, and uploads `playwright-report/` and
+`test-results/` as artifacts when any spec fails.
+
 ## Architecture
 
 ```

@@ -1,4 +1,4 @@
-.PHONY: all test lint fmt vet check clean render release-check release-snapshot wasm web web-dev web-clean
+.PHONY: all test lint fmt vet check clean render release-check release-snapshot wasm web web-dev web-e2e web-clean
 
 BINARY := downstage
 BUILD_DIR := build
@@ -58,6 +58,9 @@ web: wasm
 web-dev: wasm
 	@echo "Serving web editor at http://localhost:5173/editor/"
 	cd web && npm run dev -- --host 0.0.0.0
+
+web-e2e: web
+	npm --prefix web run test:e2e
 
 web-clean:
 	rm -rf web/build web/dist web/node_modules

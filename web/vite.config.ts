@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
@@ -42,5 +43,10 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
       },
     },
+  },
+  // Keep Vitest from picking up Playwright specs under `e2e/` — those run
+  // against a real browser via `playwright test`, not happy-dom.
+  test: {
+    exclude: ["node_modules", "dist", "e2e/**"],
   },
 });
