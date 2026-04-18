@@ -56,10 +56,17 @@ All methods live on a single `*App` struct, split across focused files:
 
 - **Config is written explicitly, not on hot paths.** `ReadProjectFile`
   must not touch the config. Use `SetActiveProjectFile` from the frontend
-  on file selection, and `writeConfig` directly when switching projects.
-  `writeConfig` is a verbatim write — it does not merge — so callers must
-  read first, mutate, and write. The `configMu` mutex guards the read-
-  modify-write cycle.
+  on file selection; project switches mutate only the project fields
+  (see `OpenProjectFolder`).
+- **All config writers must go through `updateConfig(func(*Config))`.**
+  `updateConfig` holds `configMu` across the full read-modify-write so
+  independent subtree writers (Preferences, WindowState,
+  LastActiveProjectFile) can't drop each other's changes. `readConfig`
+  and `writeConfig` still exist for external atomic reads and verbatim
+  writes (tests), but any in-process RMW must use `updateConfig` —
+  otherwise the mutex releases between read and write and two writers
+  race. The frontend `prefs-cache` provides a complementary atomicity
+  layer for Preferences writes arriving from Store + Workspace.
 
 - **Preferences are the single source of truth for persisted UI state.**
   All desktop-side UI preferences (theme, previewHidden, spellcheckDisabled,

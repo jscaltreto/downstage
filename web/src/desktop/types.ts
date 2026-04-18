@@ -50,6 +50,21 @@ export interface ProjectEnv {
   // it doesn't have.
   getSidebarCollapsed(): Promise<boolean>;
   setSidebarCollapsed(collapsed: boolean): Promise<void>;
+  // Sidebar width (px). 0 → frontend default 256. Rides the same
+  // prefs-cache as the other UI prefs.
+  getSidebarWidth(): Promise<number>;
+  setSidebarWidth(px: number): Promise<void>;
+  // Last active drawer tab ID. "" → default 'issues'. Rides the prefs
+  // cache. String typed because the concrete WorkbenchTab union lives
+  // in the shared editor component; this interface stays host-agnostic.
+  getLastDrawerTab(): Promise<string>;
+  setLastDrawerTab(id: string): Promise<void>;
+  // Live-save the window's current bounds if it is currently unmaximized.
+  // The Go side reads IsMaximised + GetSize + GetPosition and only
+  // writes when !maximized, so a maximized resize doesn't clobber the
+  // last known normal size. Called from a debounced window.resize
+  // listener.
+  saveWindowBoundsIfNormal(): Promise<void>;
   // Awaits completion of any in-flight preference write. Called on
   // window-close so a debounced toggle isn't lost when the user quits.
   flushPreferences(): Promise<void>;

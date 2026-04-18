@@ -26,6 +26,8 @@ interface WailsPreferences {
   previewHidden?: boolean;
   spellcheckDisabled?: boolean;
   sidebarCollapsed?: boolean;
+  sidebarWidth?: number;
+  lastDrawerTab?: string;
 }
 
 // @ts-ignore — generated at build time by Wails
@@ -247,6 +249,28 @@ class WailsBridge implements DesktopCapabilities {
 
   async setSidebarCollapsed(collapsed: boolean): Promise<void> {
     await this.prefs.update({ sidebarCollapsed: collapsed });
+  }
+
+  async getSidebarWidth(): Promise<number> {
+    const all = await this.prefs.get();
+    return typeof all.sidebarWidth === "number" ? all.sidebarWidth : 0;
+  }
+
+  async setSidebarWidth(px: number): Promise<void> {
+    await this.prefs.update({ sidebarWidth: px });
+  }
+
+  async getLastDrawerTab(): Promise<string> {
+    const all = await this.prefs.get();
+    return typeof all.lastDrawerTab === "string" ? all.lastDrawerTab : "";
+  }
+
+  async setLastDrawerTab(id: string): Promise<void> {
+    await this.prefs.update({ lastDrawerTab: id });
+  }
+
+  async saveWindowBoundsIfNormal(): Promise<void> {
+    await App.SaveWindowBoundsIfNormal();
   }
 
   async flushPreferences(): Promise<void> {

@@ -7,6 +7,8 @@ export interface WorkspaceState {
   activeFile: string | null;
   revisions: Revision[];
   sidebarCollapsed: boolean;
+  sidebarWidth: number;
+  lastDrawerTab: string;
   spellAllowlist: string[];
   isLoadingFile: boolean;
   // Per-file git status for the status bar — null until an active file
@@ -28,6 +30,18 @@ export interface WorkspaceState {
 // undo-to-HEAD clears the dot within a second or two; long enough that
 // a burst of keystrokes doesn't hammer go-git.
 const dirtyReconcileMs = 2000;
+
+// Sidebar width clamps. 180 is narrow enough to nearly hide the file
+// names; 600 is generous without crowding the editor on typical
+// laptop displays.
+export const minSidebarWidth = 180;
+export const maxSidebarWidth = 600;
+export const defaultSidebarWidth = 256;
+
+// Debounce between rapid mouse-drag sidebar updates and the backend
+// persistence call. The reactive state updates at frame rate; the
+// persisted prefs-cache write only needs to catch up on pause.
+const sidebarPersistDebounceMs = 300;
 
 // Prefix the Go backend uses for the "clean worktree after staging" sentinel.
 // Kept in sync with internal/desktop/git.go:ErrNothingToSnapshot.
@@ -54,6 +68,7 @@ export class Workspace {
   // ReturnType<typeof setTimeout> covers both browser (number) and Node
   // (NodeJS.Timeout) — the unit tests run in Node without a `window`.
   private dirtyReconcileTimer: ReturnType<typeof setTimeout> | null = null;
+  private sidebarPersistTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private env: DesktopCapabilities) {
     this.state = reactive<WorkspaceState>({
@@ -61,8 +76,10 @@ export class Workspace {
       projectFiles: [],
       activeFile: null,
       revisions: [],
-      // Placeholder. Real value comes from env.getSidebarCollapsed in init.
+      // Placeholder. Real values come from env pref reads in init.
       sidebarCollapsed: false,
+      sidebarWidth: defaultSidebarWidth,
+      lastDrawerTab: "",
       spellAllowlist: [],
       isLoadingFile: false,
       gitStatus: null,
@@ -79,6 +96,9 @@ export class Workspace {
       this.state.spellAllowlist = await this.env.getSpellAllowlist();
     }
     this.state.sidebarCollapsed = await this.env.getSidebarCollapsed();
+    const storedWidth = await this.env.getSidebarWidth();
+    this.state.sidebarWidth = storedWidth > 0 ? clampSidebarWidth(storedWidth) : defaultSidebarWidth;
+    this.state.lastDrawerTab = await this.env.getLastDrawerTab();
     this.hydrated = true;
   }
 
@@ -304,4 +324,36 @@ export class Workspace {
     if (!this.hydrated) return;
     void this.env.setSidebarCollapsed(this.state.sidebarCollapsed);
   }
+
+  // setSidebarWidth updates the reactive state synchronously (so the
+  // drag handle redraws at frame rate) and debounces the backend write.
+  // Clamps into [minSidebarWidth, maxSidebarWidth]. Gated on hydrated
+  // so a pre-init write can't clobber the real stored value with a
+  // placeholder.
+  setSidebarWidth(px: number) {
+    const next = clampSidebarWidth(px);
+    this.state.sidebarWidth = next;
+    if (!this.hydrated) return;
+    if (this.sidebarPersistTimer !== null) {
+      clearTimeout(this.sidebarPersistTimer);
+    }
+    this.sidebarPersistTimer = setTimeout(() => {
+      this.sidebarPersistTimer = null;
+      void this.env.setSidebarWidth(next);
+    }, sidebarPersistDebounceMs);
+  }
+
+  // setLastDrawerTab mirrors the tab selection into state + persists
+  // through the prefs cache. No debounce — tab switches are
+  // user-driven and infrequent.
+  setLastDrawerTab(id: string) {
+    this.state.lastDrawerTab = id;
+    if (!this.hydrated) return;
+    void this.env.setLastDrawerTab(id);
+  }
+}
+
+function clampSidebarWidth(px: number): number {
+  if (!Number.isFinite(px)) return defaultSidebarWidth;
+  return Math.max(minSidebarWidth, Math.min(maxSidebarWidth, Math.round(px)));
 }

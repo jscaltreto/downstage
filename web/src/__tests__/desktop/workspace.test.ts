@@ -96,6 +96,15 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
     setSidebarCollapsed: (c: boolean) => record(`setSidebarCollapsed:${c}`, async () => {
       (state as any)._sidebarCollapsed = c;
     }),
+    getSidebarWidth: () => record("getSidebarWidth", async () => (state as any)._sidebarWidth ?? 0),
+    setSidebarWidth: (px: number) => record(`setSidebarWidth:${px}`, async () => {
+      (state as any)._sidebarWidth = px;
+    }),
+    getLastDrawerTab: () => record("getLastDrawerTab", async () => (state as any)._lastDrawerTab ?? ""),
+    setLastDrawerTab: (id: string) => record(`setLastDrawerTab:${id}`, async () => {
+      (state as any)._lastDrawerTab = id;
+    }),
+    saveWindowBoundsIfNormal: () => record("saveWindowBoundsIfNormal", async () => {}),
     flushPreferences: () => record("flushPreferences", async () => {}),
     getCommands: () => record("getCommands", async () => []),
     setDisabledCommands: (ids: string[]) => record(`setDisabledCommands:${ids.join(",")}`, async () => {}),
@@ -395,6 +404,80 @@ describe("Workspace", () => {
     await ws.openFolder();
 
     expect(ws.state.gitStatus).toBeNull();
+  });
+
+  it("setSidebarWidth clamps to range and debounces persistence", async () => {
+    vi.useFakeTimers();
+    try {
+      stubLocalStorage();
+      const env = createEnv();
+      const ws = new Workspace(env);
+      await ws.init();
+
+      // Below min clamps up.
+      ws.setSidebarWidth(50);
+      expect(ws.state.sidebarWidth).toBe(180);
+      // Above max clamps down.
+      ws.setSidebarWidth(10000);
+      expect(ws.state.sidebarWidth).toBe(600);
+
+      // Debounce: no env write during the window.
+      const persistCallsBefore = env._calls.filter((c) => c.startsWith("setSidebarWidth:")).length;
+      expect(persistCallsBefore).toBe(0);
+
+      await vi.advanceTimersByTimeAsync(400);
+      const persistCalls = env._calls.filter((c) => c.startsWith("setSidebarWidth:"));
+      expect(persistCalls.length).toBe(1);
+      expect(persistCalls[0]).toBe("setSidebarWidth:600");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("setSidebarWidth gated on hydrated — pre-init sets state but doesn't persist", async () => {
+    vi.useFakeTimers();
+    try {
+      stubLocalStorage();
+      const env = createEnv();
+      const ws = new Workspace(env);
+
+      // No init call — hydrated is still false.
+      ws.setSidebarWidth(300);
+      expect(ws.state.sidebarWidth).toBe(300);
+
+      await vi.advanceTimersByTimeAsync(400);
+      expect(env._calls.filter((c) => c.startsWith("setSidebarWidth:"))).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("init loads sidebarWidth and lastDrawerTab; defaults apply when stored value is zero/empty", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    (env as any)._sidebarWidth = 350;
+    (env as any)._lastDrawerTab = "stats";
+
+    const ws = new Workspace(env);
+    await ws.init();
+    expect(ws.state.sidebarWidth).toBe(350);
+    expect(ws.state.lastDrawerTab).toBe("stats");
+
+    const ws2 = new Workspace(createEnv());
+    await ws2.init();
+    expect(ws2.state.sidebarWidth).toBe(256);
+    expect(ws2.state.lastDrawerTab).toBe("");
+  });
+
+  it("setLastDrawerTab persists and reflects on state", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    const ws = new Workspace(env);
+    await ws.init();
+
+    ws.setLastDrawerTab("outline");
+    expect(ws.state.lastDrawerTab).toBe("outline");
+    expect(env._calls).toContain("setLastDrawerTab:outline");
   });
 
   it("restoreRevision swallows 'nothing to snapshot' from the pre-restore backup", async () => {
