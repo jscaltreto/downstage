@@ -16,7 +16,7 @@ import PreviewFrame from './PreviewFrame.vue';
 import ToolbarButton from './ToolbarButton.vue';
 import BaseModal from './BaseModal.vue';
 import SpellcheckPanel from './SpellcheckPanel.vue';
-import WorkbenchDrawer, { type WorkbenchTab } from './WorkbenchDrawer.vue';
+import WorkbenchDrawer, { type WorkbenchTab, type DrawerDock } from './WorkbenchDrawer.vue';
 import IssuesTab from './IssuesTab.vue';
 import FindReplaceTab from './FindReplaceTab.vue';
 import OutlineTab from './OutlineTab.vue';
@@ -60,6 +60,12 @@ const props = withDefaults(
     // Settings > Spellcheck tab is the single pref surface; web leaves it
     // false and keeps the modal.
     externalSpellcheck?: boolean;
+    // Where the workbench drawer docks. 'bottom' keeps the historical
+    // layout (drawer below editor); 'right' puts it as a vertical column
+    // between editor and preview. Desktop host owns the pref; web host
+    // leaves this at the default.
+    drawerDock?: DrawerDock;
+    drawerRightWidth?: number;
     getSpellAllowlist: () => string[];
     addSpellAllowlistWord: (word: string) => Promise<boolean>;
     removeSpellAllowlistWord: (word: string) => Promise<boolean>;
@@ -72,6 +78,8 @@ const props = withDefaults(
     drawerTab: 'issues',
     searchRequest: () => ({ mode: 'find' as SearchMode, nonce: 0 }),
     externalSpellcheck: false,
+    drawerDock: 'bottom',
+    drawerRightWidth: 360,
   },
 );
 
@@ -89,6 +97,10 @@ const emit = defineEmits<{
   // Mirrors manuscriptStats.totalWords as it refreshes on the existing
   // 500ms stats debounce. Emits 0 before the first stats result.
   (e: 'update:wordCount', value: number): void;
+  // Drawer dock/width are v-model emits so the host can persist pref
+  // changes. Default 'bottom' dock means the web host ignores these.
+  (e: 'update:drawerDock', value: DrawerDock): void;
+  (e: 'update:drawerRightWidth', value: number): void;
   (e: 'migration-state-change', value: boolean): void;
   (e: 'open-spellcheck-settings'): void;
 }>();
@@ -655,11 +667,16 @@ defineExpose({
             </div>
 
             <WorkbenchDrawer
+                v-if="drawerDock === 'bottom'"
                 :open="drawerOpen"
                 :active-tab="drawerTab"
                 :issues-badge="issuesSummary.total"
+                :dock="drawerDock"
+                :right-width="drawerRightWidth"
                 @close="closeDrawer"
                 @update:active-tab="drawerTab = $event"
+                @update:dock="emit('update:drawerDock', $event)"
+                @update:right-width="emit('update:drawerRightWidth', $event)"
             >
                 <template #issues>
                     <IssuesTab
@@ -700,6 +717,61 @@ defineExpose({
                 </template>
             </WorkbenchDrawer>
         </div>
+
+        <!-- Right-docked drawer — rendered as a sibling of the editor
+             column and preview column. The slot set matches the
+             bottom-mode WorkbenchDrawer above; duplicating is the
+             cleanest option in Vue when the container has to change. -->
+        <WorkbenchDrawer
+            v-if="drawerDock === 'right'"
+            :open="drawerOpen"
+            :active-tab="drawerTab"
+            :issues-badge="issuesSummary.total"
+            :dock="drawerDock"
+            :right-width="drawerRightWidth"
+            @close="closeDrawer"
+            @update:active-tab="drawerTab = $event"
+            @update:dock="emit('update:drawerDock', $event)"
+            @update:right-width="emit('update:drawerRightWidth', $event)"
+        >
+            <template #issues>
+                <IssuesTab
+                    :diagnostics="diagnostics"
+                    :hidden-severities="hiddenSeverities"
+                    @jump="jumpToDiagnostic"
+                    @update:hidden-severities="hiddenSeverities = $event"
+                />
+            </template>
+            <template #find>
+                <FindReplaceTab
+                    :active="drawerOpen && drawerTab === 'find'"
+                    :matches="searchMatches"
+                    :current-index="searchIndex"
+                    :error="searchError"
+                    :initial-query="searchInitialQuery"
+                    :focus-replace="searchFocusReplace"
+                    :focus-nonce="searchFocusNonce"
+                    @search="onSearch"
+                    @next="onFindNext"
+                    @prev="onFindPrev"
+                    @replace="onReplaceOne"
+                    @replace-all="onReplaceAll"
+                    @jump="onJumpMatch"
+                />
+            </template>
+            <template #outline>
+                <OutlineTab
+                    :symbols="outlineSymbols"
+                    @jump="jumpToSymbol"
+                />
+            </template>
+            <template #stats>
+                <StatsTab :stats="manuscriptStats" :loading="manuscriptStatsLoading" />
+            </template>
+            <template #help>
+                <HelpTab :open-link="props.env.openURL" />
+            </template>
+        </WorkbenchDrawer>
 
         <div v-show="previewVisible" class="flex-1 h-full bg-[var(--color-page-surface)] flex flex-col min-w-[300px]">
             <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex justify-between items-center shadow-sm">

@@ -40,3 +40,21 @@ func TestCommands_LabelsPresent(t *testing.T) {
 		assert.NotEmpty(t, c.Label, "command %s has an empty label", c.ID)
 	}
 }
+
+// New commands in the desktop polish batch must be reachable from the
+// palette so the frontend can register a handler for them.
+func TestCommands_IncludesAboutAndDockToggle(t *testing.T) {
+	ids := map[string]Command{}
+	for _, c := range Commands() {
+		ids[c.ID] = c
+	}
+
+	about, ok := ids[CmdHelpAbout]
+	require.True(t, ok, "help.about must be in the catalog")
+	assert.Equal(t, "About Downstage Write…", about.Label)
+	assert.Equal(t, []string{"Help"}, about.MenuPath)
+
+	dock, ok := ids[CmdViewToggleDrawerDock]
+	require.True(t, ok, "view.toggleDrawerDock must be in the catalog")
+	assert.Equal(t, []string{"View"}, dock.MenuPath)
+}

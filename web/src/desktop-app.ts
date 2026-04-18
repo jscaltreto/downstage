@@ -28,6 +28,8 @@ interface WailsPreferences {
   sidebarCollapsed?: boolean;
   sidebarWidth?: number;
   lastDrawerTab?: string;
+  drawerDock?: 'bottom' | 'right';
+  drawerRightWidth?: number;
 }
 
 // @ts-ignore — generated at build time by Wails
@@ -271,6 +273,28 @@ class WailsBridge implements DesktopCapabilities {
 
   async saveWindowBoundsIfNormal(): Promise<void> {
     await App.SaveWindowBoundsIfNormal();
+  }
+
+  async getDrawerDock(): Promise<'bottom' | 'right'> {
+    const all = await this.prefs.get();
+    return all.drawerDock === 'right' ? 'right' : 'bottom';
+  }
+
+  async setDrawerDock(dock: 'bottom' | 'right'): Promise<void> {
+    await this.prefs.update({ drawerDock: dock });
+  }
+
+  async getDrawerRightWidth(): Promise<number> {
+    const all = await this.prefs.get();
+    return typeof all.drawerRightWidth === "number" ? all.drawerRightWidth : 0;
+  }
+
+  async setDrawerRightWidth(px: number): Promise<void> {
+    await this.prefs.update({ drawerRightWidth: px });
+  }
+
+  async showAboutDialog(): Promise<void> {
+    await App.ShowAboutDialog();
   }
 
   async flushPreferences(): Promise<void> {
