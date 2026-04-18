@@ -49,9 +49,10 @@ const tabs: Array<{ id: SettingsTab; label: string }> = [
     @close="$emit('close')"
   >
     <!-- Fixed outer dimensions so tab switches don't resize the modal.
-         The content area takes a set width and height; each tab scrolls
-         internally if it grows past the viewport. -->
-    <div class="flex flex-col w-[480px] h-[420px]">
+         Width must stay inside BaseModal's max-w-lg (512px) minus its
+         p-6 padding (48px) = 464px of usable room. 432px fits with a
+         little breathing space and avoids a horizontal scrollbar. -->
+    <div class="flex flex-col w-[432px] h-[420px]">
       <div class="flex gap-6 flex-1 min-h-0">
         <nav class="w-36 shrink-0 flex flex-col gap-1">
           <button
