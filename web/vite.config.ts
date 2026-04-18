@@ -31,6 +31,14 @@ export default defineConfig({
     vue(),
     tailwindcss(),
   ],
+  // Tailwind v4 runs via its Vite plugin — we don't need PostCSS. But
+  // Vite's PostCSS loader walks up looking for `postcss.config.js`, and
+  // the repo root has one for the Eleventy site that pulls Tailwind v3.
+  // On machines where the root `node_modules` isn't populated (e.g. any
+  // Windows contributor who only ran `npm install` in `web/`), that
+  // config fails to resolve `tailwindcss` and the build dies. An inline
+  // empty PostCSS config tells Vite to stop searching.
+  css: { postcss: {} },
   define: {
     __APP_VERSION__: JSON.stringify(resolveAppVersion()),
   },
