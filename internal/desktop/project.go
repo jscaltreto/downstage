@@ -50,11 +50,15 @@ func (a *App) OpenProjectFolder() (string, error) {
 }
 
 func (a *App) GetProjectFiles() ([]ProjectFile, error) {
+	// Always return a non-nil slice — encoding/json serializes a nil
+	// slice as `null`, which the frontend reads as null and crashes on
+	// `.length`. An empty project (no .ds files yet, common on a fresh
+	// install) must surface as `[]` to JS.
 	if a.currentProject == "" {
-		return nil, nil
+		return []ProjectFile{}, nil
 	}
 
-	var files []ProjectFile
+	files := []ProjectFile{}
 	walkErr := filepath.WalkDir(a.currentProject, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			// A single unreadable dir (permissions, IO) should not abort

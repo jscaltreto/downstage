@@ -263,6 +263,28 @@ func TestGetProjectFiles_Filters(t *testing.T) {
 	assert.Equal(t, "play.ds", files[0].Name)
 }
 
+func TestGetProjectFiles_EmptyProjectReturnsEmptySlice(t *testing.T) {
+	// Regression: `var files []ProjectFile` returned a nil slice when no
+	// .ds files existed, which JSON-serialized as `null` and crashed the
+	// frontend's `.length` read on first launch of a fresh project.
+	a := testApp(t)
+
+	files, err := a.GetProjectFiles()
+	require.NoError(t, err)
+	require.NotNil(t, files, "must return non-nil slice so JSON emits []")
+	require.Len(t, files, 0)
+}
+
+func TestGetProjectFiles_NoProjectReturnsEmptySlice(t *testing.T) {
+	// Same regression guard for the "no project open" short-circuit.
+	a := &App{}
+
+	files, err := a.GetProjectFiles()
+	require.NoError(t, err)
+	require.NotNil(t, files)
+	require.Len(t, files, 0)
+}
+
 func TestGetProjectFiles_SkipsDownstageDir(t *testing.T) {
 	a := testApp(t)
 
@@ -321,6 +343,15 @@ func TestGetRevisions_Order(t *testing.T) {
 	require.Len(t, revisions, 2)
 	assert.Equal(t, "second", revisions[0].Message)
 	assert.Equal(t, "first", revisions[1].Message)
+}
+
+func TestGetRevisions_NoProjectReturnsEmptySlice(t *testing.T) {
+	a := &App{}
+
+	revisions, err := a.GetRevisions("play.ds", 0)
+	require.NoError(t, err)
+	require.NotNil(t, revisions, "must return non-nil slice so JSON emits []")
+	require.Len(t, revisions, 0)
 }
 
 func TestReadProjectFile_BlocksTraversal(t *testing.T) {
