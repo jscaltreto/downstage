@@ -77,9 +77,36 @@ const condensedDerivedSize = computed(() =>
   pageSize.value === 'a4' ? 'A5 (148 × 210 mm)' : 'half-letter (5.5 × 8.5 in)',
 );
 
+// Landscape sheet width in millimeters, which is the hard upper bound on
+// gutter: a gutter at or above this value would leave zero-width cells.
+// For Letter the landscape width is 11in (279.4mm); for A4 it is 297mm.
+const maxGutterMM = computed(() => (pageSize.value === 'a4' ? 297 : 279.4));
+
+function gutterInMM(): number {
+  const v = gutterValue.value;
+  if (!Number.isFinite(v)) return NaN;
+  return gutterUnit.value === 'in' ? v * 25.4 : v;
+}
+
+const maxGutterDisplay = computed(() => {
+  const mm = maxGutterMM.value;
+  if (gutterUnit.value === 'in') return `${(mm / 25.4).toFixed(2)}in`;
+  return `${mm.toFixed(1)}mm`;
+});
+
 const gutterString = computed(() => `${gutterValue.value}${gutterUnit.value}`);
 
-const gutterIsValid = computed(() => gutterValue.value >= 0 && Number.isFinite(gutterValue.value));
+const gutterError = computed<string | null>(() => {
+  const v = gutterValue.value;
+  if (!Number.isFinite(v)) return 'Gutter must be a number';
+  if (v < 0) return 'Gutter must be non-negative';
+  if (gutterInMM() >= maxGutterMM.value) {
+    return `Gutter must be under ${maxGutterDisplay.value} for the selected page size`;
+  }
+  return null;
+});
+
+const gutterIsValid = computed(() => gutterError.value === null);
 
 const canConfirm = computed(() => {
   if (layout.value === 'booklet') return gutterIsValid.value;
@@ -264,7 +291,10 @@ function handleConfirm() {
               min="0"
               v-model.number="gutterValue"
               data-testid="gutter-value"
-              class="flex-1 px-3 py-2 rounded-md text-sm font-bold bg-black/5 dark:bg-white/5 border border-border text-text-main focus:outline-none focus:ring-2 focus:ring-brass-500/40"
+              aria-describedby="gutter-help"
+              :aria-invalid="!gutterIsValid"
+              class="flex-1 px-3 py-2 rounded-md text-sm font-bold bg-black/5 dark:bg-white/5 border text-text-main focus:outline-none focus:ring-2 focus:ring-brass-500/40"
+              :class="gutterError ? 'border-red-500/60' : 'border-border'"
             />
             <select
               v-model="gutterUnit"
@@ -275,7 +305,18 @@ function handleConfirm() {
               <option value="mm">mm</option>
             </select>
           </div>
-          <p class="mt-2 text-xs text-text-muted leading-relaxed">
+          <p
+            v-if="gutterError"
+            data-testid="gutter-error"
+            class="mt-2 text-xs text-red-500 leading-relaxed"
+          >
+            {{ gutterError }}
+          </p>
+          <p
+            v-else
+            id="gutter-help"
+            class="mt-2 text-xs text-text-muted leading-relaxed"
+          >
             Inside spacing between the two pages on each sheet. Booklet output
             is duplex: print double-sided, then fold in half.
           </p>

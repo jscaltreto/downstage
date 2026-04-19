@@ -158,6 +158,34 @@ test.describe("export", () => {
     expect(storedGutter).toBe("5mm");
   });
 
+  test("Oversized gutter shows an error and disables Export", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+    await editor.exportStyleOption("condensed").click();
+    await editor.layoutOption("booklet").click();
+    await expect(editor.gutterRow).toBeVisible();
+
+    // 50 inches is wildly over any sheet's landscape width.
+    await editor.gutterValueInput.fill("50");
+    await editor.gutterUnitSelect.selectOption("in");
+
+    const gutterError = editor.exportDialog.locator('[data-testid="gutter-error"]');
+    await expect(gutterError).toBeVisible();
+    await expect(gutterError).toContainText(/Gutter must be under/i);
+    await expect(editor.exportConfirmButton).toBeDisabled();
+
+    // Bringing the value back under the max re-enables Export.
+    await editor.gutterValueInput.fill("0.125");
+    await expect(gutterError).toBeHidden();
+    await expect(editor.exportConfirmButton).toBeEnabled();
+  });
+
   test("Manuscript export preserves a previously chosen condensed layout", async ({ page }) => {
     const editor = new EditorPage(page);
     await editor.gotoReady();

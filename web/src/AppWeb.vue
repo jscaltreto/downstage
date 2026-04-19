@@ -364,6 +364,18 @@ async function handleExportConfirmed(opts: ExportPdfOptions) {
     const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}${layoutSuffix}.pdf`;
 
     const pdfBytes = await props.env.renderPDF(activeContent.value, opts);
+    // renderPDF returns an empty (or falsy) Uint8Array when the WASM side
+    // rejects the request (e.g. invalid config, imposition failure).
+    // Saving an empty file would quietly produce a broken PDF; surface the
+    // failure as a toast instead.
+    if (!pdfBytes || pdfBytes.byteLength === 0) {
+        toastManager.value?.addToast(
+            "PDF export failed. Check the export settings and try again.",
+            "error",
+            5000,
+        );
+        return;
+    }
     await props.env.saveFile(filename, pdfBytes, [
         { displayName: "PDF Files (*.pdf)", pattern: "*.pdf" }
     ]);
