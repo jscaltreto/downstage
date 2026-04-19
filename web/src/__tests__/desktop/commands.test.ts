@@ -17,28 +17,33 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   const drawerTab = ref<any>("issues");
   const searchRequest = ref<any>({ mode: "find", nonce: 0 });
 
+  const libraryFilesRef = ref<Array<{ path: string; name: string; updatedAt: string }>>([]);
   const workspaceState = {
     activeFile: null as string | null,
-    libraryFiles: [] as Array<{ path: string; name: string; updatedAt: string }>,
     libraryPath: null as string | null,
     viewingRevisionHash: null as string | null,
+    externalFile: null as null | { absPath: string; content: string },
   };
 
   const env: any = {
     renderPDF: vi.fn(async () => new Uint8Array()),
     saveFile: vi.fn(async () => {}),
     openURL: vi.fn(async () => {}),
+    openExternalFileDialog: vi.fn(async () => ""),
   };
   const store: any = { state: { previewHidden: false } };
   const workspace: any = {
     state: workspaceState,
+    libraryFiles: libraryFilesRef,
     createFile: vi.fn(async (name: string) => `${name}.ds`),
-    selectFile: vi.fn(async (path: string) => ""),
-    openFolder: vi.fn(async () => "/p/alpha"),
+    selectFile: vi.fn(async (_path: string) => ""),
+    changeLibraryLocation: vi.fn(async () => "/p/alpha"),
+    openExternalFile: vi.fn(async () => ""),
     snapshotFile: vi.fn(async () => {}),
     toggleSidebar: vi.fn(),
     addAllowlistWord: vi.fn(),
     removeAllowlistWord: vi.fn(),
+    createFolder: vi.fn(async () => {}),
   };
   const toast = { addToast: vi.fn() };
 
@@ -140,7 +145,9 @@ describe("command handlers", () => {
 
   it("navigate.nextFile cycles forward through the library list", async () => {
     const ctx = makeContext();
-    ctx.workspace.state.libraryFiles = [
+    // Assign through the underlying ref (cast is safe — the mock
+    // constructs a mutable ref; the production type is a ComputedRef).
+    (ctx.workspace.libraryFiles as { value: unknown }).value = [
       { path: "a.ds", name: "a.ds", updatedAt: "" },
       { path: "b.ds", name: "b.ds", updatedAt: "" },
       { path: "c.ds", name: "c.ds", updatedAt: "" },

@@ -12,7 +12,24 @@ import type {
   ManuscriptStats,
   EditorPreferences,
 } from "./core/types";
-import type { CommandMeta, DesktopCapabilities, ExternalFileResult, FileGitStatus, LibraryFile, Revision } from "./desktop/types";
+import type { CommandMeta, DesktopCapabilities, ExternalFileResult, FileGitStatus, LibraryFile, LibraryNode, Revision } from "./desktop/types";
+
+// Defensive reshape for LibraryNode coming off the wire. The Go side
+// emits exactly "folder" or "file" for `kind`, but the generated Wails
+// TS model types it as a plain string. Narrow and recurse so the
+// frontend's v-if chains have a tight union to discriminate.
+function normalizeLibraryNode(n: any): LibraryNode {
+  const kind: "folder" | "file" = n?.kind === "folder" ? "folder" : "file";
+  return {
+    path: String(n?.path ?? ""),
+    name: String(n?.name ?? ""),
+    kind,
+    children: Array.isArray(n?.children)
+      ? n.children.map(normalizeLibraryNode)
+      : undefined,
+    updatedAt: n?.updatedAt ? String(n.updatedAt) : undefined,
+  };
+}
 import { invokeRegisteredFlushSave } from "./desktop/flush-save";
 import { createPrefsCache } from "./desktop/prefs-cache";
 import { dispatchCommand } from "./desktop/dispatcher-registry";
@@ -182,8 +199,24 @@ class WailsBridge implements DesktopCapabilities {
     return App.AddExternalFileToLibrary(absSrc, destRelDir);
   }
 
-  async getLibraryFiles(): Promise<LibraryFile[]> {
-    return App.GetLibraryFiles();
+  async getLibraryTree(): Promise<LibraryNode[]> {
+    const raw = await App.GetLibraryTree();
+    // Defensive reshape for the discriminated union — the Go side always
+    // emits "folder" or "file" but TS sees `string` on the generated
+    // model type.
+    return (raw ?? []).map(normalizeLibraryNode);
+  }
+
+  async createLibraryFolder(relPath: string): Promise<void> {
+    await App.CreateLibraryFolder(relPath);
+  }
+
+  async moveLibraryEntry(srcRel: string, dstRel: string): Promise<string> {
+    return App.MoveLibraryEntry(srcRel, dstRel);
+  }
+
+  async renameLibraryEntry(srcRel: string, newName: string): Promise<string> {
+    return App.RenameLibraryEntry(srcRel, newName);
   }
 
   async readLibraryFile(path: string): Promise<string> {

@@ -6,6 +6,17 @@ export interface LibraryFile {
   updatedAt: string;
 }
 
+// LibraryNode is the tree representation returned by `getLibraryTree`.
+// Folders carry `children`; files carry `updatedAt`. Paths are
+// forward-slash and library-root-relative.
+export interface LibraryNode {
+  path: string;
+  name: string;
+  kind: 'folder' | 'file';
+  children?: LibraryNode[];
+  updatedAt?: string;
+}
+
 export interface Revision {
   hash: string;
   message: string;
@@ -53,7 +64,20 @@ export interface LibraryEnv {
   // (empty string = library root). Returns the new path relative to
   // the library. Collision handling adds a `-N` suffix.
   addExternalFileToLibrary(absSrc: string, destRelDir: string): Promise<string>;
-  getLibraryFiles(): Promise<LibraryFile[]>;
+  // Returns the library as a nested tree — folders first (alpha per
+  // level), then files (alpha per level). `.git` and `.downstage` are
+  // skipped; only `.ds` files appear as leaves.
+  getLibraryTree(): Promise<LibraryNode[]>;
+  // Creates an empty folder at `relPath`. Rejects if the path exists
+  // (no auto-suffix for explicit folder creation).
+  createLibraryFolder(relPath: string): Promise<void>;
+  // Moves or renames a file or folder. Returns the new rel path.
+  // Rejects if the destination exists. For renames, prefer
+  // `renameLibraryEntry`.
+  moveLibraryEntry(srcRel: string, dstRel: string): Promise<string>;
+  // Renames `srcRel`'s basename to `newName`. `newName` must not
+  // contain path separators.
+  renameLibraryEntry(srcRel: string, newName: string): Promise<string>;
   readLibraryFile(path: string): Promise<string>;
   writeLibraryFile(path: string, content: string): Promise<void>;
   createLibraryFile(name: string, content: string): Promise<string>;

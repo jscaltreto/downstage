@@ -93,7 +93,13 @@ function createEnv(init: { files?: LibraryFile[]; openReturn?: string } = {}): R
       const path = `${dir ? `${dir}/` : ""}ext.ds`;
       return path;
     },
-    getLibraryFiles: async () => { record("getLibraryFiles"); return files; },
+    getLibraryTree: async () => {
+      record("getLibraryTree");
+      return files.map(f => ({ path: f.path, name: f.name, kind: "file" as const, updatedAt: f.updatedAt }));
+    },
+    createLibraryFolder: async (p) => { record(`createLibraryFolder:${p}`); },
+    moveLibraryEntry: async (src, dst) => { record(`moveLibraryEntry:${src}:${dst}`); return dst; },
+    renameLibraryEntry: async (src, name) => { record(`renameLibraryEntry:${src}:${name}`); return name; },
     readLibraryFile: async (p) => { record(`readLibraryFile:${p}`); return contents[p] ?? ""; },
     writeLibraryFile: async (p, c) => {
       record(`writeLibraryFile:${p}`);
@@ -230,10 +236,11 @@ describe("AppDesktop flush ordering", () => {
     await typeInto(wrapper, "edit-switch");
     env._setWriteDelay(20);
 
-    // Click the sidebar entry for "other.ds".
-    const otherBtn = wrapper.findAll("button").find((b) => b.text().includes("other.ds"));
-    expect(otherBtn).toBeDefined();
-    otherBtn!.trigger("click");
+    // Click the sidebar entry for "other.ds". The tree renders rows
+    // as divs tagged with data-testid/data-path.
+    const otherRow = wrapper.find('[data-testid="library-tree-row"][data-path="other.ds"]');
+    expect(otherRow.exists()).toBe(true);
+    otherRow.trigger("click");
 
     await vi.advanceTimersByTimeAsync(1500);
     await flushPromises();

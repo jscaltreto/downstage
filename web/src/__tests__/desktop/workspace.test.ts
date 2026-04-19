@@ -78,7 +78,15 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
         return destRelDir ? `${destRelDir}/${name}` : name;
       },
     ),
-    getLibraryFiles: () => record("getLibraryFiles", async () => state._files),
+    getLibraryTree: () => record("getLibraryTree", async () => state._files.map((f) => ({
+      path: f.path, name: f.name, kind: "file" as const, updatedAt: f.updatedAt,
+    }))),
+    createLibraryFolder: (p: string) => record(`createLibraryFolder:${p}`, async () => {}),
+    moveLibraryEntry: (src: string, dst: string) => record(`moveLibraryEntry:${src}:${dst}`, async () => dst),
+    renameLibraryEntry: (src: string, name: string) => record(`renameLibraryEntry:${src}:${name}`, async () => {
+      const parent = src.includes("/") ? src.slice(0, src.lastIndexOf("/")) : "";
+      return parent ? `${parent}/${name}` : name;
+    }),
     readLibraryFile: (p: string) => record(`readLibraryFile:${p}`, async () => state._contents[p] ?? ""),
     writeLibraryFile: (p: string, c: string) => record(`writeLibraryFile:${p}`, async () => {
       state._contents[p] = c;
@@ -169,7 +177,7 @@ describe("Workspace", () => {
     expect(ws.state.libraryPath).toBe("/projects/alpha");
     expect(ws.state.activeFile).toBeNull();
     expect(ws.state.revisions).toEqual([]);
-    expect(ws.state.libraryFiles.map(f => f.path)).toEqual(["play.ds"]);
+    expect(ws.libraryFiles.value.map((f: { path: string }) => f.path)).toEqual(["play.ds"]);
   });
 
   it("selectFile sets activeFile, reads content, and loads revisions", async () => {
@@ -211,7 +219,7 @@ describe("Workspace", () => {
     const path = await ws.createFile("Act One", "body");
 
     expect(path).toBe("Act One.ds");
-    expect(ws.state.libraryFiles.map(f => f.path)).toContain("Act One.ds");
+    expect(ws.libraryFiles.value.map((f: { path: string }) => f.path)).toContain("Act One.ds");
   });
 
   it("viewRevision loads content into preview state without touching the live buffer", async () => {
@@ -636,5 +644,93 @@ describe("Workspace", () => {
 
     ws.closeExternalFile();
     expect(ws.state.externalFile).toBeNull();
+  });
+
+  it("createFolder auto-expands ancestors of the new folder", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    const ws = new Workspace(env);
+    await ws.init();
+
+    await ws.createFolder("a/b/c");
+
+    expect(ws.state.expandedFolders.has("a")).toBe(true);
+    expect(ws.state.expandedFolders.has("a/b")).toBe(true);
+    expect(ws.state.expandedFolders.has("a/b/c")).toBe(true);
+  });
+
+  it("moveEntry updates activeFile when the moved path IS the active file", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+      _contents: { "play.ds": "hello" },
+    });
+    const ws = new Workspace(env);
+    await ws.init();
+    await ws.selectFile("play.ds");
+
+    await ws.moveEntry("play.ds", "archive/play.ds");
+
+    expect(ws.state.activeFile).toBe("archive/play.ds");
+  });
+
+  it("moveEntry prefix-substitutes activeFile when a parent folder moves", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _files: [{ path: "act-one/scene-one.ds", name: "scene-one.ds", updatedAt: "" }],
+      _contents: { "act-one/scene-one.ds": "hello" },
+    });
+    const ws = new Workspace(env);
+    await ws.init();
+    await ws.selectFile("act-one/scene-one.ds");
+
+    await ws.moveEntry("act-one", "archive/act-one");
+
+    expect(ws.state.activeFile).toBe("archive/act-one/scene-one.ds");
+  });
+
+  it("moveEntry does not touch activeFile on unrelated moves", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _files: [
+        { path: "alpha.ds", name: "alpha.ds", updatedAt: "" },
+        { path: "beta.ds", name: "beta.ds", updatedAt: "" },
+      ],
+      _contents: { "alpha.ds": "hello" },
+    });
+    const ws = new Workspace(env);
+    await ws.init();
+    await ws.selectFile("alpha.ds");
+
+    await ws.moveEntry("beta.ds", "archive/beta.ds");
+
+    expect(ws.state.activeFile).toBe("alpha.ds");
+  });
+
+  it("renameEntry updates activeFile when the renamed path IS the active file", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _files: [{ path: "sub/old.ds", name: "old.ds", updatedAt: "" }],
+      _contents: { "sub/old.ds": "hello" },
+    });
+    const ws = new Workspace(env);
+    await ws.init();
+    await ws.selectFile("sub/old.ds");
+
+    await ws.renameEntry("sub/old.ds", "new.ds");
+
+    expect(ws.state.activeFile).toBe("sub/new.ds");
+  });
+
+  it("toggleFolderExpansion flips expansion state", () => {
+    stubLocalStorage();
+    const env = createEnv();
+    const ws = new Workspace(env);
+
+    expect(ws.state.expandedFolders.has("a")).toBe(false);
+    ws.toggleFolderExpansion("a");
+    expect(ws.state.expandedFolders.has("a")).toBe(true);
+    ws.toggleFolderExpansion("a");
+    expect(ws.state.expandedFolders.has("a")).toBe(false);
   });
 });
