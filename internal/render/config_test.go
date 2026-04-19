@@ -120,6 +120,107 @@ func TestPageSizeCondensedDimensionsRejectsUnknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "unsupported page size")
 }
 
+func TestParsePDFLayout(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    PDFLayout
+		wantErr bool
+	}{
+		{name: "single", input: "single", want: LayoutSingle},
+		{name: "2up", input: "2up", want: Layout2Up},
+		{name: "booklet", input: "booklet", want: LayoutBooklet},
+		{name: "mixed case", input: "Booklet", want: LayoutBooklet},
+		{name: "whitespace", input: "  2up  ", want: Layout2Up},
+		{name: "unknown", input: "4up", wantErr: true},
+		{name: "empty", input: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParsePDFLayout(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestParseMeasurement(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantMM  float64
+		wantErr bool
+	}{
+		{name: "inches with decimal", input: "0.125in", wantMM: 3.175},
+		{name: "inches integer", input: "1in", wantMM: 25.4},
+		{name: "millimeters", input: "3mm", wantMM: 3},
+		{name: "mm decimal", input: "3.5mm", wantMM: 3.5},
+		{name: "whitespace", input: "  0.5in  ", wantMM: 12.7},
+		{name: "space before unit", input: "3 mm", wantMM: 3},
+		{name: "zero", input: "0in", wantMM: 0},
+		{name: "missing unit", input: "3", wantErr: true},
+		{name: "unsupported unit", input: "3cm", wantErr: true},
+		{name: "negative", input: "-1in", wantErr: true},
+		{name: "garbage", input: "xin", wantErr: true},
+		{name: "empty", input: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseMeasurement(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.InDelta(t, tt.wantMM, got, 0.001)
+		})
+	}
+}
+
+func TestValidateRejectsStandardImpositions(t *testing.T) {
+	for _, layout := range []PDFLayout{Layout2Up, LayoutBooklet} {
+		t.Run(string(layout), func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Style = StyleStandard
+			cfg.Layout = layout
+			err := cfg.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "only supported for style")
+		})
+	}
+}
+
+func TestValidateAcceptsCondensedImpositions(t *testing.T) {
+	for _, layout := range []PDFLayout{LayoutSingle, Layout2Up, LayoutBooklet} {
+		t.Run(string(layout), func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Style = StyleCondensed
+			cfg.Layout = layout
+			require.NoError(t, cfg.Validate())
+		})
+	}
+}
+
+func TestValidateRejectsNegativeGutter(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.BookletGutterMM = -1
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "BookletGutterMM")
+}
+
+func TestValidateRejectsUnsupportedLayout(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Layout = "4up"
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Layout")
+}
+
 func TestDefaultConfig(t *testing.T) {
 	got := DefaultConfig()
 

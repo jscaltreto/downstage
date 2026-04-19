@@ -49,6 +49,30 @@ export class EditorPage {
     return this.exportDialog.locator(`button[data-page-size="${value}"]`);
   }
 
+  exportStyleOption(value: "standard" | "condensed"): Locator {
+    return this.exportDialog.locator(`button[data-export-style="${value}"]`);
+  }
+
+  layoutOption(value: "single" | "2up" | "booklet"): Locator {
+    return this.exportDialog.locator(`button[data-pdf-layout="${value}"]`);
+  }
+
+  get layoutGroup(): Locator {
+    return this.exportDialog.locator('[data-testid="layout-group"]');
+  }
+
+  get gutterRow(): Locator {
+    return this.exportDialog.locator('[data-testid="gutter-row"]');
+  }
+
+  get gutterValueInput(): Locator {
+    return this.exportDialog.locator('[data-testid="gutter-value"]');
+  }
+
+  get gutterUnitSelect(): Locator {
+    return this.exportDialog.locator('[data-testid="gutter-unit"]');
+  }
+
   // --- Workbench drawer ---
 
   get drawer(): Locator {
@@ -159,13 +183,35 @@ export class EditorPage {
     await expect(this.drawerTab(tab)).toHaveAttribute("aria-selected", "true");
   }
 
-  async downloadPdf(pageSize?: "letter" | "a4"): Promise<Download> {
+  async downloadPdf(options?: {
+    pageSize?: "letter" | "a4";
+    style?: "standard" | "condensed";
+    layout?: "single" | "2up" | "booklet";
+    gutterValue?: number;
+    gutterUnit?: "in" | "mm";
+  }): Promise<Download> {
     await this.exportPdfButton.click();
     await expect(this.exportDialog).toBeVisible();
-    if (pageSize) {
-      await this.pageSizeOption(pageSize).click();
-      await expect(this.pageSizeOption(pageSize)).toHaveAttribute("aria-checked", "true");
+
+    if (options?.pageSize) {
+      await this.pageSizeOption(options.pageSize).click();
+      await expect(this.pageSizeOption(options.pageSize)).toHaveAttribute("aria-checked", "true");
     }
+    if (options?.style) {
+      await this.exportStyleOption(options.style).click();
+      await expect(this.exportStyleOption(options.style)).toHaveAttribute("aria-checked", "true");
+    }
+    if (options?.layout) {
+      await this.layoutOption(options.layout).click();
+      await expect(this.layoutOption(options.layout)).toHaveAttribute("aria-checked", "true");
+    }
+    if (options?.gutterValue !== undefined) {
+      await this.gutterValueInput.fill(String(options.gutterValue));
+    }
+    if (options?.gutterUnit) {
+      await this.gutterUnitSelect.selectOption(options.gutterUnit);
+    }
+
     const downloadPromise = this.page.waitForEvent("download");
     await this.exportConfirmButton.click();
     return downloadPromise;

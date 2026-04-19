@@ -36,8 +36,17 @@ not blocked on file setup.
 
 Export the current script to either a Manuscript PDF or an Acting Edition PDF
 from the command palette. Set `downstage.render.pageSize` to choose `letter`
-or `a4` for export and preview. The generated file opens automatically unless
-you turn that off.
+or `a4` for export and preview.
+
+Acting Edition has three layouts:
+
+- `Export Acting Edition PDF` — one logical page per sheet
+- `Export Acting Edition PDF (2-Up)` — two logical pages per landscape sheet
+- `Export Acting Edition PDF (Booklet)` — duplex booklet order; print
+  double-sided, then fold in half. `downstage.render.bookletGutter` controls
+  the inside gap (default `0.125in`).
+
+The generated file opens automatically unless you turn that off.
 
 ### Writing Help
 
@@ -77,6 +86,8 @@ parentheticals, character cues, aliases, verse, and comments.
 | Downstage: Restart Downstage | Restart the Downstage background services |
 | Downstage: Export Manuscript PDF | Export the current script as a manuscript PDF |
 | Downstage: Export Acting Edition PDF | Export the current script as an acting edition PDF |
+| Downstage: Export Acting Edition PDF (2-Up) | Two logical pages per landscape sheet |
+| Downstage: Export Acting Edition PDF (Booklet) | Duplex booklet order; print double-sided, then fold in half |
 | Downstage: Open Manuscript PDF Preview | Preview the manuscript PDF in VS Code |
 | Downstage: Open Acting Edition PDF Preview | Preview the acting edition PDF in VS Code |
 | Downstage: Open Live Preview | Open the live-updating manuscript preview |
@@ -90,6 +101,7 @@ parentheticals, character cues, aliases, verse, and comments.
 | `downstage.editor.autoSuggestCharacterCues` | boolean | `true` | Auto-trigger cue suggestions on empty lines |
 | `downstage.render.style` | string | `"standard"` | Default export style. `standard` means Manuscript. `condensed` means Acting Edition |
 | `downstage.render.pageSize` | string | `"letter"` | Default PDF page size for manuscript and acting edition export. Supports `letter` and `a4` |
+| `downstage.render.bookletGutter` | string | `"0.125in"` | Inside gutter for booklet-layout Acting Edition export (accepts `in` and `mm` suffixes) |
 | `downstage.render.openAfterRender` | boolean | `true` | Open PDF after rendering |
 | `downstage.preview.debounceMs` | number | `300` | Delay before re-rendering live preview (ms) |
 

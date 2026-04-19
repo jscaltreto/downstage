@@ -13,10 +13,12 @@ import {
 	findTitleValueSelection,
 	getNewPlayTemplate,
 	getPageSizeDisplayName,
+	getPdfLayoutDisplayName,
 	getPreviewHtml,
 	getRenderStyleDisplayName,
 	getSamplePlayTemplate,
 	getValidatedPageSize,
+	getValidatedPdfLayout,
 	getValidatedRenderStyle,
 	isCueSuggestionLine,
 	parseRenderDiagnostics,
@@ -221,25 +223,103 @@ describe("getPageSizeDisplayName", () => {
 	});
 });
 
+describe("getValidatedPdfLayout", () => {
+	it("accepts single", () => {
+		expect(getValidatedPdfLayout("single")).toBe("single");
+	});
+
+	it("accepts 2up", () => {
+		expect(getValidatedPdfLayout("2up")).toBe("2up");
+	});
+
+	it("accepts booklet", () => {
+		expect(getValidatedPdfLayout("booklet")).toBe("booklet");
+	});
+
+	it("rejects unknown layouts", () => {
+		expect(() => getValidatedPdfLayout("4up")).toThrow("Unsupported pdf layout");
+	});
+});
+
+describe("getPdfLayoutDisplayName", () => {
+	it("maps single to Single page", () => {
+		expect(getPdfLayoutDisplayName("single")).toBe("Single page");
+	});
+
+	it("maps 2up to 2-up", () => {
+		expect(getPdfLayoutDisplayName("2up")).toBe("2-up");
+	});
+
+	it("maps booklet to Booklet", () => {
+		expect(getPdfLayoutDisplayName("booklet")).toBe("Booklet");
+	});
+});
+
 describe("buildPDFRenderArgs", () => {
-	it("includes page size in render args", () => {
-		expect(buildPDFRenderArgs("condensed", "a4", "/tmp/play.ds")).toEqual([
+	it("includes layout and page size in render args", () => {
+		expect(buildPDFRenderArgs({ style: "condensed", pageSize: "a4", layout: "single" }, "/tmp/play.ds")).toEqual([
 			"render",
 			"--style", "condensed",
 			"--page-size", "a4",
+			"--pdf-layout", "single",
+			"/tmp/play.ds",
+		]);
+	});
+
+	it("defaults layout to single when omitted", () => {
+		expect(buildPDFRenderArgs({ style: "standard", pageSize: "letter" }, "/tmp/play.ds")).toEqual([
+			"render",
+			"--style", "standard",
+			"--page-size", "letter",
+			"--pdf-layout", "single",
+			"/tmp/play.ds",
+		]);
+	});
+
+	it("appends gutter when layout is booklet", () => {
+		expect(buildPDFRenderArgs({ style: "condensed", pageSize: "letter", layout: "booklet", gutter: "3mm" }, "/tmp/play.ds")).toEqual([
+			"render",
+			"--style", "condensed",
+			"--page-size", "letter",
+			"--pdf-layout", "booklet",
+			"--gutter", "3mm",
+			"/tmp/play.ds",
+		]);
+	});
+
+	it("omits gutter when layout is 2up", () => {
+		expect(buildPDFRenderArgs({ style: "condensed", pageSize: "letter", layout: "2up", gutter: "3mm" }, "/tmp/play.ds")).toEqual([
+			"render",
+			"--style", "condensed",
+			"--page-size", "letter",
+			"--pdf-layout", "2up",
 			"/tmp/play.ds",
 		]);
 	});
 });
 
 describe("buildPDFPreviewArgs", () => {
-	it("includes page size in preview args", () => {
-		expect(buildPDFPreviewArgs("standard", "letter", "play.ds")).toEqual([
+	it("includes layout in preview args", () => {
+		expect(buildPDFPreviewArgs({ style: "standard", pageSize: "letter", layout: "single" }, "play.ds")).toEqual([
 			"render",
 			"--stdin", "--stdout",
 			"--format", "pdf",
 			"--style", "standard",
 			"--page-size", "letter",
+			"--pdf-layout", "single",
+			"--source-name", "play.ds",
+		]);
+	});
+
+	it("appends gutter for booklet preview", () => {
+		expect(buildPDFPreviewArgs({ style: "condensed", pageSize: "a4", layout: "booklet", gutter: "0.125in" }, "play.ds")).toEqual([
+			"render",
+			"--stdin", "--stdout",
+			"--format", "pdf",
+			"--style", "condensed",
+			"--page-size", "a4",
+			"--pdf-layout", "booklet",
+			"--gutter", "0.125in",
 			"--source-name", "play.ds",
 		]);
 	});

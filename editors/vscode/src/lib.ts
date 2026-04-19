@@ -144,6 +144,7 @@ export function findTitleValueSelection(documentText: string): SelectionTarget {
 
 const allowedRenderStyles = new Set(["standard", "condensed"]);
 const allowedPageSizes = new Set(["letter", "a4"]);
+const allowedPdfLayouts = new Set(["single", "2up", "booklet"]);
 
 export function getValidatedRenderStyle(style: string): string {
 	if (!allowedRenderStyles.has(style)) {
@@ -169,32 +170,64 @@ export function getPageSizeDisplayName(pageSize: string): string {
 	return getValidatedPageSize(pageSize) === "a4" ? "A4" : "Letter";
 }
 
+export function getValidatedPdfLayout(layout: string): string {
+	if (!allowedPdfLayouts.has(layout)) {
+		throw new Error(`Unsupported pdf layout: ${layout}`);
+	}
+	return layout;
+}
+
+export function getPdfLayoutDisplayName(layout: string): string {
+	switch (getValidatedPdfLayout(layout)) {
+		case "2up": return "2-up";
+		case "booklet": return "Booklet";
+		default: return "Single page";
+	}
+}
+
+export interface PDFRenderArgsInput {
+	style: string;
+	pageSize: string;
+	layout?: string;
+	gutter?: string;
+}
+
 export function buildPDFRenderArgs(
-	style: string,
-	pageSize: string,
+	opts: PDFRenderArgsInput,
 	inputPath: string,
 ): string[] {
-	return [
+	const layout = opts.layout ? getValidatedPdfLayout(opts.layout) : "single";
+	const args = [
 		"render",
-		"--style", getValidatedRenderStyle(style),
-		"--page-size", getValidatedPageSize(pageSize),
-		inputPath,
+		"--style", getValidatedRenderStyle(opts.style),
+		"--page-size", getValidatedPageSize(opts.pageSize),
+		"--pdf-layout", layout,
 	];
+	if (layout === "booklet" && opts.gutter) {
+		args.push("--gutter", opts.gutter);
+	}
+	args.push(inputPath);
+	return args;
 }
 
 export function buildPDFPreviewArgs(
-	style: string,
-	pageSize: string,
+	opts: PDFRenderArgsInput,
 	sourceName: string,
 ): string[] {
-	return [
+	const layout = opts.layout ? getValidatedPdfLayout(opts.layout) : "single";
+	const args = [
 		"render",
 		"--stdin", "--stdout",
 		"--format", "pdf",
-		"--style", getValidatedRenderStyle(style),
-		"--page-size", getValidatedPageSize(pageSize),
-		"--source-name", sourceName,
+		"--style", getValidatedRenderStyle(opts.style),
+		"--page-size", getValidatedPageSize(opts.pageSize),
+		"--pdf-layout", layout,
 	];
+	if (layout === "booklet" && opts.gutter) {
+		args.push("--gutter", opts.gutter);
+	}
+	args.push("--source-name", sourceName);
+	return args;
 }
 
 export function getPreviewHtml(body: string): string {

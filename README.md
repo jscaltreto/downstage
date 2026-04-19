@@ -178,7 +178,17 @@ Both formats support two styles via `--style`:
 PDF also supports `--page-size letter` (default) and `--page-size a4`.
 Manuscript output renders on the selected sheet size. Acting edition output
 derives its logical page from that sheet size: half-letter for Letter, A5 for
-A4. HTML produces a self-contained document with embedded CSS using semantic
+A4.
+
+Acting edition can be imposed for print via `--pdf-layout`:
+
+- `single` (default) — one logical page per sheet
+- `2up` — two logical pages per landscape sheet
+- `booklet` — duplex booklet order, padded to a multiple of 4. Print double-sided,
+  then fold in half. `--gutter <measurement>` sets the inside gap (default
+  `0.125in`; accepts `in` and `mm`).
+
+HTML produces a self-contained document with embedded CSS using semantic
 `.downstage-*` class names for custom styling.
 
 ### Statistics

@@ -17,10 +17,12 @@ import {
 	findTitleValueSelection,
 	getNewPlayTemplate,
 	getPageSizeDisplayName,
+	getPdfLayoutDisplayName,
 	getPreviewHtml,
 	getRenderStyleDisplayName,
 	getSamplePlayTemplate,
 	getValidatedPageSize,
+	getValidatedPdfLayout,
 	getValidatedRenderStyle,
 	isCueSuggestionLine,
 	parseRenderDiagnostics,
@@ -46,6 +48,7 @@ const settingServerTrace = "server.trace";
 const settingAutoSuggestCues = "editor.autoSuggestCharacterCues";
 const settingRenderStyle = "render.style";
 const settingRenderPageSize = "render.pageSize";
+const settingBookletGutter = "render.bookletGutter";
 const settingOpenAfterRender = "render.openAfterRender";
 const settingPreviewDebounce = "preview.debounceMs";
 
@@ -95,25 +98,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const renderCommand = vscode.commands.registerCommand(
 		"downstage.renderCurrentScript",
 		async () => {
-			await renderCurrentScript("standard");
+			await renderCurrentScript({ style: "standard", layout: "single" });
 		},
 	);
 	const renderCondensedCommand = vscode.commands.registerCommand(
 		"downstage.renderCondensedScript",
 		async () => {
-			await renderCurrentScript("condensed");
+			await renderCurrentScript({ style: "condensed", layout: "single" });
+		},
+	);
+	const renderCondensed2UpCommand = vscode.commands.registerCommand(
+		"downstage.renderCondensedScript2Up",
+		async () => {
+			await renderCurrentScript({ style: "condensed", layout: "2up" });
+		},
+	);
+	const renderCondensedBookletCommand = vscode.commands.registerCommand(
+		"downstage.renderCondensedScriptBooklet",
+		async () => {
+			await renderCurrentScript({ style: "condensed", layout: "booklet" });
 		},
 	);
 	const previewCommand = vscode.commands.registerCommand(
 		"downstage.previewCurrentScript",
 		async () => {
-			await previewCurrentScriptPdf("standard");
+			await previewCurrentScriptPdf({ style: "standard", layout: "single" });
 		},
 	);
 	const previewCondensedCommand = vscode.commands.registerCommand(
 		"downstage.previewCondensedScript",
 		async () => {
-			await previewCurrentScriptPdf("condensed");
+			await previewCurrentScriptPdf({ style: "condensed", layout: "single" });
 		},
 	);
 	const livePreviewCommand = vscode.commands.registerCommand(
@@ -158,6 +173,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(restartCommand);
 	context.subscriptions.push(renderCommand);
 	context.subscriptions.push(renderCondensedCommand);
+	context.subscriptions.push(renderCondensed2UpCommand);
+	context.subscriptions.push(renderCondensedBookletCommand);
 	context.subscriptions.push(previewCommand);
 	context.subscriptions.push(previewCondensedCommand);
 	context.subscriptions.push(livePreviewCommand);
@@ -518,6 +535,13 @@ function getRenderPageSizeSetting(): string {
 	);
 }
 
+function getBookletGutterSetting(): string {
+	return vscode.workspace.getConfiguration(configSection).get<string>(
+		settingBookletGutter,
+		"0.125in",
+	);
+}
+
 function getOpenAfterRenderSetting(): boolean {
 	return vscode.workspace.getConfiguration(configSection).get<boolean>(
 		settingOpenAfterRender,
@@ -607,7 +631,12 @@ async function maybeTriggerCueSuggest(editor: vscode.TextEditor): Promise<void> 
 }
 
 
-async function renderCurrentScript(styleOverride?: string): Promise<void> {
+interface RenderOptions {
+	style?: string;
+	layout?: string;
+}
+
+async function renderCurrentScript(override: RenderOptions = {}): Promise<void> {
 	const editor = vscode.window.activeTextEditor;
 	if (!editor || editor.document.languageId !== "downstage") {
 		void vscode.window.showErrorMessage("Open a Downstage script before rendering.");
@@ -629,18 +658,26 @@ async function renderCurrentScript(styleOverride?: string): Promise<void> {
 
 	try {
 		const serverPath = await resolveServerCommand();
-		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
+		const style = getValidatedRenderStyle(override.style ?? getRenderStyleSetting());
 		const pageSize = getValidatedPageSize(getRenderPageSizeSetting());
+		const layout = getValidatedPdfLayout(override.layout ?? "single");
+		const gutter = layout === "booklet" ? getBookletGutterSetting() : undefined;
 		const styleName = getRenderStyleDisplayName(style);
 		const pageSizeName = getPageSizeDisplayName(pageSize);
+		const layoutName = getPdfLayoutDisplayName(layout);
+
+		const renderArgs = buildPDFRenderArgs({ style, pageSize, layout, gutter }, inputPath);
 		outputChannel.appendLine(
-			`Running: ${serverPath.expectedLocation} render --style ${style} --page-size ${pageSize} ${inputPath}`,
+			`Running: ${serverPath.expectedLocation} ${renderArgs.join(" ")}`,
 		);
 		outputChannel.show(true);
 		renderDiagnostics?.delete(editor.document.uri);
 
-		await runDownstageRender(serverPath.command, style, pageSize, inputPath, outputChannel);
-		const message = `Rendered ${styleName} PDF (${pageSizeName}): ${path.basename(outputPath)}`;
+		await runDownstageRender(serverPath.command, renderArgs, path.dirname(inputPath), outputChannel);
+		const detail = layout === "single"
+			? `${styleName} PDF (${pageSizeName})`
+			: `${styleName} PDF (${layoutName}, ${pageSizeName})`;
+		const message = `Rendered ${detail}: ${path.basename(outputPath)}`;
 
 		if (!getOpenAfterRenderSetting()) {
 			void vscode.window.showInformationMessage(message);
@@ -666,7 +703,7 @@ async function renderCurrentScript(styleOverride?: string): Promise<void> {
 	}
 }
 
-async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
+async function previewCurrentScriptPdf(override: RenderOptions = {}): Promise<void> {
 	const editor = vscode.window.activeTextEditor;
 	if (!editor || editor.document.languageId !== "downstage") {
 		void vscode.window.showErrorMessage("Open a Downstage script before previewing.");
@@ -684,18 +721,22 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 
 	try {
 		const serverPath = await resolveServerCommand();
-		const style = getValidatedRenderStyle(styleOverride ?? getRenderStyleSetting());
+		const style = getValidatedRenderStyle(override.style ?? getRenderStyleSetting());
 		const pageSize = getValidatedPageSize(getRenderPageSizeSetting());
+		const layout = getValidatedPdfLayout(override.layout ?? "single");
+		const gutter = layout === "booklet" ? getBookletGutterSetting() : undefined;
 		const styleName = getRenderStyleDisplayName(style);
 		const pageSizeName = getPageSizeDisplayName(pageSize);
+		const layoutName = getPdfLayoutDisplayName(layout);
 		const sourceName = path.basename(inputPath);
 		const tempPath = path.join(
 			os.tmpdir(),
 			`downstage-preview-${path.basename(inputPath, ".ds")}.pdf`,
 		);
 
+		const previewArgs = buildPDFPreviewArgs({ style, pageSize, layout, gutter }, sourceName);
 		outputChannel.appendLine(
-			`Running: ${serverPath.expectedLocation} render --stdin --stdout --format pdf --style ${style} --page-size ${pageSize} --source-name ${sourceName}`,
+			`Running: ${serverPath.expectedLocation} ${previewArgs.join(" ")}`,
 		);
 		outputChannel.show(true);
 		renderDiagnostics?.delete(editor.document.uri);
@@ -704,7 +745,7 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 			let stderr = "";
 			const chunks: Buffer[] = [];
 
-			const child = spawn(serverPath.command, buildPDFPreviewArgs(style, pageSize, sourceName), {
+			const child = spawn(serverPath.command, previewArgs, {
 				cwd: path.dirname(inputPath),
 			});
 
@@ -748,8 +789,11 @@ async function previewCurrentScriptPdf(styleOverride?: string): Promise<void> {
 		});
 
 		await openRenderedPdf(vscode.Uri.file(tempPath));
+		const detail = layout === "single"
+			? `${styleName} preview (${pageSizeName})`
+			: `${styleName} preview (${layoutName}, ${pageSizeName})`;
 		void vscode.window.showInformationMessage(
-			`${styleName} preview (${pageSizeName}): ${path.basename(inputPath)}`,
+			`${detail}: ${path.basename(inputPath)}`,
 		);
 	} catch (error) {
 		if (error instanceof DownstageRenderError) {
@@ -776,16 +820,13 @@ function getRenderOutputChannel(): vscode.OutputChannel {
 
 async function runDownstageRender(
 	serverPath: string,
-	style: string,
-	pageSize: string,
-	inputPath: string,
+	renderArgs: string[],
+	cwd: string,
 	outputChannel: vscode.OutputChannel,
 ): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
 		let stderr = "";
-		const child = spawn(serverPath, buildPDFRenderArgs(style, pageSize, inputPath), {
-			cwd: path.dirname(inputPath),
-		});
+		const child = spawn(serverPath, renderArgs, { cwd });
 
 		const timeout = setTimeout(() => {
 			child.kill();

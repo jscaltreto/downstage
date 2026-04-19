@@ -3,6 +3,7 @@ package render
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -77,18 +78,80 @@ func (p PageSize) CondensedPageDimensions() (Dimensions, error) {
 	}
 }
 
+// PDFLayout controls how condensed logical pages are composed onto physical
+// sheets. `single` keeps the current one-logical-page-per-sheet behavior.
+// `2up` and `booklet` impose two logical pages per landscape sheet; booklet
+// additionally pads to a multiple of four and reorders for duplex printing.
+type PDFLayout string
+
+const (
+	LayoutSingle  PDFLayout = "single"
+	Layout2Up     PDFLayout = "2up"
+	LayoutBooklet PDFLayout = "booklet"
+)
+
+// ParsePDFLayout converts a string to a PDFLayout (case-insensitive).
+func ParsePDFLayout(s string) (PDFLayout, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case string(LayoutSingle):
+		return LayoutSingle, nil
+	case string(Layout2Up):
+		return Layout2Up, nil
+	case string(LayoutBooklet):
+		return LayoutBooklet, nil
+	default:
+		return "", fmt.Errorf("unsupported pdf layout: %q", s)
+	}
+}
+
+// ParseMeasurement parses a measurement string like "0.125in" or "3mm" and
+// returns the value in millimeters. Whitespace is tolerated.
+func ParseMeasurement(s string) (float64, error) {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return 0, fmt.Errorf("empty measurement")
+	}
+	var (
+		numStr string
+		unit   string
+	)
+	switch {
+	case strings.HasSuffix(trimmed, "mm"):
+		numStr = strings.TrimSpace(strings.TrimSuffix(trimmed, "mm"))
+		unit = "mm"
+	case strings.HasSuffix(trimmed, "in"):
+		numStr = strings.TrimSpace(strings.TrimSuffix(trimmed, "in"))
+		unit = "in"
+	default:
+		return 0, fmt.Errorf("measurement %q must end in 'in' or 'mm'", s)
+	}
+	v, err := strconv.ParseFloat(numStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number %q in measurement %q", numStr, s)
+	}
+	if v < 0 {
+		return 0, fmt.Errorf("measurement must be non-negative, got %q", s)
+	}
+	if unit == "in" {
+		return v * 25.4, nil
+	}
+	return v, nil
+}
+
 // Config holds rendering configuration.
 type Config struct {
-	PageSize      PageSize
-	Style         Style
-	FontFamily    string
-	FontPath      string // path to a custom TTF font file (optional)
-	FontSize      float64
-	MarginTop     float64 // points (72 points = 1 inch)
-	MarginBottom  float64
-	MarginLeft    float64
-	MarginRight   float64
-	SourceAnchors bool // emit data-source-line attributes on block elements
+	PageSize        PageSize
+	Style           Style
+	Layout          PDFLayout
+	BookletGutterMM float64 // inner gutter for booklet layout, in millimeters
+	FontFamily      string
+	FontPath        string // path to a custom TTF font file (optional)
+	FontSize        float64
+	MarginTop       float64 // points (72 points = 1 inch)
+	MarginBottom    float64
+	MarginLeft      float64
+	MarginRight     float64
+	SourceAnchors   bool // emit data-source-line attributes on block elements
 }
 
 // Validate checks that Config values are within acceptable ranges.
@@ -109,6 +172,9 @@ func (c Config) Validate() error {
 	if c.MarginRight < 0 {
 		errs = append(errs, fmt.Errorf("MarginRight must be >= 0, got %g", c.MarginRight))
 	}
+	if c.BookletGutterMM < 0 {
+		errs = append(errs, fmt.Errorf("BookletGutterMM must be >= 0, got %g", c.BookletGutterMM))
+	}
 	switch c.PageSize {
 	case PageLetter, PageA4:
 	default:
@@ -119,19 +185,29 @@ func (c Config) Validate() error {
 	default:
 		errs = append(errs, fmt.Errorf("unsupported Style: %q", c.Style))
 	}
+	switch c.Layout {
+	case LayoutSingle, Layout2Up, LayoutBooklet:
+	default:
+		errs = append(errs, fmt.Errorf("unsupported Layout: %q", c.Layout))
+	}
+	if c.Style == StyleStandard && (c.Layout == Layout2Up || c.Layout == LayoutBooklet) {
+		errs = append(errs, fmt.Errorf("layout %q is only supported for style %q", c.Layout, StyleCondensed))
+	}
 	return errors.Join(errs...)
 }
 
 // DefaultConfig returns a Config with standard play manuscript settings.
 func DefaultConfig() Config {
 	return Config{
-		PageSize:     PageLetter,
-		Style:        StyleStandard,
-		FontFamily:   "Courier",
-		FontSize:     12,
-		MarginTop:    72,
-		MarginBottom: 72,
-		MarginLeft:   72,
-		MarginRight:  72,
+		PageSize:        PageLetter,
+		Style:           StyleStandard,
+		Layout:          LayoutSingle,
+		BookletGutterMM: 3.175, // 0.125 in
+		FontFamily:      "Courier",
+		FontSize:        12,
+		MarginTop:       72,
+		MarginBottom:    72,
+		MarginLeft:      72,
+		MarginRight:     72,
 	}
 }

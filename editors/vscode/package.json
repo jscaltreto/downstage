@@ -69,6 +69,14 @@
         "title": "Downstage: Export Acting Edition PDF"
       },
       {
+        "command": "downstage.renderCondensedScript2Up",
+        "title": "Downstage: Export Acting Edition PDF (2-Up)"
+      },
+      {
+        "command": "downstage.renderCondensedScriptBooklet",
+        "title": "Downstage: Export Acting Edition PDF (Booklet)"
+      },
+      {
         "command": "downstage.previewCurrentScript",
         "title": "Downstage: Open Manuscript PDF Preview"
       },
@@ -121,6 +129,11 @@
           ],
           "default": "letter",
           "markdownDescription": "Default PDF page size for manuscript and acting edition export."
+        },
+        "downstage.render.bookletGutter": {
+          "type": "string",
+          "default": "0.125in",
+          "markdownDescription": "Inside gutter for booklet-layout Acting Edition export (e.g. `0.125in` or `3mm`). Booklet output is duplex: print double-sided, then fold in half."
         },
         "downstage.render.openAfterRender": {
           "type": "boolean",

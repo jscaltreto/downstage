@@ -82,7 +82,7 @@ test.describe("export", () => {
     await editor.setEditorContent(body);
     await expect(editor.exportPdfButton).toBeEnabled();
 
-    const download = await editor.downloadPdf("a4");
+    const download = await editor.downloadPdf({ pageSize: "a4" });
     const pdfPath = await download.path();
     const buf = await readFile(pdfPath!);
     expect(buf.slice(0, 5).toString("utf8")).toBe("%PDF-");
@@ -97,5 +97,64 @@ test.describe("export", () => {
     await editor.exportPdfButton.click();
     await expect(editor.exportDialog).toBeVisible();
     await expect(editor.pageSizeOption("a4")).toHaveAttribute("aria-checked", "true");
+  });
+
+  test("Manuscript hides Layout controls; Acting Edition shows them", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+
+    // Default style is Manuscript → layout section hidden.
+    await expect(editor.exportStyleOption("standard")).toHaveAttribute("aria-checked", "true");
+    await expect(editor.layoutGroup).toBeHidden();
+
+    // Switch to Acting Edition → layout appears.
+    await editor.exportStyleOption("condensed").click();
+    await expect(editor.layoutGroup).toBeVisible();
+    await expect(editor.gutterRow).toBeHidden();
+
+    // Booklet reveals the gutter control.
+    await editor.layoutOption("booklet").click();
+    await expect(editor.gutterRow).toBeVisible();
+
+    // Switching back to Manuscript hides both again and snaps layout back.
+    await editor.exportStyleOption("standard").click();
+    await expect(editor.layoutGroup).toBeHidden();
+    await expect(editor.gutterRow).toBeHidden();
+  });
+
+  test("Export PDF booklet with custom gutter produces a valid PDF and persists", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    const download = await editor.downloadPdf({
+      style: "condensed",
+      layout: "booklet",
+      gutterValue: 5,
+      gutterUnit: "mm",
+    });
+    expect(download.suggestedFilename()).toMatch(/acting-edition-booklet\.pdf$/);
+
+    const pdfPath = await download.path();
+    const buf = await readFile(pdfPath!);
+    expect(buf.slice(0, 5).toString("utf8")).toBe("%PDF-");
+    expect(buf.byteLength).toBeGreaterThan(1000);
+
+    const storedLayout = await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-layout"),
+    );
+    const storedGutter = await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-booklet-gutter"),
+    );
+    expect(storedLayout).toBe("booklet");
+    expect(storedGutter).toBe("5mm");
   });
 });

@@ -4,6 +4,7 @@ import AppWeb from "./AppWeb.vue";
 import { initWasm, upgradeV1 as upgradeV1Wasm } from "./wasm";
 import type {
   EditorEnv,
+  ExportPdfOptions,
   SavedDraft,
   ParseError,
   WasmDiagnostic,
@@ -92,8 +93,13 @@ class WebEnv implements EditorEnv {
     return window.downstage.renderHTML(source, style);
   }
 
-  async renderPDF(source: string, style?: string, pageSize?: string): Promise<Uint8Array> {
-    return window.downstage.renderPDF(source, style, pageSize);
+  async renderPDF(source: string, options: ExportPdfOptions): Promise<Uint8Array> {
+    return window.downstage.renderPDF(source, {
+      style: options.style,
+      pageSize: options.pageSize,
+      layout: options.layout,
+      gutter: options.bookletGutter,
+    });
   }
 
   async loadDrafts(): Promise<SavedDraft[]> {

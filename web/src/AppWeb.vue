@@ -4,7 +4,7 @@ import {
     Plus, FolderOpen, FileText, Download, Copy, ExternalLink, Trash2, FileOutput, Upload, AlertTriangle
 } from 'lucide-vue-next';
 import { Store } from './core/store';
-import type { EditorEnv, ExportPdfOptions, PdfPageSize, SavedDraft } from './core/types';
+import type { EditorEnv, ExportPdfOptions, PdfLayout, PdfPageSize, SavedDraft } from './core/types';
 import ToolbarButton from './components/shared/ToolbarButton.vue';
 import BaseModal from './components/shared/BaseModal.vue';
 import DeleteConfirmationModal from './components/shared/DeleteConfirmationModal.vue';
@@ -22,6 +22,8 @@ provide('store', store);
 
 const welcomeStorageKey = "downstage-editor-welcome-dismissed";
 const pageSizeStorageKey = "downstage-editor-export-page-size";
+const layoutStorageKey = "downstage-editor-export-layout";
+const gutterStorageKey = "downstage-editor-export-booklet-gutter";
 const letterRegions = new Set(["CA", "MX", "PH", "US"]);
 
 function guessDefaultPageSize(): PdfPageSize {
@@ -50,12 +52,38 @@ function readStoredPageSize(): PdfPageSize {
   return guessDefaultPageSize();
 }
 
+function readStoredLayout(): PdfLayout {
+  try {
+    const stored = localStorage.getItem(layoutStorageKey);
+    if (stored === "single" || stored === "2up" || stored === "booklet") {
+      return stored;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return "single";
+}
+
+function readStoredGutter(): string {
+  try {
+    const stored = localStorage.getItem(gutterStorageKey);
+    if (stored && /^-?[\d.]+\s*(in|mm)$/i.test(stored)) {
+      return stored;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return "0.125in";
+}
+
 const isLoaded = ref(false);
 const showDrafts = ref(false);
 const showWelcome = ref(false);
 const showNewPlayConfirm = ref(false);
 const showExportDialog = ref(false);
 const exportPageSize = ref<PdfPageSize>(readStoredPageSize());
+const exportLayout = ref<PdfLayout>(readStoredLayout());
+const exportGutter = ref<string>(readStoredGutter());
 const activeContent = ref("");
 const pageStyle = ref("standard");
 const isV1Document = ref(false);
@@ -309,17 +337,22 @@ function handleExport() {
 async function handleExportConfirmed(opts: ExportPdfOptions) {
     showExportDialog.value = false;
     exportPageSize.value = opts.pageSize;
+    exportLayout.value = opts.layout;
+    exportGutter.value = opts.bookletGutter;
     try {
         localStorage.setItem(pageSizeStorageKey, opts.pageSize);
+        localStorage.setItem(layoutStorageKey, opts.layout);
+        localStorage.setItem(gutterStorageKey, opts.bookletGutter);
     } catch {
         // ignore storage errors
     }
 
     const title = extractDocumentTitle(activeContent.value) || "untitled";
     const styleSlug = opts.style === "condensed" ? "acting-edition" : "manuscript";
-    const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}.pdf`;
+    const layoutSuffix = opts.layout === "single" ? "" : `-${opts.layout}`;
+    const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}${layoutSuffix}.pdf`;
 
-    const pdfBytes = await props.env.renderPDF(activeContent.value, opts.style, opts.pageSize);
+    const pdfBytes = await props.env.renderPDF(activeContent.value, opts);
     await props.env.saveFile(filename, pdfBytes, [
         { displayName: "PDF Files (*.pdf)", pattern: "*.pdf" }
     ]);
@@ -530,7 +563,12 @@ watch(activeContent, (newContent) => {
 
     <ExportPdfModal
         :open="showExportDialog"
-        :initial-options="{ pageSize: exportPageSize, style: pageStyle === 'condensed' ? 'condensed' : 'standard' }"
+        :initial-options="{
+          pageSize: exportPageSize,
+          style: pageStyle === 'condensed' ? 'condensed' : 'standard',
+          layout: pageStyle === 'condensed' ? exportLayout : 'single',
+          bookletGutter: exportGutter,
+        }"
         @close="showExportDialog = false"
         @confirm="handleExportConfirmed"
     />

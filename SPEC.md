@@ -578,6 +578,24 @@ PDF output supports `--page-size letter` (default) and `--page-size a4`.
 Manuscript layout renders on the selected physical sheet. Condensed layout
 derives its logical page from that sheet: half-letter for Letter, A5 for A4.
 
+### PDF Layout
+
+PDF output supports three layouts via `--pdf-layout`:
+
+- **single** (default): one logical page per sheet. Valid for both styles.
+- **2up**: two logical pages side-by-side on a landscape sheet. Condensed only.
+- **booklet**: landscape sheets in duplex booklet order; pages are padded to a
+  multiple of four and reordered so that printing double-sided and folding in
+  half yields a booklet. The back-cover slot is always reserved as blank —
+  when the source page count is already a multiple of four, an extra sheet of
+  padding is added so the last content page never lands opposite the title
+  page on the outer sheet. Condensed only.
+
+Booklet layout accepts `--gutter <measurement>` to control the inside gap
+between the two imposed pages on each sheet. Default `0.125in`. Accepts `in`
+and `mm` suffixes (e.g. `3mm`, `0.25in`). Booklet output preserves logical
+page numbers in footers so cross-references in the script remain readable.
+
 ### HTML Output
 
 HTML rendering produces a single self-contained `.html` file with an embedded stylesheet. The output uses semantic HTML with stable CSS class names for all major structures:
