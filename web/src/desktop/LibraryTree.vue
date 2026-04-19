@@ -20,6 +20,9 @@ const emit = defineEmits<{
   (e: 'select-file', path: string): void;
   (e: 'error', message: string): void;
   (e: 'info', message: string): void;
+  // parentPath = '' means create at library root; otherwise inside the
+  // given folder. Host (AppDesktop.vue) owns the prompt modal.
+  (e: 'request-new-folder', parentPath: string): void;
 }>();
 
 const renamingPath = ref<string | null>(null);
@@ -79,23 +82,9 @@ function closeContextMenu() {
   contextMenu.value = null;
 }
 
-async function contextNewFolder(parent: LibraryNode | null) {
+function contextNewFolder(parent: LibraryNode | null) {
   closeContextMenu();
-  const raw = typeof globalThis.prompt === 'function'
-    ? globalThis.prompt('Folder name')
-    : null;
-  const name = raw?.trim();
-  if (!name) return;
-  if (name.includes('/') || name.includes('\\')) {
-    emit('error', 'Folder names cannot contain slashes');
-    return;
-  }
-  const relPath = parent ? `${parent.path}/${name}` : name;
-  try {
-    await props.workspace.createFolder(relPath);
-  } catch (e: any) {
-    emit('error', `Failed to create folder: ${e?.message ?? e}`);
-  }
+  emit('request-new-folder', parent ? parent.path : '');
 }
 
 function onSelectFile(node: LibraryNode) {

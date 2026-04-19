@@ -20,6 +20,7 @@ import Editor from './components/shared/Editor.vue';
 import CommandPalette from './desktop/CommandPalette.vue';
 import Settings from './desktop/Settings.vue';
 import LibraryTree from './desktop/LibraryTree.vue';
+import PromptModal from './desktop/PromptModal.vue';
 import StatusBar from './desktop/StatusBar.vue';
 
 const props = defineProps<{
@@ -90,6 +91,44 @@ function openPalette(mode: 'command' | 'file' = 'command') {
 function openSettings(tab: 'library' | 'appearance' | 'spellcheck' = 'library') {
   settingsTab.value = tab;
   settingsOpen.value = true;
+}
+
+// New-folder prompt state. Single modal fanned in from both the
+// library-tree "New Folder" button (sidebar) and the palette-dispatched
+// `library.newFolder` command. `parentPath` is the folder the new one
+// will be created inside — empty string = library root.
+const newFolderOpen = ref(false);
+const newFolderParent = ref('');
+const newFolderError = ref<string | null>(null);
+
+function openNewFolderPrompt(parentPath = '') {
+  if (!workspace.state.libraryPath) {
+    toastManager.value?.addToast(
+      'No library open — set one in Settings > Library',
+      'error',
+    );
+    return;
+  }
+  newFolderParent.value = parentPath;
+  newFolderError.value = null;
+  newFolderOpen.value = true;
+}
+
+async function submitNewFolder(name: string) {
+  if (name.includes('/') || name.includes('\\')) {
+    newFolderError.value = 'Folder names cannot contain slashes';
+    return;
+  }
+  const parent = newFolderParent.value;
+  const relPath = parent ? `${parent}/${name}` : name;
+  try {
+    await workspace.createFolder(relPath);
+    newFolderOpen.value = false;
+    newFolderError.value = null;
+    toastManager.value?.addToast(`Created folder "${name}"`, 'success');
+  } catch (e: any) {
+    newFolderError.value = `Failed to create folder: ${e?.message ?? e}`;
+  }
 }
 
 let saveTimer: number | null = null;
@@ -230,6 +269,7 @@ onMounted(async () => {
       searchRequest,
       openPalette,
       openSettings,
+      openNewFolderPrompt,
     },
   };
   for (const [id, entry] of createCommandHandlers(ctx)) {
@@ -482,6 +522,7 @@ watch(activeContent, (newContent) => {
           @select-file="selectLibraryFile"
           @error="(message) => toastManager?.addToast(message, 'error')"
           @info="(message) => toastManager?.addToast(message, 'info')"
+          @request-new-folder="openNewFolderPrompt"
         />
 
         <!-- Revisions Section -->
@@ -693,6 +734,16 @@ watch(activeContent, (newContent) => {
       :env="env"
       @close="settingsOpen = false"
       @change-library="handleChangeLibraryLocation"
+    />
+    <PromptModal
+      :open="newFolderOpen"
+      title="New Folder"
+      :label="newFolderParent ? `Folder name in ${newFolderParent}` : 'Folder name'"
+      placeholder="Act One"
+      submit-label="Create folder"
+      :error="newFolderError"
+      @close="() => { newFolderOpen = false; newFolderError = null; }"
+      @submit="submitNewFolder"
     />
   </div>
 </template>

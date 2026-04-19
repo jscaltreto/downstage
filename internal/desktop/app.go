@@ -405,12 +405,19 @@ func (a *App) BrowserOpenURL(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)
 }
 
-// RevealLibraryInExplorer opens the current library directory in the host
-// OS's file explorer. Used by the status-bar library label and the
-// Settings > Library "Reveal in File Explorer" button. Execs the
-// platform-native command with the library path as a single argument —
-// no shell interpolation, so a path with spaces or special characters
-// is safe.
+// RevealLibraryInExplorer opens the current library directory in the
+// host OS's file manager. Used by the status-bar library label and
+// Settings > Library's "Reveal in File Explorer" button.
+//
+// Linux specifically targets a file manager, not just any registered
+// handler for `inode/directory`. `xdg-open` consults the user's MIME
+// associations, and users often have those bound to non-file-manager
+// tools (e.g. search apps like Catfish). The Freedesktop
+// `org.freedesktop.FileManager1.ShowFolders` D-Bus method is the
+// purpose-built API for "show me this folder in the file manager",
+// which Thunar, Nautilus, Dolphin, Nemo, and others implement. Fall
+// back to `xdg-open` only if the D-Bus call fails (e.g. no running
+// FileManager1 service), which on sane desktops should never happen.
 func (a *App) RevealLibraryInExplorer() error {
 	if a.currentLibrary == "" {
 		return fmt.Errorf("no library open")
@@ -419,21 +426,46 @@ func (a *App) RevealLibraryInExplorer() error {
 		return fmt.Errorf("library path unavailable: %w", err)
 	}
 
-	var cmd *exec.Cmd
 	switch goruntime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", a.currentLibrary)
+		return detachedExec(exec.Command("open", a.currentLibrary))
 	case "windows":
-		cmd = exec.Command("explorer", a.currentLibrary)
+		return detachedExec(exec.Command("explorer", a.currentLibrary))
 	case "linux":
-		cmd = exec.Command("xdg-open", a.currentLibrary)
+		return revealOnLinux(a.currentLibrary)
 	default:
 		return fmt.Errorf("reveal not supported on %s", goruntime.GOOS)
 	}
+}
+
+// revealOnLinux first tries the Freedesktop FileManager1 D-Bus method,
+// which dispatches to the running file manager (Thunar, Nautilus, etc.)
+// regardless of how the user has their `inode/directory` MIME type
+// bound. Falls back to `xdg-open` when the D-Bus call fails.
+func revealOnLinux(path string) error {
+	uri := "file://" + path
+	dbus := exec.Command(
+		"dbus-send",
+		"--session",
+		"--dest=org.freedesktop.FileManager1",
+		"--type=method_call",
+		"/org/freedesktop/FileManager1",
+		"org.freedesktop.FileManager1.ShowFolders",
+		"array:string:"+uri,
+		"string:",
+	)
+	if err := dbus.Run(); err == nil {
+		return nil
+	}
+	return detachedExec(exec.Command("xdg-open", path))
+}
+
+// detachedExec starts cmd and detaches its reaper so the parent isn't
+// blocked waiting for the file manager to exit.
+func detachedExec(cmd *exec.Cmd) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("reveal failed: %w", err)
 	}
-	// Detach — we don't want to wait for the file manager to exit.
 	go func() { _ = cmd.Wait() }()
 	return nil
 }
