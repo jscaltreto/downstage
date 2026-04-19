@@ -47,6 +47,7 @@ export interface CommandContext {
     searchRequest: Ref<{ mode: SearchMode; nonce: number }>;
     openPalette: (mode?: "command" | "file") => void;
     openSettings: (tab?: "library" | "appearance" | "spellcheck") => void;
+    openNewFolderPrompt: (parentPath?: string) => void;
   };
 }
 
@@ -171,30 +172,8 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     })();
   }
 
-  async function handleNewFolder() {
-    if (!workspace.state.libraryPath) {
-      toast.addToast("No library open — set one in Settings > Library", "error");
-      return;
-    }
-    // Library-relative default. The sidebar's New Folder button passes
-    // a name through this handler via a user-provided dialog in the
-    // host; invoking from the palette falls back to a simple prompt so
-    // there's *a* path to creating one without the sidebar.
-    const raw = typeof globalThis.prompt === "function"
-      ? globalThis.prompt("Folder name")
-      : null;
-    const name = raw?.trim();
-    if (!name) return;
-    if (name.includes("/") || name.includes("\\")) {
-      toast.addToast("Folder names cannot contain slashes", "error");
-      return;
-    }
-    try {
-      await workspace.createFolder(name);
-      toast.addToast(`Created folder "${name}"`, "success");
-    } catch (e: any) {
-      toast.addToast(`Failed to create folder: ${e?.message ?? e}`, "error");
-    }
+  function handleNewFolder() {
+    ui.openNewFolderPrompt();
   }
 
   return [

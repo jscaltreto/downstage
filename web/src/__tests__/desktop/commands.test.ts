@@ -64,6 +64,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
       drawerTab,
       searchRequest,
       openPalette: vi.fn(),
+      openNewFolderPrompt: vi.fn(),
       openSettings: vi.fn(),
     },
     ...overrides,
