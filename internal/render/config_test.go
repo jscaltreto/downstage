@@ -167,6 +167,11 @@ func TestParseMeasurement(t *testing.T) {
 		{name: "negative", input: "-1in", wantErr: true},
 		{name: "garbage", input: "xin", wantErr: true},
 		{name: "empty", input: "", wantErr: true},
+		{name: "NaN", input: "NaNmm", wantErr: true},
+		{name: "positive infinity", input: "Infin", wantErr: true},
+		{name: "negative infinity", input: "-Infmm", wantErr: true},
+		{name: "trailing garbage", input: "1xin", wantErr: true},
+		{name: "double decimal", input: "3..5mm", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

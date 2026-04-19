@@ -3,6 +3,7 @@ package render
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -128,6 +129,9 @@ func ParseMeasurement(s string) (float64, error) {
 	v, err := strconv.ParseFloat(numStr, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invalid number %q in measurement %q", numStr, s)
+	}
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0, fmt.Errorf("measurement %q must be a finite number", s)
 	}
 	if v < 0 {
 		return 0, fmt.Errorf("measurement must be non-negative, got %q", s)
