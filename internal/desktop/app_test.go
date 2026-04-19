@@ -802,38 +802,31 @@ func TestWindowState_DefaultZero(t *testing.T) {
 }
 
 // SaveWindowBounds persists size+position and sets Placed=true so the
-// restore path distinguishes "never moved" from legitimate (0, 0).
 func TestWindowState_SaveBoundsRoundTrip(t *testing.T) {
 	a := testAppWithConfig(t)
 
-	require.NoError(t, a.SaveWindowBounds(1400, 900, 120, 60))
+	require.NoError(t, a.SaveWindowBounds(1400, 900))
 
 	ws, err := a.GetWindowState()
 	require.NoError(t, err)
 	assert.Equal(t, 1400, ws.Width)
 	assert.Equal(t, 900, ws.Height)
-	assert.Equal(t, 120, ws.X)
-	assert.Equal(t, 60, ws.Y)
-	assert.True(t, ws.Placed)
-	assert.False(t, ws.Maximized)
 }
 
-// SaveWindowMaximized flips the flag without touching persisted bounds.
-// The maximize-then-quit path relies on this: we want the previous
-// normal bounds preserved for the next unmaximize.
-func TestWindowState_MaximizedDoesNotClobberBounds(t *testing.T) {
+// A pre-release config that still carries the dropped fields
+// (x, y, maximized, placed) must not break unmarshal. JSON ignores
+// unknown fields, so the read succeeds and the stale keys are silently
+// dropped on the next write.
+func TestWindowState_IgnoresLegacyFields(t *testing.T) {
 	a := testAppWithConfig(t)
 
-	require.NoError(t, a.SaveWindowBounds(1400, 900, 120, 60))
-	require.NoError(t, a.SaveWindowMaximized(true))
+	legacy := []byte(`{"windowState":{"width":1400,"height":900,"x":120,"y":60,"maximized":true,"placed":true}}`)
+	require.NoError(t, os.WriteFile(a.configPath, legacy, 0644))
 
 	ws, err := a.GetWindowState()
 	require.NoError(t, err)
-	assert.True(t, ws.Maximized)
 	assert.Equal(t, 1400, ws.Width)
 	assert.Equal(t, 900, ws.Height)
-	assert.Equal(t, 120, ws.X)
-	assert.Equal(t, 60, ws.Y)
 }
 
 // WindowState writes must not clobber Preferences or project fields.
@@ -847,7 +840,7 @@ func TestWindowState_DoesNotClobberOtherFields(t *testing.T) {
 		Preferences:           Preferences{Theme: "dark", SidebarCollapsed: true},
 	}))
 
-	require.NoError(t, a.SaveWindowBounds(1400, 900, 120, 60))
+	require.NoError(t, a.SaveWindowBounds(1400, 900))
 
 	cfg, err := a.readConfig()
 	require.NoError(t, err)
@@ -864,7 +857,7 @@ func TestChangeLibraryLocation_PreservesPrefsAndWindowState(t *testing.T) {
 	a := testAppWithConfig(t)
 
 	require.NoError(t, a.SetPreferences(Preferences{Theme: "dark", SidebarCollapsed: true}))
-	require.NoError(t, a.SaveWindowBounds(1400, 900, 120, 60))
+	require.NoError(t, a.SaveWindowBounds(1400, 900))
 
 	// Simulate the project-switch path — the same mutator
 	// ChangeLibraryLocation uses.
@@ -880,7 +873,6 @@ func TestChangeLibraryLocation_PreservesPrefsAndWindowState(t *testing.T) {
 	assert.Equal(t, "dark", cfg.Preferences.Theme)
 	assert.True(t, cfg.Preferences.SidebarCollapsed)
 	assert.Equal(t, 1400, cfg.WindowState.Width)
-	assert.True(t, cfg.WindowState.Placed)
 }
 
 // Concurrent writers across subtrees (Preferences vs WindowState)
@@ -901,7 +893,7 @@ func TestConfig_ConcurrentSubtreeWritesPreserveBoth(t *testing.T) {
 	}()
 	go func() {
 		for i := 0; i < iterations; i++ {
-			_ = a.SaveWindowBounds(1200, 800, 10, 20)
+			_ = a.SaveWindowBounds(1200, 800)
 		}
 		done <- struct{}{}
 	}()
@@ -914,7 +906,6 @@ func TestConfig_ConcurrentSubtreeWritesPreserveBoth(t *testing.T) {
 	assert.Equal(t, "dark", cfg.Preferences.Theme)
 	assert.Equal(t, 1200, cfg.WindowState.Width)
 	assert.Equal(t, 800, cfg.WindowState.Height)
-	assert.True(t, cfg.WindowState.Placed)
 }
 
 // ShowAboutDialog must not panic when Wails hasn't initialized the
