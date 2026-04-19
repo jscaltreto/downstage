@@ -53,23 +53,15 @@ type Preferences struct {
 	DrawerRightWidth int    `json:"drawerRightWidth,omitempty"` // px; 0 → frontend default 360
 }
 
-// WindowState persists window geometry so the desktop app reopens where
-// the user left it. Kept as a separate top-level Config field (not nested
-// in Preferences) because geometry is written on a different cadence
-// than UI prefs — live-updated on resize/move, not on user action —
-// and the frontend's prefs-cache atomicity contract should not drag
-// window state along for the ride.
-//
-// Placed is the "has the user ever moved this window?" guard. Without
-// it, a stored (0, 0) is indistinguishable from "no saved position,
-// default is fine" and we'd needlessly move the window on first run.
+// WindowState persists the initial window size so the desktop app
+// reopens at the last-used dimensions. Position and maximize state
+// are deliberately not persisted — on Wayland compositors, requesting
+// either forces the window into floating/fullscreen mode that bypasses
+// tiling rules. Compositors own placement; the app only reports a
+// preferred size at startup.
 type WindowState struct {
-	Width     int  `json:"width,omitempty"`
-	Height    int  `json:"height,omitempty"`
-	X         int  `json:"x,omitempty"`
-	Y         int  `json:"y,omitempty"`
-	Maximized bool `json:"maximized,omitempty"`
-	Placed    bool `json:"placed,omitempty"`
+	Width  int `json:"width,omitempty"`
+	Height int `json:"height,omitempty"`
 }
 
 // Config stores persistent user preferences across sessions.
@@ -120,7 +112,6 @@ func NewApp() *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	a.initApp()
-	a.restoreWindowState()
 }
 
 func (a *App) initApp() {
@@ -313,25 +304,21 @@ func (a *App) GetWindowState() (WindowState, error) {
 	return cfg.WindowState, nil
 }
 
-// SaveWindowBounds persists the window's current Width/Height/X/Y. The
-// caller is responsible for verifying that the window is unmaximized
-// — saving maximized bounds would clobber the last-known "normal" size.
-// SaveWindowBoundsIfNormal does that check internally; SaveWindowBounds
-// is the unchecked form exposed for tests.
-func (a *App) SaveWindowBounds(width, height, x, y int) error {
+// SaveWindowBounds persists the window's current Width and Height.
+// Exposed for tests; production callers should use
+// SaveWindowBoundsIfNormal which adds a maximize guard.
+func (a *App) SaveWindowBounds(width, height int) error {
 	return a.updateConfig(func(c *Config) {
 		c.WindowState.Width = width
 		c.WindowState.Height = height
-		c.WindowState.X = x
-		c.WindowState.Y = y
-		c.WindowState.Placed = true
 	})
 }
 
-// SaveWindowBoundsIfNormal reads the current geometry from the Wails
+// SaveWindowBoundsIfNormal reads the current size from the Wails
 // runtime and persists it only if the window is unmaximized. Called
 // from the frontend on debounced window-resize events, so we never
 // overwrite the last-known normal size with a maximized screen rect.
+// Position is deliberately not captured — see WindowState's comment.
 func (a *App) SaveWindowBoundsIfNormal() error {
 	if a.ctx == nil {
 		return nil
@@ -340,41 +327,7 @@ func (a *App) SaveWindowBoundsIfNormal() error {
 		return nil
 	}
 	w, h := runtime.WindowGetSize(a.ctx)
-	x, y := runtime.WindowGetPosition(a.ctx)
-	return a.SaveWindowBounds(w, h, x, y)
-}
-
-// SaveWindowMaximized flips the Maximized flag without touching the
-// stored bounds. BeforeClose calls this so a maximize-then-quit cycle
-// remembers "restore to maximized" while keeping the previous normal
-// bounds intact for the eventual un-maximize.
-func (a *App) SaveWindowMaximized(maximized bool) error {
-	return a.updateConfig(func(c *Config) {
-		c.WindowState.Maximized = maximized
-	})
-}
-
-// restoreWindowState is called from Startup after the webview exists.
-// Initial size comes through options.App (read in main.go); position
-// and maximize go through the runtime here because they have no
-// options counterpart.
-//
-// Wails v2's Screen API exposes logical-pixel sizes but not per-screen
-// origins, so we can't rigorously check "is this point on a display".
-// The OS window manager clamps absurd coordinates to the nearest
-// display on restore, which is an acceptable fallback.
-func (a *App) restoreWindowState() {
-	if a.ctx == nil {
-		return
-	}
-	ws, err := a.GetWindowState()
-	if err != nil || !ws.Placed {
-		return
-	}
-	runtime.WindowSetPosition(a.ctx, ws.X, ws.Y)
-	if ws.Maximized {
-		runtime.WindowMaximise(a.ctx)
-	}
+	return a.SaveWindowBounds(w, h)
 }
 
 // safePath validates that relPath resolves to a location inside the library
@@ -578,7 +531,6 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 	// budget. Doing it first guarantees geometry is persisted even if
 	// the frontend flush stalls and we time out.
 	_ = a.SaveWindowBoundsIfNormal()
-	_ = a.SaveWindowMaximized(runtime.WindowIsMaximised(ctx))
 
 	done := make(chan struct{})
 	runtime.EventsOnce(ctx, eventFlushComplete, func(_ ...interface{}) {

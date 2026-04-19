@@ -24,9 +24,8 @@ func main() {
 	// Pick the initial window size from persisted state if it looks
 	// sane. Fall back to the default when no state exists, when the
 	// stored dimensions are suspiciously small, or when reading fails.
-	// Position and maximize restore happen after OnStartup (see
-	// app.restoreWindowState) because Wails has no options-level hook
-	// for either.
+	// Only size is persisted — see WindowState's comment for why
+	// position and maximize state are deliberately omitted.
 	width, height := 1024, 768
 	if ws, err := app.GetWindowState(); err == nil {
 		if ws.Width >= 400 && ws.Height >= 400 {
