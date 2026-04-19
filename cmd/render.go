@@ -167,10 +167,14 @@ func runRender(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer closer()
 
 	if err := renderTo(writer, nr, doc, cfg); err != nil {
+		closer() // best-effort; don't clobber the render error
 		return fmt.Errorf("rendering: %w", err)
+	}
+
+	if err := closer(); err != nil {
+		return fmt.Errorf("closing output: %w", err)
 	}
 
 	if renderStdout {
@@ -192,9 +196,12 @@ func gutterExplicitlySet(cmd *cobra.Command) bool {
 	return renderGutter != defaultGutter
 }
 
-func openOutput(filename string) (io.Writer, func(), error) {
+// openOutput returns the target writer and a closer that surfaces any
+// Close() error (so disk flush failures don't pass silently). For stdout
+// the closer is a no-op.
+func openOutput(filename string) (io.Writer, func() error, error) {
 	if renderStdout {
-		return os.Stdout, func() {}, nil
+		return os.Stdout, func() error { return nil }, nil
 	}
 	if renderOutput == "" {
 		renderOutput = strings.TrimSuffix(filename, filepath.Ext(filename)) + "." + renderFormat
@@ -203,7 +210,7 @@ func openOutput(filename string) (io.Writer, func(), error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating output file: %w", err)
 	}
-	return f, func() { f.Close() }, nil
+	return f, f.Close, nil
 }
 
 // renderTo writes the rendered document to w. For non-single PDF layouts it
