@@ -96,6 +96,8 @@ const (
 	CmdFormatSong      = "format.song"
 	CmdFormatPageBreak = "format.pageBreak"
 
+	CmdLibraryNewFolder = "library.newFolder"
+
 	CmdHelpToggle = "help.toggle"
 	CmdHelpGitHub = "help.github"
 	CmdHelpDocs   = "help.docs"
@@ -149,6 +151,9 @@ func Commands() []Command {
 		{ID: CmdFormatScene, Label: "Scene Heading", Category: CategoryFormat, MenuPath: []string{"Format"}},
 		{ID: CmdFormatSong, Label: "Song Block", Category: CategoryFormat, MenuPath: []string{"Format"}},
 		{ID: CmdFormatPageBreak, Label: "Page Break", Category: CategoryFormat, MenuPath: []string{"Format"}},
+
+		// Library (palette + sidebar only; no menu entry)
+		{ID: CmdLibraryNewFolder, Label: "New Folder", Category: CategoryFile},
 
 		// Help
 		{ID: CmdHelpToggle, Label: "View Help", Category: CategoryHelp, Accelerator: "cmdorctrl+shift+/", MenuPath: []string{"Help"}},

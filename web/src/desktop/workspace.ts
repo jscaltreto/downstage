@@ -1,11 +1,17 @@
-import { reactive } from "vue";
-import type { DesktopCapabilities, FileGitStatus, LibraryFile, Revision } from "./types";
+import { computed, reactive, type ComputedRef } from "vue";
+import type { DesktopCapabilities, FileGitStatus, LibraryFile, LibraryNode, Revision } from "./types";
 
 export type DrawerDock = 'bottom' | 'right';
 
 export interface WorkspaceState {
   libraryPath: string | null;
-  libraryFiles: LibraryFile[];
+  // The nested library tree. Authoritative state — `libraryFiles` is a
+  // computed flat derivation used by flat-file consumers (palette file
+  // mode, navigate.nextFile/prevFile/goToFile).
+  libraryTree: LibraryNode[];
+  // Folder paths that are currently expanded in the sidebar tree.
+  // Session-only for v1; not persisted across launches.
+  expandedFolders: Set<string>;
   activeFile: string | null;
   revisions: Revision[];
   sidebarCollapsed: boolean;
@@ -75,6 +81,13 @@ function isNothingToSnapshotError(e: unknown): boolean {
 
 export class Workspace {
   public state: WorkspaceState;
+  // libraryFiles is a reactive computed flat listing derived from
+  // libraryTree. Traversal order: folders alpha-first, files alpha
+  // within each level. Kept as a separate surface so
+  // CommandPalette file mode and navigate.{next,prev,goToFile} —
+  // which treat the library as a flat list — don't need to walk the
+  // tree themselves on every access.
+  public libraryFiles: ComputedRef<LibraryFile[]>;
 
   // hydrated guards any persistence side effects that might otherwise fire
   // during the window between constructor and init() completion. The
@@ -92,7 +105,8 @@ export class Workspace {
   constructor(private env: DesktopCapabilities) {
     this.state = reactive<WorkspaceState>({
       libraryPath: null,
-      libraryFiles: [],
+      libraryTree: [],
+      expandedFolders: new Set<string>(),
       activeFile: null,
       revisions: [],
       // Placeholder. Real values come from env pref reads in init.
@@ -109,12 +123,14 @@ export class Workspace {
       viewingRevisionMeta: null,
       externalFile: null,
     });
+
+    this.libraryFiles = computed(() => flattenLibraryTree(this.state.libraryTree));
   }
 
   async init() {
     this.state.libraryPath = await this.env.getCurrentLibrary();
     if (this.state.libraryPath) {
-      this.state.libraryFiles = await this.env.getLibraryFiles();
+      this.state.libraryTree = await this.env.getLibraryTree();
       this.state.spellAllowlist = await this.env.getSpellAllowlist();
     }
     this.state.sidebarCollapsed = await this.env.getSidebarCollapsed();
@@ -139,7 +155,7 @@ export class Workspace {
     this.state.externalFile = null;
     this.cancelDirtyReconcile();
     this.clearRevisionView();
-    this.state.libraryFiles = await this.env.getLibraryFiles();
+    this.state.libraryTree = await this.env.getLibraryTree();
     // Allowlist is library-scoped — reload after a library switch.
     this.state.spellAllowlist = await this.env.getSpellAllowlist();
     return path;
@@ -197,12 +213,71 @@ export class Workspace {
       throw new Error("no external file to add");
     }
     const newRel = await this.env.addExternalFileToLibrary(external.absPath, destRelDir);
-    this.state.libraryFiles = await this.env.getLibraryFiles();
+    this.state.libraryTree = await this.env.getLibraryTree();
     // Clear external state before selectFile so the editor transitions
     // cleanly from read-only external view to editable library file.
     this.state.externalFile = null;
     await this.selectFile(newRel);
     return newRel;
+  }
+
+  async createFolder(relPath: string): Promise<void> {
+    await this.env.createLibraryFolder(relPath);
+    this.state.libraryTree = await this.env.getLibraryTree();
+    // Auto-expand every ancestor of the new folder so the user sees it
+    // land where they created it.
+    let prefix = "";
+    for (const segment of relPath.split("/")) {
+      prefix = prefix ? `${prefix}/${segment}` : segment;
+      this.state.expandedFolders.add(prefix);
+    }
+  }
+
+  async moveEntry(src: string, dst: string): Promise<string> {
+    const newPath = await this.env.moveLibraryEntry(src, dst);
+    this.state.libraryTree = await this.env.getLibraryTree();
+    this.retargetActiveFile(src, newPath);
+    return newPath;
+  }
+
+  async renameEntry(src: string, newName: string): Promise<string> {
+    const newPath = await this.env.renameLibraryEntry(src, newName);
+    this.state.libraryTree = await this.env.getLibraryTree();
+    this.retargetActiveFile(src, newPath);
+    return newPath;
+  }
+
+  // retargetActiveFile updates state.activeFile after a move or rename.
+  // Three cases:
+  //   - activeFile === src: the file itself moved.
+  //   - activeFile starts with `src + "/"`: active lives inside a
+  //     moved folder. Prefix-substitute, not string-replace — the "/"
+  //     guard prevents `foo.ds` getting rewritten when `foo` is moved.
+  //   - otherwise: no change.
+  // Also clears viewingRevision* if the active file moved, since the
+  // revision view's identifier is the now-invalid old path.
+  private retargetActiveFile(src: string, dst: string): void {
+    const active = this.state.activeFile;
+    if (active === null) return;
+    let nextActive: string | null = null;
+    if (active === src) {
+      nextActive = dst;
+    } else if (active.startsWith(src + "/")) {
+      nextActive = dst + active.slice(src.length);
+    }
+    if (nextActive === null) return;
+    this.state.activeFile = nextActive;
+    this.clearRevisionView();
+    void this.env.setActiveLibraryFile(nextActive);
+    void this.refreshGitStatus();
+  }
+
+  toggleFolderExpansion(relPath: string): void {
+    if (this.state.expandedFolders.has(relPath)) {
+      this.state.expandedFolders.delete(relPath);
+    } else {
+      this.state.expandedFolders.add(relPath);
+    }
   }
 
   closeExternalFile(): void {
@@ -222,7 +297,7 @@ export class Workspace {
 
   async createFile(name: string, content: string): Promise<string> {
     const path = await this.env.createLibraryFile(name, content);
-    this.state.libraryFiles = await this.env.getLibraryFiles();
+    this.state.libraryTree = await this.env.getLibraryTree();
     return path;
   }
 
@@ -458,4 +533,30 @@ function clampSidebarWidth(px: number): number {
 function clampDrawerRightWidth(px: number): number {
   if (!Number.isFinite(px)) return defaultDrawerRightWidth;
   return Math.max(minDrawerRightWidth, Math.min(maxDrawerRightWidth, Math.round(px)));
+}
+
+// flattenLibraryTree walks the tree in a folders-before-files order
+// (matching GetLibraryTree's sort) and emits every `.ds` file as a
+// LibraryFile. Consumers that think in flat terms (command palette
+// file mode, navigate.{next,prev,goToFile}) read this instead of
+// walking the tree themselves. Nested files appear after their parent
+// folder's own children but before any sibling folder's files — which
+// is what falls out of an in-order traversal.
+export function flattenLibraryTree(nodes: readonly LibraryNode[]): LibraryFile[] {
+  const out: LibraryFile[] = [];
+  const walk = (ns: readonly LibraryNode[]) => {
+    for (const n of ns) {
+      if (n.kind === "folder") {
+        if (n.children) walk(n.children);
+        continue;
+      }
+      out.push({
+        path: n.path,
+        name: n.name,
+        updatedAt: n.updatedAt ?? "",
+      });
+    }
+  };
+  walk(nodes);
+  return out;
 }

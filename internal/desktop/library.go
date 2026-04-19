@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -15,11 +16,26 @@ import (
 
 const dictionaryPath = ".downstage/dictionary.txt"
 
-// LibraryFile represents a .ds file in the library directory.
+// LibraryFile represents a .ds file in the library directory. Kept as
+// the wire type returned inside `LibraryNode.Kind == "file"` children;
+// paths use forward-slash separators so the frontend can do path math
+// without branching on platform.
 type LibraryFile struct {
 	Path      string `json:"path"`
 	Name      string `json:"name"`
 	UpdatedAt string `json:"updatedAt"`
+}
+
+// LibraryNode is a single entry in the library tree returned by
+// GetLibraryTree. Folders carry Children; files carry UpdatedAt. Path is
+// always library-root-relative with forward-slash separators. Kind is
+// "folder" or "file" — the frontend branches on it.
+type LibraryNode struct {
+	Path      string        `json:"path"`
+	Name      string        `json:"name"`
+	Kind      string        `json:"kind"`
+	Children  []LibraryNode `json:"children,omitempty"`
+	UpdatedAt string        `json:"updatedAt,omitempty"`
 }
 
 // ChangeLibraryLocation shows a folder picker and switches the active
@@ -52,59 +68,155 @@ func (a *App) ChangeLibraryLocation() (string, error) {
 	return selection, nil
 }
 
-func (a *App) GetLibraryFiles() ([]LibraryFile, error) {
-	// Always return a non-nil slice — encoding/json serializes a nil
-	// slice as `null`, which the frontend reads as null and crashes on
-	// `.length`. An empty library (no .ds files yet, common on a fresh
-	// install) must surface as `[]` to JS.
+// GetLibraryTree returns the library as a nested tree: folders first
+// (alpha per level), then files (alpha per level). `.git` and
+// `.downstage` are skipped, and only `.ds` files appear as leaves.
+// Always returns a non-nil slice so the frontend's `.length` / `.map`
+// are safe on a fresh install.
+func (a *App) GetLibraryTree() ([]LibraryNode, error) {
 	if a.currentLibrary == "" {
-		return []LibraryFile{}, nil
+		return []LibraryNode{}, nil
 	}
+	nodes, err := buildLibraryChildren(a.currentLibrary, "")
+	if err != nil {
+		return []LibraryNode{}, err
+	}
+	return nodes, nil
+}
 
-	files := []LibraryFile{}
-	walkErr := filepath.WalkDir(a.currentLibrary, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			// A single unreadable dir (permissions, IO) should not abort
-			// the whole listing — log and continue.
-			slog.Warn("library walk: skipping", "path", path, "err", err)
-			if d != nil && d.IsDir() {
-				return filepath.SkipDir
+// buildLibraryChildren reads the entries at root/relDir and returns the
+// LibraryNode children sorted folders-first then files-alpha. Nested
+// folders recurse.
+func buildLibraryChildren(root, relDir string) ([]LibraryNode, error) {
+	fullDir := filepath.Join(root, relDir)
+	entries, err := os.ReadDir(fullDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return []LibraryNode{}, nil
+		}
+		return []LibraryNode{}, err
+	}
+	folders := []LibraryNode{}
+	files := []LibraryNode{}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() {
+			if name == ".git" || name == ".downstage" {
+				continue
 			}
-			return nil
-		}
-		if d.IsDir() {
-			if name := d.Name(); name == ".git" || name == ".downstage" {
-				return filepath.SkipDir
+			childRel := filepath.ToSlash(filepath.Join(relDir, name))
+			children, err := buildLibraryChildren(root, filepath.Join(relDir, name))
+			if err != nil {
+				slog.Warn("library tree: skipping folder", "path", childRel, "err", err)
+				continue
 			}
-			return nil
+			folders = append(folders, LibraryNode{
+				Path:     childRel,
+				Name:     name,
+				Kind:     "folder",
+				Children: children,
+			})
+			continue
 		}
-		if !strings.HasSuffix(d.Name(), ".ds") {
-			return nil
+		if !strings.HasSuffix(name, ".ds") {
+			continue
 		}
-		info, err := d.Info()
+		info, err := e.Info()
 		if err != nil {
-			slog.Warn("library walk: stat failed", "path", path, "err", err)
-			return nil
+			slog.Warn("library tree: stat failed", "name", name, "err", err)
+			continue
 		}
-		rel, err := filepath.Rel(a.currentLibrary, path)
-		if err != nil {
-			return err
-		}
-		files = append(files, LibraryFile{
-			Path:      rel,
-			Name:      info.Name(),
+		childRel := filepath.ToSlash(filepath.Join(relDir, name))
+		files = append(files, LibraryNode{
+			Path:      childRel,
+			Name:      name,
+			Kind:      "file",
 			UpdatedAt: info.ModTime().Format(time.RFC3339),
 		})
-		return nil
-	})
-	if walkErr != nil {
-		return files, walkErr
 	}
-
-	sort.SliceStable(files, func(i, j int) bool {
-		return strings.ToLower(files[i].Path) < strings.ToLower(files[j].Path)
+	sort.SliceStable(folders, func(i, j int) bool {
+		return strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
 	})
-	return files, nil
+	sort.SliceStable(files, func(i, j int) bool {
+		return strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name)
+	})
+	out := make([]LibraryNode, 0, len(folders)+len(files))
+	out = append(out, folders...)
+	out = append(out, files...)
+	return out, nil
+}
+
+// CreateLibraryFolder creates a new folder inside the library. Unlike
+// CreateLibraryFile, the name is taken as-is — no collision suffix,
+// because folder creation is an explicit user action and a silent
+// rename would be surprising. Returns an error if the path exists.
+func (a *App) CreateLibraryFolder(relPath string) error {
+	fullPath, err := a.safePath(relPath)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(fullPath); err == nil {
+		return fmt.Errorf("a file or folder already exists at %q", relPath)
+	}
+	return os.MkdirAll(fullPath, 0755)
+}
+
+// MoveLibraryEntry moves srcRel to dstRel inside the library. Rejects
+// when the destination already exists (no overwrite, no auto-suffix)
+// and when the destination would land inside the source (can't move a
+// folder into itself). Returns the new rel path with forward slashes
+// so the frontend can update its active-file tracking.
+func (a *App) MoveLibraryEntry(srcRel, dstRel string) (string, error) {
+	srcFull, err := a.safePath(srcRel)
+	if err != nil {
+		return "", fmt.Errorf("source: %w", err)
+	}
+	dstFull, err := a.safePath(dstRel)
+	if err != nil {
+		return "", fmt.Errorf("destination: %w", err)
+	}
+	if _, err := os.Stat(srcFull); err != nil {
+		return "", fmt.Errorf("stat source: %w", err)
+	}
+	if _, err := os.Stat(dstFull); err == nil {
+		return "", fmt.Errorf("a file or folder already exists at %q", dstRel)
+	}
+	// Reject "move folder into itself" before calling Rename.
+	srcClean := filepath.Clean(srcFull)
+	dstClean := filepath.Clean(dstFull)
+	if pathInsideRoot(dstClean, srcClean) {
+		return "", fmt.Errorf("cannot move a folder into itself")
+	}
+	if err := os.MkdirAll(filepath.Dir(dstFull), 0755); err != nil {
+		return "", fmt.Errorf("make destination dir: %w", err)
+	}
+	if err := os.Rename(srcFull, dstFull); err != nil {
+		return "", fmt.Errorf("rename: %w", err)
+	}
+	return filepath.ToSlash(filepath.Clean(dstRel)), nil
+}
+
+// RenameLibraryEntry renames srcRel's basename to newName, preserving
+// its parent directory. newName must not contain separators. Returns
+// the new rel path with forward slashes.
+func (a *App) RenameLibraryEntry(srcRel, newName string) (string, error) {
+	if newName == "" {
+		return "", fmt.Errorf("new name is empty")
+	}
+	if strings.ContainsRune(newName, '/') || strings.ContainsRune(newName, filepath.Separator) {
+		return "", fmt.Errorf("new name must not contain path separators")
+	}
+	if newName == "." || newName == ".." {
+		return "", fmt.Errorf("invalid new name")
+	}
+	parent := filepath.ToSlash(filepath.Dir(filepath.Clean(srcRel)))
+	var dstRel string
+	if parent == "." || parent == "/" {
+		dstRel = newName
+	} else {
+		dstRel = parent + "/" + newName
+	}
+	return a.MoveLibraryEntry(srcRel, dstRel)
 }
 
 func (a *App) ReadLibraryFile(relPath string) (string, error) {

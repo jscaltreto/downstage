@@ -286,7 +286,7 @@ func TestCreateLibraryFile_PreservesSuffix(t *testing.T) {
 	assert.Equal(t, "play.ds", path)
 }
 
-func TestGetLibraryFiles_Filters(t *testing.T) {
+func TestGetLibraryTree_Filters(t *testing.T) {
 	a := testApp(t)
 
 	os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("test"), 0644)
@@ -297,35 +297,34 @@ func TestGetLibraryFiles_Filters(t *testing.T) {
 	os.MkdirAll(gitDir, 0755)
 	os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref"), 0644)
 
-	files, err := a.GetLibraryFiles()
+	nodes, err := a.GetLibraryTree()
 	require.NoError(t, err)
-	require.Len(t, files, 1)
-	assert.Equal(t, "play.ds", files[0].Name)
+	require.Len(t, nodes, 1)
+	assert.Equal(t, "play.ds", nodes[0].Name)
+	assert.Equal(t, "file", nodes[0].Kind)
 }
 
-func TestGetLibraryFiles_EmptyLibraryReturnsEmptySlice(t *testing.T) {
-	// Regression: `var files []LibraryFile` returned a nil slice when no
-	// .ds files existed, which JSON-serialized as `null` and crashed the
-	// frontend's `.length` read on first launch of a fresh project.
+func TestGetLibraryTree_EmptyLibraryReturnsEmptySlice(t *testing.T) {
+	// Regression: return a non-nil slice so JSON serializes as [] and
+	// the frontend's `.length` / `.map` are safe.
 	a := testApp(t)
 
-	files, err := a.GetLibraryFiles()
+	nodes, err := a.GetLibraryTree()
 	require.NoError(t, err)
-	require.NotNil(t, files, "must return non-nil slice so JSON emits []")
-	require.Len(t, files, 0)
+	require.NotNil(t, nodes)
+	require.Len(t, nodes, 0)
 }
 
-func TestGetLibraryFiles_NoLibraryReturnsEmptySlice(t *testing.T) {
-	// Same regression guard for the "no library open" short-circuit.
+func TestGetLibraryTree_NoLibraryReturnsEmptySlice(t *testing.T) {
 	a := &App{}
 
-	files, err := a.GetLibraryFiles()
+	nodes, err := a.GetLibraryTree()
 	require.NoError(t, err)
-	require.NotNil(t, files)
-	require.Len(t, files, 0)
+	require.NotNil(t, nodes)
+	require.Len(t, nodes, 0)
 }
 
-func TestGetLibraryFiles_SkipsDownstageDir(t *testing.T) {
+func TestGetLibraryTree_SkipsDownstageDir(t *testing.T) {
 	a := testApp(t)
 
 	os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("test"), 0644)
@@ -333,10 +332,128 @@ func TestGetLibraryFiles_SkipsDownstageDir(t *testing.T) {
 	os.MkdirAll(dsDir, 0755)
 	os.WriteFile(filepath.Join(dsDir, "internal.ds"), []byte("test"), 0644)
 
-	files, err := a.GetLibraryFiles()
+	nodes, err := a.GetLibraryTree()
 	require.NoError(t, err)
-	require.Len(t, files, 1)
-	assert.Equal(t, "play.ds", files[0].Name)
+	require.Len(t, nodes, 1)
+	assert.Equal(t, "play.ds", nodes[0].Name)
+}
+
+func TestGetLibraryTree_NestsFoldersFirstAlpha(t *testing.T) {
+	a := testApp(t)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(a.currentLibrary, "b-folder"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(a.currentLibrary, "a-folder"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "a-folder", "nested.ds"), []byte("x"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "c.ds"), []byte("x"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "b.ds"), []byte("x"), 0644))
+
+	nodes, err := a.GetLibraryTree()
+	require.NoError(t, err)
+	require.Len(t, nodes, 4)
+
+	// Folders first, alpha within.
+	assert.Equal(t, "a-folder", nodes[0].Name)
+	assert.Equal(t, "folder", nodes[0].Kind)
+	assert.Equal(t, "b-folder", nodes[1].Name)
+	// Then files, alpha.
+	assert.Equal(t, "b.ds", nodes[2].Name)
+	assert.Equal(t, "c.ds", nodes[3].Name)
+
+	// Nested file lives under the folder's Children.
+	require.Len(t, nodes[0].Children, 1)
+	assert.Equal(t, "nested.ds", nodes[0].Children[0].Name)
+	assert.Equal(t, "a-folder/nested.ds", nodes[0].Children[0].Path)
+}
+
+// --- Folder operations ---
+
+func TestCreateLibraryFolder_CreatesDirectory(t *testing.T) {
+	a := testApp(t)
+
+	require.NoError(t, a.CreateLibraryFolder("act-one"))
+	info, err := os.Stat(filepath.Join(a.currentLibrary, "act-one"))
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+}
+
+func TestCreateLibraryFolder_RejectsExistingPath(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "exists"), []byte("x"), 0644))
+
+	err := a.CreateLibraryFolder("exists")
+	assert.Error(t, err)
+}
+
+func TestCreateLibraryFolder_RejectsTraversal(t *testing.T) {
+	a := testApp(t)
+	err := a.CreateLibraryFolder("../outside")
+	assert.Error(t, err)
+}
+
+func TestMoveLibraryEntry_MovesFile(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("x"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(a.currentLibrary, "archive"), 0755))
+
+	newPath, err := a.MoveLibraryEntry("play.ds", "archive/play.ds")
+	require.NoError(t, err)
+	assert.Equal(t, "archive/play.ds", newPath)
+
+	_, err = os.Stat(filepath.Join(a.currentLibrary, "play.ds"))
+	assert.True(t, os.IsNotExist(err))
+	_, err = os.Stat(filepath.Join(a.currentLibrary, "archive", "play.ds"))
+	require.NoError(t, err)
+}
+
+func TestMoveLibraryEntry_RejectsExistingDst(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "a.ds"), []byte("x"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "b.ds"), []byte("y"), 0644))
+
+	_, err := a.MoveLibraryEntry("a.ds", "b.ds")
+	assert.Error(t, err)
+}
+
+func TestMoveLibraryEntry_RejectsMoveIntoSelf(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(a.currentLibrary, "outer", "inner"), 0755))
+
+	_, err := a.MoveLibraryEntry("outer", "outer/inner/outer")
+	assert.Error(t, err)
+}
+
+func TestMoveLibraryEntry_RejectsTraversal(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("x"), 0644))
+
+	_, err := a.MoveLibraryEntry("play.ds", "../escape.ds")
+	assert.Error(t, err)
+}
+
+func TestRenameLibraryEntry_RenamesInPlace(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(a.currentLibrary, "sub"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "sub", "play.ds"), []byte("x"), 0644))
+
+	newPath, err := a.RenameLibraryEntry("sub/play.ds", "renamed.ds")
+	require.NoError(t, err)
+	assert.Equal(t, "sub/renamed.ds", newPath)
+}
+
+func TestRenameLibraryEntry_RejectsSeparatorsInNewName(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("x"), 0644))
+
+	_, err := a.RenameLibraryEntry("play.ds", "sub/escape.ds")
+	assert.Error(t, err)
+}
+
+func TestRenameLibraryEntry_RejectsDotNames(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("x"), 0644))
+
+	_, err := a.RenameLibraryEntry("play.ds", "..")
+	assert.Error(t, err)
 }
 
 func TestWriteLibraryFile_NoAutoCommit(t *testing.T) {
@@ -526,17 +643,17 @@ func TestSnapshotFile_FallsBackToDefaultIdentity(t *testing.T) {
 	assert.Equal(t, defaultSnapshotAuthorName, revisions[0].Author)
 }
 
-func TestGetLibraryFiles_Sorted(t *testing.T) {
+func TestGetLibraryTree_Sorted(t *testing.T) {
 	a := testApp(t)
 	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "zulu.ds"), []byte("z"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "Alpha.ds"), []byte("a"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "mike.ds"), []byte("m"), 0644))
 
-	files, err := a.GetLibraryFiles()
+	nodes, err := a.GetLibraryTree()
 	require.NoError(t, err)
-	require.Len(t, files, 3)
+	require.Len(t, nodes, 3)
 
-	paths := []string{files[0].Path, files[1].Path, files[2].Path}
+	paths := []string{nodes[0].Path, nodes[1].Path, nodes[2].Path}
 	assert.Equal(t, []string{"Alpha.ds", "mike.ds", "zulu.ds"}, paths)
 }
 

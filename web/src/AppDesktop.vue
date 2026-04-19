@@ -19,6 +19,7 @@ import ToastManager from './components/shared/ToastManager.vue';
 import Editor from './components/shared/Editor.vue';
 import CommandPalette from './desktop/CommandPalette.vue';
 import Settings from './desktop/Settings.vue';
+import LibraryTree from './desktop/LibraryTree.vue';
 import StatusBar from './desktop/StatusBar.vue';
 
 const props = defineProps<{
@@ -168,13 +169,13 @@ onMounted(async () => {
   await store.init();
   await workspace.init();
 
-  if (workspace.state.libraryPath && workspace.state.libraryFiles.length > 0) {
+  if (workspace.state.libraryPath && workspace.libraryFiles.value.length > 0) {
     const lastFile = await props.env.getLastActiveFile();
-    const exists = workspace.state.libraryFiles.some(f => f.path === lastFile);
+    const exists = workspace.libraryFiles.value.some(f => f.path === lastFile);
     if (lastFile && exists) {
       activeContent.value = await workspace.selectFile(lastFile);
     } else {
-      activeContent.value = await workspace.selectFile(workspace.state.libraryFiles[0].path);
+      activeContent.value = await workspace.selectFile(workspace.libraryFiles.value[0].path);
     }
   }
 
@@ -245,7 +246,7 @@ onMounted(async () => {
     // tracks them. Running dispatcher.scheduleRefresh inside the effect
     // is what actually kicks the microtask.
     void workspace.state.activeFile;
-    void workspace.state.libraryFiles.length;
+    void workspace.libraryFiles.value.length;
     void workspace.state.viewingRevisionHash;
     void isV1Document.value;
     dispatcher?.scheduleRefresh();
@@ -339,8 +340,8 @@ async function handleChangeLibraryLocation() {
   const path = await workspace.changeLibraryLocation();
   if (!path) return;
   activeContent.value = "";
-  if (workspace.state.libraryFiles.length > 0) {
-    activeContent.value = await workspace.selectFile(workspace.state.libraryFiles[0].path);
+  if (workspace.libraryFiles.value.length > 0) {
+    activeContent.value = await workspace.selectFile(workspace.libraryFiles.value[0].path);
   }
   toastManager.value?.addToast(`Opened library: ${path.split(/[\\/]/).pop()}`, "success");
 }
@@ -476,24 +477,12 @@ watch(activeContent, (newContent) => {
             </button>
           </div>
         </div>
-        <nav v-if="workspace.state.libraryFiles" class="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar border-b border-border">
-          <button
-            v-for="file in workspace.state.libraryFiles"
-            :key="file.path"
-            @click="selectLibraryFile(file.path)"
-            class="w-full text-left px-3 py-2 rounded text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 group border border-transparent"
-            :class="workspace.state.activeFile === file.path ? 'bg-brass-500/10 text-brass-500 font-bold border-brass-500/20 shadow-sm' : 'text-text-main'"
-          >
-            <FolderSync v-if="workspace.state.activeFile === file.path" class="w-4 h-4 text-brass-500" />
-            <FileText v-else class="w-4 h-4 opacity-40 group-hover:opacity-100 transition-opacity text-text-muted" />
-            <span class="truncate">{{ file.name }}</span>
-          </button>
-
-          <div v-if="workspace.state.libraryFiles.length === 0" class="p-4 text-center">
-            <p class="text-xs text-text-muted italic text-balance">This folder is empty. Create a new .ds file to get started.</p>
-            <button @click="handleNewPlay" class="mt-3 px-3 py-1.5 rounded-lg bg-brass-500/10 text-brass-600 dark:text-brass-400 text-xs font-bold hover:bg-brass-500/20 transition-colors">Create Play</button>
-          </div>
-        </nav>
+        <LibraryTree
+          :workspace="workspace"
+          @select-file="selectLibraryFile"
+          @error="(message) => toastManager?.addToast(message, 'error')"
+          @info="(message) => toastManager?.addToast(message, 'info')"
+        />
 
         <!-- Revisions Section -->
         <div v-if="workspace.state.activeFile" class="h-1/3 flex flex-col bg-black/[0.01] dark:bg-white/[0.01]">
@@ -691,7 +680,7 @@ watch(activeContent, (newContent) => {
       :open="paletteOpen"
       :mode="paletteMode"
       :env="env"
-      :library-files="workspace.state.libraryFiles"
+      :library-files="workspace.libraryFiles.value"
       :disabled-ids="dispatcher?.disabledIds() ?? []"
       @close="paletteOpen = false"
       @select-file="async (path: string) => { paletteOpen = false; await selectLibraryFile(path); }"

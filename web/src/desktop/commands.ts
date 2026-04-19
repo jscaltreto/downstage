@@ -157,7 +157,7 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
   // to the start; Prev at the start cycles to the end. Small niceness
   // over staying put, and more Finder-like.
   function navigateFile(direction: 1 | -1) {
-    const files = workspace.state.libraryFiles;
+    const files = workspace.libraryFiles.value;
     if (files.length === 0) return;
     const current = workspace.state.activeFile;
     const currentIdx = files.findIndex((f) => f.path === current);
@@ -171,10 +171,37 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     })();
   }
 
+  async function handleNewFolder() {
+    if (!workspace.state.libraryPath) {
+      toast.addToast("No library open — set one in Settings > Library", "error");
+      return;
+    }
+    // Library-relative default. The sidebar's New Folder button passes
+    // a name through this handler via a user-provided dialog in the
+    // host; invoking from the palette falls back to a simple prompt so
+    // there's *a* path to creating one without the sidebar.
+    const raw = typeof globalThis.prompt === "function"
+      ? globalThis.prompt("Folder name")
+      : null;
+    const name = raw?.trim();
+    if (!name) return;
+    if (name.includes("/") || name.includes("\\")) {
+      toast.addToast("Folder names cannot contain slashes", "error");
+      return;
+    }
+    try {
+      await workspace.createFolder(name);
+      toast.addToast(`Created folder "${name}"`, "success");
+    } catch (e: any) {
+      toast.addToast(`Failed to create folder: ${e?.message ?? e}`, "error");
+    }
+  }
+
   return [
     // File
     ["file.newPlay", { handler: handleNewPlay }],
     ["file.open", { handler: handleOpen }],
+    ["library.newFolder", { handler: handleNewFolder }],
     ["file.saveVersion", { handler: handleSaveVersion, isEnabled: hasActiveFileEditable }],
     ["file.exportPdf", { handler: handleExport, isEnabled: canExport }],
     ["file.settings", { handler: () => ui.openSettings() }],
@@ -204,15 +231,15 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     // Navigate
     ["navigate.nextFile", {
       handler: () => navigateFile(1),
-      isEnabled: () => workspace.state.libraryFiles.length > 1,
+      isEnabled: () => workspace.libraryFiles.value.length > 1,
     }],
     ["navigate.prevFile", {
       handler: () => navigateFile(-1),
-      isEnabled: () => workspace.state.libraryFiles.length > 1,
+      isEnabled: () => workspace.libraryFiles.value.length > 1,
     }],
     ["navigate.goToFile", {
       handler: () => ui.openPalette("file"),
-      isEnabled: () => workspace.state.libraryFiles.length > 0,
+      isEnabled: () => workspace.libraryFiles.value.length > 0,
     }],
 
     // Format — all go through the editor's imperative applyFormat hook.

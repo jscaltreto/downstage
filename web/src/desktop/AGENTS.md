@@ -107,6 +107,39 @@ so switching documents automatically invalidates a prior dismissal.
 - `clearRevisionView()` is called on file switch, library switch, and after
   a successful restore so stale preview state never leaks across contexts.
 
+## Library Tree
+
+- `Workspace.state.libraryTree` is the authoritative nested structure.
+  Folders precede files at each level; both are sorted alpha.
+- `Workspace.libraryFiles` is a reactive **computed** flat derivation
+  (in-order traversal: folders alpha-first, files alpha within each
+  level). Consumers that treat the library as flat — `CommandPalette`
+  in file mode, `navigate.nextFile` / `navigate.prevFile` /
+  `navigate.goToFile` — read this; never walk the tree themselves.
+- `state.expandedFolders` is a `Set<string>` of folder paths currently
+  expanded in the sidebar. Session-only in v1; `createFolder`
+  auto-expands every ancestor of the new folder.
+- Folder operations: `workspace.createFolder(relPath)`,
+  `workspace.moveEntry(src, dst)`,
+  `workspace.renameEntry(src, newName)`. All three refresh the tree
+  after the backend call returns.
+- **Active-file retargeting**: `moveEntry` and `renameEntry` call
+  `retargetActiveFile(src, dst)`, which:
+  - reassigns `state.activeFile` when it equals `src` or starts with
+    `src + "/"` (prefix-substitution — the `/` guard prevents false
+    positives like `foo.ds` matching `foo`);
+  - clears the revision view if we were viewing one;
+  - persists the new path via `setActiveLibraryFile` and refreshes
+    git status.
+  Autosave retargets automatically on the next watcher tick via the
+  changed `documentKey`.
+- `LibraryTreeNode.vue` is a recursive SFC (self-references by
+  `name: 'LibraryTreeNode'` in the template). The parent
+  `LibraryTree.vue` owns all state (rename target, drop target,
+  context menu); children emit events upward. v1 has no multi-select,
+  keyboard nav, cut/copy/paste, or delete — leave those for a
+  separate pass.
+
 ## External-File View (File → Open)
 
 - `File → Open` (Cmd/Ctrl-O) lets the user read a `.ds` file that lives
