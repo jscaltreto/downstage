@@ -15,6 +15,8 @@ func resetRenderFlags() {
 	renderOutput = ""
 	renderPageSize = "letter"
 	renderStyle = "standard"
+	renderLayout = "single"
+	renderGutter = "0.125in"
 	renderFont = ""
 	renderStdin = false
 	renderStdout = false
@@ -84,6 +86,181 @@ func TestRunRenderRejectsHTMLOnlyPDFFlags(t *testing.T) {
 	err = runRender(&cobra.Command{}, []string{input})
 	if err == nil || !strings.Contains(err.Error(), "--font is only supported for pdf output") {
 		t.Fatalf("expected html font rejection, got %v", err)
+	}
+}
+
+func TestRunRenderRejectsStandard2Up(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("# Play\n\nALICE\nHello.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	renderStyle = "standard"
+	renderLayout = "2up"
+	renderOutput = t.TempDir() + "/out.pdf"
+
+	err := runRender(&cobra.Command{}, []string{input})
+	if err == nil || !strings.Contains(err.Error(), "only supported for style") {
+		t.Fatalf("expected condensed-only rejection, got %v", err)
+	}
+}
+
+func TestRunRenderRejectsStandardBooklet(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("# Play\n\nALICE\nHello.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	renderStyle = "standard"
+	renderLayout = "booklet"
+	renderOutput = t.TempDir() + "/out.pdf"
+
+	err := runRender(&cobra.Command{}, []string{input})
+	if err == nil || !strings.Contains(err.Error(), "only supported for style") {
+		t.Fatalf("expected condensed-only rejection, got %v", err)
+	}
+}
+
+func TestRunRenderRejectsGutterOnNonBooklet(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("# Play\n\nALICE\nHello.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	renderStyle = "condensed"
+	renderLayout = "2up"
+	renderGutter = "3mm"
+	renderOutput = t.TempDir() + "/out.pdf"
+
+	err := runRender(&cobra.Command{}, []string{input})
+	if err == nil || !strings.Contains(err.Error(), "--gutter is only valid") {
+		t.Fatalf("expected gutter/2up rejection, got %v", err)
+	}
+}
+
+func TestRunRenderRejectsLayoutForHTML(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("# Play\n\nALICE\nHello.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	renderFormat = "html"
+	renderLayout = "2up"
+	renderOutput = t.TempDir() + "/out.html"
+
+	err := runRender(&cobra.Command{}, []string{input})
+	if err == nil || !strings.Contains(err.Error(), "--pdf-layout is only supported for pdf output") {
+		t.Fatalf("expected html layout rejection, got %v", err)
+	}
+}
+
+func TestRunRenderRejectsInvalidLayout(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("# Play\n\nALICE\nHello.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	renderLayout = "4up"
+
+	err := runRender(&cobra.Command{}, []string{input})
+	if err == nil || !strings.Contains(err.Error(), "unsupported pdf layout") {
+		t.Fatalf("expected layout parse error, got %v", err)
+	}
+}
+
+func TestRunRenderRejectsInvalidGutter(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	if err := os.WriteFile(input, []byte("# Play\n\nALICE\nHello.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	renderStyle = "condensed"
+	renderLayout = "booklet"
+	renderGutter = "3cm"
+	renderOutput = t.TempDir() + "/out.pdf"
+
+	err := runRender(&cobra.Command{}, []string{input})
+	if err == nil || !strings.Contains(err.Error(), "--gutter") {
+		t.Fatalf("expected gutter parse error, got %v", err)
+	}
+}
+
+func TestRunRenderSupportsCondensed2Up(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	body := "# Test\n\n## ACT I\n\n### SCENE 1\n\nALICE\nLine 1.\n\nBOB\nLine 2.\n\n"
+	if err := os.WriteFile(input, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	renderStyle = "condensed"
+	renderLayout = "2up"
+	renderStdout = true
+
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	renderErr := runRender(&cobra.Command{}, []string{input})
+
+	w.Close()
+	os.Stdout = origStdout
+
+	if renderErr != nil {
+		t.Fatalf("expected condensed 2up to succeed, got: %v", renderErr)
+	}
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(buf.String(), "%PDF-") {
+		t.Fatalf("expected PDF magic bytes, got %q", buf.String()[:20])
+	}
+}
+
+func TestRunRenderSupportsCondensedBooklet(t *testing.T) {
+	resetRenderFlags()
+
+	input := t.TempDir() + "/play.ds"
+	body := "# Test\n\n## ACT I\n\n### SCENE 1\n\nALICE\nLine 1.\n\nBOB\nLine 2.\n\n"
+	if err := os.WriteFile(input, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	renderStyle = "condensed"
+	renderLayout = "booklet"
+	renderGutter = "3mm"
+	renderStdout = true
+
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	renderErr := runRender(&cobra.Command{}, []string{input})
+
+	w.Close()
+	os.Stdout = origStdout
+
+	if renderErr != nil {
+		t.Fatalf("expected condensed booklet to succeed, got: %v", renderErr)
+	}
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(buf.String(), "%PDF-") {
+		t.Fatalf("expected PDF magic bytes, got %q", buf.String()[:20])
 	}
 }
 

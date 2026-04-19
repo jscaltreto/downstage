@@ -82,7 +82,7 @@ test.describe("export", () => {
     await editor.setEditorContent(body);
     await expect(editor.exportPdfButton).toBeEnabled();
 
-    const download = await editor.downloadPdf("a4");
+    const download = await editor.downloadPdf({ pageSize: "a4" });
     const pdfPath = await download.path();
     const buf = await readFile(pdfPath!);
     expect(buf.slice(0, 5).toString("utf8")).toBe("%PDF-");
@@ -97,5 +97,217 @@ test.describe("export", () => {
     await editor.exportPdfButton.click();
     await expect(editor.exportDialog).toBeVisible();
     await expect(editor.pageSizeOption("a4")).toHaveAttribute("aria-checked", "true");
+  });
+
+  test("Manuscript hides Layout controls; Acting Edition shows them", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+
+    // Default style is Manuscript → layout section hidden.
+    await expect(editor.exportStyleOption("standard")).toHaveAttribute("aria-checked", "true");
+    await expect(editor.layoutGroup).toBeHidden();
+
+    // Switch to Acting Edition → layout appears.
+    await editor.exportStyleOption("condensed").click();
+    await expect(editor.layoutGroup).toBeVisible();
+    await expect(editor.gutterRow).toBeHidden();
+
+    // Booklet reveals the gutter control.
+    await editor.layoutOption("booklet").click();
+    await expect(editor.gutterRow).toBeVisible();
+
+    // Switching back to Manuscript hides both again and snaps layout back.
+    await editor.exportStyleOption("standard").click();
+    await expect(editor.layoutGroup).toBeHidden();
+    await expect(editor.gutterRow).toBeHidden();
+  });
+
+  test("Export PDF booklet with custom gutter produces a valid PDF and persists", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    const download = await editor.downloadPdf({
+      style: "condensed",
+      layout: "booklet",
+      gutterValue: 5,
+      gutterUnit: "mm",
+    });
+    expect(download.suggestedFilename()).toMatch(/acting-edition-booklet\.pdf$/);
+
+    const pdfPath = await download.path();
+    const buf = await readFile(pdfPath!);
+    expect(buf.slice(0, 5).toString("utf8")).toBe("%PDF-");
+    expect(buf.byteLength).toBeGreaterThan(1000);
+
+    const storedLayout = await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-layout"),
+    );
+    const storedGutter = await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-booklet-gutter"),
+    );
+    expect(storedLayout).toBe("booklet");
+    expect(storedGutter).toBe("5mm");
+  });
+
+  test("Oversized gutter shows an error and disables Export", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+    await editor.exportStyleOption("condensed").click();
+    await editor.layoutOption("booklet").click();
+    await expect(editor.gutterRow).toBeVisible();
+
+    // 50 inches is wildly over any sheet's landscape width.
+    await editor.gutterValueInput.fill("50");
+    await editor.gutterUnitSelect.selectOption("in");
+
+    const gutterError = editor.exportDialog.locator('[data-testid="gutter-error"]');
+    await expect(gutterError).toBeVisible();
+    await expect(gutterError).toContainText(/Gutter must be under/i);
+    await expect(editor.exportConfirmButton).toBeDisabled();
+
+    // Bringing the value back under the max re-enables Export.
+    await editor.gutterValueInput.fill("0.125");
+    await expect(gutterError).toBeHidden();
+    await expect(editor.exportConfirmButton).toBeEnabled();
+  });
+
+  test("Non-booklet exports ignore the stored gutter", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+
+    // Seed a nonsense gutter value before the editor boots. If the export
+    // path still forwards this to WASM for non-booklet layouts, ParseMeasurement
+    // will reject it and renderPDF returns null bytes → error toast.
+    await page.addInitScript(() => {
+      window.localStorage.setItem("downstage-editor-export-booklet-gutter", "not-a-measurement");
+    });
+    await page.reload();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    // 2-up export: gutter is stored but should never be sent to WASM.
+    const twoUpDownload = await editor.downloadPdf({
+      style: "condensed",
+      layout: "2up",
+    });
+    const twoUpPath = await twoUpDownload.path();
+    const twoUpBuf = await readFile(twoUpPath!);
+    expect(twoUpBuf.slice(0, 5).toString("utf8")).toBe("%PDF-");
+
+    // The poisoned gutter should remain untouched — 2-up exports must not
+    // overwrite the stored gutter value either.
+    const storedAfter2Up = await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-booklet-gutter"),
+    );
+    expect(storedAfter2Up).toBe("not-a-measurement");
+
+    // Manuscript export: same invariant.
+    const manuscriptDownload = await editor.downloadPdf({ style: "standard" });
+    const manuscriptPath = await manuscriptDownload.path();
+    const manuscriptBuf = await readFile(manuscriptPath!);
+    expect(manuscriptBuf.slice(0, 5).toString("utf8")).toBe("%PDF-");
+  });
+
+  test("Gutter value converts when the unit toggles", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+    await editor.exportStyleOption("condensed").click();
+    await editor.layoutOption("booklet").click();
+
+    // Start from a known value and unit.
+    await editor.gutterUnitSelect.selectOption("in");
+    await editor.gutterValueInput.fill("0.125");
+
+    // Swap to mm: 0.125 in × 25.4 = 3.175 mm.
+    await editor.gutterUnitSelect.selectOption("mm");
+    await expect(editor.gutterValueInput).toHaveValue("3.18");
+
+    // Swap back to in: 3.18 mm ÷ 25.4 = 0.1252 in (rounded).
+    await editor.gutterUnitSelect.selectOption("in");
+    await expect(editor.gutterValueInput).toHaveValue("0.1252");
+  });
+
+  test("Switching to Manuscript ignores a stale invalid gutter", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+
+    // Enter an invalid gutter in the Acting Edition / Booklet path.
+    await editor.exportStyleOption("condensed").click();
+    await editor.layoutOption("booklet").click();
+    await editor.gutterValueInput.fill("50");
+    await editor.gutterUnitSelect.selectOption("in");
+    await expect(editor.exportConfirmButton).toBeDisabled();
+
+    // Switching to Manuscript: the gutter field is hidden and the stale
+    // invalid value must not keep the Export button disabled.
+    await editor.exportStyleOption("standard").click();
+    await expect(editor.layoutGroup).toBeHidden();
+    await expect(editor.gutterRow).toBeHidden();
+    await expect(editor.exportConfirmButton).toBeEnabled();
+
+    // Switching back to Acting Edition re-applies the validation.
+    await editor.exportStyleOption("condensed").click();
+    await expect(editor.gutterRow).toBeVisible();
+    await expect(editor.exportConfirmButton).toBeDisabled();
+  });
+
+  test("Manuscript export preserves a previously chosen condensed layout", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    // 1. Export once as Acting Edition / booklet so the layout is stored.
+    const firstDownload = await editor.downloadPdf({
+      style: "condensed",
+      layout: "booklet",
+    });
+    await firstDownload.path();
+    expect(await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-layout"),
+    )).toBe("booklet");
+
+    // 2. Export as Manuscript. Layout should not be clobbered.
+    const secondDownload = await editor.downloadPdf({ style: "standard" });
+    await secondDownload.path();
+    expect(await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-layout"),
+    )).toBe("booklet");
+
+    // 3. Reopen the dialog and flip back to Acting Edition; the stored
+    //    booklet layout should be preselected.
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+    await editor.exportStyleOption("condensed").click();
+    await expect(editor.layoutOption("booklet")).toHaveAttribute("aria-checked", "true");
   });
 });

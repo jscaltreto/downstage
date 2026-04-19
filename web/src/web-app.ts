@@ -4,6 +4,7 @@ import AppWeb from "./AppWeb.vue";
 import { initWasm, upgradeV1 as upgradeV1Wasm } from "./wasm";
 import type {
   EditorEnv,
+  ExportPdfOptions,
   SavedDraft,
   ParseError,
   WasmDiagnostic,
@@ -92,8 +93,23 @@ class WebEnv implements EditorEnv {
     return window.downstage.renderHTML(source, style);
   }
 
-  async renderPDF(source: string, style?: string, pageSize?: string): Promise<Uint8Array> {
-    return window.downstage.renderPDF(source, style, pageSize);
+  async renderPDF(source: string, options: ExportPdfOptions): Promise<Uint8Array> {
+    const wasmOpts: {
+      style: string;
+      pageSize: string;
+      layout: string;
+      gutter?: string;
+    } = {
+      style: options.style,
+      pageSize: options.pageSize,
+      layout: options.layout,
+    };
+    // Only send gutter for booklet exports; other layouts never use it,
+    // so a stale or malformed stored value shouldn't reach WASM.
+    if (options.layout === "booklet") {
+      wasmOpts.gutter = options.bookletGutter;
+    }
+    return window.downstage.renderPDF(source, wasmOpts);
   }
 
   async loadDrafts(): Promise<SavedDraft[]> {

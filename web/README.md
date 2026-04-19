@@ -126,7 +126,7 @@ The WASM module exposes a global `downstage` object:
 | `completion(source, line, col)` | Source + 0-based LSP position | LSP `CompletionList` (`{isIncomplete, items[]}`) |
 | `codeActions(source, line, col, codes?)` | Source + 0-based LSP position + optional diagnostic-code filter | `{uri, actions: LSPCodeAction[]}` |
 | `renderHTML(source, style?)` | Source + optional style (`"standard"`/Manuscript or `"condensed"`/Acting Edition) | HTML string |
-| `renderPDF(source, style?, pageSize?)` | Source + optional style and page size (`"letter"`/`"a4"`) | `Uint8Array` (PDF bytes) |
+| `renderPDF(source, options?)` | Source + `{ style?, pageSize?, layout?, gutter? }`. `layout` is `"single"`/`"2up"`/`"booklet"` (2up and booklet are condensed-only); `gutter` accepts `in`/`mm` suffixes and only applies for booklet | `Uint8Array` (PDF bytes) |
 | `semanticTokens(source)` | Source string | `Uint32Array` (delta-encoded LSP tokens) |
 | `tokenTypeNames` | — | `string[]` (token type legend) |
 

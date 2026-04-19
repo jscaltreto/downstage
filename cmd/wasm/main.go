@@ -14,6 +14,7 @@ import (
 	"github.com/jscaltreto/downstage/internal/render"
 	htmlrender "github.com/jscaltreto/downstage/internal/render/html"
 	pdfrender "github.com/jscaltreto/downstage/internal/render/pdf"
+	"github.com/jscaltreto/downstage/internal/render/pdf/impose"
 	"github.com/jscaltreto/downstage/internal/stats"
 	"go.lsp.dev/protocol"
 )
@@ -255,15 +256,57 @@ func renderPDF(_ js.Value, args []js.Value) any {
 	}
 
 	cfg := render.DefaultConfig()
-	if len(args) > 1 && args[1].String() == "condensed" {
-		cfg.Style = render.StyleCondensed
+
+	// Accept either the structured config object or the legacy positional
+	// (style, pageSize) form for one release so existing callers keep
+	// working during the migration.
+	if len(args) > 1 {
+		if args[1].Type() == js.TypeObject {
+			cfgObj := args[1]
+			if v := cfgObj.Get("style"); v.Truthy() {
+				if v.String() == "condensed" {
+					cfg.Style = render.StyleCondensed
+				}
+			}
+			if v := cfgObj.Get("pageSize"); v.Truthy() {
+				ps, err := render.ParsePageSize(v.String())
+				if err != nil {
+					return js.Null()
+				}
+				cfg.PageSize = ps
+			}
+			if v := cfgObj.Get("layout"); v.Truthy() {
+				layout, err := render.ParsePDFLayout(v.String())
+				if err != nil {
+					return js.Null()
+				}
+				cfg.Layout = layout
+			}
+			// Only parse gutter for booklet layout; other layouts never use
+			// it, so a stale or malformed value shouldn't fail the export.
+			if cfg.Layout == render.LayoutBooklet {
+				if v := cfgObj.Get("gutter"); v.Truthy() {
+					gutterMM, err := render.ParseMeasurement(v.String())
+					if err != nil {
+						return js.Null()
+					}
+					cfg.BookletGutterMM = gutterMM
+				}
+			}
+		} else if args[1].String() == "condensed" {
+			cfg.Style = render.StyleCondensed
+		}
 	}
-	if len(args) > 2 && args[2].Truthy() {
+	if len(args) > 2 && args[2].Truthy() && args[1].Type() != js.TypeObject {
 		pageSize, err := render.ParsePageSize(args[2].String())
 		if err != nil {
 			return js.Null()
 		}
 		cfg.PageSize = pageSize
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return js.Null()
 	}
 
 	var nr render.NodeRenderer
@@ -276,6 +319,25 @@ func renderPDF(_ js.Value, args []js.Value) any {
 	var buf bytes.Buffer
 	if err := render.Walk(nr, doc, &buf); err != nil {
 		return js.Null()
+	}
+
+	if cfg.Layout != render.LayoutSingle {
+		sheet, err := cfg.PageSize.SheetDimensions()
+		if err != nil {
+			return js.Null()
+		}
+		var imposed bytes.Buffer
+		switch cfg.Layout {
+		case render.Layout2Up:
+			if err := impose.TwoUp(bytes.NewReader(buf.Bytes()), sheet, &imposed); err != nil {
+				return js.Null()
+			}
+		case render.LayoutBooklet:
+			if err := impose.Booklet(bytes.NewReader(buf.Bytes()), sheet, cfg.BookletGutterMM, &imposed); err != nil {
+				return js.Null()
+			}
+		}
+		buf = imposed
 	}
 
 	data := buf.Bytes()

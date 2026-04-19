@@ -134,10 +134,13 @@ export interface EditorDiagnostic {
 
 export type PdfPageSize = "letter" | "a4";
 export type PdfExportStyle = "standard" | "condensed";
+export type PdfLayout = "single" | "2up" | "booklet";
 
 export interface ExportPdfOptions {
   pageSize: PdfPageSize;
   style: PdfExportStyle;
+  layout: PdfLayout;
+  bookletGutter: string; // e.g. "0.125in" or "3mm"
 }
 
 export interface SavedDraft {
@@ -163,7 +166,7 @@ export interface EditorEnv {
 
   // Rendering
   renderHTML(source: string, style?: string): Promise<string>;
-  renderPDF(source: string, style?: string, pageSize?: PdfPageSize): Promise<Uint8Array>;
+  renderPDF(source: string, options: ExportPdfOptions): Promise<Uint8Array>;
 
   // Persistence (Drafts)
   loadDrafts(): Promise<SavedDraft[]>;
