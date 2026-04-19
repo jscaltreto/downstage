@@ -1,10 +1,4 @@
-// Package impose composes condensed PDF logical pages onto landscape sheets
-// by importing the source pages via gofpdi and placing them on new fpdf
-// sheets. See issue #121.
-//
-// This is a second pass: the condensed renderer emits half-letter/A5 logical
-// pages first, then this package imports those pages and arranges two per
-// landscape sheet.
+// Package impose composes condensed PDF logical pages onto landscape sheets.
 //
 // Booklet ordering follows the standard saddle-stitch scheme. For N pages
 // padded to a multiple of 4, physical sheet M (0-indexed) holds:
@@ -14,15 +8,9 @@
 //	back left   = 2*M + 2
 //	back right  = N - 2*M - 1
 //
-// Printing these in order double-sided, then folding the stack in half at
-// the gutter, yields a readable booklet.
-//
-// Padding reserves the back-cover slot (front-left of sheet 0) for a blank
-// page, so the back cover is never a content page when the booklet is
-// unfolded. The padded page count N is the smallest multiple of 4 that is
-// >= pageCount + 1, so N mod 4 == 0 inputs still get a full extra sheet of
-// trailing blanks rather than having their last logical page land opposite
-// the title on the outer sheet.
+// N is padded to the next multiple of 4 that is >= pageCount + 1, so
+// multiple-of-4 inputs still pick up a full extra sheet of trailing blanks
+// and the back-cover slot never carries content.
 package impose
 
 import (
@@ -35,10 +23,7 @@ import (
 	realgofpdi "github.com/phpdave11/gofpdi"
 )
 
-// TwoUp imposes two logical pages per landscape sheet. sheet is the parent
-// sheet size as returned by PageSize.SheetDimensions() (portrait orientation;
-// the imposed output rotates to landscape). The two imposed cells each match
-// the condensed logical page size (half the sheet's longer edge).
+// TwoUp imposes two logical pages per landscape sheet.
 func TwoUp(src io.ReadSeeker, sheet render.Dimensions, dst io.Writer) error {
 	imp, out, rs, pageCount, landscapeW, landscapeH, err := setup(src, sheet)
 	if err != nil {
@@ -58,10 +43,7 @@ func TwoUp(src io.ReadSeeker, sheet render.Dimensions, dst io.Writer) error {
 	return nil
 }
 
-// Booklet imposes logical pages into duplex booklet order. The input is
-// padded to a multiple of 4 and each physical sheet receives four logical
-// pages (two front, two back). gutterMM is the inner gap between the two
-// pages on each output sheet.
+// Booklet imposes logical pages into duplex booklet order.
 func Booklet(src io.ReadSeeker, sheet render.Dimensions, gutterMM float64, dst io.Writer) error {
 	if gutterMM < 0 {
 		return fmt.Errorf("impose.Booklet: negative gutter %.2fmm", gutterMM)
@@ -71,19 +53,14 @@ func Booklet(src io.ReadSeeker, sheet render.Dimensions, gutterMM float64, dst i
 		return fmt.Errorf("impose.Booklet: %w", err)
 	}
 
-	// The gutter sits between two half-sheet cells on a landscape sheet. A
-	// gutter at or above half the landscape width would leave zero-or-
-	// negative-width cells with no room for content.
+	// A gutter at or above the landscape width leaves zero-width cells.
 	maxGutterMM := landscapeW
 	if gutterMM >= maxGutterMM {
 		return fmt.Errorf("impose.Booklet: gutter %.2fmm is too large for sheet (max %.2fmm)", gutterMM, maxGutterMM)
 	}
 
-	// Pad logical page count up to a multiple of 4, reserving the back
-	// cover (last imposed slot) for a blank so it never carries content
-	// when the booklet unfolds beside the title page. Add one virtual
-	// page before rounding so pageCount values that are already a
-	// multiple of 4 pick up a fresh sheet of padding.
+	// +1 before rounding up to a multiple of 4 keeps the back-cover slot
+	// blank even when pageCount is itself a multiple of 4.
 	N := pageCount + 1
 	if rem := N % 4; rem != 0 {
 		N += 4 - rem
@@ -97,12 +74,10 @@ func Booklet(src io.ReadSeeker, sheet render.Dimensions, gutterMM float64, dst i
 
 	sheets := N / 4
 	for m := 0; m < sheets; m++ {
-		// Front
 		out.AddPage()
 		placePage(out, imp, &rs, N-2*m, pageCount, 0, 0, leftW, landscapeH)
 		placePage(out, imp, &rs, 2*m+1, pageCount, rightX, 0, rightW, landscapeH)
 
-		// Back
 		out.AddPage()
 		placePage(out, imp, &rs, 2*m+2, pageCount, 0, 0, leftW, landscapeH)
 		placePage(out, imp, &rs, N-2*m-1, pageCount, rightX, 0, rightW, landscapeH)
@@ -114,10 +89,6 @@ func Booklet(src io.ReadSeeker, sheet render.Dimensions, gutterMM float64, dst i
 	return nil
 }
 
-// setup builds the landscape output PDF, the importer, and reads the source
-// page count. The returned ReadSeeker is rewound and ready for
-// ImportPageFromStream calls. landscapeW and landscapeH are the output
-// sheet dimensions in millimeters (a rotation of the portrait sheet input).
 func setup(src io.ReadSeeker, sheet render.Dimensions) (*gofpdi.Importer, *fpdf.Fpdf, io.ReadSeeker, int, float64, float64, error) {
 	if sheet.WidthMM <= 0 || sheet.HeightMM <= 0 {
 		return nil, nil, nil, 0, 0, 0, fmt.Errorf("invalid sheet %.1fx%.1fmm", sheet.WidthMM, sheet.HeightMM)
@@ -125,8 +96,9 @@ func setup(src io.ReadSeeker, sheet render.Dimensions) (*gofpdi.Importer, *fpdf.
 	if _, err := src.Seek(0, io.SeekStart); err != nil {
 		return nil, nil, nil, 0, 0, 0, fmt.Errorf("rewind source: %w", err)
 	}
-	// Use a raw gofpdi importer to read the page count; the contrib
-	// wrapper doesn't expose GetNumPages.
+	// Raw gofpdi for GetNumPages — the fpdf/contrib wrapper doesn't
+	// re-export it, so we use a throwaway importer for the page count
+	// and a fresh one below for the actual imports.
 	probe := realgofpdi.NewImporter()
 	rs := src
 	probe.SetSourceStream(&rs)
@@ -138,8 +110,9 @@ func setup(src io.ReadSeeker, sheet render.Dimensions) (*gofpdi.Importer, *fpdf.
 		return nil, nil, nil, 0, 0, 0, fmt.Errorf("rewind after count: %w", err)
 	}
 
-	// fpdf's NewCustom interprets Size in portrait and swaps when
-	// OrientationStr is "L"; hand it portrait dims and let it rotate.
+	// fpdf's NewCustom expects Size in portrait and swaps internally when
+	// OrientationStr is "L". The landscapeW/H we return are already swapped
+	// for callers that compute cell geometry.
 	landscapeW := sheet.HeightMM
 	landscapeH := sheet.WidthMM
 	imp := gofpdi.NewImporter()
@@ -151,8 +124,6 @@ func setup(src io.ReadSeeker, sheet render.Dimensions) (*gofpdi.Importer, *fpdf.
 	return imp, out, rs, pageCount, landscapeW, landscapeH, nil
 }
 
-// placePage imports and places logical page `n` on the output sheet, or
-// leaves the cell blank if n is a padding slot (n > realPages).
 func placePage(out *fpdf.Fpdf, imp *gofpdi.Importer, rs *io.ReadSeeker, n, realPages int, x, y, w, h float64) {
 	if n < 1 || n > realPages {
 		return

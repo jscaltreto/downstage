@@ -257,9 +257,9 @@ func renderPDF(_ js.Value, args []js.Value) any {
 
 	cfg := render.DefaultConfig()
 
-	// Legacy positional args are still accepted for one release, so existing
-	// callers keep working: renderPDF(source, style?, pageSize?). The preferred
-	// shape is renderPDF(source, {style, pageSize, layout, gutter}).
+	// Accept either the structured config object or the legacy positional
+	// (style, pageSize) form for one release so existing callers keep
+	// working during the migration.
 	if len(args) > 1 {
 		if args[1].Type() == js.TypeObject {
 			cfgObj := args[1]
@@ -282,9 +282,8 @@ func renderPDF(_ js.Value, args []js.Value) any {
 				}
 				cfg.Layout = layout
 			}
-			// Gutter only applies to booklet layout. Parsing it for
-			// single/2up exports would let a stale or malformed value
-			// break an export that never uses it.
+			// Only parse gutter for booklet layout; other layouts never use
+			// it, so a stale or malformed value shouldn't fail the export.
 			if cfg.Layout == render.LayoutBooklet {
 				if v := cfgObj.Get("gutter"); v.Truthy() {
 					gutterMM, err := render.ParseMeasurement(v.String())
@@ -322,7 +321,6 @@ func renderPDF(_ js.Value, args []js.Value) any {
 		return js.Null()
 	}
 
-	// Second pass: imposition for non-single layouts.
 	if cfg.Layout != render.LayoutSingle {
 		sheet, err := cfg.PageSize.SheetDimensions()
 		if err != nil {

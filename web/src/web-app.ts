@@ -104,8 +104,8 @@ class WebEnv implements EditorEnv {
       pageSize: options.pageSize,
       layout: options.layout,
     };
-    // Gutter only applies to booklet layout. Omitting it for single/2up
-    // exports keeps a stale or malformed value from reaching WASM.
+    // Only send gutter for booklet exports; other layouts never use it,
+    // so a stale or malformed stored value shouldn't reach WASM.
     if (options.layout === "booklet") {
       wasmOpts.gutter = options.bookletGutter;
     }

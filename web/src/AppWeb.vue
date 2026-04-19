@@ -343,10 +343,9 @@ async function handleExportConfirmed(opts: ExportPdfOptions) {
         // ignore storage errors
     }
 
-    // Layout is only meaningful for condensed exports. A Manuscript export
-    // always comes through as single; persisting it back would clobber a
-    // previously chosen condensed layout (2up/booklet), so only update the
-    // stored layout on condensed exports.
+    // Only persist the layout on condensed exports. Manuscript always
+    // comes through as layout=single and would clobber a previously chosen
+    // 2up/booklet preference otherwise.
     if (opts.style === "condensed") {
         exportLayout.value = opts.layout;
         try {
@@ -374,10 +373,9 @@ async function handleExportConfirmed(opts: ExportPdfOptions) {
     const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}${layoutSuffix}.pdf`;
 
     const pdfBytes = await props.env.renderPDF(activeContent.value, opts);
-    // renderPDF returns an empty (or falsy) Uint8Array when the WASM side
-    // rejects the request (e.g. invalid config, imposition failure).
-    // Saving an empty file would quietly produce a broken PDF; surface the
-    // failure as a toast instead.
+    // An empty Uint8Array means the WASM side rejected the request (bad
+    // config, imposition failure, etc.). Saving it would produce a broken
+    // file; surface the failure as a toast instead.
     if (!pdfBytes || pdfBytes.byteLength === 0) {
         toastManager.value?.addToast(
             "PDF export failed. Check the export settings and try again.",

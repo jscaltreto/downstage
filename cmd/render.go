@@ -184,11 +184,11 @@ func runRender(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// defaultGutter matches the flag default; anything else is treated as an
-// explicit user override. Tests invoke runRender with ad-hoc cobra commands
-// that do not carry flag-changed metadata, so we fall back to a value check.
 const defaultGutter = "0.125in"
 
+// gutterExplicitlySet reports whether the user set --gutter. The ad-hoc
+// cobra.Command instances used in unit tests don't carry flag-changed
+// metadata, so we fall back to a value comparison against the default.
 func gutterExplicitlySet(cmd *cobra.Command) bool {
 	if flag := cmd.Flags().Lookup("gutter"); flag != nil && flag.Changed {
 		return true
@@ -196,9 +196,6 @@ func gutterExplicitlySet(cmd *cobra.Command) bool {
 	return renderGutter != defaultGutter
 }
 
-// openOutput returns the target writer and a closer that surfaces any
-// Close() error (so disk flush failures don't pass silently). For stdout
-// the closer is a no-op.
 func openOutput(filename string) (io.Writer, func() error, error) {
 	if renderStdout {
 		return os.Stdout, func() error { return nil }, nil
@@ -213,9 +210,6 @@ func openOutput(filename string) (io.Writer, func() error, error) {
 	return f, f.Close, nil
 }
 
-// renderTo writes the rendered document to w. For non-single PDF layouts it
-// renders into an in-memory buffer and post-processes through the impose
-// package to compose 2-up or booklet sheets.
 func renderTo(w io.Writer, nr render.NodeRenderer, doc *ast.Document, cfg render.Config) error {
 	if cfg.Layout == render.LayoutSingle {
 		return render.Walk(nr, doc, w)

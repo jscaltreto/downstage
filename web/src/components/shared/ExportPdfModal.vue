@@ -43,11 +43,9 @@ watch(
   { deep: true },
 );
 
-// Preserve the last condensed layout when the user toggles style so a
-// booklet/2-up choice isn't erased by a quick detour to Manuscript. The
-// Layout and Gutter controls are hidden when style !== 'condensed', and
-// handleConfirm emits layout='single' for manuscript exports regardless
-// of the stored value, so manuscript validation still sees a valid combo.
+// Remembers the user's 2up/booklet pick so a quick detour to Manuscript
+// (which hides the layout row) doesn't erase their choice. Restored when
+// style flips back to condensed.
 const lastCondensedLayout = ref<PdfLayout>(
   props.initialOptions.layout === 'single' ? 'single' : props.initialOptions.layout,
 );
@@ -77,9 +75,6 @@ const condensedDerivedSize = computed(() =>
   pageSize.value === 'a4' ? 'A5 (148 × 210 mm)' : 'half-letter (5.5 × 8.5 in)',
 );
 
-// Landscape sheet width in millimeters, which is the hard upper bound on
-// gutter: a gutter at or above this value would leave zero-width cells.
-// For Letter the landscape width is 11in (279.4mm); for A4 it is 297mm.
 const maxGutterMM = computed(() => (pageSize.value === 'a4' ? 297 : 279.4));
 
 function gutterInMM(): number {
@@ -117,9 +112,9 @@ const canConfirm = computed(() => {
   return true;
 });
 
-// Switching the unit preserves the physical gutter by converting the
-// displayed value. Rounded to 4 decimal places for inches and 2 for
-// millimeters, which is well below the step the user can dial in.
+// Preserve the physical gutter when the user flips the unit: 0.125in
+// becomes 3.18mm, not 0.125mm. Round to 2 dp for mm and 4 dp for inches
+// so round-trip drift stays below the input's step.
 function changeGutterUnit(next: 'in' | 'mm') {
   const prev = gutterUnit.value;
   if (next === prev) return;
@@ -148,9 +143,9 @@ function selectLayout(value: PdfLayout) {
 
 function handleConfirm() {
   if (!canConfirm.value) return;
-  // Manuscript exports force layout=single so downstream validation
-  // (standard + 2up/booklet is rejected) always sees a valid combo.
-  // lastCondensedLayout is preserved for the next Acting Edition export.
+  // Force layout=single for Manuscript so config.Validate still sees a
+  // valid combo (standard + 2up/booklet is rejected). lastCondensedLayout
+  // keeps the user's actual pick around for the next condensed export.
   const emittedLayout = style.value === 'condensed' ? layout.value : 'single';
   emit('confirm', {
     pageSize: pageSize.value,
