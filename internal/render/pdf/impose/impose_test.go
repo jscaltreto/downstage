@@ -159,6 +159,17 @@ func TestBookletRejectsNegativeGutter(t *testing.T) {
 	assert.Contains(t, err.Error(), "negative gutter")
 }
 
+func TestBookletRejectsGutterLargerThanSheet(t *testing.T) {
+	src := renderCondensed(t, buildFixture(2), render.PageLetter)
+	// Landscape Letter width = 279.4mm; a gutter at that value would
+	// leave zero-width cells.
+	sheet := render.Dimensions{WidthMM: 215.9, HeightMM: 279.4}
+	var out bytes.Buffer
+	err := impose.Booklet(bytes.NewReader(src), sheet, 280, &out)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too large for sheet")
+}
+
 func TestImposeRejectsInvalidSheet(t *testing.T) {
 	src := renderCondensed(t, buildFixture(2), render.PageLetter)
 	badSheet := render.Dimensions{WidthMM: 0, HeightMM: 0}

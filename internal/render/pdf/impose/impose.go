@@ -71,6 +71,14 @@ func Booklet(src io.ReadSeeker, sheet render.Dimensions, gutterMM float64, dst i
 		return fmt.Errorf("impose.Booklet: %w", err)
 	}
 
+	// The gutter sits between two half-sheet cells on a landscape sheet. A
+	// gutter at or above half the landscape width would leave zero-or-
+	// negative-width cells with no room for content.
+	maxGutterMM := landscapeW
+	if gutterMM >= maxGutterMM {
+		return fmt.Errorf("impose.Booklet: gutter %.2fmm is too large for sheet (max %.2fmm)", gutterMM, maxGutterMM)
+	}
+
 	// Pad logical page count up to a multiple of 4, reserving the back
 	// cover (last imposed slot) for a blank so it never carries content
 	// when the booklet unfolds beside the title page. Add one virtual
