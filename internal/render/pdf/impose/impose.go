@@ -31,10 +31,11 @@ func TwoUp(src io.ReadSeeker, sheet render.Dimensions, dst io.Writer) error {
 	}
 
 	halfW := landscapeW / 2
+	// Source condensed pages are halfW × landscapeH; target cells match.
 	for i := 0; i < (pageCount+1)/2; i++ {
 		out.AddPage()
-		placePage(out, imp, &rs, 2*i+1, pageCount, 0, 0, halfW, landscapeH)
-		placePage(out, imp, &rs, 2*i+2, pageCount, halfW, 0, halfW, landscapeH)
+		placeFitted(out, imp, &rs, 2*i+1, pageCount, 0, 0, halfW, landscapeH, halfW, landscapeH)
+		placeFitted(out, imp, &rs, 2*i+2, pageCount, halfW, 0, halfW, landscapeH, halfW, landscapeH)
 	}
 
 	if err := out.Output(dst); err != nil {
@@ -72,15 +73,20 @@ func Booklet(src io.ReadSeeker, sheet render.Dimensions, gutterMM float64, dst i
 	rightX := halfW + gutterHalf
 	rightW := halfW - gutterHalf
 
+	// Source condensed pages are halfW × landscapeH. Placing them into a
+	// narrower cell without this source size would stretch the content
+	// (gofpdi fills the rectangle in both dimensions).
+	sourceW, sourceH := halfW, landscapeH
+
 	sheets := N / 4
 	for m := 0; m < sheets; m++ {
 		out.AddPage()
-		placePage(out, imp, &rs, N-2*m, pageCount, 0, 0, leftW, landscapeH)
-		placePage(out, imp, &rs, 2*m+1, pageCount, rightX, 0, rightW, landscapeH)
+		placeFitted(out, imp, &rs, N-2*m, pageCount, 0, 0, leftW, landscapeH, sourceW, sourceH)
+		placeFitted(out, imp, &rs, 2*m+1, pageCount, rightX, 0, rightW, landscapeH, sourceW, sourceH)
 
 		out.AddPage()
-		placePage(out, imp, &rs, 2*m+2, pageCount, 0, 0, leftW, landscapeH)
-		placePage(out, imp, &rs, N-2*m-1, pageCount, rightX, 0, rightW, landscapeH)
+		placeFitted(out, imp, &rs, 2*m+2, pageCount, 0, 0, leftW, landscapeH, sourceW, sourceH)
+		placeFitted(out, imp, &rs, N-2*m-1, pageCount, rightX, 0, rightW, landscapeH, sourceW, sourceH)
 	}
 
 	if err := out.Output(dst); err != nil {
@@ -124,10 +130,40 @@ func setup(src io.ReadSeeker, sheet render.Dimensions) (*gofpdi.Importer, *fpdf.
 	return imp, out, rs, pageCount, landscapeW, landscapeH, nil
 }
 
-func placePage(out *fpdf.Fpdf, imp *gofpdi.Importer, rs *io.ReadSeeker, n, realPages int, x, y, w, h float64) {
+// placeFitted imports logical page n and places it into the target cell
+// at (cellX, cellY) with size (cellW, cellH), scaling uniformly to
+// preserve the source aspect ratio (sourceW × sourceH) and centering the
+// result in the cell. This avoids horizontal squish when the gutter makes
+// the cell narrower than the source page, at the cost of some top/bottom
+// white space on the imposed sheet.
+func placeFitted(out *fpdf.Fpdf, imp *gofpdi.Importer, rs *io.ReadSeeker, n, realPages int, cellX, cellY, cellW, cellH, sourceW, sourceH float64) {
 	if n < 1 || n > realPages {
 		return
 	}
+	w, h, dx, dy := fitUniform(sourceW, sourceH, cellW, cellH)
 	tpl := imp.ImportPageFromStream(out, rs, n, "/MediaBox")
-	imp.UseImportedTemplate(out, tpl, x, y, w, h)
+	imp.UseImportedTemplate(out, tpl, cellX+dx, cellY+dy, w, h)
+}
+
+// fitUniform returns the largest w × h that fits inside cellW × cellH while
+// preserving sourceW:sourceH, along with the (dx, dy) offset to center the
+// fitted box within the cell.
+func fitUniform(sourceW, sourceH, cellW, cellH float64) (w, h, dx, dy float64) {
+	if sourceW <= 0 || sourceH <= 0 || cellW <= 0 || cellH <= 0 {
+		return cellW, cellH, 0, 0
+	}
+	sourceAspect := sourceW / sourceH
+	cellAspect := cellW / cellH
+	if cellAspect <= sourceAspect {
+		// Cell is taller relative to source → fit to width, pillar-center vertically.
+		w = cellW
+		h = cellW / sourceAspect
+	} else {
+		// Cell is wider relative to source → fit to height, letter-center horizontally.
+		h = cellH
+		w = cellH * sourceAspect
+	}
+	dx = (cellW - w) / 2
+	dy = (cellH - h) / 2
+	return
 }
