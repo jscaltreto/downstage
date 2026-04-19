@@ -43,12 +43,33 @@ watch(
   { deep: true },
 );
 
-// Snap layout back to single when switching to Manuscript so a stray
-// 2-up/booklet selection never leaks into a manuscript export (validation
-// would reject it anyway).
+// Preserve the last condensed layout when the user toggles style so a
+// booklet/2-up choice isn't erased by a quick detour to Manuscript. The
+// Layout and Gutter controls are hidden when style !== 'condensed', and
+// handleConfirm emits layout='single' for manuscript exports regardless
+// of the stored value, so manuscript validation still sees a valid combo.
+const lastCondensedLayout = ref<PdfLayout>(
+  props.initialOptions.layout === 'single' ? 'single' : props.initialOptions.layout,
+);
+
+watch(
+  () => [props.open, props.initialOptions.layout] as const,
+  ([isOpen, initial]) => {
+    if (isOpen) {
+      lastCondensedLayout.value = initial;
+    }
+  },
+);
+
+watch(layout, (next) => {
+  if (style.value === 'condensed') {
+    lastCondensedLayout.value = next;
+  }
+});
+
 watch(style, (next) => {
-  if (next !== 'condensed') {
-    layout.value = 'single';
+  if (next === 'condensed') {
+    layout.value = lastCondensedLayout.value;
   }
 });
 
@@ -79,10 +100,14 @@ function selectLayout(value: PdfLayout) {
 
 function handleConfirm() {
   if (!canConfirm.value) return;
+  // Manuscript exports force layout=single so downstream validation
+  // (standard + 2up/booklet is rejected) always sees a valid combo.
+  // lastCondensedLayout is preserved for the next Acting Edition export.
+  const emittedLayout = style.value === 'condensed' ? layout.value : 'single';
   emit('confirm', {
     pageSize: pageSize.value,
     style: style.value,
-    layout: layout.value,
+    layout: emittedLayout,
     bookletGutter: gutterString.value,
   });
 }

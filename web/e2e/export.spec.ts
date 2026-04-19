@@ -157,4 +157,36 @@ test.describe("export", () => {
     expect(storedLayout).toBe("booklet");
     expect(storedGutter).toBe("5mm");
   });
+
+  test("Manuscript export preserves a previously chosen condensed layout", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    // 1. Export once as Acting Edition / booklet so the layout is stored.
+    const firstDownload = await editor.downloadPdf({
+      style: "condensed",
+      layout: "booklet",
+    });
+    await firstDownload.path();
+    expect(await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-layout"),
+    )).toBe("booklet");
+
+    // 2. Export as Manuscript. Layout should not be clobbered.
+    const secondDownload = await editor.downloadPdf({ style: "standard" });
+    await secondDownload.path();
+    expect(await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-layout"),
+    )).toBe("booklet");
+
+    // 3. Reopen the dialog and flip back to Acting Edition; the stored
+    //    booklet layout should be preselected.
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+    await editor.exportStyleOption("condensed").click();
+    await expect(editor.layoutOption("booklet")).toHaveAttribute("aria-checked", "true");
+  });
 });

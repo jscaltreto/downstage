@@ -337,14 +337,25 @@ function handleExport() {
 async function handleExportConfirmed(opts: ExportPdfOptions) {
     showExportDialog.value = false;
     exportPageSize.value = opts.pageSize;
-    exportLayout.value = opts.layout;
     exportGutter.value = opts.bookletGutter;
     try {
         localStorage.setItem(pageSizeStorageKey, opts.pageSize);
-        localStorage.setItem(layoutStorageKey, opts.layout);
         localStorage.setItem(gutterStorageKey, opts.bookletGutter);
     } catch {
         // ignore storage errors
+    }
+
+    // Layout is only meaningful for condensed exports. A Manuscript export
+    // always comes through as single; persisting it back would clobber a
+    // previously chosen condensed layout (2up/booklet), so only update the
+    // stored layout on condensed exports.
+    if (opts.style === "condensed") {
+        exportLayout.value = opts.layout;
+        try {
+            localStorage.setItem(layoutStorageKey, opts.layout);
+        } catch {
+            // ignore storage errors
+        }
     }
 
     const title = extractDocumentTitle(activeContent.value) || "untitled";
@@ -566,7 +577,7 @@ watch(activeContent, (newContent) => {
         :initial-options="{
           pageSize: exportPageSize,
           style: pageStyle === 'condensed' ? 'condensed' : 'standard',
-          layout: pageStyle === 'condensed' ? exportLayout : 'single',
+          layout: exportLayout,
           bookletGutter: exportGutter,
         }"
         @close="showExportDialog = false"
