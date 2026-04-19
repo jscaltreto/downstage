@@ -205,11 +205,14 @@ export class EditorPage {
       await this.layoutOption(options.layout).click();
       await expect(this.layoutOption(options.layout)).toHaveAttribute("aria-checked", "true");
     }
-    if (options?.gutterValue !== undefined) {
-      await this.gutterValueInput.fill(String(options.gutterValue));
-    }
+    // Pick the unit first; changing the unit converts whatever value is
+    // already in the field. Filling after the unit change gives the test
+    // the literal value it requested, independent of the modal's default.
     if (options?.gutterUnit) {
       await this.gutterUnitSelect.selectOption(options.gutterUnit);
+    }
+    if (options?.gutterValue !== undefined) {
+      await this.gutterValueInput.fill(String(options.gutterValue));
     }
 
     const downloadPromise = this.page.waitForEvent("download");

@@ -186,6 +186,31 @@ test.describe("export", () => {
     await expect(editor.exportConfirmButton).toBeEnabled();
   });
 
+  test("Gutter value converts when the unit toggles", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+    await editor.exportStyleOption("condensed").click();
+    await editor.layoutOption("booklet").click();
+
+    // Start from a known value and unit.
+    await editor.gutterUnitSelect.selectOption("in");
+    await editor.gutterValueInput.fill("0.125");
+
+    // Swap to mm: 0.125 in × 25.4 = 3.175 mm.
+    await editor.gutterUnitSelect.selectOption("mm");
+    await expect(editor.gutterValueInput).toHaveValue("3.18");
+
+    // Swap back to in: 3.18 mm ÷ 25.4 = 0.1252 in (rounded).
+    await editor.gutterUnitSelect.selectOption("in");
+    await expect(editor.gutterValueInput).toHaveValue("0.1252");
+  });
+
   test("Switching to Manuscript ignores a stale invalid gutter", async ({ page }) => {
     const editor = new EditorPage(page);
     await editor.gotoReady();

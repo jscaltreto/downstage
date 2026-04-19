@@ -117,6 +117,23 @@ const canConfirm = computed(() => {
   return true;
 });
 
+// Switching the unit preserves the physical gutter by converting the
+// displayed value. Rounded to 4 decimal places for inches and 2 for
+// millimeters, which is well below the step the user can dial in.
+function changeGutterUnit(next: 'in' | 'mm') {
+  const prev = gutterUnit.value;
+  if (next === prev) return;
+  const v = gutterValue.value;
+  if (Number.isFinite(v)) {
+    if (prev === 'in' && next === 'mm') {
+      gutterValue.value = Math.round(v * 25.4 * 100) / 100;
+    } else if (prev === 'mm' && next === 'in') {
+      gutterValue.value = Math.round((v / 25.4) * 10000) / 10000;
+    }
+  }
+  gutterUnit.value = next;
+}
+
 function selectPageSize(value: PdfPageSize) {
   pageSize.value = value;
 }
@@ -301,7 +318,8 @@ function handleConfirm() {
               :class="gutterError ? 'border-red-500/60' : 'border-border'"
             />
             <select
-              v-model="gutterUnit"
+              :value="gutterUnit"
+              @change="changeGutterUnit(($event.target as HTMLSelectElement).value as 'in' | 'mm')"
               data-testid="gutter-unit"
               class="px-3 py-2 rounded-md text-sm font-bold bg-black/5 dark:bg-white/5 border border-border text-text-main focus:outline-none focus:ring-2 focus:ring-brass-500/40"
             >
