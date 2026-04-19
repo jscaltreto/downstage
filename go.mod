@@ -2,6 +2,8 @@ module github.com/jscaltreto/downstage
 
 go 1.24.0
 
+replace github.com/wailsapp/wails/v2 => github.com/jscaltreto/wails/v2 v2.12.1-0.20260419194552-8207d3ff2212
+
 require (
 	github.com/go-git/go-git/v5 v5.17.2
 	github.com/go-pdf/fpdf v0.9.0
