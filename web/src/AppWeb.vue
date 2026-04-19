@@ -337,10 +337,8 @@ function handleExport() {
 async function handleExportConfirmed(opts: ExportPdfOptions) {
     showExportDialog.value = false;
     exportPageSize.value = opts.pageSize;
-    exportGutter.value = opts.bookletGutter;
     try {
         localStorage.setItem(pageSizeStorageKey, opts.pageSize);
-        localStorage.setItem(gutterStorageKey, opts.bookletGutter);
     } catch {
         // ignore storage errors
     }
@@ -353,6 +351,18 @@ async function handleExportConfirmed(opts: ExportPdfOptions) {
         exportLayout.value = opts.layout;
         try {
             localStorage.setItem(layoutStorageKey, opts.layout);
+        } catch {
+            // ignore storage errors
+        }
+    }
+
+    // Gutter only applies to booklet exports. Persisting it on single/2up
+    // exports would overwrite the user's last booklet preference (and
+    // could store a value they never intended for a booklet).
+    if (opts.layout === "booklet") {
+        exportGutter.value = opts.bookletGutter;
+        try {
+            localStorage.setItem(gutterStorageKey, opts.bookletGutter);
         } catch {
             // ignore storage errors
         }

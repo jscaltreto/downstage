@@ -282,12 +282,17 @@ func renderPDF(_ js.Value, args []js.Value) any {
 				}
 				cfg.Layout = layout
 			}
-			if v := cfgObj.Get("gutter"); v.Truthy() {
-				gutterMM, err := render.ParseMeasurement(v.String())
-				if err != nil {
-					return js.Null()
+			// Gutter only applies to booklet layout. Parsing it for
+			// single/2up exports would let a stale or malformed value
+			// break an export that never uses it.
+			if cfg.Layout == render.LayoutBooklet {
+				if v := cfgObj.Get("gutter"); v.Truthy() {
+					gutterMM, err := render.ParseMeasurement(v.String())
+					if err != nil {
+						return js.Null()
+					}
+					cfg.BookletGutterMM = gutterMM
 				}
-				cfg.BookletGutterMM = gutterMM
 			}
 		} else if args[1].String() == "condensed" {
 			cfg.Style = render.StyleCondensed

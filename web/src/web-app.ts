@@ -94,12 +94,22 @@ class WebEnv implements EditorEnv {
   }
 
   async renderPDF(source: string, options: ExportPdfOptions): Promise<Uint8Array> {
-    return window.downstage.renderPDF(source, {
+    const wasmOpts: {
+      style: string;
+      pageSize: string;
+      layout: string;
+      gutter?: string;
+    } = {
       style: options.style,
       pageSize: options.pageSize,
       layout: options.layout,
-      gutter: options.bookletGutter,
-    });
+    };
+    // Gutter only applies to booklet layout. Omitting it for single/2up
+    // exports keeps a stale or malformed value from reaching WASM.
+    if (options.layout === "booklet") {
+      wasmOpts.gutter = options.bookletGutter;
+    }
+    return window.downstage.renderPDF(source, wasmOpts);
   }
 
   async loadDrafts(): Promise<SavedDraft[]> {

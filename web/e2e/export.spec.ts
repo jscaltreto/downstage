@@ -186,6 +186,44 @@ test.describe("export", () => {
     await expect(editor.exportConfirmButton).toBeEnabled();
   });
 
+  test("Non-booklet exports ignore the stored gutter", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+
+    // Seed a nonsense gutter value before the editor boots. If the export
+    // path still forwards this to WASM for non-booklet layouts, ParseMeasurement
+    // will reject it and renderPDF returns null bytes → error toast.
+    await page.addInitScript(() => {
+      window.localStorage.setItem("downstage-editor-export-booklet-gutter", "not-a-measurement");
+    });
+    await page.reload();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    // 2-up export: gutter is stored but should never be sent to WASM.
+    const twoUpDownload = await editor.downloadPdf({
+      style: "condensed",
+      layout: "2up",
+    });
+    const twoUpPath = await twoUpDownload.path();
+    const twoUpBuf = await readFile(twoUpPath!);
+    expect(twoUpBuf.slice(0, 5).toString("utf8")).toBe("%PDF-");
+
+    // The poisoned gutter should remain untouched — 2-up exports must not
+    // overwrite the stored gutter value either.
+    const storedAfter2Up = await page.evaluate(() =>
+      window.localStorage.getItem("downstage-editor-export-booklet-gutter"),
+    );
+    expect(storedAfter2Up).toBe("not-a-measurement");
+
+    // Manuscript export: same invariant.
+    const manuscriptDownload = await editor.downloadPdf({ style: "standard" });
+    const manuscriptPath = await manuscriptDownload.path();
+    const manuscriptBuf = await readFile(manuscriptPath!);
+    expect(manuscriptBuf.slice(0, 5).toString("utf8")).toBe("%PDF-");
+  });
+
   test("Gutter value converts when the unit toggles", async ({ page }) => {
     const editor = new EditorPage(page);
     await editor.gotoReady();
