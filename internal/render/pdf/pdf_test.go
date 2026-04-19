@@ -250,6 +250,37 @@ func TestRender_CondensedDramatisPersonaeGetsOwnPageBeforeAct(t *testing.T) {
 	assert.Equal(t, 3, r.pdf.PageNo())
 }
 
+// TestRender_CondensedGenericSectionAfterTitlePageNoBlankPage ensures a
+// generic section immediately following the title page lands on page 2
+// and does not leave a blank page between the title page and the section
+// body.
+func TestRender_CondensedGenericSectionAfterTitlePageNoBlankPage(t *testing.T) {
+	r := NewCondensedRenderer(render.DefaultConfig()).(*condensedRenderer)
+	doc := &ast.Document{
+		TitlePage: &ast.TitlePage{
+			Entries: []ast.KeyValue{
+				{Key: "Title", Value: "Test"},
+				{Key: "Author", Value: "Test Author"},
+			},
+		},
+		Body: []ast.Node{
+			&ast.Section{
+				Kind:  ast.SectionGeneric,
+				Level: 2,
+				Title: "Preface",
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := render.Walk(r, doc, &buf)
+	require.NoError(t, err)
+	assert.True(t, buf.Len() > 0)
+	// Title page (page 1) + generic section body (page 2) = 2 pages total.
+	// Before this fix, the renderer added an extra blank page 2, producing 3.
+	assert.Equal(t, 2, r.pdf.PageNo())
+}
+
 func TestRender_CompilationSubplayStaysInlineAfterHeader(t *testing.T) {
 	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
 	doc := &ast.Document{

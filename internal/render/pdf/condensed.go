@@ -212,7 +212,7 @@ func (r *condensedRenderer) BeginSection(s *ast.Section) error {
 			r.pdf.Ln(r.lineHeight)
 			return nil
 		}
-		if !r.consumePendingDramatisBodyPage() && !r.consumePendingInlinePlayFirstBodyPage() {
+		if !r.consumePendingTitlePageBodyPage() && !r.consumePendingDramatisBodyPage() && !r.consumePendingInlinePlayFirstBodyPage() {
 			r.pdf.AddPage()
 		}
 		if s.Title != "" {
