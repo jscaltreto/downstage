@@ -186,6 +186,36 @@ test.describe("export", () => {
     await expect(editor.exportConfirmButton).toBeEnabled();
   });
 
+  test("Switching to Manuscript ignores a stale invalid gutter", async ({ page }) => {
+    const editor = new EditorPage(page);
+    await editor.gotoReady();
+    await editor.welcomeStartButton.click();
+    await editor.setEditorContent(body);
+    await expect(editor.exportPdfButton).toBeEnabled();
+
+    await editor.exportPdfButton.click();
+    await expect(editor.exportDialog).toBeVisible();
+
+    // Enter an invalid gutter in the Acting Edition / Booklet path.
+    await editor.exportStyleOption("condensed").click();
+    await editor.layoutOption("booklet").click();
+    await editor.gutterValueInput.fill("50");
+    await editor.gutterUnitSelect.selectOption("in");
+    await expect(editor.exportConfirmButton).toBeDisabled();
+
+    // Switching to Manuscript: the gutter field is hidden and the stale
+    // invalid value must not keep the Export button disabled.
+    await editor.exportStyleOption("standard").click();
+    await expect(editor.layoutGroup).toBeHidden();
+    await expect(editor.gutterRow).toBeHidden();
+    await expect(editor.exportConfirmButton).toBeEnabled();
+
+    // Switching back to Acting Edition re-applies the validation.
+    await editor.exportStyleOption("condensed").click();
+    await expect(editor.gutterRow).toBeVisible();
+    await expect(editor.exportConfirmButton).toBeDisabled();
+  });
+
   test("Manuscript export preserves a previously chosen condensed layout", async ({ page }) => {
     const editor = new EditorPage(page);
     await editor.gotoReady();

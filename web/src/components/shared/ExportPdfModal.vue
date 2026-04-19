@@ -109,6 +109,10 @@ const gutterError = computed<string | null>(() => {
 const gutterIsValid = computed(() => gutterError.value === null);
 
 const canConfirm = computed(() => {
+  // Gutter only matters for Acting Edition booklet exports. Manuscript
+  // exports force layout=single downstream (see handleConfirm), so a
+  // stale invalid gutter value should not block them.
+  if (style.value !== 'condensed') return true;
   if (layout.value === 'booklet') return gutterIsValid.value;
   return true;
 });
