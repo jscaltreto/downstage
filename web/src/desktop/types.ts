@@ -19,6 +19,10 @@ export interface LibraryNode {
 
 export interface Revision {
   hash: string;
+  // Library-relative path the file had at this specific commit. May
+  // differ from the current path if the file has been moved or
+  // renamed since. Use this when fetching the revision's content.
+  path: string;
   message: string;
   author: string;
   timestamp: string;

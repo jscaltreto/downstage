@@ -12,6 +12,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/storer"
 )
 
 // ErrNothingToSnapshot is returned by SnapshotFile when the working tree has
@@ -26,9 +27,14 @@ const (
 	defaultSnapshotAuthorEmail = "hello@getdownstage.com"
 )
 
-// Revision represents a git commit for a file.
+// Revision represents a git commit for a file. Path is the library-
+// relative location the file had at that specific commit — which may
+// differ from the current path if the file has been moved/renamed
+// since. The frontend uses Path when fetching a revision's content
+// via ReadFileAtRevision so lookups work across rename boundaries.
 type Revision struct {
 	Hash      string `json:"hash"`
+	Path      string `json:"path"`
 	Message   string `json:"message"`
 	Author    string `json:"author"`
 	Timestamp string `json:"timestamp"`
@@ -103,7 +109,7 @@ func (a *App) SnapshotFile(relPath string, message string) error {
 const defaultRevisionLimit = 100
 
 func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
-	// Same nil-slice-is-null hazard as GetLibraryFiles: always hand
+	// Same nil-slice-is-null hazard as GetLibraryTree: always hand
 	// the frontend a real empty slice so `.length`/`.map` are safe.
 	if a.currentLibrary == "" {
 		return []Revision{}, nil
@@ -120,24 +126,117 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 		return nil, err
 	}
 
-	log, err := r.Log(&git.LogOptions{FileName: &relPath})
+	head, err := r.Head()
+	if errors.Is(err, plumbing.ErrReferenceNotFound) {
+		// Fresh repo with no commits yet — nothing to report.
+		return []Revision{}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
 
+	iter, err := r.Log(&git.LogOptions{From: head.Hash()})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	// Walk the log in reverse chronological order, tracking the file's
+	// path as it changes across renames. This is the equivalent of
+	// `git log --follow <path>` without go-git's native support for it.
+	//
+	// Starting at HEAD, the tracked path is the current path. At each
+	// commit we check the blob at the tracked path; if the commit
+	// introduced that blob AND a sibling path in the same commit held
+	// the identical blob in the parent, treat it as a rename and move
+	// the tracked path to the parent's name for subsequent iterations.
+	//
+	// Pure-rename commits (same blob, different path) are detected
+	// and followed for history tracking but NOT surfaced as versions.
+	// The user's mental model is "snapshots of content," not
+	// "structural moves" — restoring a pure rename is semantically a
+	// no-op since its content equals its neighbors'. Keeping them
+	// internal to the walk also spares the revisions panel clutter
+	// every time a file gets reorganized.
+	tracked := filepath.ToSlash(filepath.Clean(relPath))
 	revisions := make([]Revision, 0, limit)
-	// Use a sentinel error to stop ForEach once we've collected enough.
-	var errStop = errors.New("stop")
-	err = log.ForEach(func(c *object.Commit) error {
-		revisions = append(revisions, Revision{
-			Hash:      c.Hash.String(),
-			Message:   c.Message,
-			Author:    c.Author.Name,
-			Timestamp: c.Author.When.Format(time.RFC3339),
-		})
-		if len(revisions) >= limit {
-			return errStop
+
+	firstCommit := true
+	errStop := errors.New("stop")
+
+	err = iter.ForEach(func(c *object.Commit) error {
+		blob, err := blobAtPath(c, tracked)
+		if err != nil {
+			return err
 		}
+
+		var parentBlob plumbing.Hash
+		var parent *object.Commit
+		if c.NumParents() > 0 {
+			parent, err = c.Parent(0)
+			if err != nil {
+				return err
+			}
+			parentBlob, _ = blobHashAtPath(parent, tracked)
+		}
+
+		// Was the tracked path introduced (absent in parent, present
+		// here) or a newly-added blob? Candidate for a rename.
+		addedHere := !blob.IsZero() && parentBlob.IsZero()
+		removedHere := blob.IsZero() && !parentBlob.IsZero()
+
+		// Look for a rename: same blob lived at a different path in
+		// the parent. If found, this commit is a pure rename of the
+		// tracked file — skip from the output but advance `tracked`
+		// so pre-rename commits are attributed to the old path.
+		var renameSource string
+		if addedHere && parent != nil {
+			if sibling, ok := findSiblingBlob(parent, c, blob, tracked); ok {
+				renameSource = sibling
+			}
+		}
+
+		// Include the commit iff it genuinely changed the tracked
+		// file's content, and it's not a pure-rename bookkeeping
+		// commit.
+		includeCommit := false
+		switch {
+		case renameSource != "":
+			includeCommit = false
+		case firstCommit && !blob.IsZero():
+			includeCommit = true
+		case parent == nil && !blob.IsZero():
+			includeCommit = true
+		case blob != parentBlob:
+			includeCommit = true
+		}
+
+		if includeCommit {
+			revisions = append(revisions, Revision{
+				Hash:      c.Hash.String(),
+				Path:      tracked,
+				Message:   c.Message,
+				Author:    c.Author.Name,
+				Timestamp: c.Author.When.Format(time.RFC3339),
+			})
+			if len(revisions) >= limit {
+				return errStop
+			}
+		}
+
+		// Advance `tracked` across rename boundaries for subsequent
+		// iterations, regardless of whether we emitted this commit.
+		if renameSource != "" {
+			tracked = renameSource
+		} else if removedHere && parent != nil {
+			// File deleted (or renamed away) at this commit. If the
+			// parent held the same blob at another path, follow it.
+			if newPath, ok := findSiblingBlob(c, parent, parentBlob, tracked); ok {
+				tracked = newPath
+			}
+		}
+
+		firstCommit = false
 		return nil
 	})
 	if err != nil && !errors.Is(err, errStop) {
@@ -145,6 +244,72 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 	}
 
 	return revisions, nil
+}
+
+// blobAtPath returns the blob hash at `path` in `commit`. Returns a
+// zero hash (with no error) if the path doesn't exist in the commit.
+func blobAtPath(commit *object.Commit, path string) (plumbing.Hash, error) {
+	return blobHashAtPath(commit, path)
+}
+
+func blobHashAtPath(commit *object.Commit, path string) (plumbing.Hash, error) {
+	if commit == nil || path == "" {
+		return plumbing.ZeroHash, nil
+	}
+	tree, err := commit.Tree()
+	if err != nil {
+		return plumbing.ZeroHash, err
+	}
+	entry, err := tree.File(path)
+	if err != nil {
+		if errors.Is(err, object.ErrFileNotFound) {
+			return plumbing.ZeroHash, nil
+		}
+		return plumbing.ZeroHash, err
+	}
+	return entry.Hash, nil
+}
+
+// findSiblingBlob searches `reference`'s tree for a file with the
+// given blob hash that doesn't exist (or has a different hash) in
+// `other`'s tree. Used to spot the pre-rename path of a file that
+// was added at `tracked` in `other` and whose identical blob lived
+// elsewhere in `reference`. Returns the sibling path when a unique
+// match is found, "" when none, and only the first hit when multiple
+// (rare — would require duplicate-content files).
+func findSiblingBlob(reference, other *object.Commit, blob plumbing.Hash, excludePath string) (string, bool) {
+	if reference == nil || blob.IsZero() {
+		return "", false
+	}
+	refTree, err := reference.Tree()
+	if err != nil {
+		return "", false
+	}
+	var foundPath string
+	err = refTree.Files().ForEach(func(f *object.File) error {
+		if f.Hash != blob {
+			return nil
+		}
+		path := filepath.ToSlash(f.Name)
+		if path == excludePath {
+			return nil
+		}
+		// Confirm the candidate path didn't hold this blob in the
+		// other commit — otherwise it's not a rename, just a pre-
+		// existing duplicate.
+		if other != nil {
+			otherBlob, _ := blobHashAtPath(other, path)
+			if otherBlob == blob {
+				return nil
+			}
+		}
+		foundPath = path
+		return storer.ErrStop
+	})
+	if err != nil && !errors.Is(err, storer.ErrStop) {
+		return "", false
+	}
+	return foundPath, foundPath != ""
 }
 
 // FileGitStatus summarizes git-level state for a single library file, as

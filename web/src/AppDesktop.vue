@@ -342,8 +342,15 @@ function handleNewPlay() {
 // Status-bar library label click: open the library folder in the host
 // OS's file explorer. The library location itself is managed through
 // Settings, so this click has a narrower job than "open folder".
-function handleRevealLibrary() {
-  void env.revealLibraryInExplorer();
+async function handleRevealLibrary() {
+  try {
+    await props.env.revealLibraryInExplorer();
+  } catch (e: any) {
+    toastManager.value?.addToast(
+      `Reveal failed: ${e?.message ?? e}`,
+      'error',
+    );
+  }
 }
 
 // External-file banner helpers. openExternalFile is invoked via the
