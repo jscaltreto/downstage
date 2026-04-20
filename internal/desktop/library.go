@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/format/index"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -166,6 +168,15 @@ func (a *App) CreateLibraryFolder(relPath string) error {
 // and when the destination would land inside the source (can't move a
 // folder into itself). Returns the new rel path with forward slashes
 // so the frontend can update its active-file tracking.
+//
+// The move is auto-committed. A filesystem-only rename would leave the
+// repo in an inconsistent intermediate state (old path tracked-but-
+// missing, new path untracked); a structural action like move is
+// deliberate user input, so recording it as a commit up front keeps
+// the repo clean and gives git's rename detection an unambiguous
+// signal that `GetRevisions`'s follow-renames walk can hook into.
+// Auto-commit here does not extend to content saves — those remain
+// explicit via SnapshotFile.
 func (a *App) MoveLibraryEntry(srcRel, dstRel string) (string, error) {
 	srcFull, err := a.safePath(srcRel)
 	if err != nil {
@@ -190,10 +201,152 @@ func (a *App) MoveLibraryEntry(srcRel, dstRel string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(dstFull), 0755); err != nil {
 		return "", fmt.Errorf("make destination dir: %w", err)
 	}
+
+	// Collect the pre-move relative paths to stage as deletions. For
+	// files this is just srcRel; for folders we need every .ds file
+	// underneath, so git records the full rename pattern rather than
+	// a single directory entry (go-git stages files, not directories).
+	srcSubPaths, err := collectTrackedPaths(srcFull, srcRel)
+	if err != nil {
+		return "", fmt.Errorf("enumerate source: %w", err)
+	}
+
 	if err := os.Rename(srcFull, dstFull); err != nil {
 		return "", fmt.Errorf("rename: %w", err)
 	}
-	return filepath.ToSlash(filepath.Clean(dstRel)), nil
+
+	cleanDst := filepath.ToSlash(filepath.Clean(dstRel))
+
+	// Commit the move. On a fresh library with no commits, this is the
+	// first commit and creates HEAD. We treat a repo-init failure or
+	// commit failure as non-fatal — the filesystem move already
+	// succeeded, and the next snapshot will pick up the changes — but
+	// we surface the error so the frontend can toast it.
+	if err := a.commitMove(srcSubPaths, cleanDst); err != nil {
+		slog.Warn("library move: commit failed (filesystem move succeeded)", "err", err)
+	}
+
+	return cleanDst, nil
+}
+
+// collectTrackedPaths returns the library-relative forward-slash paths
+// that will need to be staged as deletions after a rename. For a
+// single file, that's one path. For a folder, it's every .ds file
+// inside (git stages files, not directories).
+func collectTrackedPaths(fullPath, relPath string) ([]string, error) {
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return []string{filepath.ToSlash(relPath)}, nil
+	}
+	var paths []string
+	err = filepath.WalkDir(fullPath, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			name := d.Name()
+			if name == ".git" || name == ".downstage" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".ds") {
+			return nil
+		}
+		rel, err := filepath.Rel(fullPath, p)
+		if err != nil {
+			return err
+		}
+		paths = append(paths, filepath.ToSlash(filepath.Join(relPath, rel)))
+		return nil
+	})
+	return paths, err
+}
+
+// commitMove stages the pre-move source paths as deletions and the
+// post-move destination as added files, then commits. Assumes the
+// filesystem rename already happened.
+func (a *App) commitMove(srcPaths []string, dstRel string) error {
+	if a.currentLibrary == "" {
+		return fmt.Errorf("no library open")
+	}
+	r, err := git.PlainOpen(a.currentLibrary)
+	if errors.Is(err, git.ErrRepositoryNotExists) {
+		r, err = git.PlainInit(a.currentLibrary, false)
+	}
+	if err != nil {
+		return fmt.Errorf("open repo: %w", err)
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return fmt.Errorf("worktree: %w", err)
+	}
+
+	// Stage deletions (old paths). `Remove` is a no-op-with-error when
+	// the path wasn't previously tracked (e.g. a brand-new file that
+	// hadn't been snapshotted yet) — swallow that case so the first-
+	// snapshot-also-moved flow still works.
+	for _, p := range srcPaths {
+		if _, err := w.Remove(p); err != nil && !errors.Is(err, index.ErrEntryNotFound) {
+			slog.Warn("library move: remove failed", "path", p, "err", err)
+		}
+	}
+
+	// Stage additions. If dst is a directory, walk it and Add every
+	// .ds file. AddWithOptions(All: true, Path: dstRel) would do this
+	// in one go but we keep the behavior explicit so we can log per-
+	// file failures.
+	fullDst := filepath.Join(a.currentLibrary, dstRel)
+	info, err := os.Stat(fullDst)
+	if err != nil {
+		return fmt.Errorf("stat destination: %w", err)
+	}
+	if info.IsDir() {
+		err := filepath.WalkDir(fullDst, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			if !strings.HasSuffix(d.Name(), ".ds") {
+				return nil
+			}
+			rel, err := filepath.Rel(a.currentLibrary, p)
+			if err != nil {
+				return err
+			}
+			_, addErr := w.Add(filepath.ToSlash(rel))
+			return addErr
+		})
+		if err != nil {
+			return fmt.Errorf("add destination files: %w", err)
+		}
+	} else {
+		if _, err := w.Add(dstRel); err != nil {
+			return fmt.Errorf("add destination: %w", err)
+		}
+	}
+
+	// Nothing to commit? (e.g. user moved an untracked file to a new
+	// location — no tree delta from HEAD's perspective.) Skip silently.
+	status, err := w.Status()
+	if err != nil {
+		return fmt.Errorf("status: %w", err)
+	}
+	if status.IsClean() {
+		return nil
+	}
+
+	message := fmt.Sprintf("Move to %s", dstRel)
+	if len(srcPaths) > 0 {
+		message = fmt.Sprintf("Move %s → %s", srcPaths[0], dstRel)
+	}
+	_, err = w.Commit(message, &git.CommitOptions{Author: snapshotAuthor(r)})
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
 }
 
 // RenameLibraryEntry renames srcRel's basename to newName, preserving

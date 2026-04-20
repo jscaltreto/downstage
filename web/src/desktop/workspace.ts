@@ -71,12 +71,13 @@ const drawerWidthPersistDebounceMs = 300;
 // Kept in sync with internal/desktop/git.go:ErrNothingToSnapshot.
 const nothingToSnapshotPrefix = "downstage: nothing-to-snapshot";
 
+// Match permissively: Wails' RPC layer doesn't always deliver real
+// `Error` instances on the JS side, so `instanceof Error` is
+// unreliable. Pull whatever string representation we can find and
+// check for the prefix. Same shape as the handler in commands.ts.
 function isNothingToSnapshotError(e: unknown): boolean {
-  return (
-    e instanceof Error &&
-    typeof e.message === "string" &&
-    e.message.includes(nothingToSnapshotPrefix)
-  );
+  const message = String((e as { message?: unknown } | null)?.message ?? e ?? "");
+  return message.includes(nothingToSnapshotPrefix);
 }
 
 export class Workspace {
@@ -384,10 +385,12 @@ export class Workspace {
     if (!this.state.activeFile) return;
     const meta =
       this.state.revisions.find((r) => r.hash === hash) ?? null;
-    const content = await this.env.readFileAtRevision(
-      this.state.activeFile,
-      hash,
-    );
+    // Use the revision's historical path — the file may have lived
+    // at a different location at the time of this commit if it's
+    // been moved/renamed since. `meta?.path` is authoritative; fall
+    // back to activeFile when missing (older backend or repair path).
+    const lookupPath = meta?.path || this.state.activeFile;
+    const content = await this.env.readFileAtRevision(lookupPath, hash);
     this.state.viewingRevisionHash = hash;
     this.state.viewingRevisionContent = content;
     this.state.viewingRevisionMeta = meta;
@@ -429,8 +432,13 @@ export class Workspace {
       if (!isNothingToSnapshotError(e)) throw e;
     }
 
-    // 3. Read the revision content and write it into the working copy.
-    const revisionContent = await this.env.readFileAtRevision(file, hash);
+    // 3. Read the revision content and write it into the working
+    //    copy. The revision may be from before a rename, so look up
+    //    the content at the path the file had at that commit (tracked
+    //    on each Revision).
+    const meta = this.state.revisions.find((r) => r.hash === hash) ?? null;
+    const lookupPath = meta?.path || file;
+    const revisionContent = await this.env.readFileAtRevision(lookupPath, hash);
     await this.env.writeLibraryFile(file, revisionContent);
 
     // 4. Commit the restore so it shows up in the revisions list. The

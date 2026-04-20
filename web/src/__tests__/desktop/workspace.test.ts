@@ -170,7 +170,7 @@ describe("Workspace", () => {
     });
     const ws = new Workspace(env);
     ws.state.activeFile = "old.ds";
-    ws.state.revisions = [{ hash: "abc", message: "m", author: "a", timestamp: "" }];
+    ws.state.revisions = [{ hash: "abc", path: "play.ds", message: "m", author: "a", timestamp: "" }];
 
     await ws.changeLibraryLocation();
 
@@ -184,7 +184,7 @@ describe("Workspace", () => {
     stubLocalStorage();
     const env = createEnv({
       _contents: { "play.ds": "hello" },
-      _revisions: [{ hash: "abc", message: "m", author: "a", timestamp: "" }],
+      _revisions: [{ hash: "abc", path: "play.ds", message: "m", author: "a", timestamp: "" }],
     });
     const ws = new Workspace(env);
 
@@ -226,7 +226,7 @@ describe("Workspace", () => {
     stubLocalStorage();
     const env = createEnv({
       _contents: { "play.ds": "live", "play.ds@abc": "older" },
-      _revisions: [{ hash: "abc", message: "initial draft", author: "a", timestamp: "2026-04-17T00:00:00Z" }],
+      _revisions: [{ hash: "abc", path: "play.ds", message: "initial draft", author: "a", timestamp: "2026-04-17T00:00:00Z" }],
     });
     const ws = new Workspace(env);
     await ws.selectFile("play.ds");
@@ -247,7 +247,7 @@ describe("Workspace", () => {
     stubLocalStorage();
     const env = createEnv({
       _contents: { "play.ds": "live", "play.ds@abc": "older" },
-      _revisions: [{ hash: "abc", message: "m", author: "a", timestamp: "" }],
+      _revisions: [{ hash: "abc", path: "play.ds", message: "m", author: "a", timestamp: "" }],
     });
     const ws = new Workspace(env);
     await ws.selectFile("play.ds");
@@ -264,7 +264,7 @@ describe("Workspace", () => {
     stubLocalStorage();
     const env = createEnv({
       _contents: { "play.ds": "originally-saved", "play.ds@abc": "older-content" },
-      _revisions: [{ hash: "abc", message: "old draft", author: "a", timestamp: "" }],
+      _revisions: [{ hash: "abc", path: "play.ds", message: "old draft", author: "a", timestamp: "" }],
     });
     const ws = new Workspace(env);
     await ws.selectFile("play.ds");
@@ -564,7 +564,7 @@ describe("Workspace", () => {
     stubLocalStorage();
     const env = createEnv({
       _contents: { "play.ds": "clean", "play.ds@abc": "older-content" },
-      _revisions: [{ hash: "abc", message: "m", author: "a", timestamp: "" }],
+      _revisions: [{ hash: "abc", path: "play.ds", message: "m", author: "a", timestamp: "" }],
     });
     // Backup snapshot fires "nothing to snapshot". Restore snapshot succeeds.
     let snapCount = 0;

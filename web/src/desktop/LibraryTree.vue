@@ -131,9 +131,10 @@ function onDragOver(event: DragEvent, targetPath: string) {
 async function onDrop(event: DragEvent, targetPath: string) {
   event.preventDefault();
   const src = draggedPath.value;
+  const allowed = src !== null && canDropOn(targetPath);
   dropTarget.value = null;
   draggedPath.value = null;
-  if (!src || !canDropOn(targetPath)) return;
+  if (!allowed || !src) return;
   const name = src.includes('/') ? src.slice(src.lastIndexOf('/') + 1) : src;
   const dst = targetPath ? `${targetPath}/${name}` : name;
   try {
@@ -147,7 +148,17 @@ async function onDrop(event: DragEvent, targetPath: string) {
 
 <template>
   <div class="flex-1 overflow-y-auto p-2 custom-scrollbar border-b border-border" @click="closeContextMenu">
-    <div class="flex items-center justify-between px-2 pb-2">
+    <!-- Header doubles as the root drop zone. Nested rows `.stop`
+         their drag events to avoid a double-target bug, which also
+         means the outer tree container rarely sees dragovers when
+         the list is dense — so the header is where you drop to
+         land at the library root. -->
+    <div
+      class="flex items-center justify-between px-2 pb-2 rounded transition-colors"
+      :class="dropTarget === '' ? 'bg-brass-500/10 ring-1 ring-brass-500/30' : ''"
+      @dragover.stop="onDragOver($event, '')"
+      @drop.stop="onDrop($event, '')"
+    >
       <span class="text-[10px] uppercase tracking-[0.2em] text-text-muted font-bold">Files</span>
       <button
         type="button"

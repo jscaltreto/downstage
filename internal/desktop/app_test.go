@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -454,6 +455,111 @@ func TestRenameLibraryEntry_RejectsDotNames(t *testing.T) {
 
 	_, err := a.RenameLibraryEntry("play.ds", "..")
 	assert.Error(t, err)
+}
+
+// A move after the file has at least one snapshot should auto-commit
+// a "Move ... → ..." commit so the repo stays in a clean state, and
+// so GetRevisions's follow-renames walk has an explicit rename
+// boundary to detect.
+// The move IS recorded as a commit in git (repo hygiene — clean
+// staged state + explicit rename signal for follow-renames), but
+// should not appear in the revisions panel since it's a structural
+// bookkeeping commit with no content change.
+func TestMoveLibraryEntry_CreatesRenameCommitNotSurfacedInRevisions(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
+	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
+	require.NoError(t, os.MkdirAll(filepath.Join(a.currentLibrary, "archive"), 0755))
+
+	_, err := a.MoveLibraryEntry("play.ds", "archive/play.ds")
+	require.NoError(t, err)
+
+	// The revisions panel only shows "initial" — the move commit is
+	// filtered out. `git log` on the CLI would still show it.
+	revs, err := a.GetRevisions("archive/play.ds", 0)
+	require.NoError(t, err)
+	require.Len(t, revs, 1)
+	assert.Contains(t, revs[0].Message, "initial")
+	// And it's attributed to the pre-rename path.
+	assert.Equal(t, "play.ds", revs[0].Path)
+
+	// Confirm there are actually two commits in the repo (the move
+	// was committed in git, just filtered from the panel).
+	r, err := git.PlainOpen(a.currentLibrary)
+	require.NoError(t, err)
+	head, err := r.Head()
+	require.NoError(t, err)
+	iter, err := r.Log(&git.LogOptions{From: head.Hash()})
+	require.NoError(t, err)
+	count := 0
+	require.NoError(t, iter.ForEach(func(_ *object.Commit) error {
+		count++
+		return nil
+	}))
+	assert.Equal(t, 2, count, "move commit exists in git, filtered from panel")
+}
+
+// GetRevisions must follow a file's history across renames. The panel
+// should show all commits that touched the content, regardless of
+// the path it lived at at the time.
+func TestGetRevisions_FollowsRename(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
+	require.NoError(t, a.SnapshotFile("play.ds", "initial draft"))
+	require.NoError(t, a.WriteLibraryFile("play.ds", "v2"))
+	require.NoError(t, a.SnapshotFile("play.ds", "second draft"))
+	require.NoError(t, os.MkdirAll(filepath.Join(a.currentLibrary, "archive"), 0755))
+
+	_, err := a.MoveLibraryEntry("play.ds", "archive/play.ds")
+	require.NoError(t, err)
+
+	require.NoError(t, a.WriteLibraryFile("archive/play.ds", "v3"))
+	require.NoError(t, a.SnapshotFile("archive/play.ds", "after move"))
+
+	revs, err := a.GetRevisions("archive/play.ds", 0)
+	require.NoError(t, err)
+
+	// Expected, newest first. The pure-rename commit (no content
+	// change, just a move) is deliberately filtered out — restoring
+	// it would be a no-op, and the user's mental model is "saves of
+	// content," not "structural moves."
+	//  - "after move" (at archive/play.ds)
+	//  - "second draft" (at play.ds)
+	//  - "initial draft" (at play.ds)
+	require.Len(t, revs, 3)
+	assert.Contains(t, revs[0].Message, "after move")
+	assert.Equal(t, "archive/play.ds", revs[0].Path)
+	assert.Contains(t, revs[1].Message, "second draft")
+	assert.Equal(t, "play.ds", revs[1].Path)
+	assert.Contains(t, revs[2].Message, "initial draft")
+	assert.Equal(t, "play.ds", revs[2].Path)
+
+	// Viewing a pre-rename revision uses the historical path.
+	content, err := a.ReadFileAtRevision(revs[2].Path, revs[2].Hash)
+	require.NoError(t, err)
+	assert.Equal(t, "v1", content)
+	content, err = a.ReadFileAtRevision(revs[1].Path, revs[1].Hash)
+	require.NoError(t, err)
+	assert.Equal(t, "v2", content)
+}
+
+// A move performed before the file has ever been snapshotted should
+// still work — there's nothing to stage as a deletion, nothing to
+// commit (no tracked changes relative to HEAD), and the function
+// must not error.
+func TestMoveLibraryEntry_BeforeFirstSnapshot(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.WriteLibraryFile("draft.ds", "v1"))
+
+	newPath, err := a.MoveLibraryEntry("draft.ds", "renamed.ds")
+	require.NoError(t, err)
+	assert.Equal(t, "renamed.ds", newPath)
+
+	// File is at the new location.
+	_, err = os.Stat(filepath.Join(a.currentLibrary, "renamed.ds"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(a.currentLibrary, "draft.ds"))
+	assert.True(t, os.IsNotExist(err))
 }
 
 func TestWriteLibraryFile_NoAutoCommit(t *testing.T) {
