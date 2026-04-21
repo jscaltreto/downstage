@@ -1,4 +1,4 @@
-import type { EditorEnv } from "../core/types";
+import type { EditorEnv, ExportPdfOptions } from "../core/types";
 
 export interface LibraryFile {
   path: string;
@@ -130,6 +130,11 @@ export interface LibraryEnv {
   // Native info dialog carrying the build's version string. One-button
   // "OK" box; callers don't need to await anything beyond "dialog was
   // shown".
+  // Export preferences. Desktop persists the PDF export defaults in the
+  // Go Preferences block (page size is Settings-owned; style/layout/
+  // gutter are last-used remembered values from the export dialog).
+  getExportPreferences(): Promise<ExportPdfOptions>;
+  setExportPreferences(opts: ExportPdfOptions): Promise<void>;
   showAboutDialog(): Promise<void>;
   // Awaits completion of any in-flight preference write. Called on
   // window-close so a debounced toggle isn't lost when the user quits.

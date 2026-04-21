@@ -27,7 +27,6 @@ export interface CommandContext {
   // Reactive refs owned by AppDesktop.
   activeContent: Ref<string>;
   editorContent: Ref<string>;
-  pageStyle: Ref<string>;
   isV1Document: Ref<boolean>;
   isViewingRevision: Ref<boolean>;
   // Flushing the debounced file save. Save Version / Export / Open Folder
@@ -46,8 +45,13 @@ export interface CommandContext {
     drawerTab: Ref<WorkbenchTab>;
     searchRequest: Ref<{ mode: SearchMode; nonce: number }>;
     openPalette: (mode?: "command" | "file") => void;
-    openSettings: (tab?: "library" | "appearance" | "spellcheck") => void;
+    openSettings: (tab?: "library" | "appearance" | "export" | "spellcheck") => void;
     openNewFolderPrompt: (parentPath?: string) => void;
+    // Opens the PDF export dialog. The host owns the dialog state and
+    // the render/save pipeline; this is just the trigger. Fire-and-
+    // forget: the host loads persisted prefs asynchronously before the
+    // dialog appears.
+    openExportDialog: () => void;
   };
 }
 
@@ -59,7 +63,7 @@ const newPlayTemplate = () =>
 
 export function createCommandHandlers(ctx: CommandContext): Array<[string, HandlerEntry]> {
   const {
-    env, store, workspace, toast, activeContent, editorContent, pageStyle,
+    env, store, workspace, toast, activeContent, editorContent,
     isV1Document, isViewingRevision, flushSave, editor, ui,
   } = ctx;
 
@@ -133,26 +137,12 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     }
   }
 
-  async function handleExport() {
-    await flushSave();
-    const source = editorContent.value;
-    const title = source.match(/^#\s+(.+)$/m)?.[1]?.trim() || "untitled";
-    const styleSlug = pageStyle.value === "condensed" ? "acting-edition" : "manuscript";
-    const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}.pdf`;
-    try {
-      const style = pageStyle.value === "condensed" ? "condensed" : "standard";
-      const pdfBytes = await env.renderPDF(source, {
-        style,
-        pageSize: "letter",
-        layout: "single",
-        bookletGutter: "",
-      });
-      await env.saveFile(filename, pdfBytes, [
-        { displayName: "PDF Files (*.pdf)", pattern: "*.pdf" },
-      ]);
-    } catch (e: any) {
-      toast.addToast(`Failed to export PDF: ${e?.message ?? e}`, "error");
-    }
+  // Export opens the PDF dialog. The host (AppDesktop) renders the
+  // dialog, loads persisted defaults from env.getExportPreferences, and
+  // handles render + save on confirm. Keeping the handler tiny keeps
+  // all of the export pipeline's state in one place.
+  function handleExport() {
+    ui.openExportDialog();
   }
 
   async function handleCopyAll() {

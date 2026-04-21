@@ -7,17 +7,18 @@ import type { DesktopCapabilities } from './types';
 import AppearanceSettings from './settings/AppearanceSettings.vue';
 import SpellcheckSettings from './settings/SpellcheckSettings.vue';
 import LibrarySettings from './settings/LibrarySettings.vue';
+import ExportSettings from './settings/ExportSettings.vue';
 
-// Desktop Settings dialog. Three tabs: Library, Appearance, Spellcheck.
-// Library is first because it's the only place to change the library
-// location now that the File menu no longer has "Open Folder…".
+// Desktop Settings dialog. Four tabs: Library, Appearance, Export,
+// Spellcheck. Library is first because it's the only place to change the
+// library location now that the File menu no longer has "Open Folder…".
 // Transient UI toggles (show preview, show sidebar) don't live here;
 // they have their own affordances in the main UI.
 //
-// Export / Git / Advanced get tabs when they have real controls;
-// placeholder tabs rot faster than they help.
+// Git / Advanced get tabs when they have real controls; placeholder tabs
+// rot faster than they help.
 
-type SettingsTab = 'library' | 'appearance' | 'spellcheck';
+type SettingsTab = 'library' | 'appearance' | 'export' | 'spellcheck';
 
 const props = defineProps<{
   open: boolean;
@@ -45,6 +46,7 @@ watch(() => props.open, (isOpen) => {
 const tabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'library', label: 'Library' },
   { id: 'appearance', label: 'Appearance' },
+  { id: 'export', label: 'Export' },
   { id: 'spellcheck', label: 'Spellcheck' },
 ];
 </script>
@@ -83,6 +85,7 @@ const tabs: Array<{ id: SettingsTab; label: string }> = [
             @change-library="emit('change-library')"
           />
           <AppearanceSettings v-else-if="currentTab === 'appearance'" :store="store" />
+          <ExportSettings v-else-if="currentTab === 'export'" :env="env" />
           <SpellcheckSettings v-else-if="currentTab === 'spellcheck'" :store="store" :workspace="workspace" />
         </div>
       </div>

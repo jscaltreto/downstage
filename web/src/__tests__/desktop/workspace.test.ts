@@ -136,6 +136,13 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
       (state as any)._drawerRightWidth = px;
     }),
     showAboutDialog: () => record("showAboutDialog", async () => {}),
+    getExportPreferences: () => record("getExportPreferences", async () => ({
+      pageSize: "letter" as const,
+      style: "standard" as const,
+      layout: "single" as const,
+      bookletGutter: "0.125in",
+    })),
+    setExportPreferences: (opts: any) => record(`setExportPreferences:${JSON.stringify(opts)}`, async () => {}),
     flushPreferences: () => record("flushPreferences", async () => {}),
     getCommands: () => record("getCommands", async () => []),
     setDisabledCommands: (ids: string[]) => record(`setDisabledCommands:${ids.join(",")}`, async () => {}),

@@ -3,10 +3,17 @@ import { computed, ref, watch } from 'vue';
 import BaseModal from './BaseModal.vue';
 import type { ExportPdfOptions, PdfExportStyle, PdfLayout, PdfPageSize } from '../../core/types';
 
-const props = defineProps<{
-  open: boolean;
-  initialOptions: ExportPdfOptions;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    initialOptions: ExportPdfOptions;
+    // Hide the Page size row. The desktop host exposes page size in
+    // Settings instead of the dialog, so it's persistent rather than
+    // per-export. Web passes page size through the dialog as before.
+    hidePageSize?: boolean;
+  }>(),
+  { hidePageSize: false },
+);
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -164,41 +171,43 @@ function handleConfirm() {
     @close="emit('close')"
   >
     <div class="flex flex-col py-2 w-[392px]">
-      <label class="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-2">
-        Page size
-      </label>
-      <div
-        role="radiogroup"
-        aria-label="Page size"
-        class="grid grid-cols-2 gap-2 mb-5 p-1 rounded-lg bg-black/5 dark:bg-white/5 border border-border"
-      >
-        <button
-          type="button"
-          role="radio"
-          :aria-checked="pageSize === 'letter'"
-          data-page-size="letter"
-          class="px-4 py-2 rounded-md text-sm font-bold transition-colors"
-          :class="pageSize === 'letter'
-            ? 'bg-brass-500 text-ember-850 shadow-sm'
-            : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
-          @click="selectPageSize('letter')"
+      <template v-if="!hidePageSize">
+        <label class="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-2">
+          Page size
+        </label>
+        <div
+          role="radiogroup"
+          aria-label="Page size"
+          class="grid grid-cols-2 gap-2 mb-5 p-1 rounded-lg bg-black/5 dark:bg-white/5 border border-border"
         >
-          Letter
-        </button>
-        <button
-          type="button"
-          role="radio"
-          :aria-checked="pageSize === 'a4'"
-          data-page-size="a4"
-          class="px-4 py-2 rounded-md text-sm font-bold transition-colors"
-          :class="pageSize === 'a4'
-            ? 'bg-brass-500 text-ember-850 shadow-sm'
-            : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
-          @click="selectPageSize('a4')"
-        >
-          A4
-        </button>
-      </div>
+          <button
+            type="button"
+            role="radio"
+            :aria-checked="pageSize === 'letter'"
+            data-page-size="letter"
+            class="px-4 py-2 rounded-md text-sm font-bold transition-colors"
+            :class="pageSize === 'letter'
+              ? 'bg-brass-500 text-ember-850 shadow-sm'
+              : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
+            @click="selectPageSize('letter')"
+          >
+            Letter
+          </button>
+          <button
+            type="button"
+            role="radio"
+            :aria-checked="pageSize === 'a4'"
+            data-page-size="a4"
+            class="px-4 py-2 rounded-md text-sm font-bold transition-colors"
+            :class="pageSize === 'a4'
+              ? 'bg-brass-500 text-ember-850 shadow-sm'
+              : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
+            @click="selectPageSize('a4')"
+          >
+            A4
+          </button>
+        </div>
+      </template>
 
       <label class="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-2">
         Format

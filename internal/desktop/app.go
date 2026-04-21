@@ -51,6 +51,16 @@ type Preferences struct {
 	// back to "bottom" so first-run matches the historical layout.
 	DrawerDock       string `json:"drawerDock,omitempty"`
 	DrawerRightWidth int    `json:"drawerRightWidth,omitempty"` // px; 0 → frontend default 360
+
+	// PDF export defaults. Page size lives here (not in the export
+	// dialog) so it's a one-time Settings choice rather than a per-
+	// export decision. Style/layout/gutter ride along in the dialog
+	// but the last-used values are remembered so round-tripping "Export
+	// again" stays ergonomic.
+	ExportPageSize      string `json:"exportPageSize,omitempty"`      // "letter" (default) | "a4"
+	ExportStyle         string `json:"exportStyle,omitempty"`         // "standard" (default) | "condensed"
+	ExportLayout        string `json:"exportLayout,omitempty"`        // "single" (default) | "2up" | "booklet"
+	ExportBookletGutter string `json:"exportBookletGutter,omitempty"` // e.g. "0.125in"
 }
 
 // WindowState persists the initial window size so the desktop app

@@ -56,11 +56,18 @@ function fakeWorkspace() {
 function fakeEnv() {
   return {
     revealLibraryInExplorer: vi.fn(async () => {}),
+    getExportPreferences: vi.fn(async () => ({
+      pageSize: "letter" as const,
+      style: "standard" as const,
+      layout: "single" as const,
+      bookletGutter: "0.125in",
+    })),
+    setExportPreferences: vi.fn(async () => {}),
   };
 }
 
 describe("Settings dialog", () => {
-  it("shows Library, Appearance, and Spellcheck tabs", async () => {
+  it("shows Library, Appearance, Export, and Spellcheck tabs", async () => {
     stubLocalStorage();
     const store = fakeStore();
     const workspace = fakeWorkspace();
@@ -72,7 +79,7 @@ describe("Settings dialog", () => {
     await flushPromises();
 
     const tabLabels = wrapper.findAll("nav button").map((b) => b.text());
-    expect(tabLabels).toEqual(["Library", "Appearance", "Spellcheck"]);
+    expect(tabLabels).toEqual(["Library", "Appearance", "Export", "Spellcheck"]);
   });
 
   it("Appearance tab shows theme buttons and no sidebar/preview toggles", async () => {
