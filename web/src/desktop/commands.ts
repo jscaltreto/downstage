@@ -140,7 +140,13 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     const styleSlug = pageStyle.value === "condensed" ? "acting-edition" : "manuscript";
     const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${styleSlug}.pdf`;
     try {
-      const pdfBytes = await env.renderPDF(source, pageStyle.value);
+      const style = pageStyle.value === "condensed" ? "condensed" : "standard";
+      const pdfBytes = await env.renderPDF(source, {
+        style,
+        pageSize: "letter",
+        layout: "single",
+        bookletGutter: "",
+      });
       await env.saveFile(filename, pdfBytes, [
         { displayName: "PDF Files (*.pdf)", pattern: "*.pdf" },
       ]);
