@@ -48,6 +48,10 @@ interface WailsPreferences {
   lastDrawerTab?: string;
   drawerDock?: 'bottom' | 'right';
   drawerRightWidth?: number;
+  exportPageSize?: string;
+  exportStyle?: string;
+  exportLayout?: string;
+  exportBookletGutter?: string;
 }
 
 // @ts-ignore — generated at build time by Wails
@@ -351,6 +355,34 @@ class WailsBridge implements DesktopCapabilities {
 
   async setDrawerRightWidth(px: number): Promise<void> {
     await this.prefs.update({ drawerRightWidth: px });
+  }
+
+  // Export preferences. Page size is persisted (Settings → Export);
+  // style/layout/gutter track the last-used values from the export
+  // dialog. All reads apply defaults so a first-run user gets
+  // letter/standard/single without a round-trip through the dialog.
+  async getExportPreferences(): Promise<ExportPdfOptions> {
+    const all = await this.prefs.get();
+    const pageSize = all.exportPageSize === "a4" ? "a4" : "letter";
+    const style = all.exportStyle === "condensed" ? "condensed" : "standard";
+    const layout =
+      all.exportLayout === "2up" || all.exportLayout === "booklet"
+        ? all.exportLayout
+        : "single";
+    const bookletGutter =
+      typeof all.exportBookletGutter === "string" && all.exportBookletGutter
+        ? all.exportBookletGutter
+        : "0.125in";
+    return { pageSize, style, layout, bookletGutter };
+  }
+
+  async setExportPreferences(opts: ExportPdfOptions): Promise<void> {
+    await this.prefs.update({
+      exportPageSize: opts.pageSize,
+      exportStyle: opts.style,
+      exportLayout: opts.layout,
+      exportBookletGutter: opts.bookletGutter,
+    });
   }
 
   async showAboutDialog(): Promise<void> {

@@ -10,7 +10,6 @@ import { createCommandHandlers, type CommandContext } from "../../desktop/comman
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   const activeContent = ref("");
   const editorContent = ref("");
-  const pageStyle = ref("standard");
   const isV1Document = ref(false);
   const isViewingRevision = ref(false);
   const drawerOpen = ref(false);
@@ -54,7 +53,6 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     toast,
     activeContent,
     editorContent,
-    pageStyle,
     isV1Document,
     isViewingRevision,
     flushSave: async () => {},
@@ -66,6 +64,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
       openPalette: vi.fn(),
       openNewFolderPrompt: vi.fn(),
       openSettings: vi.fn(),
+      openExportDialog: vi.fn(),
     },
     ...overrides,
   };

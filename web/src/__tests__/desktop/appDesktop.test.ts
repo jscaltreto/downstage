@@ -137,6 +137,12 @@ function createEnv(init: { files?: LibraryFile[]; openReturn?: string } = {}): R
     getDrawerRightWidth: async () => { record("getDrawerRightWidth"); return 0; },
     setDrawerRightWidth: async (px) => { record(`setDrawerRightWidth:${px}`); },
     showAboutDialog: async () => { record("showAboutDialog"); },
+    getExportPreferences: async () => ({
+      pageSize: "letter", style: "standard", layout: "single", bookletGutter: "0.125in",
+    }),
+    setExportPreferences: async (opts) => {
+      record(`setExportPreferences:${JSON.stringify(opts)}`);
+    },
     flushPreferences: async () => { record("flushPreferences"); },
     getCommands: async () => { record("getCommands"); return []; },
     setDisabledCommands: async (ids) => { record(`setDisabledCommands:${ids.join(",")}`); },

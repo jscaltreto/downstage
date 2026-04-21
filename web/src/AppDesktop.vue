@@ -6,7 +6,7 @@ import {
     RotateCcw, X, PanelLeftClose, Plus
 } from 'lucide-vue-next';
 import { Store } from './core/store';
-import type { EditorEnv } from './core/types';
+import type { EditorEnv, ExportPdfOptions } from './core/types';
 import type { DesktopCapabilities } from './desktop/types';
 import { Workspace } from './desktop/workspace';
 import { registerFlushSave } from './desktop/flush-save';
@@ -22,6 +22,7 @@ import Settings from './desktop/Settings.vue';
 import LibraryTree from './desktop/LibraryTree.vue';
 import PromptModal from './desktop/PromptModal.vue';
 import StatusBar from './desktop/StatusBar.vue';
+import ExportPdfModal from './components/shared/ExportPdfModal.vue';
 
 const props = defineProps<{
   env: DesktopCapabilities;
@@ -82,15 +83,83 @@ const searchRequest = ref<{ mode: SearchMode; nonce: number }>({ mode: 'find', n
 const paletteOpen = ref(false);
 const paletteMode = ref<'command' | 'file'>('command');
 const settingsOpen = ref(false);
-const settingsTab = ref<'library' | 'appearance' | 'spellcheck'>('library');
+const settingsTab = ref<'library' | 'appearance' | 'export' | 'spellcheck'>('library');
 
 function openPalette(mode: 'command' | 'file' = 'command') {
   paletteMode.value = mode;
   paletteOpen.value = true;
 }
-function openSettings(tab: 'library' | 'appearance' | 'spellcheck' = 'library') {
+function openSettings(tab: 'library' | 'appearance' | 'export' | 'spellcheck' = 'library') {
   settingsTab.value = tab;
   settingsOpen.value = true;
+}
+
+// PDF export dialog state. Handler in commands.ts calls openExportDialog
+// through the command context; AppDesktop owns the dialog so it can pass
+// persisted defaults from env.getExportPreferences on each open.
+const exportDialogOpen = ref(false);
+const exportInitialOptions = ref<ExportPdfOptions>({
+  pageSize: 'letter',
+  style: 'standard',
+  layout: 'single',
+  bookletGutter: '0.125in',
+});
+
+async function openExportDialog() {
+  // Pull the latest persisted export prefs so Settings changes (page
+  // size) and previous-dialog choices (style, layout, gutter) show up
+  // as the initial state every time.
+  try {
+    const prefs = await props.env.getExportPreferences();
+    // Manuscript only supports single layout on the Go side. If the
+    // stored style is standard, force layout=single for the initial
+    // state so the dialog opens in a valid combo.
+    const style = prefs.style === 'condensed' ? 'condensed' : 'standard';
+    const layout = style === 'standard' ? 'single' : prefs.layout;
+    exportInitialOptions.value = {
+      pageSize: prefs.pageSize,
+      style,
+      layout,
+      bookletGutter: prefs.bookletGutter,
+    };
+  } catch {
+    // First-run or stale prefs — fall back to the hard-coded defaults.
+  }
+  exportDialogOpen.value = true;
+}
+
+async function handleExportConfirmed(opts: ExportPdfOptions) {
+  exportDialogOpen.value = false;
+  try {
+    // Persist the chosen options before rendering. If rendering fails,
+    // the user's last choices still roll over to the next attempt.
+    await props.env.setExportPreferences(opts);
+  } catch {
+    // Non-fatal — proceed with the export even if persistence failed.
+  }
+
+  await flushSave();
+  const source = editorContent.value;
+  const title = source.match(/^#\s+(.+)$/m)?.[1]?.trim() || 'untitled';
+  const styleSlug = opts.style === 'condensed' ? 'acting-edition' : 'manuscript';
+  const layoutSuffix = opts.layout === 'single' ? '' : `-${opts.layout}`;
+  const filename = `${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${styleSlug}${layoutSuffix}.pdf`;
+  try {
+    const pdfBytes = await props.env.renderPDF(source, opts);
+    if (!pdfBytes || pdfBytes.byteLength === 0) {
+      toastManager.value?.addToast(
+        'PDF export failed. Check the export settings and try again.',
+        'error',
+        5000,
+      );
+      return;
+    }
+    await props.env.saveFile(filename, pdfBytes, [
+      { displayName: 'PDF Files (*.pdf)', pattern: '*.pdf' },
+    ]);
+  } catch (e: any) {
+    toastManager.value?.addToast(`Failed to export PDF: ${e?.message ?? e}`, 'error');
+  }
 }
 
 // New-folder prompt state. Single modal fanned in from both the
@@ -256,7 +325,6 @@ onMounted(async () => {
     },
     activeContent,
     editorContent,
-    pageStyle,
     isV1Document,
     isViewingRevision,
     flushSave,
@@ -270,6 +338,7 @@ onMounted(async () => {
       openPalette,
       openSettings,
       openNewFolderPrompt,
+      openExportDialog,
     },
   };
   for (const [id, entry] of createCommandHandlers(ctx)) {
@@ -751,6 +820,13 @@ watch(activeContent, (newContent) => {
       :error="newFolderError"
       @close="() => { newFolderOpen = false; newFolderError = null; }"
       @submit="submitNewFolder"
+    />
+    <ExportPdfModal
+      :open="exportDialogOpen"
+      :initial-options="exportInitialOptions"
+      hide-page-size
+      @close="exportDialogOpen = false"
+      @confirm="handleExportConfirmed"
     />
   </div>
 </template>
