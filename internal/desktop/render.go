@@ -11,8 +11,18 @@ import (
 	"github.com/jscaltreto/downstage/internal/render"
 	htmlrender "github.com/jscaltreto/downstage/internal/render/html"
 	pdfrender "github.com/jscaltreto/downstage/internal/render/pdf"
+	"github.com/jscaltreto/downstage/internal/render/pdf/impose"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// PdfExportOptions mirrors the frontend's ExportPdfOptions so the Wails
+// bridge can forward the user's export choices end-to-end.
+type PdfExportOptions struct {
+	PageSize      string `json:"pageSize"`
+	Style         string `json:"style"`
+	Layout        string `json:"layout"`
+	BookletGutter string `json:"bookletGutter"`
+}
 
 // FileFilter describes a file type filter for save dialogs.
 type FileFilter struct {
@@ -38,11 +48,36 @@ func (a *App) RenderHTML(source string, style string) (string, error) {
 	return html, nil
 }
 
-func (a *App) RenderPDF(source string, style string) (string, error) {
+func (a *App) RenderPDF(source string, options PdfExportOptions) (string, error) {
 	doc, _ := parser.Parse([]byte(source))
 	cfg := render.DefaultConfig()
-	if style == "condensed" {
+	if options.Style == "condensed" {
 		cfg.Style = render.StyleCondensed
+	}
+	if options.PageSize != "" {
+		ps, err := render.ParsePageSize(options.PageSize)
+		if err != nil {
+			return "", fmt.Errorf("pageSize: %w", err)
+		}
+		cfg.PageSize = ps
+	}
+	if options.Layout != "" {
+		layout, err := render.ParsePDFLayout(options.Layout)
+		if err != nil {
+			return "", fmt.Errorf("layout: %w", err)
+		}
+		cfg.Layout = layout
+	}
+	if cfg.Layout == render.LayoutBooklet && options.BookletGutter != "" {
+		gutterMM, err := render.ParseMeasurement(options.BookletGutter)
+		if err != nil {
+			return "", fmt.Errorf("gutter: %w", err)
+		}
+		cfg.BookletGutterMM = gutterMM
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return "", fmt.Errorf("validate pdf config: %w", err)
 	}
 
 	var nr render.NodeRenderer
@@ -56,6 +91,26 @@ func (a *App) RenderPDF(source string, style string) (string, error) {
 	if err := render.Walk(nr, doc, &buf); err != nil {
 		return "", fmt.Errorf("render pdf: %w", err)
 	}
+
+	if cfg.Layout != render.LayoutSingle {
+		sheet, err := cfg.PageSize.SheetDimensions()
+		if err != nil {
+			return "", fmt.Errorf("sheet dimensions: %w", err)
+		}
+		var imposed bytes.Buffer
+		switch cfg.Layout {
+		case render.Layout2Up:
+			if err := impose.TwoUp(bytes.NewReader(buf.Bytes()), sheet, &imposed); err != nil {
+				return "", fmt.Errorf("impose 2up: %w", err)
+			}
+		case render.LayoutBooklet:
+			if err := impose.Booklet(bytes.NewReader(buf.Bytes()), sheet, cfg.BookletGutterMM, &imposed); err != nil {
+				return "", fmt.Errorf("impose booklet: %w", err)
+			}
+		}
+		buf = imposed
+	}
+
 	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 

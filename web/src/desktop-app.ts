@@ -11,6 +11,7 @@ import type {
   DocumentSymbolsResult,
   ManuscriptStats,
   EditorPreferences,
+  ExportPdfOptions,
 } from "./core/types";
 import type { CommandMeta, DesktopCapabilities, ExternalFileResult, FileGitStatus, LibraryFile, LibraryNode, Revision } from "./desktop/types";
 
@@ -159,8 +160,13 @@ class WailsBridge implements DesktopCapabilities {
     return await App.RenderHTML(source, style || "standard");
   }
 
-  async renderPDF(source: string, style?: string): Promise<Uint8Array> {
-    const base64 = await App.RenderPDF(source, style || "standard");
+  async renderPDF(source: string, options: ExportPdfOptions): Promise<Uint8Array> {
+    const base64 = await App.RenderPDF(source, {
+      pageSize: options.pageSize,
+      style: options.style,
+      layout: options.layout,
+      bookletGutter: options.layout === "booklet" ? options.bookletGutter : "",
+    });
     const binaryString = atob(base64);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
