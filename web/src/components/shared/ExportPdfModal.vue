@@ -321,15 +321,39 @@ function handleConfirm() {
               class="flex-1 px-3 py-2 rounded-md text-sm font-bold bg-black/5 dark:bg-white/5 border text-text-main focus:outline-none focus:ring-2 focus:ring-brass-500/40"
               :class="gutterError ? 'border-red-500/60' : 'border-border'"
             />
-            <select
-              :value="gutterUnit"
-              @change="changeGutterUnit(($event.target as HTMLSelectElement).value as 'in' | 'mm')"
+            <div
+              role="radiogroup"
+              aria-label="Gutter unit"
               data-testid="gutter-unit"
-              class="px-3 py-2 rounded-md text-sm font-bold bg-black/5 dark:bg-white/5 border border-border text-text-main focus:outline-none focus:ring-2 focus:ring-brass-500/40"
+              class="flex gap-1 p-1 rounded-md bg-black/5 dark:bg-white/5 border border-border"
             >
-              <option value="in">in</option>
-              <option value="mm">mm</option>
-            </select>
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="gutterUnit === 'in'"
+                data-gutter-unit="in"
+                class="px-3 py-1.5 rounded text-sm font-bold transition-colors"
+                :class="gutterUnit === 'in'
+                  ? 'bg-brass-500 text-ember-850 shadow-sm'
+                  : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
+                @click="changeGutterUnit('in')"
+              >
+                in
+              </button>
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="gutterUnit === 'mm'"
+                data-gutter-unit="mm"
+                class="px-3 py-1.5 rounded text-sm font-bold transition-colors"
+                :class="gutterUnit === 'mm'
+                  ? 'bg-brass-500 text-ember-850 shadow-sm'
+                  : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
+                @click="changeGutterUnit('mm')"
+              >
+                mm
+              </button>
+            </div>
           </div>
           <p
             v-if="gutterError"
