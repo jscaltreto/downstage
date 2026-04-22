@@ -782,8 +782,29 @@ watch(activeContent, (newContent) => {
                 <BookOpen class="w-8 h-8 opacity-40" />
             </div>
             <h3 class="text-lg font-serif font-bold text-text-main mb-2">Open a script</h3>
-            <p class="text-sm max-w-xs mx-auto mb-6">Select a file from the sidebar to start writing, or create a new manuscript.</p>
-            <button @click="handleNewPlay" class="px-5 py-2.5 rounded-xl bg-brass-500 text-ember-950 font-bold text-sm shadow-lg hover:bg-brass-400 transition-all transform hover:scale-105 active:scale-95">New Play</button>
+            <p class="text-sm max-w-xs mx-auto mb-6">
+              {{
+                workspace.state.sidebarCollapsed
+                  ? 'Show the file list to pick an existing play, or start a new one.'
+                  : 'Select a file from the sidebar to start writing, or create a new manuscript.'
+              }}
+            </p>
+            <div class="flex gap-2">
+              <button
+                v-if="workspace.state.sidebarCollapsed && workspace.state.libraryPath"
+                @click="workspace.toggleSidebar()"
+                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border text-text-main font-bold text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              >
+                <FolderOpen class="w-4 h-4" />
+                Show Files
+              </button>
+              <button
+                @click="handleNewPlay"
+                class="px-5 py-2.5 rounded-xl bg-brass-500 text-ember-950 font-bold text-sm shadow-lg hover:bg-brass-400 transition-all transform hover:scale-105 active:scale-95"
+              >
+                New Play
+              </button>
+            </div>
         </div>
       </div>
     </main>
