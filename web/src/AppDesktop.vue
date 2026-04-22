@@ -330,6 +330,12 @@ onMounted(async () => {
     flushSave,
     editor: {
       applyFormat: (action: string) => editorRef.value?.applyFormat(action),
+      undo: () => editorRef.value?.undo(),
+      redo: () => editorRef.value?.redo(),
+      cut: () => editorRef.value?.cut(),
+      copy: () => editorRef.value?.copy(),
+      paste: () => editorRef.value?.paste(),
+      selectAll: () => editorRef.value?.selectAll(),
     },
     ui: {
       drawerOpen,

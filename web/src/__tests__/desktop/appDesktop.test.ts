@@ -143,6 +143,7 @@ function createEnv(init: { files?: LibraryFile[]; openReturn?: string } = {}): R
     setExportPreferences: async (opts) => {
       record(`setExportPreferences:${JSON.stringify(opts)}`);
     },
+    quit: async () => { record("quit"); },
     flushPreferences: async () => { record("flushPreferences"); },
     getCommands: async () => { record("getCommands"); return []; },
     setDisabledCommands: async (ids) => { record(`setDisabledCommands:${ids.join(",")}`); },

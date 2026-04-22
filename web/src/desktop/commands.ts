@@ -32,11 +32,18 @@ export interface CommandContext {
   // Flushing the debounced file save. Save Version / Export / Open Folder
   // all need the live buffer durable on disk before they proceed.
   flushSave: () => Promise<void>;
-  // Narrow imperative hooks on the shared editor. `applyFormat` stays
-  // exposed; search/drawer/palette state are host-owned refs mutated
-  // directly here (see `ui`).
+  // Narrow imperative hooks on the shared editor. applyFormat is used
+  // by both platforms; undo/redo/cut/copy/paste/selectAll back the
+  // Linux-only Edit menu entries (macOS/Windows get these from the
+  // native EditMenu role and never call the host hooks).
   editor: {
     applyFormat: (action: string) => void;
+    undo: () => void;
+    redo: () => void;
+    cut: () => void;
+    copy: () => void;
+    paste: () => void;
+    selectAll: () => void;
   };
   // Host-owned UI state the host has lifted out of Editor.vue. Commands
   // mutate these refs directly; Editor reacts through v-model props.
@@ -145,6 +152,37 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ui.openExportDialog();
   }
 
+  // Export raw Downstage script (`.ds`) via the native save dialog.
+  // Lets users hand a play off to someone without the library
+  // structure around it, or drop a copy to arbitrary disk outside the
+  // library folder. Saves the live buffer (post-flushSave) so the
+  // exported file reflects the editor's current state.
+  async function handleExportDs() {
+    if (!workspace.state.activeFile && !workspace.state.externalFile) return;
+    await flushSave();
+    const source = editorContent.value;
+    const baseName =
+      workspace.state.activeFile?.split(/[\\/]/).pop()
+      ?? workspace.state.externalFile?.absPath.split(/[\\/]/).pop()
+      ?? "untitled.ds";
+    try {
+      await env.saveFile(baseName, source, [
+        { displayName: "Downstage Files (*.ds)", pattern: "*.ds" },
+      ]);
+    } catch (e: any) {
+      toast.addToast(`Failed to export file: ${e?.message ?? e}`, "error");
+    }
+  }
+
+  async function handleQuit() {
+    await flushSave();
+    try {
+      await env.quit();
+    } catch (e: any) {
+      toast.addToast(`Failed to quit: ${e?.message ?? e}`, "error");
+    }
+  }
+
   async function handleCopyAll() {
     await navigator.clipboard.writeText(editorContent.value);
     toast.addToast("Copied to clipboard", "success");
@@ -179,10 +217,24 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["library.newFolder", { handler: handleNewFolder }],
     ["file.saveVersion", { handler: handleSaveVersion, isEnabled: hasActiveFileEditable }],
     ["file.exportPdf", { handler: handleExport, isEnabled: canExport }],
+    ["file.exportDs", { handler: handleExportDs, isEnabled: hasActiveFile }],
     ["file.settings", { handler: () => ui.openSettings() }],
     ["file.settings.spellcheck", { handler: () => ui.openSettings("spellcheck") }],
+    ["file.quit", { handler: handleQuit }],
 
-    // Edit
+    // Edit — Undo/Redo/Cut/Copy/Paste/Select All are Linux-only
+    // catalog entries (see internal/desktop/commands.go). On macOS and
+    // Windows the native EditMenu role fills those slots and the
+    // dispatcher never sees the IDs. Registering the handlers
+    // unconditionally here is fine: the Go catalog's platform filter
+    // keeps them out of the menu/palette on non-Linux platforms, so
+    // nothing will dispatch them anyway.
+    ["edit.undo", { handler: () => editor.undo(), isEnabled: hasActiveFileEditable }],
+    ["edit.redo", { handler: () => editor.redo(), isEnabled: hasActiveFileEditable }],
+    ["edit.cut", { handler: () => editor.cut(), isEnabled: hasActiveFileEditable }],
+    ["edit.copy", { handler: () => editor.copy(), isEnabled: hasActiveFile }],
+    ["edit.paste", { handler: () => editor.paste(), isEnabled: hasActiveFileEditable }],
+    ["edit.selectAll", { handler: () => editor.selectAll(), isEnabled: hasActiveFile }],
     ["edit.find", { handler: () => openSearch("find"), isEnabled: hasActiveFile }],
     ["edit.findReplace", { handler: () => openSearch("replace"), isEnabled: hasActiveFile }],
     ["edit.copyAll", { handler: handleCopyAll, isEnabled: hasActiveFile }],
@@ -217,18 +269,21 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
       isEnabled: () => workspace.libraryFiles.value.length > 0,
     }],
 
-    // Format — all go through the editor's imperative applyFormat hook.
-    // Menu accelerators own Cmd+B/I/U; the engine's custom keymap that
-    // previously bound them has been removed.
+    // Format — character styles (inline wraps). Menu accelerators own
+    // Cmd+B/I/U/Shift-X; the engine's custom keymap that previously
+    // bound them has been removed.
     ["format.bold", { handler: () => editor.applyFormat("bold"), isEnabled: hasActiveFileEditable }],
     ["format.italic", { handler: () => editor.applyFormat("italic"), isEnabled: hasActiveFileEditable }],
     ["format.underline", { handler: () => editor.applyFormat("underline"), isEnabled: hasActiveFileEditable }],
-    ["format.cue", { handler: () => editor.applyFormat("cue"), isEnabled: hasActiveFileEditable }],
-    ["format.direction", { handler: () => editor.applyFormat("direction"), isEnabled: hasActiveFileEditable }],
-    ["format.act", { handler: () => editor.applyFormat("act"), isEnabled: hasActiveFileEditable }],
-    ["format.scene", { handler: () => editor.applyFormat("scene"), isEnabled: hasActiveFileEditable }],
-    ["format.song", { handler: () => editor.applyFormat("song"), isEnabled: hasActiveFileEditable }],
-    ["format.pageBreak", { handler: () => editor.applyFormat("page-break"), isEnabled: hasActiveFileEditable }],
+    ["format.strikethrough", { handler: () => editor.applyFormat("strikethrough"), isEnabled: hasActiveFileEditable }],
+
+    // Insert — structural inserts (snippets spliced at the cursor).
+    ["insert.cue", { handler: () => editor.applyFormat("cue"), isEnabled: hasActiveFileEditable }],
+    ["insert.direction", { handler: () => editor.applyFormat("direction"), isEnabled: hasActiveFileEditable }],
+    ["insert.act", { handler: () => editor.applyFormat("act"), isEnabled: hasActiveFileEditable }],
+    ["insert.scene", { handler: () => editor.applyFormat("scene"), isEnabled: hasActiveFileEditable }],
+    ["insert.song", { handler: () => editor.applyFormat("song"), isEnabled: hasActiveFileEditable }],
+    ["insert.pageBreak", { handler: () => editor.applyFormat("page-break"), isEnabled: hasActiveFileEditable }],
 
     // Help
     ["help.toggle", { handler: () => toggleDrawerTab("help"), isEnabled: hasActiveFile }],

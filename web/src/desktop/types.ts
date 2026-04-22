@@ -136,6 +136,11 @@ export interface LibraryEnv {
   getExportPreferences(): Promise<ExportPdfOptions>;
   setExportPreferences(opts: ExportPdfOptions): Promise<void>;
   showAboutDialog(): Promise<void>;
+  // Quit the running app. Routes through Wails' runtime.Quit so the
+  // before-close event (WindowBeforeClose → flushSave hook) still fires.
+  // Wired to File > Quit on Windows/Linux; macOS's AppMenu role owns
+  // Cmd-Q and invokes the Wails quit path natively.
+  quit(): Promise<void>;
   // Awaits completion of any in-flight preference write. Called on
   // window-close so a debounced toggle isn't lost when the user quits.
   flushPreferences(): Promise<void>;
