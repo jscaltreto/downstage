@@ -248,12 +248,6 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["view.toggleIssues", { handler: () => toggleDrawerTab("issues"), isEnabled: hasActiveFile }],
     ["view.toggleOutline", { handler: () => toggleDrawerTab("outline"), isEnabled: hasActiveFile }],
     ["view.toggleStats", { handler: () => toggleDrawerTab("stats"), isEnabled: hasActiveFile }],
-    ["view.toggleDrawerDock", {
-      handler: () => {
-        const next = workspace.state.drawerDock === "right" ? "bottom" : "right";
-        workspace.setDrawerDock(next);
-      },
-    }],
 
     // Navigate
     ["navigate.nextFile", {

@@ -222,16 +222,4 @@ describe("command handlers", () => {
     expect(ctx.env.showAboutDialog).toHaveBeenCalledTimes(1);
   });
 
-  it("view.toggleDrawerDock flips dock between 'bottom' and 'right'", () => {
-    const ctx = makeContext();
-    (ctx.workspace.state as any).drawerDock = "bottom";
-    ctx.workspace.setDrawerDock = vi.fn((d: string) => {
-      (ctx.workspace.state as any).drawerDock = d;
-    });
-    const cmds = asMap(createCommandHandlers(ctx));
-    cmds.get("view.toggleDrawerDock")!.handler();
-    expect(ctx.workspace.setDrawerDock).toHaveBeenCalledWith("right");
-    cmds.get("view.toggleDrawerDock")!.handler();
-    expect(ctx.workspace.setDrawerDock).toHaveBeenLastCalledWith("bottom");
-  });
 });
