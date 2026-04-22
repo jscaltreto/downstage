@@ -12,14 +12,15 @@ import type { ButtonRadioOption } from './button-radio-group';
 //     row (used when the group sits next to another input).
 //   - `size`: 'md' (default, roomy), 'sm' (tighter, for 3-col groups
 //     that need to share width), 'xs' (tightest, for inline groups
-//     adjacent to an input).
+//     adjacent to an input), 'compact' (desktop-native settings
+//     density, smaller than 'sm').
 //   - `ariaLabel`: required; read by screen readers as the group label.
 //
 // Option-level `dataAttr` preserves per-button `data-*` hooks so e2e
 // tests (Playwright) and headless unit tests can keep targeting stable
 // selectors across the refactor.
 
-type Size = 'md' | 'sm' | 'xs';
+type Size = 'md' | 'sm' | 'xs' | 'compact';
 type Layout = number | 'inline';
 
 const props = withDefaults(
@@ -38,14 +39,17 @@ const emit = defineEmits<{
 }>();
 
 const containerClass = computed(() => {
-  const base = 'p-1 bg-black/5 dark:bg-white/5 border border-border';
+  const pad = props.size === 'compact' ? 'p-0.5' : 'p-1';
+  const base = `${pad} bg-black/5 dark:bg-white/5 border border-border`;
   if (props.columns === 'inline') {
     // rounded-md matches the smaller, inline variant (sits next to an
     // input of similar height). Flex gap is tighter than the grid
     // version because inline groups are narrower overall.
     return `${base} flex gap-1 rounded-md`;
   }
-  return `${base} grid gap-2 rounded-lg`;
+  const gap = props.size === 'compact' ? 'gap-1' : 'gap-2';
+  const radius = props.size === 'compact' ? 'rounded-md' : 'rounded-lg';
+  return `${base} grid ${gap} ${radius}`;
 });
 
 const containerStyle = computed(() => {
@@ -57,11 +61,13 @@ const containerStyle = computed(() => {
 
 function buttonClass(selected: boolean): string {
   const shape =
-    props.size === 'xs'
-      ? 'px-3 py-1.5 rounded text-sm font-bold'
-      : props.size === 'sm'
-        ? 'px-3 py-2 rounded-md text-xs font-bold'
-        : 'px-4 py-2 rounded-md text-sm font-bold';
+    props.size === 'compact'
+      ? 'px-2.5 py-1 rounded text-xs font-semibold'
+      : props.size === 'xs'
+        ? 'px-3 py-1.5 rounded text-sm font-bold'
+        : props.size === 'sm'
+          ? 'px-3 py-2 rounded-md text-xs font-bold'
+          : 'px-4 py-2 rounded-md text-sm font-bold';
   const state = selected
     ? 'bg-brass-500 text-ember-850 shadow-sm'
     : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10';

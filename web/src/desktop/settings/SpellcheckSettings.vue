@@ -27,13 +27,19 @@ async function removeWord(word: string) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
-    <h3 class="text-sm font-bold text-text-main">Spellcheck</h3>
+  <section class="flex flex-col gap-5">
+    <header>
+      <h3 class="text-base font-semibold text-text-main">Spellcheck</h3>
+      <p class="text-xs text-text-muted mt-0.5">
+        Ignore individual words for this library. Apostrophe contractions are kept as written.
+      </p>
+    </header>
     <SpellcheckPanel
       v-model:enabled="spellcheckEnabled"
       :allowlist="workspace.state.spellAllowlist"
       :add-word="addWord"
       :remove-word="removeWord"
+      density="compact"
     />
-  </div>
+  </section>
 </template>

@@ -96,7 +96,7 @@ describe("Settings dialog", () => {
     const labels = wrapper.findAll("button").map((b) => b.text());
     expect(labels).toContain("Light");
     expect(labels).toContain("Dark");
-    expect(labels).toContain("Follow System");
+    expect(labels).toContain("System");
     // No sidebar/preview labels anywhere in the tab content.
     const body = wrapper.text();
     expect(body).not.toMatch(/sidebar/i);

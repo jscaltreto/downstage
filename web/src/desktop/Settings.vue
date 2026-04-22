@@ -55,48 +55,41 @@ const tabs: Array<{ id: SettingsTab; label: string }> = [
   <BaseModal
     :open="open"
     title="Settings"
+    size="xl"
+    padding="none"
     @close="$emit('close')"
   >
-    <!-- Fixed outer dimensions so tab switches don't resize the modal.
-         Width must stay inside BaseModal's max-w-lg (512px) minus its
-         p-6 padding (48px) = 464px of usable room. 432px fits with a
-         little breathing space and avoids a horizontal scrollbar. -->
-    <div class="flex flex-col w-[432px] h-[420px]">
-      <div class="flex gap-6 flex-1 min-h-0">
-        <nav class="w-36 shrink-0 flex flex-col gap-1">
-          <button
-            v-for="t in tabs"
-            :key="t.id"
-            type="button"
-            class="text-left px-3 py-2 rounded text-sm transition-colors border"
-            :class="currentTab === t.id
-              ? 'bg-brass-500/10 text-brass-500 font-bold border-brass-500/20'
-              : 'text-text-main border-transparent hover:bg-black/5 dark:hover:bg-white/5'"
-            @click="currentTab = t.id"
-          >
-            {{ t.label }}
-          </button>
-        </nav>
-        <div class="flex-1 min-w-0 overflow-y-auto custom-scrollbar pr-1">
-          <LibrarySettings
-            v-if="currentTab === 'library'"
-            :workspace="workspace"
-            :env="env"
-            @change-library="emit('change-library')"
-          />
-          <AppearanceSettings v-else-if="currentTab === 'appearance'" :store="store" />
-          <ExportSettings v-else-if="currentTab === 'export'" :env="env" />
-          <SpellcheckSettings v-else-if="currentTab === 'spellcheck'" :store="store" :workspace="workspace" />
-        </div>
-      </div>
-      <div class="flex justify-end pt-4 mt-4 border-t border-border">
+    <!-- Desktop-native settings layout. Wider modal (set by BaseModal
+         size="xl") so the sidebar + content columns both breathe. The
+         sidebar is deliberately tight: small text, compact rows, no
+         pill selection — matches the density of native preference
+         panes (Slack, VS Code). Fixed height keeps the pane from
+         jumping as tabs switch. -->
+    <div class="flex w-full h-[480px] border-t border-border">
+      <nav class="w-48 shrink-0 flex flex-col gap-0.5 py-3 px-2 border-r border-border bg-black/5 dark:bg-white/5">
         <button
+          v-for="t in tabs"
+          :key="t.id"
           type="button"
-          class="rounded-lg bg-brass-500 px-4 py-2 text-sm font-bold text-ember-950 transition-colors hover:bg-brass-400"
-          @click="$emit('close')"
+          class="text-left px-2.5 py-1.5 rounded text-xs transition-colors"
+          :class="currentTab === t.id
+            ? 'bg-black/10 dark:bg-white/10 text-text-main font-semibold'
+            : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/5'"
+          @click="currentTab = t.id"
         >
-          Done
+          {{ t.label }}
         </button>
+      </nav>
+      <div class="flex-1 min-w-0 overflow-y-auto custom-scrollbar px-6 py-5">
+        <LibrarySettings
+          v-if="currentTab === 'library'"
+          :workspace="workspace"
+          :env="env"
+          @change-library="emit('change-library')"
+        />
+        <AppearanceSettings v-else-if="currentTab === 'appearance'" :store="store" />
+        <ExportSettings v-else-if="currentTab === 'export'" :env="env" />
+        <SpellcheckSettings v-else-if="currentTab === 'spellcheck'" :store="store" :workspace="workspace" />
       </div>
     </div>
   </BaseModal>
