@@ -97,13 +97,12 @@ const (
 	CmdEditFindReplace = "edit.findReplace"
 	CmdEditCopyAll     = "edit.copyAll"
 
-	CmdViewCommandPalette   = "view.commandPalette"
-	CmdViewTogglePreview    = "view.togglePreview"
-	CmdViewToggleSidebar    = "view.toggleSidebar"
-	CmdViewToggleIssues     = "view.toggleIssues"
-	CmdViewToggleOutline    = "view.toggleOutline"
-	CmdViewToggleStats      = "view.toggleStats"
-	CmdViewToggleDrawerDock = "view.toggleDrawerDock"
+	CmdViewCommandPalette = "view.commandPalette"
+	CmdViewTogglePreview  = "view.togglePreview"
+	CmdViewToggleSidebar  = "view.toggleSidebar"
+	CmdViewToggleIssues   = "view.toggleIssues"
+	CmdViewToggleOutline  = "view.toggleOutline"
+	CmdViewToggleStats    = "view.toggleStats"
 
 	CmdNavigateNextFile = "navigate.nextFile"
 	CmdNavigatePrevFile = "navigate.prevFile"
@@ -180,7 +179,6 @@ func Commands() []Command {
 		{ID: CmdViewToggleIssues, Label: "Issues", Category: CategoryView, MenuPath: []string{"View"}, BeforeSeparator: true},
 		{ID: CmdViewToggleOutline, Label: "Outline", Category: CategoryView, MenuPath: []string{"View"}},
 		{ID: CmdViewToggleStats, Label: "Stats", Category: CategoryView, MenuPath: []string{"View"}},
-		{ID: CmdViewToggleDrawerDock, Label: "Toggle Drawer Dock", Category: CategoryView, MenuPath: []string{"View"}, BeforeSeparator: true},
 
 		// Navigate
 		{ID: CmdNavigateNextFile, Label: "Next File", Category: CategoryNavigate, MenuPath: []string{"Navigate"}},

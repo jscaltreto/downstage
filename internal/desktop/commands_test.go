@@ -53,8 +53,4 @@ func TestCommands_IncludesAboutAndDockToggle(t *testing.T) {
 	require.True(t, ok, "help.about must be in the catalog")
 	assert.Equal(t, "About Downstage Write…", about.Label)
 	assert.Equal(t, []string{"Help"}, about.MenuPath)
-
-	dock, ok := ids[CmdViewToggleDrawerDock]
-	require.True(t, ok, "view.toggleDrawerDock must be in the catalog")
-	assert.Equal(t, []string{"View"}, dock.MenuPath)
 }
