@@ -36,24 +36,24 @@ async function selectPageSize(next: PdfPageSize) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
-    <h3 class="text-sm font-bold text-text-main">Export</h3>
+  <section class="flex flex-col gap-5">
+    <header>
+      <h3 class="text-base font-semibold text-text-main">Export</h3>
+      <p class="text-xs text-text-muted mt-0.5">
+        Paper size for every PDF export. Format and layout are chosen per-export in the dialog.
+      </p>
+    </header>
 
-    <div class="rounded-lg border border-border bg-black/5 p-4 dark:bg-white/5">
-      <p class="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-3">Page size</p>
+    <div class="flex flex-col gap-1.5">
+      <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted">Page size</p>
       <ButtonRadioGroup
         :model-value="pageSize"
         :options="pageSizeOptions"
         aria-label="Page size"
-        :class="loaded ? '' : 'opacity-50 pointer-events-none'"
+        size="compact"
+        :class="['max-w-[240px]', loaded ? '' : 'opacity-50 pointer-events-none']"
         @update:model-value="selectPageSize"
       />
     </div>
-
-    <p class="text-xs text-text-muted leading-relaxed">
-      The paper size used for every PDF export. Format (Manuscript or
-      Acting Edition) and layout (Single / 2-up / Booklet) are chosen per
-      export in the Export PDF dialog.
-    </p>
-  </div>
+  </section>
 </template>

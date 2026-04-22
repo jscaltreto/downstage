@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { Store, Theme } from '../../core/store';
+import ButtonRadioGroup from '../../components/shared/ButtonRadioGroup.vue';
+import type { ButtonRadioOption } from '../../components/shared/button-radio-group';
 
 // Appearance preferences. Only theme today. Sidebar visibility and
 // preview visibility used to live here but they're transient view
@@ -10,37 +12,31 @@ const props = defineProps<{
   store: Store;
 }>();
 
-const themes: Array<{ id: Theme; label: string }> = [
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' },
-  { id: 'system', label: 'Follow System' },
+const themeOptions: ButtonRadioOption<Theme>[] = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
 ];
-
-function setTheme(t: Theme) {
-  props.store.setTheme(t);
-}
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
-    <h3 class="text-sm font-bold text-text-main">Appearance</h3>
+  <section class="flex flex-col gap-5">
+    <header>
+      <h3 class="text-base font-semibold text-text-main">Appearance</h3>
+      <p class="text-xs text-text-muted mt-0.5">How the app looks across windows.</p>
+    </header>
 
-    <div class="rounded-lg border border-border bg-black/5 px-4 py-3 dark:bg-white/5">
-      <p class="text-sm font-bold text-text-main mb-2">Theme</p>
-      <div class="flex gap-2">
-        <button
-          v-for="t in themes"
-          :key="t.id"
-          type="button"
-          class="px-3 py-1.5 rounded-md text-sm transition-colors border"
-          :class="store.state.theme === t.id
-            ? 'bg-brass-500/10 text-brass-500 font-bold border-brass-500/20'
-            : 'text-text-main border-border hover:bg-black/5 dark:hover:bg-white/5'"
-          @click="setTheme(t.id)"
-        >
-          {{ t.label }}
-        </button>
-      </div>
+    <div class="flex flex-col gap-1.5">
+      <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted">Theme</p>
+      <ButtonRadioGroup
+        :model-value="store.state.theme"
+        :options="themeOptions"
+        aria-label="Theme"
+        :columns="3"
+        size="compact"
+        class="max-w-[320px]"
+        @update:model-value="(v: Theme) => store.setTheme(v)"
+      />
     </div>
-  </div>
+  </section>
 </template>
