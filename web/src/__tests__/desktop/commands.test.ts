@@ -56,7 +56,15 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     isV1Document,
     isViewingRevision,
     flushSave: async () => {},
-    editor: { applyFormat: vi.fn() },
+    editor: {
+      applyFormat: vi.fn(),
+      undo: vi.fn(),
+      redo: vi.fn(),
+      cut: vi.fn(),
+      copy: vi.fn(),
+      paste: vi.fn(),
+      selectAll: vi.fn(),
+    },
     ui: {
       drawerOpen,
       drawerTab,
@@ -131,16 +139,51 @@ describe("command handlers", () => {
     expect(ctx.store.state.previewHidden).toBe(false);
   });
 
-  it("format commands call editor.applyFormat with the right action", () => {
+  it("format and insert commands call editor.applyFormat with the right action", () => {
     const ctx = makeContext();
     ctx.workspace.state.activeFile = "play.ds";
     const cmds = asMap(createCommandHandlers(ctx));
     cmds.get("format.bold")!.handler();
-    cmds.get("format.scene")!.handler();
-    cmds.get("format.pageBreak")!.handler();
+    cmds.get("format.strikethrough")!.handler();
+    cmds.get("insert.scene")!.handler();
+    cmds.get("insert.pageBreak")!.handler();
     expect(ctx.editor.applyFormat).toHaveBeenCalledWith("bold");
+    expect(ctx.editor.applyFormat).toHaveBeenCalledWith("strikethrough");
     expect(ctx.editor.applyFormat).toHaveBeenCalledWith("scene");
     expect(ctx.editor.applyFormat).toHaveBeenCalledWith("page-break");
+  });
+
+  it("edit.undo / cut / selectAll delegate to the editor", () => {
+    const ctx = makeContext();
+    ctx.workspace.state.activeFile = "play.ds";
+    const cmds = asMap(createCommandHandlers(ctx));
+    cmds.get("edit.undo")!.handler();
+    cmds.get("edit.cut")!.handler();
+    cmds.get("edit.selectAll")!.handler();
+    expect(ctx.editor.undo).toHaveBeenCalledTimes(1);
+    expect(ctx.editor.cut).toHaveBeenCalledTimes(1);
+    expect(ctx.editor.selectAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("file.exportDs saves the live buffer through env.saveFile", async () => {
+    const ctx = makeContext();
+    ctx.workspace.state.activeFile = "play.ds";
+    ctx.editorContent.value = "# Test\n";
+    const cmds = asMap(createCommandHandlers(ctx));
+    await cmds.get("file.exportDs")!.handler();
+    expect(ctx.env.saveFile).toHaveBeenCalledWith(
+      "play.ds",
+      "# Test\n",
+      [{ displayName: "Downstage Files (*.ds)", pattern: "*.ds" }],
+    );
+  });
+
+  it("file.quit flushes saves then calls env.quit", async () => {
+    const ctx = makeContext();
+    ctx.env.quit = vi.fn(async () => {});
+    const cmds = asMap(createCommandHandlers(ctx));
+    await cmds.get("file.quit")!.handler();
+    expect(ctx.env.quit).toHaveBeenCalledTimes(1);
   });
 
   it("navigate.nextFile cycles forward through the library list", async () => {

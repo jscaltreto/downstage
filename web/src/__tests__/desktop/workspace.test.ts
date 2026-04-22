@@ -143,6 +143,7 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
       bookletGutter: "0.125in",
     })),
     setExportPreferences: (opts: any) => record(`setExportPreferences:${JSON.stringify(opts)}`, async () => {}),
+    quit: () => record("quit", async () => {}),
     flushPreferences: () => record("flushPreferences", async () => {}),
     getCommands: () => record("getCommands", async () => []),
     setDisabledCommands: (ids: string[]) => record(`setDisabledCommands:${ids.join(",")}`, async () => {}),

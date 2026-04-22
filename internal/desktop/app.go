@@ -518,10 +518,17 @@ func (a *App) SetInitialMenu(m *menu.Menu) {
 // The frontend calls this once on palette open to render labels and
 // categories. Handlers are keyed by ID on the frontend; metadata stays
 // authoritative here.
+//
+// Platform-restricted commands are filtered out so the palette on (say)
+// macOS doesn't advertise Linux-only Undo/Redo/Cut/Copy/Paste entries
+// that would have no matching frontend handler anyway.
 func (a *App) GetCommands() []CommandMeta {
 	cmds := Commands()
 	out := make([]CommandMeta, 0, len(cmds))
 	for _, c := range cmds {
+		if !c.PlatformAllows(goruntime.GOOS) {
+			continue
+		}
 		out = append(out, CommandMeta{
 			ID:            c.ID,
 			Label:         c.Label,
@@ -531,6 +538,14 @@ func (a *App) GetCommands() []CommandMeta {
 		})
 	}
 	return out
+}
+
+// Quit ends the app. Bound to the File > Quit menu entry on Windows/
+// Linux (macOS's AppMenu role provides its own Cmd-Q). Runs through
+// the Wails runtime so WindowBeforeClose (and our flush-pending-save
+// hook) get a chance to finish.
+func (a *App) Quit() {
+	runtime.Quit(a.ctx)
 }
 
 // SetDisabledCommands rebuilds the native menu with the listed IDs

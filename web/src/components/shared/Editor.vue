@@ -514,13 +514,19 @@ function onReplaceOne(replacement: string) { engine?.replaceCurrent(replacement)
 function onReplaceAll(replacement: string) { engine?.replaceAll(replacement); }
 function onJumpMatch(index: number) { engine?.selectMatch(index); }
 
-// Narrow imperative surface for the host. Only applyFormat — everything
-// else the host needs (drawer tabs, search open, preview toggle) flows
-// through v-model props or Store/Workspace reactive state. Keep this
-// interface small; every expose here is a little bit of the shared
-// editor becoming an app shell.
+// Narrow imperative surface for the host. Desktop Edit menu handlers
+// (Linux-only, where the native EditMenu role can't be used) invoke
+// undo/redo/cut/copy/paste/selectAll through this surface. applyFormat
+// is used by both desktop + web hosts. Keep this list tight — every
+// expose here is a bit of the shared editor becoming an app shell.
 defineExpose({
   applyFormat: (action: string) => handleFormat(action),
+  undo: () => engine?.undo(),
+  redo: () => engine?.redo(),
+  cut: () => engine?.cut(),
+  copy: () => engine?.copy(),
+  paste: () => engine?.paste(),
+  selectAll: () => engine?.selectAll(),
 });
 </script>
 

@@ -1,6 +1,13 @@
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { EditorState, Compartment, Transaction } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  undo as undoCmd,
+  redo as redoCmd,
+  selectAll as selectAllCmd,
+} from "@codemirror/commands";
 import { completionKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { forEachDiagnostic, setDiagnosticsEffect, type Diagnostic } from "@codemirror/lint";
@@ -231,6 +238,7 @@ export class Engine {
       case "bold": applyWrap("**", "**", "bold text"); break;
       case "italic": applyWrap("*", "*", "italic text"); break;
       case "underline": applyWrap("_", "_", "underlined text"); break;
+      case "strikethrough": applyWrap("~", "~", "struck text"); break;
       case "cue": applySnippet("\nCHARACTER\nDialogue here.\n", 11); break;
       case "direction": applySnippet("\n> Stage direction.\n", 3); break;
       case "act": applySnippet("\n## ACT I\n", 4); break;
@@ -238,6 +246,31 @@ export class Engine {
       case "song": applySnippet("\nSONG 1: Song Title\n\nCHARACTER\n  Lyric line one.\n\nSONG END\n", 9); break;
       case "page-break": applySnippet("\n===\n", 1); break;
     }
+  }
+
+  // Clipboard / history primitives invoked by the desktop host's
+  // Edit menu handlers. Undo, redo, and selectAll are straight
+  // delegations to @codemirror/commands; cut/copy/paste use the
+  // browser's native clipboard on the focused editor. execCommand is
+  // deprecated but works reliably inside webkit2gtk and the approach
+  // matches what CodeMirror's own default keymap emits under the hood.
+  undo() { if (this.view) undoCmd(this.view); }
+  redo() { if (this.view) redoCmd(this.view); }
+  selectAll() { if (this.view) selectAllCmd(this.view); }
+  cut() {
+    if (!this.view) return;
+    this.view.focus();
+    document.execCommand("cut");
+  }
+  copy() {
+    if (!this.view) return;
+    this.view.focus();
+    document.execCommand("copy");
+  }
+  paste() {
+    if (!this.view) return;
+    this.view.focus();
+    document.execCommand("paste");
   }
 
   setTheme(isDark: boolean) {

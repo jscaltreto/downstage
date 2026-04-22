@@ -389,6 +389,10 @@ class WailsBridge implements DesktopCapabilities {
     await App.ShowAboutDialog();
   }
 
+  async quit(): Promise<void> {
+    await App.Quit();
+  }
+
   async flushPreferences(): Promise<void> {
     await this.prefs.flush();
   }
