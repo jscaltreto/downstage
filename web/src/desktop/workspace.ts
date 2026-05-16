@@ -33,6 +33,13 @@ export interface WorkspaceState {
   viewingRevisionHash: string | null;
   viewingRevisionContent: string | null;
   viewingRevisionMeta: Revision | null;
+  // 'compare' swaps the editor for a side-by-side diff against the live
+  // buffer; 'preview' is the original read-only single-pane view. Only
+  // meaningful while viewingRevisionHash !== null. clearRevisionView
+  // resets to 'preview' on every revision-exit path (file/library
+  // switch, restore, retarget). viewRevision deliberately does NOT
+  // touch it — switching revisions in the sidebar preserves the mode.
+  revisionViewMode: 'preview' | 'compare';
   // External-file mode: populated when the user opened a .ds file from
   // outside the library via File → Open. The editor is rendered read-
   // only with an "Add to Library" banner until the user either imports
@@ -122,6 +129,7 @@ export class Workspace {
       viewingRevisionHash: null,
       viewingRevisionContent: null,
       viewingRevisionMeta: null,
+      revisionViewMode: 'preview',
       externalFile: null,
     });
 
@@ -400,6 +408,18 @@ export class Workspace {
     this.state.viewingRevisionHash = null;
     this.state.viewingRevisionContent = null;
     this.state.viewingRevisionMeta = null;
+    this.state.revisionViewMode = 'preview';
+  }
+
+  // Flips the revision view between preview (read-only single pane) and
+  // compare (side-by-side diff vs. the live buffer). No-op when no
+  // revision is currently selected — toggling compare without a revision
+  // would render an empty diff, so we ignore the call instead of
+  // entering a meaningless mode.
+  toggleRevisionCompare(): void {
+    if (this.state.viewingRevisionHash === null) return;
+    this.state.revisionViewMode =
+      this.state.revisionViewMode === 'compare' ? 'preview' : 'compare';
   }
 
   // restoreRevision takes the live editor content, first attempts a

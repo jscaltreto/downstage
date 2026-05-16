@@ -266,6 +266,91 @@ describe("Workspace", () => {
     expect(ws.state.viewingRevisionHash).toBeNull();
     expect(ws.state.viewingRevisionContent).toBeNull();
     expect(ws.state.viewingRevisionMeta).toBeNull();
+    expect(ws.state.revisionViewMode).toBe("preview");
+  });
+
+  it("toggleRevisionCompare flips the view mode when a revision is selected", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "live", "play.ds@abc": "older" },
+      _revisions: [{ hash: "abc", path: "play.ds", message: "m", author: "a", timestamp: "" }],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+
+    expect(ws.state.revisionViewMode).toBe("preview");
+    ws.toggleRevisionCompare();
+    expect(ws.state.revisionViewMode).toBe("compare");
+    ws.toggleRevisionCompare();
+    expect(ws.state.revisionViewMode).toBe("preview");
+  });
+
+  it("toggleRevisionCompare is a no-op when no revision is selected", async () => {
+    stubLocalStorage();
+    const env = createEnv({});
+    const ws = new Workspace(env);
+
+    ws.toggleRevisionCompare();
+
+    // No revision in view → mode stays at the initial 'preview' value;
+    // we don't enter a mode that has nothing to render.
+    expect(ws.state.revisionViewMode).toBe("preview");
+  });
+
+  it("viewRevision preserves revisionViewMode when called from compare mode", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: {
+        "play.ds": "live",
+        "play.ds@abc": "older-a",
+        "play.ds@def": "older-b",
+      },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "first", author: "a", timestamp: "" },
+        { hash: "def", path: "play.ds", message: "second", author: "a", timestamp: "" },
+      ],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+    ws.toggleRevisionCompare();
+    expect(ws.state.revisionViewMode).toBe("compare");
+
+    // Clicking another revision in the sidebar while compare is open
+    // must update the historical pane content but keep us in compare —
+    // otherwise the user gets bounced back to single-pane preview
+    // every time they explore.
+    await ws.viewRevision("def");
+
+    expect(ws.state.viewingRevisionHash).toBe("def");
+    expect(ws.state.viewingRevisionContent).toBe("older-b");
+    expect(ws.state.revisionViewMode).toBe("compare");
+  });
+
+  it("selectFile resets revisionViewMode via clearRevisionView", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _files: [
+        { path: "play.ds", name: "play.ds", updatedAt: "" },
+        { path: "other.ds", name: "other.ds", updatedAt: "" },
+      ],
+      _contents: { "play.ds": "live", "play.ds@abc": "older", "other.ds": "other" },
+      _revisions: [{ hash: "abc", path: "play.ds", message: "m", author: "a", timestamp: "" }],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+    ws.toggleRevisionCompare();
+    expect(ws.state.revisionViewMode).toBe("compare");
+
+    await ws.selectFile("other.ds");
+
+    // File switch routes through clearRevisionView, which also resets
+    // the mode. Locks in the "every revision-exit transition resets the
+    // mode" rule the design depends on.
+    expect(ws.state.viewingRevisionHash).toBeNull();
+    expect(ws.state.revisionViewMode).toBe("preview");
   });
 
   it("restoreRevision snapshots the live state, overwrites with the revision, then snapshots the restore", async () => {

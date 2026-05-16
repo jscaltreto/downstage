@@ -3,7 +3,7 @@ import { computed, provide, onMounted, onUnmounted, ref, watch, watchEffect } fr
 import {
     FolderOpen, FolderSync, FileText, FolderPlus,
     BookOpen, Terminal, Sparkles, History, ExternalLink,
-    RotateCcw, X, PanelLeftClose, Plus
+    RotateCcw, X, PanelLeftClose, Plus, GitCompare
 } from 'lucide-vue-next';
 import { Store } from './core/store';
 import type { EditorEnv, ExportPdfOptions } from './core/types';
@@ -23,6 +23,7 @@ import LibraryTree from './desktop/LibraryTree.vue';
 import PromptModal from './desktop/PromptModal.vue';
 import StatusBar from './desktop/StatusBar.vue';
 import ExportPdfModal from './components/shared/ExportPdfModal.vue';
+import RevisionDiffView from './desktop/RevisionDiffView.vue';
 
 const props = defineProps<{
   env: DesktopCapabilities;
@@ -231,6 +232,26 @@ const isViewingExternal = computed(
 const isEditorReadOnly = computed(
   () => isViewingRevision.value || isViewingExternal.value,
 );
+// Compare mode is the side-by-side diff view; renders only when a
+// revision is selected AND the mode flag is set. clearRevisionView
+// resets the flag, so toggling out of revision view automatically
+// drops compare too.
+const inCompareDiff = computed(
+  () =>
+    isViewingRevision.value &&
+    workspace.state.revisionViewMode === 'compare',
+);
+// Label for the diff's "before" pane — folds the revision metadata
+// into a short, human-readable string. Falls back to a hash prefix if
+// the meta lookup somehow failed.
+const compareOriginalLabel = computed(() => {
+  const meta = workspace.state.viewingRevisionMeta;
+  if (!meta) {
+    const hash = workspace.state.viewingRevisionHash ?? '';
+    return hash ? `Saved ${hash.slice(0, 7)}` : 'Saved version';
+  }
+  return `Saved ${formatRevisionTimestamp(meta.timestamp)}`;
+});
 
 const editorContent = computed<string>({
   get: () => {
@@ -721,6 +742,15 @@ watch(activeContent, (newContent) => {
             <div class="flex items-center gap-2 shrink-0">
                 <button
                     type="button"
+                    @click="workspace.toggleRevisionCompare()"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-ember-950/10 dark:border-amber-100/20 px-2.5 py-1.5 text-xs font-bold text-ember-950/80 dark:text-amber-100/80 transition-colors hover:bg-ember-950/5 dark:hover:bg-amber-100/10"
+                    :title="workspace.state.revisionViewMode === 'compare' ? 'Return to single-pane revision preview' : 'Show changes between this version and the current buffer'"
+                >
+                    <GitCompare class="w-3.5 h-3.5" />
+                    {{ workspace.state.revisionViewMode === 'compare' ? 'Hide compare' : 'Compare to current' }}
+                </button>
+                <button
+                    type="button"
                     @click="handleRestoreRevision"
                     class="inline-flex items-center gap-1.5 rounded-lg bg-brass-500 px-3 py-1.5 text-xs font-bold text-ember-950 transition-colors hover:bg-brass-400"
                     title="Replace the current version with this one. A backup snapshot of the current version is saved first."
@@ -741,6 +771,7 @@ watch(activeContent, (newContent) => {
         </div>
         <Editor
             v-if="workspace.state.activeFile || isViewingExternal"
+            v-show="!inCompareDiff"
             ref="editorRef"
             :env="env as EditorEnv"
             :document-key="editorDocumentKey"
@@ -777,7 +808,20 @@ watch(activeContent, (newContent) => {
             </button>
           </template>
         </Editor>
-        <div v-else class="flex-1 flex flex-col items-center justify-center text-text-muted p-12 text-center">
+        <RevisionDiffView
+            v-if="inCompareDiff && workspace.state.viewingRevisionContent !== null"
+            class="flex-1 flex flex-col overflow-hidden min-h-0"
+            :original="workspace.state.viewingRevisionContent"
+            :modified="activeContent"
+            :original-label="compareOriginalLabel"
+            modified-label="Current"
+            :is-dark="store.state.isDark"
+            :env="env as EditorEnv"
+        />
+        <div
+            v-if="!(workspace.state.activeFile || isViewingExternal)"
+            class="flex-1 flex flex-col items-center justify-center text-text-muted p-12 text-center"
+        >
             <div class="w-16 h-16 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center mb-4 text-brass-500">
                 <BookOpen class="w-8 h-8 opacity-40" />
             </div>
