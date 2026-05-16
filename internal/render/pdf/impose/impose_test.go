@@ -11,7 +11,7 @@ import (
 	"github.com/jscaltreto/downstage/internal/render"
 	"github.com/jscaltreto/downstage/internal/render/pdf"
 	"github.com/jscaltreto/downstage/internal/render/pdf/impose"
-	realgofpdi "github.com/phpdave11/gofpdi"
+	"github.com/phpdave11/gofpdi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func renderCondensed(t *testing.T, body string, pageSize render.PageSize) []byte
 
 func pdfPageCount(t *testing.T, data []byte) int {
 	t.Helper()
-	imp := realgofpdi.NewImporter()
+	imp := gofpdi.NewImporter()
 	var rs io.ReadSeeker = bytes.NewReader(data)
 	imp.SetSourceStream(&rs)
 	n := imp.GetNumPages()
@@ -168,6 +168,29 @@ func TestBookletRejectsGutterLargerThanSheet(t *testing.T) {
 	err := impose.Booklet(bytes.NewReader(src), sheet, 280, &out)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too large for sheet")
+}
+
+// TestTwoUpDoesNotBloatOutputSize guards against a regression where each
+// gofpdi page import would re-emit every form XObject seen so far, yielding
+// O(N²) duplicate templates in the output PDF. A 40-page condensed source
+// previously produced an ~9 MB 2-up imposition that re-deduped back to
+// ~270 KB through a roundtrip rewriter — assert that the imposed file is
+// at most a small constant factor of the source size.
+func TestTwoUpDoesNotBloatOutputSize(t *testing.T) {
+	src := renderCondensed(t, buildFixture(40), render.PageLetter)
+	sheet := render.Dimensions{WidthMM: 215.9, HeightMM: 279.4}
+
+	var out bytes.Buffer
+	require.NoError(t, impose.TwoUp(bytes.NewReader(src), sheet, &out))
+
+	// The imposed PDF embeds each source page once as a form XObject plus
+	// shared resources. 3× the source size is a generous ceiling; the
+	// pre-fix output was ~36× larger.
+	maxRatio := 3.0
+	ratio := float64(out.Len()) / float64(len(src))
+	assert.Less(t, ratio, maxRatio,
+		"imposed PDF %d bytes is %.1f× source %d bytes (max %.1f×) — likely a return of the O(N²) gofpdi bridge duplication",
+		out.Len(), ratio, len(src), maxRatio)
 }
 
 func TestImposeRejectsInvalidSheet(t *testing.T) {
