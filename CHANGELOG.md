@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/jscaltreto/downstage/compare/v0.8.0...v0.8.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **deps:** bump liquidjs to 10.27.0 to clear three security advisories ([#186](https://github.com/jscaltreto/downstage/issues/186)) ([d3ced40](https://github.com/jscaltreto/downstage/commit/d3ced403adbff2d112c7ba7f128b6e7d523187c0))
+* **pdf:** avoid O(N²) form-XObject duplication in imposed PDFs ([#181](https://github.com/jscaltreto/downstage/issues/181)) ([7f7973a](https://github.com/jscaltreto/downstage/commit/7f7973ac461a7c34fc9bb7dd0b67e74789c67779))
+
 ## [0.8.0](https://github.com/jscaltreto/downstage/compare/v0.7.0...v0.8.0) (2026-04-20)
 
 
