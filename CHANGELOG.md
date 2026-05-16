@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.8.0](https://github.com/jscaltreto/downstage/compare/v0.7.0...v0.8.0) (2026-04-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **pdf:** the web/WASM renderPDF signature preferred shape is now renderPDF(source, { style, pageSize, layout, gutter }). The positional (source, style?, pageSize?) form is still accepted internally for one release but is deprecated; external callers should migrate.
+* **pdf:** the render.PageA4 constant value is now "a4" (was "A4"). External Go callers that assigned the raw string "A4" directly to Config.PageSize must switch to render.PageA4 or ParsePageSize.
+
+### Features
+
+* **pdf:** add 2-up and booklet layouts for acting edition ([#171](https://github.com/jscaltreto/downstage/issues/171)) ([e0afbe4](https://github.com/jscaltreto/downstage/commit/e0afbe43e57b2de9518a8b0ed0c30dd6f2ed587a))
+* **pdf:** add Letter and A4 page sizes across export surfaces ([#170](https://github.com/jscaltreto/downstage/issues/170)) ([793f0bb](https://github.com/jscaltreto/downstage/commit/793f0bbc8927ea86cebc09010243bb8528ac61e7))
+
+
+### Bug Fixes
+
+* **render:** drop blank page between title page and generic section in condensed ([#172](https://github.com/jscaltreto/downstage/issues/172)) ([6bca011](https://github.com/jscaltreto/downstage/commit/6bca011c664963db1f4cbc97b951640ede4bff61))
+* **web:** pin empty PostCSS config so vite stops walking up the tree ([#168](https://github.com/jscaltreto/downstage/issues/168)) ([1c7bce3](https://github.com/jscaltreto/downstage/commit/1c7bce353ff1e5cf98109f9b9afac9177e49cfee))
+
 ## [0.7.0](https://github.com/jscaltreto/downstage/compare/v0.6.0...v0.7.0) (2026-04-16)
 
 
