@@ -43,8 +43,9 @@ const themeCompartment = new Compartment();
 const lintCompartment = new Compartment();
 const readOnlyCompartment = new Compartment();
 
-// Simple light theme for CodeMirror
-const lightTheme = EditorView.theme({
+// Simple light theme for CodeMirror. Exported so the desktop revision
+// diff view can mount its MergeView with the same look as the main editor.
+export const lightTheme = EditorView.theme({
   "&": {
     color: "#1a1a1a",
     backgroundColor: "#fffdf9"

@@ -106,6 +106,31 @@ so switching documents automatically invalidates a prior dismissal.
   "undo the restore" is itself a one-click restore of the backup commit.
 - `clearRevisionView()` is called on file switch, library switch, and after
   a successful restore so stale preview state never leaks across contexts.
+- **Compare to current** is a second view inside revision-view mode.
+  `workspace.state.revisionViewMode` is `'preview'` (read-only single
+  pane, the default) or `'compare'` (side-by-side diff). The banner's
+  "Compare to current" toggle calls `Workspace.toggleRevisionCompare()`;
+  the host renders `RevisionDiffView.vue` as a sibling of `<Editor>`
+  in the same flex slot. The editor wrapper uses `v-show` (not `v-if`)
+  so its mount survives compare toggles — scroll position, search
+  drawer, outline/issues/stats panel, V1-modal suppression all stick.
+  `viewRevision()` deliberately does not touch `revisionViewMode`, so
+  clicking through revisions in the sidebar while in compare mode
+  swaps the historical pane without dropping the user out of compare.
+  Every revision-exit path routes through `clearRevisionView()`,
+  which resets the mode to `'preview'`.
+- The diff uses `@codemirror/merge`'s `MergeView`. Both panes are
+  read-only. The historical revision is on the left ("Saved
+  [timestamp]") and the live buffer is on the right ("Current") —
+  matches GitHub / VS Code conventions. The component subscribes to a
+  resolved `isDark: boolean` (not the user-facing theme token); on a
+  theme change it reconfigures the theme compartment on each
+  underlying `EditorView` in place rather than rebuilding the
+  MergeView. Revision change destroys + recreates the MergeView; the
+  cost is small and avoids mid-diff doc-replacement edge cases.
+  `createDownstageHighlighter` is reused so script tokens stay
+  coloured in the diff; diagnostics, completion, search, and
+  scroll-sync are deliberately excluded (read-only context).
 
 ## Library Tree
 

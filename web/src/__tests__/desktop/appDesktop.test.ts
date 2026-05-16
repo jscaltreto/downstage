@@ -10,6 +10,7 @@ interface RecordedEnv extends DesktopCapabilities {
   _setOpenReturn: (path: string) => void;
   _setFiles: (files: LibraryFile[]) => void;
   _setContent: (path: string, content: string) => void;
+  _setRevisions: (revs: Revision[]) => void;
   _writeDelayMs: number;
   _setWriteDelay: (ms: number) => void;
 }
@@ -36,11 +37,11 @@ function stubDom() {
   });
 }
 
-function createEnv(init: { files?: LibraryFile[]; openReturn?: string } = {}): RecordedEnv {
+function createEnv(init: { files?: LibraryFile[]; openReturn?: string; revisions?: Revision[] } = {}): RecordedEnv {
   let openReturn = init.openReturn ?? "/projects/alpha";
   let files: LibraryFile[] = init.files ?? [];
   const contents: Record<string, string> = {};
-  const revisions: Revision[] = [];
+  let revisions: Revision[] = init.revisions ?? [];
   const calls: string[] = [];
   let writeDelayMs = 0;
 
@@ -51,6 +52,7 @@ function createEnv(init: { files?: LibraryFile[]; openReturn?: string } = {}): R
     _setOpenReturn: (p) => { openReturn = p; },
     _setFiles: (f) => { files = f; },
     _setContent: (p, c) => { contents[p] = c; },
+    _setRevisions: (r) => { revisions = r; },
     _writeDelayMs: 0,
     _setWriteDelay: (ms) => { writeDelayMs = ms; },
 
@@ -163,6 +165,11 @@ const globalStubs = {
     props: ["env", "content", "style", "documentKey", "readOnly", "getSpellAllowlist", "addSpellAllowlistWord", "removeSpellAllowlistWord"],
     template: '<div class="editor-stub" />',
   },
+  RevisionDiffView: {
+    name: "RevisionDiffView",
+    props: ["original", "modified", "originalLabel", "modifiedLabel", "isDark", "env"],
+    template: '<div class="revision-diff-stub" />',
+  },
   ToastManager: {
     name: "ToastManager",
     template: '<div />',
@@ -256,5 +263,66 @@ describe("AppDesktop flush ordering", () => {
     const readOther = env._calls.indexOf("readLibraryFile:other.ds");
     expect(writeDone).toBeGreaterThanOrEqual(0);
     expect(readOther).toBeGreaterThan(writeDone);
+  });
+});
+
+describe("AppDesktop revision compare", () => {
+  // No fake timers — we're driving DOM interactions, not the debounced
+  // save path. The flush-ordering suite above sets fake timers in its
+  // own beforeEach, so this describe runs against real timers.
+
+  async function mountWithRevision() {
+    stubDom();
+    const env = createEnv({
+      files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+      revisions: [
+        { hash: "abc1234", path: "play.ds", message: "older draft", author: "a", timestamp: "2026-04-17T00:00:00Z" },
+      ],
+    });
+    env._setContent("play.ds", "live-content");
+    const wrapper = mount(AppDesktop, {
+      props: { env },
+      global: { stubs: globalStubs },
+    });
+    await flushPromises();
+    return { wrapper, env };
+  }
+
+  it("toggling Compare swaps in the diff view but leaves Editor mounted", async () => {
+    const { wrapper } = await mountWithRevision();
+
+    // Click the revision row in the Versions sidebar. The catalog above
+    // uses :title="..." on the button; targeting by title is the
+    // narrowest selector that doesn't require adding test-only attrs
+    // to production markup.
+    const revRow = wrapper.findAll('button').find(b =>
+      (b.attributes('title') ?? '').startsWith('Preview this version')
+    );
+    expect(revRow, "revision row should be present in the Versions sidebar").toBeTruthy();
+    await revRow!.trigger('click');
+    await flushPromises();
+
+    // Banner is now visible — three buttons (Compare, Restore, Return).
+    // Locate the compare toggle by its visible label.
+    const compareBtn = wrapper.findAll('button').find(b => b.text().includes('Compare to current'));
+    expect(compareBtn, "compare toggle should be visible while a revision is in view").toBeTruthy();
+    await compareBtn!.trigger('click');
+    await flushPromises();
+
+    // Diff stub renders, Editor stub is STILL mounted (hidden via v-show
+    // on its wrapper). This is the load-bearing assertion: it locks in
+    // the "don't unmount the editor on compare toggle" rule that
+    // preserves scroll position, search drawer state, etc.
+    expect(wrapper.findComponent({ name: "RevisionDiffView" }).exists()).toBe(true);
+    expect(wrapper.findComponent({ name: "Editor" }).exists()).toBe(true);
+
+    // Toggle back via "Hide compare" — same button, label flipped.
+    const hideBtn = wrapper.findAll('button').find(b => b.text().includes('Hide compare'));
+    expect(hideBtn, "compare toggle should now offer 'Hide compare'").toBeTruthy();
+    await hideBtn!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.findComponent({ name: "RevisionDiffView" }).exists()).toBe(false);
+    expect(wrapper.findComponent({ name: "Editor" }).exists()).toBe(true);
   });
 });
