@@ -18,28 +18,27 @@ import (
 	"io"
 
 	"github.com/go-pdf/fpdf"
-	"github.com/go-pdf/fpdf/contrib/gofpdi"
 	"github.com/jscaltreto/downstage/internal/render"
-	realgofpdi "github.com/phpdave11/gofpdi"
+	"github.com/phpdave11/gofpdi"
 )
 
 // TwoUp imposes two logical pages per landscape sheet.
 func TwoUp(src io.ReadSeeker, sheet render.Dimensions, dst io.Writer) error {
-	imp, out, rs, pageCount, landscapeW, landscapeH, err := setup(src, sheet)
+	ctx, err := setup(src, sheet)
 	if err != nil {
 		return fmt.Errorf("impose.TwoUp: %w", err)
 	}
 
-	halfW := landscapeW / 2
+	halfW := ctx.landscapeW / 2
 	// Source condensed pages are halfW × landscapeH; target cells match.
-	for i := 0; i < (pageCount+1)/2; i++ {
-		out.AddPage()
-		placeFitted(out, imp, &rs, 2*i+1, pageCount, 0, 0, halfW, landscapeH, halfW, landscapeH)
-		placeFitted(out, imp, &rs, 2*i+2, pageCount, halfW, 0, halfW, landscapeH, halfW, landscapeH)
+	for i := 0; i < (ctx.pageCount+1)/2; i++ {
+		ctx.out.AddPage()
+		ctx.placeFitted(2*i+1, 0, 0, halfW, ctx.landscapeH, halfW, ctx.landscapeH)
+		ctx.placeFitted(2*i+2, halfW, 0, halfW, ctx.landscapeH, halfW, ctx.landscapeH)
 	}
 
-	if err := out.Output(dst); err != nil {
-		return fmt.Errorf("impose.TwoUp: write: %w", err)
+	if err := ctx.finalize(dst); err != nil {
+		return fmt.Errorf("impose.TwoUp: %w", err)
 	}
 	return nil
 }
@@ -49,25 +48,25 @@ func Booklet(src io.ReadSeeker, sheet render.Dimensions, gutterMM float64, dst i
 	if gutterMM < 0 {
 		return fmt.Errorf("impose.Booklet: negative gutter %.2fmm", gutterMM)
 	}
-	imp, out, rs, pageCount, landscapeW, landscapeH, err := setup(src, sheet)
+	ctx, err := setup(src, sheet)
 	if err != nil {
 		return fmt.Errorf("impose.Booklet: %w", err)
 	}
 
 	// A gutter at or above the landscape width leaves zero-width cells.
-	maxGutterMM := landscapeW
+	maxGutterMM := ctx.landscapeW
 	if gutterMM >= maxGutterMM {
 		return fmt.Errorf("impose.Booklet: gutter %.2fmm is too large for sheet (max %.2fmm)", gutterMM, maxGutterMM)
 	}
 
 	// +1 before rounding up to a multiple of 4 keeps the back-cover slot
 	// blank even when pageCount is itself a multiple of 4.
-	N := pageCount + 1
+	N := ctx.pageCount + 1
 	if rem := N % 4; rem != 0 {
 		N += 4 - rem
 	}
 
-	halfW := landscapeW / 2
+	halfW := ctx.landscapeW / 2
 	gutterHalf := gutterMM / 2
 	leftW := halfW - gutterHalf
 	rightX := halfW + gutterHalf
@@ -76,73 +75,102 @@ func Booklet(src io.ReadSeeker, sheet render.Dimensions, gutterMM float64, dst i
 	// Source condensed pages are halfW × landscapeH. Placing them into a
 	// narrower cell without this source size would stretch the content
 	// (gofpdi fills the rectangle in both dimensions).
-	sourceW, sourceH := halfW, landscapeH
+	sourceW, sourceH := halfW, ctx.landscapeH
 
 	sheets := N / 4
-	for m := 0; m < sheets; m++ {
-		out.AddPage()
-		placeFitted(out, imp, &rs, N-2*m, pageCount, 0, 0, leftW, landscapeH, sourceW, sourceH)
-		placeFitted(out, imp, &rs, 2*m+1, pageCount, rightX, 0, rightW, landscapeH, sourceW, sourceH)
+	for m := range sheets {
+		ctx.out.AddPage()
+		ctx.placeFitted(N-2*m, 0, 0, leftW, ctx.landscapeH, sourceW, sourceH)
+		ctx.placeFitted(2*m+1, rightX, 0, rightW, ctx.landscapeH, sourceW, sourceH)
 
-		out.AddPage()
-		placeFitted(out, imp, &rs, 2*m+2, pageCount, 0, 0, leftW, landscapeH, sourceW, sourceH)
-		placeFitted(out, imp, &rs, N-2*m-1, pageCount, rightX, 0, rightW, landscapeH, sourceW, sourceH)
+		ctx.out.AddPage()
+		ctx.placeFitted(2*m+2, 0, 0, leftW, ctx.landscapeH, sourceW, sourceH)
+		ctx.placeFitted(N-2*m-1, rightX, 0, rightW, ctx.landscapeH, sourceW, sourceH)
 	}
 
-	if err := out.Output(dst); err != nil {
-		return fmt.Errorf("impose.Booklet: write: %w", err)
+	if err := ctx.finalize(dst); err != nil {
+		return fmt.Errorf("impose.Booklet: %w", err)
 	}
 	return nil
 }
 
-func setup(src io.ReadSeeker, sheet render.Dimensions) (*gofpdi.Importer, *fpdf.Fpdf, io.ReadSeeker, int, float64, float64, error) {
+// imposeCtx threads the importer, output document, and source geometry
+// through one imposition pass. Lifecycle: setup → placeFitted (any number
+// of times) → finalize. finalize defers the gofpdi→fpdf object exchange
+// to a single call after every placement is queued. The fpdf/contrib/gofpdi
+// bridge does that exchange on each imported page instead, which causes
+// PutFormXobjectsUnordered to emit every accumulated form XObject again
+// each time — quadratic growth in the output file size.
+type imposeCtx struct {
+	imp        *gofpdi.Importer
+	out        *fpdf.Fpdf
+	pageCount  int
+	landscapeW float64
+	landscapeH float64
+}
+
+func setup(src io.ReadSeeker, sheet render.Dimensions) (*imposeCtx, error) {
 	if sheet.WidthMM <= 0 || sheet.HeightMM <= 0 {
-		return nil, nil, nil, 0, 0, 0, fmt.Errorf("invalid sheet %.1fx%.1fmm", sheet.WidthMM, sheet.HeightMM)
+		return nil, fmt.Errorf("invalid sheet %.1fx%.1fmm", sheet.WidthMM, sheet.HeightMM)
 	}
 	if _, err := src.Seek(0, io.SeekStart); err != nil {
-		return nil, nil, nil, 0, 0, 0, fmt.Errorf("rewind source: %w", err)
+		return nil, fmt.Errorf("rewind source: %w", err)
 	}
-	// Raw gofpdi for GetNumPages — the fpdf/contrib wrapper doesn't
-	// re-export it, so we use a throwaway importer for the page count
-	// and a fresh one below for the actual imports.
-	probe := realgofpdi.NewImporter()
+
+	imp := gofpdi.NewImporter()
 	rs := src
-	probe.SetSourceStream(&rs)
-	pageCount := probe.GetNumPages()
+	imp.SetSourceStream(&rs)
+	pageCount := imp.GetNumPages()
 	if pageCount <= 0 {
-		return nil, nil, nil, 0, 0, 0, fmt.Errorf("unable to read source page count")
-	}
-	if _, err := src.Seek(0, io.SeekStart); err != nil {
-		return nil, nil, nil, 0, 0, 0, fmt.Errorf("rewind after count: %w", err)
+		return nil, fmt.Errorf("unable to read source page count")
 	}
 
 	// fpdf's NewCustom expects Size in portrait and swaps internally when
 	// OrientationStr is "L". The landscapeW/H we return are already swapped
 	// for callers that compute cell geometry.
-	landscapeW := sheet.HeightMM
-	landscapeH := sheet.WidthMM
-	imp := gofpdi.NewImporter()
 	out := fpdf.NewCustom(&fpdf.InitType{
 		OrientationStr: "L",
 		UnitStr:        "mm",
 		Size:           fpdf.SizeType{Wd: sheet.WidthMM, Ht: sheet.HeightMM},
 	})
-	return imp, out, rs, pageCount, landscapeW, landscapeH, nil
+	return &imposeCtx{
+		imp:        imp,
+		out:        out,
+		pageCount:  pageCount,
+		landscapeW: sheet.HeightMM,
+		landscapeH: sheet.WidthMM,
+	}, nil
 }
 
-// placeFitted imports logical page n and places it into the target cell
-// at (cellX, cellY) with size (cellW, cellH), scaling uniformly to
-// preserve the source aspect ratio (sourceW × sourceH) and centering the
-// result in the cell. This avoids horizontal squish when the gutter makes
-// the cell narrower than the source page, at the cost of some top/bottom
-// white space on the imposed sheet.
-func placeFitted(out *fpdf.Fpdf, imp *gofpdi.Importer, rs *io.ReadSeeker, n, realPages int, cellX, cellY, cellW, cellH, sourceW, sourceH float64) {
-	if n < 1 || n > realPages {
+// placeFitted imports logical page n (idempotent — gofpdi caches the
+// template) and places it into the cell at (cellX, cellY) with size
+// (cellW, cellH), scaling uniformly to preserve the source aspect ratio
+// (sourceW × sourceH) and centering the result in the cell. This avoids
+// horizontal squish when the gutter makes the cell narrower than the
+// source page, at the cost of some top/bottom white space on the imposed
+// sheet.
+func (c *imposeCtx) placeFitted(n int, cellX, cellY, cellW, cellH, sourceW, sourceH float64) {
+	if n < 1 || n > c.pageCount {
 		return
 	}
 	w, h, dx, dy := fitUniform(sourceW, sourceH, cellW, cellH)
-	tpl := imp.ImportPageFromStream(out, rs, n, "/MediaBox")
-	imp.UseImportedTemplate(out, tpl, cellX+dx, cellY+dy, w, h)
+	tpl := c.imp.ImportPage(n, "/MediaBox")
+	name, sx, sy, tx, ty := c.imp.UseTemplate(tpl, cellX+dx, cellY+dy, w, h)
+	c.out.UseImportedTemplate(name, sx, sy, tx, ty)
+}
+
+// finalize emits all imported objects into the output document exactly
+// once, then writes the PDF. See imposeCtx for why this batching is the
+// load-bearing piece of the fix.
+func (c *imposeCtx) finalize(dst io.Writer) error {
+	tplObjIDs := c.imp.PutFormXobjectsUnordered()
+	c.out.ImportTemplates(tplObjIDs)
+	c.out.ImportObjects(c.imp.GetImportedObjectsUnordered())
+	c.out.ImportObjPos(c.imp.GetImportedObjHashPos())
+	if err := c.out.Output(dst); err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+	return nil
 }
 
 // fitUniform returns the largest w × h that fits inside cellW × cellH while
