@@ -203,6 +203,43 @@ async function submitNewFolder(name: string) {
   }
 }
 
+// Save Version dialog. Opened by the `file.saveVersion` command
+// (Cmd-Shift-S). Pre-filled with `Snapshot <filename>` so the user
+// can either accept the default with Enter or type a custom name.
+// Cancel (or Escape) leaves no snapshot; that matches the
+// hotkey-as-intentional-action UX — accidentally hitting the shortcut
+// shouldn't create a junk version.
+const saveVersionOpen = ref(false);
+const saveVersionInitial = ref('');
+const saveVersionError = ref<string | null>(null);
+
+function openSaveVersionPrompt() {
+  if (!workspace.state.activeFile) return;
+  const filename = workspace.state.activeFile.split(/[\\/]/).pop() || 'file';
+  saveVersionInitial.value = `Snapshot ${filename}`;
+  saveVersionError.value = null;
+  saveVersionOpen.value = true;
+}
+
+async function submitSaveVersion(name: string) {
+  await flushSave();
+  try {
+    await workspace.snapshotFile(name);
+    saveVersionOpen.value = false;
+    saveVersionError.value = null;
+    toastManager.value?.addToast('Version saved', 'success');
+  } catch (e: any) {
+    const message = String(e?.message ?? e);
+    if (message.includes('downstage: nothing-to-snapshot')) {
+      saveVersionOpen.value = false;
+      saveVersionError.value = null;
+      toastManager.value?.addToast('No changes to snapshot', 'info');
+    } else {
+      saveVersionError.value = `Failed to save version: ${message}`;
+    }
+  }
+}
+
 let saveTimer: number | null = null;
 
 // Dispatcher is instantiated on mount (needs env + refs ready) and is
@@ -377,6 +414,7 @@ onMounted(async () => {
       openSettings,
       openNewFolderPrompt,
       openExportDialog,
+      openSaveVersionPrompt,
     },
   };
   for (const [id, entry] of createCommandHandlers(ctx)) {
@@ -947,6 +985,17 @@ watch(activeContent, (newContent) => {
       :error="newFolderError"
       @close="() => { newFolderOpen = false; newFolderError = null; }"
       @submit="submitNewFolder"
+    />
+    <PromptModal
+      :open="saveVersionOpen"
+      title="Save Version"
+      label="Version name"
+      placeholder="Snapshot"
+      :initial-value="saveVersionInitial"
+      submit-label="Save"
+      :error="saveVersionError"
+      @close="() => { saveVersionOpen = false; saveVersionError = null; }"
+      @submit="submitSaveVersion"
     />
     <ExportPdfModal
       :open="exportDialogOpen"

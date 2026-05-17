@@ -65,10 +65,12 @@ export interface CommandContext {
     // forget: the host loads persisted prefs asynchronously before the
     // dialog appears.
     openExportDialog: () => void;
+    // Opens the "Save Version" name dialog. Host pre-fills with a
+    // sensible default and submits the snapshot. Cmd-Shift-S hits
+    // this; Cmd-S goes through file.save and does NOT snapshot.
+    openSaveVersionPrompt: () => void;
   };
 }
-
-const nothingToSnapshotPrefix = "downstage: nothing-to-snapshot";
 
 // Template seed for the New Play command.
 const newPlayTemplate = () =>
@@ -139,21 +141,22 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     }
   }
 
-  async function handleSaveVersion() {
-    if (!workspace.state.activeFile) return;
+  // file.save (Cmd-S): muscle-memory "save my work". Flushes the
+  // debounced autosave to disk immediately. NOT a git snapshot — that
+  // lives on file.saveVersion (Cmd-Shift-S) so users don't accumulate
+  // junk revisions every time they reach for Cmd-S.
+  async function handleSave() {
     await flushSave();
-    const filename = workspace.state.activeFile.split(/[\\/]/).pop() || "file";
-    try {
-      await workspace.snapshotFile(`Snapshot ${filename}`);
-      toast.addToast("Version saved", "success");
-    } catch (e: any) {
-      const message = String(e?.message ?? e);
-      if (message.includes(nothingToSnapshotPrefix)) {
-        toast.addToast("No changes to snapshot", "info");
-      } else {
-        toast.addToast(`Failed to save version: ${message}`, "error");
-      }
-    }
+  }
+
+  // file.saveVersion (Cmd-Shift-S): open the name dialog. The host
+  // pre-fills the input with a sensible default and submits the
+  // snapshot via workspace.snapshotFile on confirm. Empty/Escape
+  // produces no snapshot — the hotkey is intentional, but the dialog
+  // isn't a commitment.
+  function handleSaveVersion() {
+    if (!workspace.state.activeFile) return;
+    ui.openSaveVersionPrompt();
   }
 
   // Export opens the PDF dialog. The host (AppDesktop) renders the
@@ -227,6 +230,7 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["file.newPlay", { handler: handleNewPlay }],
     ["file.open", { handler: handleOpen }],
     ["library.newFolder", { handler: handleNewFolder }],
+    ["file.save", { handler: handleSave, isEnabled: hasActiveFileEditable }],
     ["file.saveVersion", { handler: handleSaveVersion, isEnabled: hasActiveFileEditable }],
     ["file.exportPdf", { handler: handleExport, isEnabled: canExport }],
     ["file.exportDs", { handler: handleExportDs, isEnabled: canCopyAll }],

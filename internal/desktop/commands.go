@@ -74,8 +74,14 @@ type CommandMeta struct {
 // Command IDs. Exported as constants so menu.go, tests, and anyone
 // grep-navigating the codebase can reach them without reopening this file.
 const (
-	CmdFileNewPlay            = "file.newPlay"
-	CmdFileOpen               = "file.open"
+	CmdFileNewPlay = "file.newPlay"
+	CmdFileOpen    = "file.open"
+	// CmdFileSave is the Cmd-S muscle-memory command — it flushes the
+	// debounced autosave to disk immediately. It is NOT a git
+	// snapshot; that lives on Cmd-Shift-S (CmdFileSaveVersion) so
+	// users don't accumulate revisions every time they reach for
+	// "save my work".
+	CmdFileSave               = "file.save"
 	CmdFileSaveVersion        = "file.saveVersion"
 	CmdFileExportPDF          = "file.exportPdf"
 	CmdFileExportDs           = "file.exportDs"
@@ -142,7 +148,12 @@ func Commands() []Command {
 		// File
 		{ID: CmdFileNewPlay, Label: "New Play", Category: CategoryFile, Accelerator: "cmdorctrl+n", MenuPath: []string{"File"}},
 		{ID: CmdFileOpen, Label: "Open…", Category: CategoryFile, Accelerator: "cmdorctrl+o", MenuPath: []string{"File"}},
-		{ID: CmdFileSaveVersion, Label: "Save Version", Category: CategoryFile, Accelerator: "cmdorctrl+s", MenuPath: []string{"File"}, BeforeSeparator: true},
+		// Save = "flush the autosave to disk now". No git snapshot, no
+		// dialog. Cmd-S is muscle memory; routing it to a snapshot
+		// would accumulate junk versions every time a user reaches for
+		// it. The git snapshot is on Cmd-Shift-S below.
+		{ID: CmdFileSave, Label: "Save", Category: CategoryFile, Accelerator: "cmdorctrl+s", MenuPath: []string{"File"}, BeforeSeparator: true},
+		{ID: CmdFileSaveVersion, Label: "Save Version…", Category: CategoryFile, Accelerator: "cmdorctrl+shift+s", MenuPath: []string{"File"}},
 		// Export submenu: PDF + raw .ds file save-as. Labels mirror common
 		// editor conventions (File > Export > ...).
 		{ID: CmdFileExportPDF, Label: "PDF…", Category: CategoryFile, Accelerator: "cmdorctrl+e", MenuPath: []string{"File", "Export"}},

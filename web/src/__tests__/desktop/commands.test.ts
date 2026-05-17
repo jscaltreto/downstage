@@ -75,6 +75,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
       openNewFolderPrompt: vi.fn(),
       openSettings: vi.fn(),
       openExportDialog: vi.fn(),
+      openSaveVersionPrompt: vi.fn(),
     },
     ...overrides,
   };
@@ -108,13 +109,32 @@ describe("command handlers", () => {
     expect(cmds.get("file.saveVersion")!.isEnabled!()).toBe(false);
   });
 
-  it("file.saveVersion snapshots via workspace when enabled", async () => {
+  it("file.saveVersion opens the save-version prompt rather than snapshotting directly", async () => {
+    // Snapshot creation now goes through the named-version dialog. The
+    // command's only job is to open the prompt; the host owns the
+    // flush + workspace.snapshotFile call on submit. This locks in the
+    // "Cmd-Shift-S is intentional, but the dialog isn't a commitment"
+    // contract.
     const ctx = makeContext();
     ctx.workspace.state.activeFile = "play.ds";
     const cmds = asMap(createCommandHandlers(ctx));
     expect(cmds.get("file.saveVersion")!.isEnabled!()).toBe(true);
     await cmds.get("file.saveVersion")!.handler();
-    expect(ctx.workspace.snapshotFile).toHaveBeenCalledWith("Snapshot play.ds");
+    expect(ctx.ui.openSaveVersionPrompt).toHaveBeenCalled();
+    expect(ctx.workspace.snapshotFile).not.toHaveBeenCalled();
+  });
+
+  it("file.save flushes the pending autosave without snapshotting", async () => {
+    // Cmd-S muscle memory: flush the debounced autosave to disk now,
+    // no git snapshot, no dialog. Anything more would surprise users.
+    let flushed = 0;
+    const ctx = makeContext({ flushSave: async () => { flushed += 1; } });
+    ctx.workspace.state.activeFile = "play.ds";
+    const cmds = asMap(createCommandHandlers(ctx));
+    expect(cmds.get("file.save")!.isEnabled!()).toBe(true);
+    await cmds.get("file.save")!.handler();
+    expect(flushed).toBe(1);
+    expect(ctx.workspace.snapshotFile).not.toHaveBeenCalled();
   });
 
   it("file.exportPdf is disabled when the document is V1", () => {

@@ -62,8 +62,18 @@ so switching documents automatically invalidates a prior dismissal.
 ## Auto-Save and Flush Contract
 
 - `AppDesktop.vue` auto-saves to disk via a debounced watcher (1s delay).
-- Git snapshots are explicit user actions ("Save Version" button), not
-  tied to auto-save. Do not add auto-commit.
+- **Cmd-S (`file.save`)** flushes the debounced autosave to disk
+  immediately. It is NOT a git snapshot — that lives on Cmd-Shift-S
+  so users don't accumulate junk revisions every time they reach for
+  the muscle-memory "save my work" shortcut.
+- **Cmd-Shift-S (`file.saveVersion`)** opens the named-version
+  prompt. The user can accept the default `Snapshot <filename>` with
+  Enter or type a custom name. The host's submit handler runs
+  `flushSave` then `workspace.snapshotFile(name)`. Cancel / Escape
+  produces no snapshot — the hotkey is intentional, but the dialog
+  isn't a commitment.
+- Git snapshots are explicit user actions, never automatic. Do not
+  add auto-commit.
 - `flushSave()` is **async** and must be awaited. It clears the pending
   timer and awaits the in-flight `writeLibraryFile`. Every callsite that
   transitions state in a way that could clobber `workspace.state.activeFile`

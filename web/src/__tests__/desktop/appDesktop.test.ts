@@ -220,24 +220,37 @@ describe("AppDesktop flush ordering", () => {
     vi.useRealTimers();
   });
 
-  it("file.saveVersion dispatched via command bus flushes before snapshot", async () => {
+  it("Save Version dialog submit flushes before snapshot", async () => {
+    // Snapshot creation now goes through the named-version dialog. The
+    // command bus opens the prompt; the host's submit handler runs
+    // flushSave then workspace.snapshotFile. This test drives that
+    // host path: dispatch file.saveVersion to open the dialog, then
+    // submit it programmatically and assert the writeLibraryFile
+    // round-trip lands before the snapshot.
     const { wrapper, env } = await mountApp();
 
     await typeInto(wrapper, "edit-snapshot");
     env._setWriteDelay(20);
 
-    // Dispatch the command the way the menu would. `dispatchCommand`
-    // reads the dispatcher registered by AppDesktop in onMounted.
-    // Under fake timers, the handler's internal flushSave → 20ms write
-    // delay won't progress without advanceTimersByTimeAsync, so fire
-    // and advance concurrently.
+    // Open the dialog (this just flips a ref — no async work to await).
     const dispatchPromise = dispatchCommand("file.saveVersion");
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(0);
     await dispatchPromise;
     await flushPromises();
 
+    // Find the Save Version prompt and submit it. PromptModal renders
+    // a form; the test triggers a submit event on it directly so we
+    // don't depend on input focus / keyboard simulation under
+    // happy-dom.
+    const prompts = wrapper.findAllComponents({ name: "PromptModal" });
+    const saveVersionPrompt = prompts.find(p => p.props("title") === "Save Version");
+    expect(saveVersionPrompt, "Save Version prompt should be open").toBeTruthy();
+    saveVersionPrompt!.vm.$emit("submit", "named-version");
+    await vi.advanceTimersByTimeAsync(1500);
+    await flushPromises();
+
     const writeDone = env._calls.indexOf("writeLibraryFile:play.ds:done");
-    const snapIdx = env._calls.findIndex((c) => c.startsWith("snapshotFile:play.ds"));
+    const snapIdx = env._calls.findIndex((c) => c.startsWith("snapshotFile:play.ds:named-version"));
     expect(writeDone, `calls: ${env._calls.join("\n  ")}`).toBeGreaterThanOrEqual(0);
     expect(snapIdx, `calls: ${env._calls.join("\n  ")}`).toBeGreaterThan(writeDone);
   });

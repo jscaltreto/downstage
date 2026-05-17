@@ -115,7 +115,7 @@ func TestSetDisabledCommands_RebuildsMenuWithDisabledFlags(t *testing.T) {
 
 	disabledLabels := collectDisabledLabels(file)
 	assert.True(t, disabledLabels["PDF…"], "Export > PDF… should be Disabled")
-	assert.True(t, disabledLabels["Save Version"], "Save Version should be Disabled")
+	assert.True(t, disabledLabels["Save Version…"], "Save Version… should be Disabled")
 }
 
 func collectDisabledLabels(m *menu.Menu) map[string]bool {
