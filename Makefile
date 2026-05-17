@@ -9,7 +9,7 @@ CONDENSED_FILES := $(patsubst testdata/%.ds,$(BUILD_DIR)/%_condensed.pdf,$(DS_FI
 all: $(BINARY)
 
 $(BINARY):
-	go build -o $@ ./cmd/downstage
+	go build -o $@ .
 
 test:
 	go test ./...
