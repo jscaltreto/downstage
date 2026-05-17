@@ -173,7 +173,7 @@ test.describe("export", () => {
 
     // 50 inches is wildly over any sheet's landscape width.
     await editor.gutterValueInput.fill("50");
-    await editor.gutterUnitSelect.selectOption("in");
+    await editor.selectGutterUnit("in");
 
     const gutterError = editor.exportDialog.locator('[data-testid="gutter-error"]');
     await expect(gutterError).toBeVisible();
@@ -237,15 +237,15 @@ test.describe("export", () => {
     await editor.layoutOption("booklet").click();
 
     // Start from a known value and unit.
-    await editor.gutterUnitSelect.selectOption("in");
+    await editor.selectGutterUnit("in");
     await editor.gutterValueInput.fill("0.125");
 
     // Swap to mm: 0.125 in × 25.4 = 3.175 mm.
-    await editor.gutterUnitSelect.selectOption("mm");
+    await editor.selectGutterUnit("mm");
     await expect(editor.gutterValueInput).toHaveValue("3.18");
 
     // Swap back to in: 3.18 mm ÷ 25.4 = 0.1252 in (rounded).
-    await editor.gutterUnitSelect.selectOption("in");
+    await editor.selectGutterUnit("in");
     await expect(editor.gutterValueInput).toHaveValue("0.1252");
   });
 
@@ -263,7 +263,7 @@ test.describe("export", () => {
     await editor.exportStyleOption("condensed").click();
     await editor.layoutOption("booklet").click();
     await editor.gutterValueInput.fill("50");
-    await editor.gutterUnitSelect.selectOption("in");
+    await editor.selectGutterUnit("in");
     await expect(editor.exportConfirmButton).toBeDisabled();
 
     // Switching to Manuscript: the gutter field is hidden and the stale

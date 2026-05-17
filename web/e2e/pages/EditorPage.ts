@@ -73,6 +73,16 @@ export class EditorPage {
     return this.exportDialog.locator('[data-testid="gutter-unit"]');
   }
 
+  // Click-driven gutter-unit setter. The control used to be a native
+  // <select>; it's now a ButtonRadioGroup, so per-button selectors via
+  // the `data-gutter-unit="in" | "mm"` attribute the ButtonRadioGroup
+  // forwards from each option's `dataAttr` config.
+  selectGutterUnit(unit: "in" | "mm"): Promise<void> {
+    return this.gutterUnitSelect
+      .locator(`[data-gutter-unit="${unit}"]`)
+      .click();
+  }
+
   // --- Workbench drawer ---
 
   get drawer(): Locator {
@@ -209,7 +219,7 @@ export class EditorPage {
     // already in the field. Filling after the unit change gives the test
     // the literal value it requested, independent of the modal's default.
     if (options?.gutterUnit) {
-      await this.gutterUnitSelect.selectOption(options.gutterUnit);
+      await this.selectGutterUnit(options.gutterUnit);
     }
     if (options?.gutterValue !== undefined) {
       await this.gutterValueInput.fill(String(options.gutterValue));
