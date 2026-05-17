@@ -15,9 +15,7 @@ func (r *pdfRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	r.hasTitlePage = true
 	r.titlePageTitle = title
 
-	if t := strings.TrimSpace(title); t != "" {
-		r.pdf.Bookmark(t, 0, -1)
-	}
+	addBookmark(&r.pdfBase, strings.TrimSpace(title), 0)
 
 	// Center vertically: place title roughly at 35% down the page
 	titleY := r.pageH * 0.35
@@ -69,9 +67,7 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 	_, subtitle, authors, other := partitionTitlePageEntries(section.Metadata)
 
 	displayTitle := strings.TrimSpace(render.SectionDisplayTitle(section))
-	if displayTitle != "" {
-		b.pdf.Bookmark(displayTitle, 0, -1)
-	}
+	addBookmark(b, displayTitle, 0)
 
 	b.pdf.SetFont(b.cfg.FontFamily, "B", titleSize)
 	b.centeredWrappedText(strings.ToUpper(displayTitle), b.lineHeight)
@@ -102,13 +98,8 @@ func renderInlinePlayHeader(b *pdfBase, section *ast.Section, titleSize float64,
 	b.fontStyle = ""
 }
 
-// bookmarkSection records an outline entry for the given section at the
-// current cursor position. Levels are precomputed from the AST so that
-// scenes always attach to their real parent in the source, regardless
-// of ordering within a mixed play (scenes-then-acts, acts-then-scenes,
-// or interleaved).
 func bookmarkSection(b *pdfBase, s *ast.Section) {
-	if s == nil || b.pdf == nil {
+	if s == nil {
 		return
 	}
 	label := sectionOutlineLabel(s)
@@ -117,6 +108,19 @@ func bookmarkSection(b *pdfBase, s *ast.Section) {
 	}
 	level, ok := b.outlineLevels[s]
 	if !ok {
+		return
+	}
+	addBookmark(b, label, level)
+}
+
+func addBookmark(b *pdfBase, label string, level int) {
+	if b == nil || b.pdf == nil {
+		return
+	}
+	if b.cfg.SkipOutline {
+		return
+	}
+	if label == "" {
 		return
 	}
 	b.pdf.Bookmark(label, level, -1)

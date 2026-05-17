@@ -120,9 +120,7 @@ func (r *condensedRenderer) RenderTitlePage(tp *ast.TitlePage) error {
 	r.hasTitlePage = true
 	r.titlePageTitle = title
 
-	if t := strings.TrimSpace(title); t != "" {
-		r.pdf.Bookmark(t, 0, -1)
-	}
+	addBookmark(&r.pdfBase, strings.TrimSpace(title), 0)
 
 	titleY := r.pageH * 0.30
 

@@ -12,6 +12,9 @@ import (
 
 func (r *pdfRenderer) BeginSection(s *ast.Section) error {
 	r.resetBodyBlockState()
+	// Both recordBlockBegin and asterisk stamping are deferred until each
+	// section sub-handler has had a chance to AddPage / ensureSpace, so
+	// they land on the section's actual rendered page.
 	switch s.Kind {
 	case ast.SectionAct:
 		return r.beginAct(s)
@@ -76,6 +79,7 @@ func (r *pdfRenderer) EndSection(s *ast.Section) error {
 		r.activeTopLevelSection = nil
 		r.pendingInlinePlayFirstBodyPage = false
 	}
+	r.recordBlockEnd(s)
 	return nil
 }
 
@@ -84,6 +88,9 @@ func (r *pdfRenderer) BeginSectionLine(sl *ast.SectionLine) error {
 		// Blank line = paragraph break
 		r.pdf.Ln(r.lineHeight * 2)
 	}
+	r.recordBlockBegin(sl)
+	// SectionLines are single-line — one asterisk suffices.
+	r.stampSingleAsterisk(sl)
 	return nil
 }
 
@@ -92,6 +99,7 @@ func (r *pdfRenderer) EndSectionLine(sl *ast.SectionLine) error {
 		// Single line break = space (prose reflow)
 		r.pdf.Write(r.lineHeight, " ")
 	}
+	r.recordBlockEnd(sl)
 	return nil
 }
 
@@ -112,6 +120,9 @@ func (r *pdfRenderer) beginAct(s *ast.Section) error {
 	}
 
 	bookmarkSection(&r.pdfBase, s)
+	r.recordBlockBegin(s)
+	// Act/Scene headings are one centered line — single asterisk suffices.
+	r.stampSingleAsterisk(s)
 
 	var heading string
 	switch {
@@ -137,6 +148,9 @@ func (r *pdfRenderer) beginScene(s *ast.Section) error {
 	}
 
 	bookmarkSection(&r.pdfBase, s)
+	r.recordBlockBegin(s)
+	// Act/Scene headings are one centered line — single asterisk suffices.
+	r.stampSingleAsterisk(s)
 
 	var heading string
 	switch {
@@ -163,18 +177,24 @@ func (r *pdfRenderer) BeginDualDialogue(d *ast.DualDialogue) error {
 	r.dualMidY = 0
 	estimatedHeight := r.estimateDualDialogueHeight(d)
 	if estimatedHeight > r.usablePageHeight() {
+		r.recordBlockBegin(d)
+		r.markChangeBegin(d)
 		return nil
 	}
 	if estimatedHeight > r.remainingPageHeight() {
 		r.pdf.AddPage()
 	}
+	r.recordBlockBegin(d)
+	r.markChangeBegin(d)
 	r.inDualDialogue = true
 	r.dualSide = 0
 	r.dualStartY = r.pdf.GetY()
 	return nil
 }
 
-func (r *pdfRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
+func (r *pdfRenderer) EndDualDialogue(d *ast.DualDialogue) error {
+	defer r.recordBlockEnd(d)
+	defer r.markChangeEnd(d)
 	if !r.inDualDialogue {
 		r.dualSequential = false
 		return nil
@@ -197,7 +217,13 @@ func (r *pdfRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
 
 func (r *pdfRenderer) BeginDialogue(d *ast.Dialogue) error {
 	r.resetBodyBlockState()
+	// recordBlockBegin is intentionally deferred to renderSegment — the
+	// page-map "begin" must reflect where the dialogue actually lands
+	// after fpdf paginates for its header, not the page we were on when
+	// the previous block finished.
 	if r.inDualDialogue {
+		// Dual dialogue stamps its asterisk via the surrounding DualDialogue
+		// block; suppress per-side stamping to avoid duplicates.
 		return r.beginDualDialogueSide(d)
 	}
 	r.activeDialogue = &bufferedDialogue{
@@ -205,6 +231,8 @@ func (r *pdfRenderer) BeginDialogue(d *ast.Dialogue) error {
 		parenthetical:        d.Parenthetical,
 		parentheticalInlines: dialogueParentheticalInlines(d),
 		lines:                make([]bufferedDialogueLine, 0, len(d.Lines)),
+		markChanged:          r.blockChanged(d),
+		node:                 d,
 	}
 	return nil
 }
@@ -308,7 +336,9 @@ func (r *pdfRenderer) estimateDialogueHeight(d *ast.Dialogue, width float64) flo
 	return height
 }
 
-func (r *pdfRenderer) EndDialogue(_ *ast.Dialogue) error {
+func (r *pdfRenderer) EndDialogue(d *ast.Dialogue) error {
+	defer r.recordBlockEnd(d)
+	defer r.markChangeEnd(d)
 	if r.inDualDialogue {
 		r.dualSide++
 		return nil
@@ -373,14 +403,22 @@ func (r *pdfRenderer) BeginStageDirection(sd *ast.StageDirection) error {
 	}
 	r.setStyle("I")
 	r.pdf.SetX(r.marginL)
+	r.recordBlockBegin(sd)
+	r.markChangeBegin(sd)
 	return nil
 }
 
-func (r *pdfRenderer) EndStageDirection(_ *ast.StageDirection) error {
+func (r *pdfRenderer) EndStageDirection(sd *ast.StageDirection) error {
 	r.pdf.Ln(r.lineHeight)
 	r.setStyle("")
 	r.prevWasStageDirection = true
 	r.prevWasCallout = false
+	// Capture endY *after* the trailing Ln so it sits one line below
+	// the last content line. Combined with the iterator's `y < endY`
+	// stop condition, this includes every visible content line and
+	// excludes the empty trailing-Ln position.
+	r.markChangeEnd(sd)
+	r.recordBlockEnd(sd)
 	return nil
 }
 
@@ -400,15 +438,19 @@ func (r *pdfRenderer) BeginCallout(c *ast.Callout) error {
 	r.setStyle("B")
 	r.pdf.SetLeftMargin(r.marginL + calloutIndent)
 	r.pdf.SetX(r.marginL + calloutIndent)
+	r.recordBlockBegin(c)
+	r.markChangeBegin(c)
 	return nil
 }
 
-func (r *pdfRenderer) EndCallout(_ *ast.Callout) error {
+func (r *pdfRenderer) EndCallout(c *ast.Callout) error {
 	r.pdf.Ln(r.lineHeight)
 	r.setStyle("")
 	r.pdf.SetLeftMargin(r.marginL)
 	r.prevWasStageDirection = false
 	r.prevWasCallout = true
+	r.markChangeEnd(c)
+	r.recordBlockEnd(c)
 	return nil
 }
 
@@ -418,6 +460,8 @@ func (r *pdfRenderer) BeginSong(song *ast.Song) error {
 	r.resetBodyBlockState()
 	r.ensureSpace(r.lineHeight * 3)
 	r.pdf.Ln(r.lineHeight)
+	r.recordBlockBegin(song)
+	r.markChangeBegin(song)
 
 	header := "SONG"
 	if song.Number != "" {
@@ -434,25 +478,31 @@ func (r *pdfRenderer) BeginSong(song *ast.Song) error {
 	return nil
 }
 
-func (r *pdfRenderer) EndSong(_ *ast.Song) error {
+func (r *pdfRenderer) EndSong(song *ast.Song) error {
 	r.resetBodyBlockState()
 	r.pdf.Ln(r.lineHeight / 2)
 	r.setStyle("B")
 	r.centeredText("SONG END")
 	r.setStyle("")
 	r.pdf.Ln(r.lineHeight)
+	r.markChangeEnd(song)
+	r.recordBlockEnd(song)
 	return nil
 }
 
 // --- Verse Block ---
 
-func (r *pdfRenderer) BeginVerseBlock(_ *ast.VerseBlock) error {
+func (r *pdfRenderer) BeginVerseBlock(vb *ast.VerseBlock) error {
 	r.resetBodyBlockState()
 	r.ensureSpace(r.lineHeight * 2)
+	r.recordBlockBegin(vb)
+	r.markChangeBegin(vb)
 	return nil
 }
 
-func (r *pdfRenderer) EndVerseBlock(_ *ast.VerseBlock) error {
+func (r *pdfRenderer) EndVerseBlock(vb *ast.VerseBlock) error {
+	r.markChangeEnd(vb)
+	r.recordBlockEnd(vb)
 	return nil
 }
 

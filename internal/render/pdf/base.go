@@ -62,6 +62,18 @@ type pdfBase struct {
 	captureStyleStack   []string
 	captureDirDepth     int
 	capturedRuns        []dialogueTextRun
+
+	// changeBegins tracks the (page, y) at which each currently-rendering
+	// changed block started laying out content. Populated by
+	// markChangeBegin* and consumed by markChangeEnd, which iterates from
+	// begin to end stamping a right-margin asterisk on every visual line
+	// of the changed block.
+	changeBegins map[any]changeBegin
+}
+
+type changeBegin struct {
+	page int
+	y    float64
 }
 
 type dialogueTextRun struct {
@@ -106,6 +118,7 @@ func (b *pdfBase) initPDF(fontLoader func(*fpdf.Fpdf), defaultFamily string) err
 	b.pdf.AliasNbPages("")
 	b.titlePagePages = make(map[int]bool)
 	b.installPageNumberFooter(5, 10)
+	b.installRevisionHeaderIfConfigured()
 
 	b.pdf.AddPage()
 	b.fontStyle = ""
@@ -126,9 +139,192 @@ func (b *pdfBase) installPageNumberFooter(offset, height float64) {
 		}
 		b.pdf.SetY(-b.marginB + offset)
 		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize-2)
-		b.renderPageNumberFooter(fmt.Sprintf("%d", b.pdf.PageNo()), height)
+		label := b.pageLabel(b.pdf.PageNo())
+		if label != "" {
+			b.renderPageNumberFooter(label, height)
+		}
 		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize)
 	})
+}
+
+// pageLabel returns the rendered page-number text for the given internal
+// fpdf page. When Config.PageLabelFormatter is set, the caller supplies the
+// formatting (including the option to return an empty string to suppress the
+// footer entirely). Otherwise the natural integer page number is used.
+func (b *pdfBase) pageLabel(internalPage int) string {
+	if b.cfg.PageLabelFormatter != nil {
+		return b.cfg.PageLabelFormatter(internalPage)
+	}
+	return fmt.Sprintf("%d", internalPage)
+}
+
+// installRevisionHeaderIfConfigured installs a top-margin header function
+// when Config.PageHeaderFn is set. Non-revision renders skip this path
+// entirely so layout for normal PDFs is unchanged.
+func (b *pdfBase) installRevisionHeaderIfConfigured() {
+	if b.cfg.PageHeaderFn == nil {
+		return
+	}
+	b.pdf.SetHeaderFunc(func() {
+		if b.titlePagePages[b.pdf.PageNo()] {
+			return
+		}
+		header := b.cfg.PageHeaderFn(b.pdf.PageNo())
+		if header == "" {
+			return
+		}
+		// Draw the header text at the top of the page, above the body
+		// margin. The header sits inside marginT/2 to keep it clear of body
+		// content.
+		savedY := b.pdf.GetY()
+		b.pdf.SetY(b.marginT / 2)
+		b.pdf.SetFont(b.cfg.FontFamily, "I", b.cfg.FontSize-2)
+		b.centeredText(header)
+		b.pdf.SetFont(b.cfg.FontFamily, "", b.cfg.FontSize)
+		b.pdf.SetY(savedY)
+	})
+}
+
+// recordBlockBegin records the entry page for a block keyed by node pointer.
+// No-op when the page-map recorder is not installed.
+func (b *pdfBase) recordBlockBegin(node any) {
+	if b.cfg.RecordPageMap == nil || node == nil {
+		return
+	}
+	b.cfg.RecordPageMap.Begin(node, b.pdf.PageNo())
+}
+
+// recordBlockEnd records the exit page for a block keyed by node pointer.
+// Captured at End hooks, after fpdf has had a chance to auto-page-break from
+// any flowing Write/MultiCell/Ln calls inside the block.
+func (b *pdfBase) recordBlockEnd(node any) {
+	if b.cfg.RecordPageMap == nil || node == nil {
+		return
+	}
+	b.cfg.RecordPageMap.End(node, b.pdf.PageNo())
+}
+
+// recordLeaf records a single page for a self-contained block (PageBreak).
+func (b *pdfBase) recordLeaf(node any) {
+	if b.cfg.RecordPageMap == nil || node == nil {
+		return
+	}
+	b.cfg.RecordPageMap.Record(node, b.pdf.PageNo())
+}
+
+// blockChanged reports whether the given block AST node is marked as changed
+// for right-margin asterisk emission.
+func (b *pdfBase) blockChanged(node any) bool {
+	if b.cfg.MarkChangedBlocks == nil || node == nil {
+		return false
+	}
+	return b.cfg.MarkChangedBlocks[node]
+}
+
+// markChangeBegin records the current (page, y) for a changed block so that
+// markChangeEnd can stamp a right-margin asterisk on every visual line the
+// block occupies. Callers must invoke this *after* any leading ensureSpace /
+// AddPage / Ln, so the captured Y matches the block's first visible line.
+//
+// Single-asterisk callers (Section, SectionLine) can still use stampSingleAsterisk
+// for block-level marking on one-line blocks.
+func (b *pdfBase) markChangeBegin(node any) {
+	b.markChangeBeginAt(node, b.pdf.PageNo(), b.pdf.GetY())
+}
+
+// markChangeBeginAt is like markChangeBegin but lets the caller supply an
+// explicit (page, y). Used by buffered dialogue, where the actual Y of the
+// character-name line is known only after the leading Ln inside
+// renderDialogueHeader.
+func (b *pdfBase) markChangeBeginAt(node any, page int, y float64) {
+	if !b.blockChanged(node) {
+		return
+	}
+	if b.changeBegins == nil {
+		b.changeBegins = map[any]changeBegin{}
+	}
+	b.changeBegins[node] = changeBegin{page: page, y: y}
+}
+
+// markChangeEnd stamps a right-margin asterisk on every visual line between
+// the recorded begin (page, y) and the current (page, y), at lineHeight
+// intervals. Walks pages with pdf.SetPage when the block straddles a page
+// break. No-op if no matching markChangeBegin fired (i.e. the block isn't
+// marked as changed).
+func (b *pdfBase) markChangeEnd(node any) {
+	if b.changeBegins == nil {
+		return
+	}
+	begin, ok := b.changeBegins[node]
+	if !ok {
+		return
+	}
+	delete(b.changeBegins, node)
+	if b.pdf == nil {
+		return
+	}
+
+	endPage := b.pdf.PageNo()
+	endY := b.pdf.GetY()
+	savedPage := b.pdf.PageNo()
+	savedX, savedY := b.pdf.GetX(), b.pdf.GetY()
+
+	bodyTop := b.marginT
+	bodyBottom := b.pageH - b.marginB
+
+	for p := begin.page; p <= endPage; p++ {
+		if p != b.pdf.PageNo() {
+			b.pdf.SetPage(p)
+		}
+		var yLo, yHi float64
+		switch {
+		case p == begin.page && p == endPage:
+			yLo, yHi = begin.y, endY
+		case p == begin.page:
+			yLo, yHi = begin.y, bodyBottom
+		case p == endPage:
+			yLo, yHi = bodyTop, endY
+		default:
+			yLo, yHi = bodyTop, bodyBottom
+		}
+		// Stop a little before yHi so a trailing Ln overshoot doesn't
+		// add a spurious asterisk on empty space below the last line.
+		for y := yLo; y+b.lineHeight*0.5 < yHi; y += b.lineHeight {
+			b.stampAsteriskAt(y)
+		}
+	}
+
+	if savedPage != b.pdf.PageNo() {
+		b.pdf.SetPage(savedPage)
+	}
+	b.pdf.SetXY(savedX, savedY)
+}
+
+// stampSingleAsterisk stamps one asterisk at the current Y for a changed
+// node. Used for one-line blocks (Section heading, SectionLine) where the
+// per-line begin/end span machinery would over-stamp.
+func (b *pdfBase) stampSingleAsterisk(node any) {
+	if !b.blockChanged(node) {
+		return
+	}
+	b.stampAsteriskAt(b.pdf.GetY())
+}
+
+// stampAsteriskAt draws an unconditional right-margin asterisk at y on the
+// current page. Uses pdf.Text (absolute baseline positioning) rather than
+// pdf.Write — Write would treat the asterisk as flowing content, see no
+// room to the right of the right margin, and wrap to the next line, leaving
+// the asterisk one line below its intended position.
+func (b *pdfBase) stampAsteriskAt(y float64) {
+	if b.pdf == nil {
+		return
+	}
+	asteriskX := b.pageW - b.marginR + 2.0
+	// pdf.Text positions text at the baseline. y here is the top of the
+	// line (where pdf.Write would start), so offset by approximately the
+	// font ascent — using lineHeight-1 as a close-enough proxy that puts
+	// the asterisk visually next to the line that starts at y.
+	b.pdf.Text(asteriskX, y+b.lineHeight-1, "*")
 }
 
 func (b *pdfBase) beginTitlePage() {
@@ -352,10 +548,11 @@ func (b *pdfBase) appendCapturedText(text string) {
 	b.capturedRuns = append(b.capturedRuns, dialogueTextRun{text: text, style: b.captureStyle})
 }
 
-func (b *pdfBase) RenderPageBreak(_ *ast.PageBreak) error {
+func (b *pdfBase) RenderPageBreak(pb *ast.PageBreak) error {
 	b.pdf.AddPage()
 	b.prevWasStageDirection = false
 	b.prevWasCallout = false
+	b.recordLeaf(pb)
 	return nil
 }
 
