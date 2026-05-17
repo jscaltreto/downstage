@@ -10,7 +10,7 @@
   "frontend:dev:watcher": "npm --prefix ../../../web run dev:desktop",
   "frontend:dev:serverUrl": "http://localhost:5173",
   "author": {
-    "name": "Jake",
-    "email": "jake@example.com"
+    "name": "Jake Scaltreto",
+    "email": "jake@scaltre.to"
   }
 }
