@@ -396,6 +396,7 @@ onMounted(async () => {
     // CommandContext field name is `isInCompareTwo`; the host's
     // computed is `inCompareTwo` (reads better in templates).
     isInCompareTwo: inCompareTwo,
+    isViewingExternal,
     flushSave,
     editor: {
       applyFormat: (action: string) => editorRef.value?.applyFormat(action),
@@ -438,6 +439,10 @@ onMounted(async () => {
     // we read them here.
     void workspace.state.revisionViewMode;
     void workspace.state.compareSecondHash;
+    // canExportDs gates on isViewingExternal, which is derived from
+    // workspace.state.externalFile. Touch it so the disabled set
+    // refreshes on File → Open / Close external transitions.
+    void workspace.state.externalFile;
     void isV1Document.value;
     dispatcher?.scheduleRefresh();
   });
@@ -584,6 +589,12 @@ async function handleCompareToCurrent(hash: string) {
   if (workspace.state.viewingRevisionHash !== hash) {
     await handleViewRevision(hash);
   }
+  // If we're already in compareTwo (A vs B), drop the B side first
+  // so the toggle lands us at compareCurrent on A. Without this,
+  // re-invoking "Compare to current" while in compareTwo is a no-op
+  // (revisionViewMode is already 'compare') and the user is stuck
+  // viewing the stale A-vs-B diff.
+  workspace.stopCompareTwo();
   if (workspace.state.revisionViewMode !== 'compare') {
     workspace.toggleRevisionCompare();
   }

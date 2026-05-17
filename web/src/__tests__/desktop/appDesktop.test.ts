@@ -120,7 +120,15 @@ function createEnv(init: { files?: LibraryFile[]; openReturn?: string; revisions
     },
     snapshotFile: async (p, m) => { record(`snapshotFile:${p}:${m}`); },
     getRevisions: async (p, _limit) => { record(`getRevisions:${p}`); return revisions; },
-    readFileAtRevision: async (p, h) => { record(`readFileAtRevision:${p}:${h}`); return contents[p] ?? ""; },
+    readFileAtRevision: async (p, h) => {
+      record(`readFileAtRevision:${p}:${h}`);
+      // Look up by `${path}@${hash}` first so tests can seed per-
+      // revision content; fall back to the live path so existing
+      // tests that don't care about per-hash distinctness still work.
+      const keyed = contents[`${p}@${h}`];
+      if (keyed !== undefined) return keyed;
+      return contents[p] ?? "";
+    },
     getHiddenRevisions: async () => { record("getHiddenRevisions"); return []; },
     hideRevision: async (hash) => { record(`hideRevision:${hash}`); },
     unhideRevision: async (hash) => { record(`unhideRevision:${hash}`); },
@@ -354,6 +362,14 @@ describe("AppDesktop revision context menu", () => {
       ],
     });
     env._setContent("play.ds", "live");
+    // T16: seed distinct content per revision so any test that
+    // promotes compareTwo can verify the diff component actually
+    // received hash-A's content as original and hash-B's content as
+    // modified. The readFileAtRevision stub prefers `${path}@${hash}`
+    // keys; without these the diff would silently read "live" for
+    // both sides and the test wouldn't catch a wrong-hash bug.
+    env._setContent("play.ds@abc1234567aaaa", "older-A-content");
+    env._setContent("play.ds@def4567890bbbb", "older-B-content");
     const wrapper = mount(AppDesktop, {
       props: { env },
       global: { stubs: globalStubs },
@@ -427,10 +443,88 @@ describe("AppDesktop revision context menu", () => {
     expect(wrapper.text()).toContain('Comparing versions');
     const diff = wrapper.findComponent({ name: "RevisionDiffView" });
     expect(diff.exists()).toBe(true);
-    // The diff's `modified` prop should be the second-revision content
-    // (env stub returns play.ds live content for any readFileAtRevision
-    // — what matters here is the prop wiring, not the actual content).
+    // T16: the diff component's props prove that A's content went to
+    // `original` and B's content went to `modified`. With distinct
+    // per-hash content seeded by mountWithRevisions(), a regression
+    // that read the wrong revision would flip these.
+    expect(diff.props('original')).toBe('older-A-content');
+    expect(diff.props('modified')).toBe('older-B-content');
     expect(diff.props('modifiedLabel')).toContain('Saved');
+  });
+
+  // M10: re-invoking "Compare to current" on A while already in
+  // compareTwo (A vs B) must collapse to compareCurrent (A vs live
+  // buffer). Without the stopCompareTwo call inside
+  // handleCompareToCurrent, the second invocation is a no-op
+  // (revisionViewMode is already 'compare') and the user is stuck.
+  it("Compare to current from compareTwo drops B and lands in compareCurrent", async () => {
+    const { wrapper } = await mountWithRevisions();
+
+    // Drive into compareTwo via right-click → Compare with… → click B.
+    await findRevRow(wrapper, "draft a")!.trigger('contextmenu');
+    await flushPromises();
+    await wrapper.findAll('button').find(b => b.text() === 'Compare with…')!.trigger('click');
+    await flushPromises();
+    await findRevRow(wrapper, "draft b")!.trigger('click');
+    await flushPromises();
+    // Sanity: we're in compareTwo.
+    let diff = wrapper.findComponent({ name: "RevisionDiffView" });
+    expect(diff.props('modified')).toBe('older-B-content');
+
+    // Now invoke "Compare to current" on A.
+    await findRevRow(wrapper, "draft a")!.trigger('contextmenu');
+    await flushPromises();
+    const compareCurrentBtn = wrapper.findAll('button').find(b => b.text() === 'Compare to current');
+    await compareCurrentBtn!.trigger('click');
+    await flushPromises();
+
+    // compareTwo banner gone, single-revision banner back, diff's
+    // modifiedLabel is "Current" (proving B was dropped and we're
+    // diffing against the live buffer, not the stale B).
+    expect(wrapper.text()).not.toContain('Comparing versions');
+    expect(wrapper.text()).toContain('Viewing older version');
+    diff = wrapper.findComponent({ name: "RevisionDiffView" });
+    expect(diff.exists()).toBe(true);
+    expect(diff.props('modifiedLabel')).toBe('Current');
+  });
+
+  // M12: file.exportDs must be enabled in external-file mode. The
+  // setDisabledCommands env call records the disabled set; we open
+  // an external file and assert file.exportDs is not listed.
+  it("file.exportDs is enabled in external-file mode", async () => {
+    stubDom();
+    const env = createEnv({
+      files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+    });
+    env._setContent("play.ds", "live");
+    // Force the next readExternalFile to return content from outside
+    // the library so workspace.openExternalFile sets externalFile.
+    const origRead = env.readExternalFile;
+    env.readExternalFile = async (p) => {
+      const r = await origRead(p);
+      return { content: "external-content", insideLibrary: false, relativePath: "" };
+    };
+    env.openExternalFileDialog = async () => "/tmp/elsewhere.ds";
+
+    const wrapper = mount(AppDesktop, {
+      props: { env },
+      global: { stubs: globalStubs },
+    });
+    await flushPromises();
+
+    // Drive into external-file mode via the file.open command.
+    await dispatchCommand("file.open");
+    await flushPromises();
+
+    // The dispatcher's microtask flush pushed a new disabled set. The
+    // most recent setDisabledCommands call shouldn't include
+    // file.exportDs because external mode is a valid export source.
+    const setDisabledCalls = env._calls.filter(c => c.startsWith("setDisabledCommands:"));
+    expect(setDisabledCalls.length).toBeGreaterThan(0);
+    const latest = setDisabledCalls[setDisabledCalls.length - 1];
+    expect(latest).not.toContain("file.exportDs");
+
+    wrapper.unmount();
   });
 
   it("Stop comparing fully exits revision view back to the current buffer", async () => {

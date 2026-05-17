@@ -13,13 +13,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mustGetHidden is a tiny helper so individual test bodies don't have
+// to deal with the (slice, error) tuple from GetHiddenRevisions every
+// time. Read failures cause test failures, which is the desired
+// behavior — none of the happy-path tests should ever trip a read
+// error.
+func mustGetHidden(t *testing.T, a *App) []string {
+	t.Helper()
+	got, err := a.GetHiddenRevisions()
+	require.NoError(t, err)
+	return got
+}
+
 func TestHiddenRevisions_RoundTrip(t *testing.T) {
 	a := testApp(t)
 
 	require.NoError(t, a.HideRevision("abc1234567abcdef0000000000000000000000aa"))
 	require.NoError(t, a.HideRevision("def4567890abcdef0000000000000000000000bb"))
 
-	got := a.GetHiddenRevisions()
+	got := mustGetHidden(t, a)
 	sort.Strings(got)
 	assert.Equal(t, []string{
 		"abc1234567abcdef0000000000000000000000aa",
@@ -35,13 +47,13 @@ func TestHiddenRevisions_IdempotentAdd(t *testing.T) {
 	require.NoError(t, a.HideRevision(hash))
 	require.NoError(t, a.HideRevision(hash))
 
-	assert.Equal(t, []string{hash}, a.GetHiddenRevisions())
+	assert.Equal(t, []string{hash}, mustGetHidden(t, a))
 }
 
 func TestHiddenRevisions_UnhideAbsent(t *testing.T) {
 	a := testApp(t)
 	require.NoError(t, a.UnhideRevision("abc1234567abcdef0000000000000000000000aa"))
-	assert.Empty(t, a.GetHiddenRevisions())
+	assert.Empty(t, mustGetHidden(t, a))
 }
 
 func TestHiddenRevisions_UnhideRemoves(t *testing.T) {
@@ -53,12 +65,12 @@ func TestHiddenRevisions_UnhideRemoves(t *testing.T) {
 	require.NoError(t, a.HideRevision(drop))
 	require.NoError(t, a.UnhideRevision(drop))
 
-	assert.Equal(t, []string{keep}, a.GetHiddenRevisions())
+	assert.Equal(t, []string{keep}, mustGetHidden(t, a))
 }
 
 func TestHiddenRevisions_MissingFile(t *testing.T) {
 	a := testApp(t)
-	got := a.GetHiddenRevisions()
+	got := mustGetHidden(t, a)
 	// Empty slice, never nil — the wire payload to the frontend is
 	// always an array.
 	require.NotNil(t, got)
@@ -128,7 +140,7 @@ func TestHiddenRevisions_RaceFree(t *testing.T) {
 	}
 	wg.Wait()
 
-	got := a.GetHiddenRevisions()
+	got := mustGetHidden(t, a)
 	assert.Len(t, got, 50, "all 50 hashes should be present")
 
 	// Confirm the on-disk file is well-formed (no torn writes, no
@@ -142,4 +154,82 @@ func TestHiddenRevisions_RaceFree(t *testing.T) {
 		seen[line] = struct{}{}
 	}
 	assert.Len(t, seen, 50, "no duplicate lines after concurrent writes")
+}
+
+// makeHiddenFileUnreadable forces a non-ENOENT read failure by
+// chmod'ing the file to 0. Linux/macOS only; the file is restored at
+// test teardown via t.Cleanup. We skip if running as root because
+// chmod doesn't restrict root's read access.
+func makeHiddenFileUnreadable(t *testing.T, a *App) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — chmod 0 won't block reads")
+	}
+	path := filepath.Join(a.currentLibrary, hiddenRevisionsPath)
+	require.NoError(t, os.Chmod(path, 0))
+	t.Cleanup(func() { _ = os.Chmod(path, 0644) })
+}
+
+// TestHiddenRevisions_HideRefusesOnReadFailure covers the H2
+// data-loss scenario: a non-ENOENT read failure (EACCES here) must
+// surface as an error from HideRevision, NOT silently produce a
+// single-element file that erases the previously hidden hashes.
+func TestHiddenRevisions_HideRefusesOnReadFailure(t *testing.T) {
+	a := testApp(t)
+	// Seed two real hashes.
+	preexisting := []string{
+		"abc1234567abcdef0000000000000000000000aa",
+		"def4567890abcdef0000000000000000000000bb",
+	}
+	for _, h := range preexisting {
+		require.NoError(t, a.HideRevision(h))
+	}
+
+	// Capture on-disk bytes before forcing a read failure so we can
+	// assert the file is byte-identical afterward.
+	path := filepath.Join(a.currentLibrary, hiddenRevisionsPath)
+	before, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	makeHiddenFileUnreadable(t, a)
+
+	err = a.HideRevision("999000abcd000000000000000000000000000000")
+	require.Error(t, err, "HideRevision must propagate the read error")
+
+	// Restore read access and confirm the file still has the original two.
+	require.NoError(t, os.Chmod(path, 0644))
+	after, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, before, after,
+		"on-disk file must be untouched after a read-error-aborted Hide")
+}
+
+func TestHiddenRevisions_UnhideRefusesOnReadFailure(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.HideRevision("abc1234567abcdef0000000000000000000000aa"))
+	path := filepath.Join(a.currentLibrary, hiddenRevisionsPath)
+	before, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	makeHiddenFileUnreadable(t, a)
+
+	err = a.UnhideRevision("abc1234567abcdef0000000000000000000000aa")
+	require.Error(t, err, "UnhideRevision must propagate the read error")
+
+	require.NoError(t, os.Chmod(path, 0644))
+	after, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, before, after,
+		"on-disk file must be untouched after a read-error-aborted Unhide")
+}
+
+func TestHiddenRevisions_GetReturnsErrorOnReadFailure(t *testing.T) {
+	a := testApp(t)
+	require.NoError(t, a.HideRevision("abc1234567abcdef0000000000000000000000aa"))
+
+	makeHiddenFileUnreadable(t, a)
+
+	_, err := a.GetHiddenRevisions()
+	require.Error(t, err,
+		"GetHiddenRevisions must surface real read failures instead of returning an empty slice")
 }

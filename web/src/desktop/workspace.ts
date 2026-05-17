@@ -208,6 +208,11 @@ export class Workspace {
     this.state.revisions = [];
     this.state.gitStatus = null;
     this.state.externalFile = null;
+    // showHidden is a session-only UI toggle; it's per-library by
+    // semantics ("show me the hashes I hid in THIS library"). Carry-
+    // over to a new library would silently reveal a different set
+    // and confuse the user.
+    this.state.showHidden = false;
     this.cancelDirtyReconcile();
     this.clearRevisionView();
     this.state.libraryTree = await this.env.getLibraryTree();
@@ -518,6 +523,22 @@ export class Workspace {
   // before starting the pick.
   cancelPickSecond(): void {
     this.state.pickingSecondForCompare = false;
+  }
+
+  // Internal partial-reset: drops the B-side of compareTwo without
+  // exiting revision view. The A-side stays loaded; revisionViewMode
+  // stays 'compare'. The result is compareCurrent on A.
+  //
+  // Used by the host's `handleCompareToCurrent` so that re-invoking
+  // "Compare to current" while already in compareTwo (A vs B) drops
+  // back to A-vs-live-buffer instead of being a no-op. The user-
+  // facing "Stop comparing" banner button is a full exit and routes
+  // through `clearRevisionView` — this helper is NOT exposed to that
+  // path.
+  stopCompareTwo(): void {
+    this.state.compareSecondHash = null;
+    this.state.compareSecondContent = null;
+    this.state.compareSecondMeta = null;
   }
 
   // Library-scoped hidden-revisions IO.

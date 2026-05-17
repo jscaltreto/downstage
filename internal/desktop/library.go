@@ -421,8 +421,15 @@ func (a *App) CreateLibraryFile(name string, content string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		_, err = os.Stat(fullPath)
+		if os.IsNotExist(err) {
 			break
+		}
+		if err != nil {
+			// Non-ENOENT (permission denied, IO failure, etc.). Bail
+			// out instead of suffixing forever — the loop has no way
+			// to make progress against a real filesystem error.
+			return "", fmt.Errorf("stat %q: %w", fullPath, err)
 		}
 		finalName = fmt.Sprintf("%s-%d.ds", base, counter)
 		counter++
@@ -579,8 +586,12 @@ func (a *App) AddExternalFileToLibrary(absSrc string, destRelDir string) (string
 		if err != nil {
 			return "", err
 		}
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		_, err = os.Stat(fullPath)
+		if os.IsNotExist(err) {
 			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("stat %q: %w", fullPath, err)
 		}
 		finalRel = fmt.Sprintf("%s-%d.ds", stem, counter)
 		counter++
@@ -700,23 +711,25 @@ func (a *App) hiddenRevisionsFile() string {
 }
 
 // readHiddenRevisions returns the current hidden set as a slice.
-// Missing file → empty slice (not an error). Unreadable file →
-// empty slice with a logged warning. Empty lines and surrounding
-// whitespace are ignored.
+// Missing file → empty slice, nil error (normal first-run state).
+// Any other read failure → nil + error. Callers that subsequently
+// write MUST propagate the error; otherwise a transient EACCES / EIO
+// reads as "empty set" and the next write would erase the on-disk
+// hashes.
 //
 // Caller is responsible for holding hiddenMu if mutating; readers
 // that don't subsequently write don't need the lock.
-func (a *App) readHiddenRevisions() []string {
+func (a *App) readHiddenRevisions() ([]string, error) {
 	path := a.hiddenRevisionsFile()
 	if path == "" {
-		return nil
+		return nil, nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			slog.Warn("hidden-revisions: read failed", "path", path, "err", err)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
 		}
-		return nil
+		return nil, fmt.Errorf("read hidden revisions: %w", err)
 	}
 	var hashes []string
 	for _, line := range strings.Split(string(data), "\n") {
@@ -725,7 +738,7 @@ func (a *App) readHiddenRevisions() []string {
 			hashes = append(hashes, h)
 		}
 	}
-	return hashes
+	return hashes, nil
 }
 
 // writeHiddenRevisions persists the set. Sorts and dedupes before
@@ -779,20 +792,29 @@ func (a *App) writeHiddenRevisions(hashes []string) error {
 
 // GetHiddenRevisions returns the library's hidden hashes. Empty slice
 // (never nil) so the JSON wire payload to the frontend is always an
-// array, never a JS null.
-func (a *App) GetHiddenRevisions() []string {
+// array, never a JS null. Read errors propagate so the frontend can
+// surface a real failure instead of silently rendering as
+// "no hidden revisions".
+func (a *App) GetHiddenRevisions() ([]string, error) {
 	a.hiddenMu.Lock()
 	defer a.hiddenMu.Unlock()
-	h := a.readHiddenRevisions()
-	if h == nil {
-		return []string{}
+	h, err := a.readHiddenRevisions()
+	if err != nil {
+		return nil, err
 	}
-	return h
+	if h == nil {
+		return []string{}, nil
+	}
+	return h, nil
 }
 
 // HideRevision marks a hash as hidden. Idempotent — adding an already-
 // hidden hash is a no-op success. The frontend filters the Versions
 // list by this set; nothing about git history is altered.
+//
+// Refuses to mutate if the existing file can't be read cleanly: a
+// transient EACCES / EIO would otherwise discard the existing hashes
+// on the next write.
 func (a *App) HideRevision(hash string) error {
 	hash = strings.TrimSpace(hash)
 	if hash == "" {
@@ -800,7 +822,10 @@ func (a *App) HideRevision(hash string) error {
 	}
 	a.hiddenMu.Lock()
 	defer a.hiddenMu.Unlock()
-	current := a.readHiddenRevisions()
+	current, err := a.readHiddenRevisions()
+	if err != nil {
+		return err
+	}
 	for _, existing := range current {
 		if existing == hash {
 			return nil
@@ -811,7 +836,8 @@ func (a *App) HideRevision(hash string) error {
 }
 
 // UnhideRevision removes a hash. Idempotent — unhiding an absent hash
-// is a no-op success.
+// is a no-op success. Refuses to mutate on read failure for the same
+// data-preservation reason as HideRevision.
 func (a *App) UnhideRevision(hash string) error {
 	hash = strings.TrimSpace(hash)
 	if hash == "" {
@@ -819,7 +845,10 @@ func (a *App) UnhideRevision(hash string) error {
 	}
 	a.hiddenMu.Lock()
 	defer a.hiddenMu.Unlock()
-	current := a.readHiddenRevisions()
+	current, err := a.readHiddenRevisions()
+	if err != nil {
+		return err
+	}
 	next := make([]string, 0, len(current))
 	found := false
 	for _, existing := range current {

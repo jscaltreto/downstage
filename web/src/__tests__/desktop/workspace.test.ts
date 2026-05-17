@@ -587,6 +587,59 @@ describe("Workspace", () => {
     expect(ws.state.hiddenRevisionHashes.has("after-switch")).toBe(true);
   });
 
+  // M11: showHidden is a session-only UI toggle scoped to a single
+  // library. Switching libraries must reset it; otherwise a user who
+  // had "Show hidden" on in library A would see library B's revisions
+  // unfiltered until they manually toggled it off.
+  it("changeLibraryLocation resets showHidden to false", async () => {
+    stubLocalStorage();
+    const env = createEnv();
+    const ws = new Workspace(env);
+    await ws.init();
+    ws.toggleShowHidden();
+    expect(ws.state.showHidden).toBe(true);
+
+    await ws.changeLibraryLocation();
+
+    expect(ws.state.showHidden).toBe(false);
+  });
+
+  // M10: stopCompareTwo is the internal partial-reset that
+  // handleCompareToCurrent calls when re-invoked while already in
+  // compareTwo. Drops B-side only; A-side and compare mode stay.
+  it("stopCompareTwo clears compareSecond* but keeps A and compare mode", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: {
+        "play.ds": "live",
+        "play.ds@abc": "older-a",
+        "play.ds@def": "older-b",
+      },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "a", author: "x", timestamp: "" },
+        { hash: "def", path: "play.ds", message: "b", author: "x", timestamp: "" },
+      ],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+    await ws.startPickSecond("abc");
+    await ws.resolvePickSecond("def");
+    expect(ws.state.compareSecondHash).toBe("def");
+    expect(ws.state.revisionViewMode).toBe("compare");
+
+    ws.stopCompareTwo();
+
+    expect(ws.state.compareSecondHash).toBeNull();
+    expect(ws.state.compareSecondContent).toBeNull();
+    expect(ws.state.compareSecondMeta).toBeNull();
+    // A-side and compare mode are preserved — user lands in
+    // compareCurrent on A.
+    expect(ws.state.viewingRevisionHash).toBe("abc");
+    expect(ws.state.viewingRevisionContent).toBe("older-a");
+    expect(ws.state.revisionViewMode).toBe("compare");
+  });
+
   it("restoreRevision snapshots the live state, overwrites with the revision, then snapshots the restore", async () => {
     stubLocalStorage();
     const env = createEnv({
@@ -613,6 +666,11 @@ describe("Workspace", () => {
     // The restore commit is the final state-mutating step.
     const restoreSnap = env._calls.findIndex((c) => c.startsWith("snapshotFile:play.ds:Restore version"));
     expect(restoreSnap).toBeGreaterThan(readRev);
+    // T17: the working copy MUST end with the revision's content, not
+    // just "we called writeLibraryFile twice". Without this assertion
+    // the test would pass even if the second write used the wrong
+    // bytes (e.g. wrote the live buffer instead of the revision).
+    expect((env as any)._contents["play.ds"]).toBe("older-content");
   });
 
   it("loads sidebarCollapsed from env and ignores legacy localStorage key", async () => {

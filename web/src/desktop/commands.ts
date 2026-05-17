@@ -35,6 +35,12 @@ export interface CommandContext {
   // PDF — disable in this mode because the visible content is a
   // diff between A and B, not either one of them.
   isInCompareTwo: Ref<boolean>;
+  // True while the editor is showing a read-only external file
+  // (File → Open with a path outside the library). The Export DS
+  // command supports this mode — saving an external file to an
+  // arbitrary path is a meaningful action even without an active
+  // library file — so its predicate must include external mode.
+  isViewingExternal: Ref<boolean>;
   // Flushing the debounced file save. Save Version / Export / Open Folder
   // all need the live buffer durable on disk before they proceed.
   flushSave: () => Promise<void>;
@@ -79,8 +85,8 @@ const newPlayTemplate = () =>
 export function createCommandHandlers(ctx: CommandContext): Array<[string, HandlerEntry]> {
   const {
     env, store, workspace, toast, activeContent, editorContent,
-    isV1Document, isViewingRevision, isInCompareTwo, flushSave,
-    editor, ui,
+    isV1Document, isViewingRevision, isInCompareTwo, isViewingExternal,
+    flushSave, editor, ui,
   } = ctx;
 
   // Common enablement predicates — hoisted so the ID→predicate mapping
@@ -93,6 +99,12 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
   // command surfaces as greyed in menu + palette.
   const canExport = () => hasActiveFile() && !isV1Document.value && !isInCompareTwo.value;
   const canCopyAll = () => hasActiveFile() && !isInCompareTwo.value;
+  // canExportDs: like canCopyAll but also enabled in external-file
+  // mode. handleExportDs explicitly supports saving an external file
+  // to an arbitrary disk path — useful for read-only previews where
+  // the user wants to copy the file out of the library boundary.
+  const canExportDs = () =>
+    (hasActiveFile() || isViewingExternal.value) && !isInCompareTwo.value;
 
   // Opens a workbench drawer tab, toggling if the tab is already open.
   const toggleDrawerTab = (tab: WorkbenchTab) => {
@@ -233,7 +245,7 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["file.save", { handler: handleSave, isEnabled: hasActiveFileEditable }],
     ["file.saveVersion", { handler: handleSaveVersion, isEnabled: hasActiveFileEditable }],
     ["file.exportPdf", { handler: handleExport, isEnabled: canExport }],
-    ["file.exportDs", { handler: handleExportDs, isEnabled: canCopyAll }],
+    ["file.exportDs", { handler: handleExportDs, isEnabled: canExportDs }],
     ["file.settings", { handler: () => ui.openSettings() }],
     ["file.settings.spellcheck", { handler: () => ui.openSettings("spellcheck") }],
     ["file.quit", { handler: handleQuit }],

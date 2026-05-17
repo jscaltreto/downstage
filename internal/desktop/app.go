@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -192,13 +193,47 @@ func (a *App) readConfigLocked() (Config, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return cfg, nil
 		}
-		return cfg, err
+		// Non-ENOENT read failure (permissions, IO, etc.). Back up the
+		// unreadable file so a subsequent write doesn't clobber it,
+		// then return zero-value Config so startup proceeds with
+		// defaults. The user gets first-run behavior + a recovery file.
+		a.backupCorruptConfig("read")
+		return cfg, nil
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return Config{}, err
+		// Parsed bytes but they're garbage (truncated write, manual
+		// edit, encoding glitch). Same recovery path as above — back
+		// up the bad file and return defaults so the user isn't
+		// stuck with a broken config blocking the app.
+		a.backupCorruptConfig("parse")
+		return Config{}, nil
 	}
 	migrateLegacyConfig(&cfg, data)
 	return cfg, nil
+}
+
+// backupCorruptConfig moves the on-disk config out of the way so a
+// subsequent writeConfigLocked doesn't overwrite a file we couldn't
+// read. The renamed file is `<configPath>.bak.<unix-seconds>`. Rename
+// failures are logged but not returned — best-effort recovery; the
+// caller's goal is to keep startup moving.
+//
+// `cause` is "read" or "parse" for the log; structured so log readers
+// can distinguish IO failures from format issues.
+//
+// Caller MUST hold configMu.
+func (a *App) backupCorruptConfig(cause string) {
+	if a.configPath == "" {
+		return
+	}
+	bak := fmt.Sprintf("%s.bak.%d", a.configPath, time.Now().Unix())
+	if err := os.Rename(a.configPath, bak); err != nil {
+		slog.Warn("config: backup of unreadable file failed",
+			"cause", cause, "path", a.configPath, "err", err)
+		return
+	}
+	slog.Warn("config: backed up unreadable file; starting with defaults",
+		"cause", cause, "from", a.configPath, "to", bak)
 }
 
 // migrateLegacyConfig fills empty new-name fields from the legacy
@@ -232,6 +267,8 @@ func (a *App) writeConfig(cfg Config) error {
 }
 
 // writeConfigLocked persists the given Config; assumes configMu is held.
+// Writes atomically via tmp+rename so a crash mid-write can't leave a
+// torn file. Mirrors writeHiddenRevisions (library.go).
 func (a *App) writeConfigLocked(cfg Config) error {
 	if a.configPath == "" {
 		return nil
@@ -240,7 +277,15 @@ func (a *App) writeConfigLocked(cfg Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(a.configPath, data, 0644)
+	tmp := a.configPath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, a.configPath); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // updateConfig is the single atomic read-modify-write path for Config.

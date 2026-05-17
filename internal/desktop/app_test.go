@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1143,4 +1144,87 @@ func TestAddExternalFileToLibrary_RejectsTraversal(t *testing.T) {
 
 	_, err := a.AddExternalFileToLibrary(src, "../outside")
 	assert.Error(t, err)
+}
+
+// H1: writeConfigLocked uses tmp+rename so a crash mid-write can't
+// leave a torn file. On a successful write the .tmp file must not
+// linger.
+func TestWriteConfig_Atomic_NoTmpResidue(t *testing.T) {
+	a := testAppWithConfig(t)
+	require.NoError(t, a.writeConfig(Config{LastLibraryPath: "/some/library"}))
+	tmp := a.configPath + ".tmp"
+	_, err := os.Stat(tmp)
+	assert.True(t, os.IsNotExist(err),
+		".tmp file should not remain after a successful write")
+	// And the real file should round-trip.
+	got, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "/some/library", got.LastLibraryPath)
+}
+
+// H1: a corrupt JSON config does NOT abort startup and does NOT get
+// overwritten with defaults that would erase the user's recovery
+// path. The bad file is renamed to <path>.bak.<unix> and readConfig
+// returns zero-value Config so the app can boot.
+func TestReadConfig_CorruptJSON_BackedUp(t *testing.T) {
+	a := testAppWithConfig(t)
+	require.NoError(t, os.WriteFile(a.configPath, []byte("{not valid json"), 0644))
+
+	cfg, err := a.readConfig()
+	require.NoError(t, err, "corrupt config should not block startup")
+	assert.Equal(t, Config{}, cfg, "should return zero-value defaults")
+
+	// The original file should be gone, replaced by a backup.
+	_, err = os.Stat(a.configPath)
+	assert.True(t, os.IsNotExist(err),
+		"corrupt config file should have been renamed away")
+
+	// Find the backup.
+	dir := filepath.Dir(a.configPath)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	var backups []string
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), filepath.Base(a.configPath)+".bak.") {
+			backups = append(backups, e.Name())
+		}
+	}
+	require.Len(t, backups, 1, "exactly one backup should exist")
+	bakBytes, err := os.ReadFile(filepath.Join(dir, backups[0]))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("{not valid json"), bakBytes,
+		"backup should contain the original corrupt bytes for user recovery")
+}
+
+// H1 + recovery: after the corrupt file is backed up, the next config
+// write succeeds and produces a valid file. The user is unblocked.
+func TestReadConfig_CorruptJSON_NextWriteSucceeds(t *testing.T) {
+	a := testAppWithConfig(t)
+	require.NoError(t, os.WriteFile(a.configPath, []byte("garbage"), 0644))
+	_, err := a.readConfig()
+	require.NoError(t, err)
+
+	require.NoError(t, a.writeConfig(Config{LastLibraryPath: "/restored"}))
+	got, err := a.readConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "/restored", got.LastLibraryPath)
+}
+
+// M5: stat returning a non-ENOENT error inside the CreateLibraryFile
+// collision loop must surface as a real error, not an infinite suffix
+// chase. We force the error by making the library directory itself
+// unreadable. Skipped as root because chmod 0 doesn't restrict root.
+func TestCreateLibraryFile_StatErrorAborts(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — chmod 0 won't block stats")
+	}
+	a := testApp(t)
+	// Drop permissions on the library root so any subsequent stat
+	// against a child returns EACCES.
+	require.NoError(t, os.Chmod(a.currentLibrary, 0))
+	t.Cleanup(func() { _ = os.Chmod(a.currentLibrary, 0755) })
+
+	_, err := a.CreateLibraryFile("collision-test", "content")
+	require.Error(t, err,
+		"CreateLibraryFile must surface a non-ENOENT stat error instead of looping")
 }

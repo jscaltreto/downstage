@@ -13,6 +13,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   const isV1Document = ref(false);
   const isViewingRevision = ref(false);
   const isInCompareTwo = ref(false);
+  const isViewingExternal = ref(false);
   const drawerOpen = ref(false);
   const drawerTab = ref<any>("issues");
   const searchRequest = ref<any>({ mode: "find", nonce: 0 });
@@ -57,6 +58,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     isV1Document,
     isViewingRevision,
     isInCompareTwo,
+    isViewingExternal,
     flushSave: async () => {},
     editor: {
       applyFormat: vi.fn(),
