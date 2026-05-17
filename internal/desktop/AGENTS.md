@@ -74,15 +74,16 @@ All methods live on a single `*App` struct, split across focused files:
   layer for Preferences writes arriving from Store + Workspace.
 
 - **Preferences are the single source of truth for persisted UI state.**
-  All desktop-side UI preferences (theme, previewHidden, spellcheckDisabled,
-  sidebarCollapsed) live in the nested `Preferences` struct inside
-  `Config`. They are exposed via exactly one bound pair:
-  `GetPreferences()` and `SetPreferences(prefs)`. Writers always read,
-  mutate, and write the full struct; there are no per-field setters by
-  design. `GetPreferences` normalizes an empty `Theme` to `"system"` so
-  callers never have to know which fields carry sentinels. Do not
-  introduce per-field Wails bindings for new preferences — add fields to
-  `Preferences` and use the existing pair.
+  All desktop-side UI preferences live in the nested `Preferences` struct
+  inside `Config`: theme, previewHidden, spellcheckDisabled,
+  sidebarCollapsed, sidebarWidth, lastDrawerTab, drawerDock,
+  drawerRightWidth, and the export defaults. They are exposed via exactly
+  one bound pair: `GetPreferences()` and `SetPreferences(prefs)`. Writers
+  always read, mutate, and write the full struct; there are no per-field
+  setters by design. `GetPreferences` normalizes an empty `Theme` to
+  `"system"` so callers never have to know which fields carry sentinels.
+  Do not introduce per-field Wails bindings for new preferences - add
+  fields to `Preferences` and use the existing pair.
 
 - **Do not reintroduce `localStorage` on the desktop side.** The webview
   has `localStorage`, but everything persisted on desktop must round-trip
