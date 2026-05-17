@@ -20,62 +20,36 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// Event names for the OnBeforeClose flush handshake. See AGENTS.md.
 const (
-	eventBeforeClose   = "downstage:before-close"
-	eventFlushComplete = "downstage:flush-complete"
-
-	// beforeCloseTimeout bounds how long BeforeClose will wait on the
-	// frontend flush. A broken frontend must not lock the window closed.
-	beforeCloseTimeout = 2 * time.Second
-
-	// Menu-click fan-out event. The Click callback on every catalog-derived
-	// menu item emits this with the command ID; the frontend dispatcher
-	// subscribes once and routes by ID.
+	eventBeforeClose    = "downstage:before-close"
+	eventFlushComplete  = "downstage:flush-complete"
+	beforeCloseTimeout  = 2 * time.Second
 	eventCommandExecute = "command:execute"
 )
 
-// Preferences captures every persisted UI preference the desktop app
-// exposes. It lives inside Config as a single nested struct so the
-// frontend can round-trip the whole thing as one typed unit. Fields use
-// negative-semantic booleans (hidden/disabled/collapsed) so the JSON
-// zero value aligns with the default behavior — no pointer gymnastics,
-// no config version tag required.
+// Preferences stores persisted desktop UI settings.
 type Preferences struct {
-	Theme              string `json:"theme,omitempty"`              // "", "light", "dark", "system"
-	PreviewHidden      bool   `json:"previewHidden,omitempty"`      // default false (visible)
-	SpellcheckDisabled bool   `json:"spellcheckDisabled,omitempty"` // default false (enabled)
-	SidebarCollapsed   bool   `json:"sidebarCollapsed,omitempty"`   // default false (expanded)
-	SidebarWidth       int    `json:"sidebarWidth,omitempty"`       // px; 0 → frontend default 256
-	LastDrawerTab      string `json:"lastDrawerTab,omitempty"`      // "" → 'issues'
-	// DrawerDock is "bottom" (default) or "right". Empty string falls
-	// back to "bottom" so first-run matches the historical layout.
-	DrawerDock       string `json:"drawerDock,omitempty"`
-	DrawerRightWidth int    `json:"drawerRightWidth,omitempty"` // px; 0 → frontend default 360
-
-	// PDF export defaults. Page size lives here (not in the export
-	// dialog) so it's a one-time Settings choice rather than a per-
-	// export decision. Style/layout/gutter ride along in the dialog
-	// but the last-used values are remembered so round-tripping "Export
-	// again" stays ergonomic.
+	Theme               string `json:"theme,omitempty"`
+	PreviewHidden       bool   `json:"previewHidden,omitempty"`
+	SpellcheckDisabled  bool   `json:"spellcheckDisabled,omitempty"`
+	SidebarCollapsed    bool   `json:"sidebarCollapsed,omitempty"`
+	SidebarWidth        int    `json:"sidebarWidth,omitempty"`
+	LastDrawerTab       string `json:"lastDrawerTab,omitempty"`
+	DrawerDock          string `json:"drawerDock,omitempty"`
+	DrawerRightWidth    int    `json:"drawerRightWidth,omitempty"`
 	ExportPageSize      string `json:"exportPageSize,omitempty"`      // "letter" (default) | "a4"
 	ExportStyle         string `json:"exportStyle,omitempty"`         // "standard" (default) | "condensed"
 	ExportLayout        string `json:"exportLayout,omitempty"`        // "single" (default) | "2up" | "booklet"
 	ExportBookletGutter string `json:"exportBookletGutter,omitempty"` // e.g. "0.125in"
 }
 
-// WindowState persists the initial window size so the desktop app
-// reopens at the last-used dimensions. Position and maximize state
-// are deliberately not persisted — on Wayland compositors, requesting
-// either forces the window into floating/fullscreen mode that bypasses
-// tiling rules. Compositors own placement; the app only reports a
-// preferred size at startup.
+// WindowState stores the last normal window size.
 type WindowState struct {
 	Width  int `json:"width,omitempty"`
 	Height int `json:"height,omitempty"`
 }
 
-// Config stores persistent user preferences across sessions.
+// Config is the on-disk desktop config.
 type Config struct {
 	LastLibraryPath       string      `json:"lastLibraryPath"`
 	LastActiveLibraryFile string      `json:"lastActiveLibraryFile"`
@@ -83,11 +57,7 @@ type Config struct {
 	WindowState           WindowState `json:"windowState,omitempty"`
 }
 
-// legacyConfig is the v0 on-disk shape, before the project → library rename.
-// Marshaled into the same JSON document as Config for a one-shot upgrade
-// path: when the current-name fields are empty but the legacy fields are
-// populated, migrateLegacyConfig copies the values across. Both legacy
-// fields migrate together — dropping either silently loses user state.
+// legacyConfig matches the pre-rename on-disk shape.
 type legacyConfig struct {
 	LastProjectPath       string `json:"lastProjectPath,omitempty"`
 	LastActiveProjectFile string `json:"lastActiveProjectFile,omitempty"`
@@ -98,26 +68,16 @@ type App struct {
 	ctx            context.Context
 	currentLibrary string
 	configPath     string
-	configMu       sync.Mutex // guards read-modify-write of the on-disk config
+	configMu       sync.Mutex
 
-	// menuMu guards currentMenu and the SetDisabledCommands rebuild path.
-	// currentMenu is the most recently-applied *menu.Menu, kept so tests
-	// (and future state-reflection logic) can inspect the rendered tree.
 	menuMu      sync.Mutex
 	currentMenu *menu.Menu
 
-	// hiddenMu serializes read-modify-write on the hidden-revisions
-	// file so rapid hide/unhide clicks can't race and lose updates.
-	// The file itself is written atomically via tmp+rename.
 	hiddenMu sync.Mutex
 }
 
 func NewApp() *App {
 	a := &App{}
-	// configPath is resolved eagerly so callers that run before OnStartup
-	// — notably main.go reading WindowState to pick the initial window
-	// size — can touch config. Errors here are non-fatal; readConfig
-	// handles an empty configPath by returning a zero-value Config.
 	if userConfigDir, err := os.UserConfigDir(); err == nil {
 		a.configPath = filepath.Join(userConfigDir, "downstage", "config.json")
 		_ = os.MkdirAll(filepath.Dir(a.configPath), 0755)
@@ -164,25 +124,12 @@ func (a *App) ensureGitRepo() error {
 	return err
 }
 
-// readConfig returns the on-disk config or a zero-value Config if none
-// exists. Takes configMu itself — safe for external callers reading
-// atomically. Internal code doing a read-modify-write should use
-// updateConfig instead so the full cycle is serialized.
 func (a *App) readConfig() (Config, error) {
 	a.configMu.Lock()
 	defer a.configMu.Unlock()
 	return a.readConfigLocked()
 }
 
-// readConfigLocked performs the disk read; assumes configMu is already
-// held by the caller. Used by updateConfig to keep the whole RMW cycle
-// under a single lock acquisition.
-//
-// Legacy upgrade path: pre-rename builds wrote lastProjectPath and
-// lastActiveProjectFile. A config written by one of those old builds will
-// arrive here with the new-name fields empty. migrateLegacyConfig copies
-// the legacy values across in a single pass; the next writeConfig
-// persists the new shape and old keys stop appearing.
 func (a *App) readConfigLocked() (Config, error) {
 	var cfg Config
 	if a.configPath == "" {
@@ -193,18 +140,10 @@ func (a *App) readConfigLocked() (Config, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return cfg, nil
 		}
-		// Non-ENOENT read failure (permissions, IO, etc.). Back up the
-		// unreadable file so a subsequent write doesn't clobber it,
-		// then return zero-value Config so startup proceeds with
-		// defaults. The user gets first-run behavior + a recovery file.
 		a.backupCorruptConfig("read")
 		return cfg, nil
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		// Parsed bytes but they're garbage (truncated write, manual
-		// edit, encoding glitch). Same recovery path as above — back
-		// up the bad file and return defaults so the user isn't
-		// stuck with a broken config blocking the app.
 		a.backupCorruptConfig("parse")
 		return Config{}, nil
 	}
@@ -212,16 +151,6 @@ func (a *App) readConfigLocked() (Config, error) {
 	return cfg, nil
 }
 
-// backupCorruptConfig moves the on-disk config out of the way so a
-// subsequent writeConfigLocked doesn't overwrite a file we couldn't
-// read. The renamed file is `<configPath>.bak.<unix-seconds>`. Rename
-// failures are logged but not returned — best-effort recovery; the
-// caller's goal is to keep startup moving.
-//
-// `cause` is "read" or "parse" for the log; structured so log readers
-// can distinguish IO failures from format issues.
-//
-// Caller MUST hold configMu.
 func (a *App) backupCorruptConfig(cause string) {
 	if a.configPath == "" {
 		return
@@ -236,10 +165,6 @@ func (a *App) backupCorruptConfig(cause string) {
 		"cause", cause, "from", a.configPath, "to", bak)
 }
 
-// migrateLegacyConfig fills empty new-name fields from the legacy
-// pre-rename JSON keys. Both legacy fields migrate together because
-// they are semantically paired — the active file only makes sense in
-// the context of its library.
 func migrateLegacyConfig(cfg *Config, raw []byte) {
 	if cfg.LastLibraryPath != "" && cfg.LastActiveLibraryFile != "" {
 		return
@@ -256,19 +181,12 @@ func migrateLegacyConfig(cfg *Config, raw []byte) {
 	}
 }
 
-// writeConfig persists the given Config verbatim. This is an EXPLICIT write
-// — callers are expected to read first, mutate fields they own, then write.
-// Prefer updateConfig for any read-modify-write so subtree writers can't
-// race.
 func (a *App) writeConfig(cfg Config) error {
 	a.configMu.Lock()
 	defer a.configMu.Unlock()
 	return a.writeConfigLocked(cfg)
 }
 
-// writeConfigLocked persists the given Config; assumes configMu is held.
-// Writes atomically via tmp+rename so a crash mid-write can't leave a
-// torn file. Mirrors writeHiddenRevisions (library.go).
 func (a *App) writeConfigLocked(cfg Config) error {
 	if a.configPath == "" {
 		return nil
@@ -288,16 +206,6 @@ func (a *App) writeConfigLocked(cfg Config) error {
 	return nil
 }
 
-// updateConfig is the single atomic read-modify-write path for Config.
-// It holds configMu for the duration of the callback so independent
-// subtree writers (Preferences, WindowState, LastActiveLibraryFile) can
-// interleave at the Go level without dropping each other's changes.
-//
-// Callers mutate only the fields they own, leaving the rest of the
-// struct intact. The frontend's prefs-cache still serializes its own
-// Preferences-specific writes on top of this — both layers are needed:
-// Go serializes cross-subtree races; prefs-cache serializes
-// cross-Preferences-writer races.
 func (a *App) updateConfig(mutate func(*Config)) error {
 	a.configMu.Lock()
 	defer a.configMu.Unlock()
@@ -309,23 +217,14 @@ func (a *App) updateConfig(mutate func(*Config)) error {
 	return a.writeConfigLocked(cfg)
 }
 
-// SetActiveLibraryFile persists the last-opened file for the active library.
-// Called from the frontend on file selection so `ReadLibraryFile` doesn't
-// touch config on every read.
 func (a *App) SetActiveLibraryFile(rel string) error {
 	return a.updateConfig(func(c *Config) {
 		c.LastActiveLibraryFile = rel
 	})
 }
 
-// defaultTheme is applied by GetPreferences when the persisted theme is
-// the zero value (""). "system" means "follow OS preference" which is what
-// a brand-new install should do before the user picks.
 const defaultTheme = "system"
 
-// GetPreferences returns the persisted preferences with defaults applied.
-// Unknown/empty Theme is normalized to "system" so the frontend never has
-// to know which fields carry a sentinel.
 func (a *App) GetPreferences() (Preferences, error) {
 	cfg, err := a.readConfig()
 	if err != nil {
@@ -338,24 +237,14 @@ func (a *App) GetPreferences() (Preferences, error) {
 	return prefs, nil
 }
 
-// SetPreferences replaces the entire Preferences block in Config via
-// updateConfig, so concurrent writes from other subtrees (WindowState,
-// LastActiveLibraryFile) don't get lost. Non-preference fields are
-// preserved.
 func (a *App) SetPreferences(prefs Preferences) error {
 	return a.updateConfig(func(c *Config) {
 		c.Preferences = prefs
 	})
 }
 
-// minSaneWindowDimension is the lower bound for a persisted window
-// size we'll honor on startup. A stored 0x0 or tiny window is almost
-// certainly a bug or an OS glitch; fall back to the default in that case.
 const minSaneWindowDimension = 400
 
-// GetWindowState returns the persisted window geometry. Empty / never-
-// placed returns a zero-value WindowState; main.go treats that as
-// "use defaults".
 func (a *App) GetWindowState() (WindowState, error) {
 	cfg, err := a.readConfig()
 	if err != nil {
@@ -364,9 +253,6 @@ func (a *App) GetWindowState() (WindowState, error) {
 	return cfg.WindowState, nil
 }
 
-// SaveWindowBounds persists the window's current Width and Height.
-// Exposed for tests; production callers should use
-// SaveWindowBoundsIfNormal which adds a maximize guard.
 func (a *App) SaveWindowBounds(width, height int) error {
 	return a.updateConfig(func(c *Config) {
 		c.WindowState.Width = width
@@ -374,11 +260,6 @@ func (a *App) SaveWindowBounds(width, height int) error {
 	})
 }
 
-// SaveWindowBoundsIfNormal reads the current size from the Wails
-// runtime and persists it only if the window is unmaximized. Called
-// from the frontend on debounced window-resize events, so we never
-// overwrite the last-known normal size with a maximized screen rect.
-// Position is deliberately not captured — see WindowState's comment.
 func (a *App) SaveWindowBoundsIfNormal() error {
 	if a.ctx == nil {
 		return nil
@@ -390,13 +271,6 @@ func (a *App) SaveWindowBoundsIfNormal() error {
 	return a.SaveWindowBounds(w, h)
 }
 
-// safePath validates that relPath resolves to a location inside the library
-// root. It rejects:
-//   - absolute inputs (writers always work relative to the library)
-//   - any leaf symlink, whether its target exists, is dangling, or points
-//     inside or outside the library (writers don't need leaf symlinks, and
-//     allowing them opens a class of TOCTOU / dangling-leaf bypasses)
-//   - live symlink chains whose final target escapes the library root
 func (a *App) safePath(relPath string) (string, error) {
 	if a.currentLibrary == "" {
 		return "", fmt.Errorf("no library open")
@@ -412,9 +286,6 @@ func (a *App) safePath(relPath string) (string, error) {
 	}
 	joined := filepath.Join(root, relPath)
 
-	// If the target is a leaf symlink (live or dangling), reject outright.
-	// os.Lstat only errors with non-ENOENT when something is genuinely wrong
-	// (permission, IO); propagate those.
 	if info, lerr := os.Lstat(joined); lerr == nil {
 		if info.Mode()&os.ModeSymlink != 0 {
 			return "", fmt.Errorf("path escapes library root: leaf symlinks are not allowed")
@@ -425,8 +296,6 @@ func (a *App) safePath(relPath string) (string, error) {
 
 	target, err := filepath.EvalSymlinks(joined)
 	if err != nil {
-		// Path does not exist yet (a new file). Parent must resolve inside
-		// the library root.
 		parent := filepath.Dir(joined)
 		resolvedParent, perr := filepath.EvalSymlinks(parent)
 		if perr != nil {
@@ -443,8 +312,6 @@ func (a *App) safePath(relPath string) (string, error) {
 	return target, nil
 }
 
-// pathInsideRoot reports whether p is root itself or is nested inside root.
-// Both arguments must already be cleaned and, ideally, symlink-resolved.
 func pathInsideRoot(p, root string) bool {
 	if p == root {
 		return true
@@ -465,19 +332,6 @@ func (a *App) BrowserOpenURL(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)
 }
 
-// RevealLibraryInExplorer opens the current library directory in the
-// host OS's file manager. Used by the status-bar library label and
-// Settings > Library's "Reveal in File Explorer" button.
-//
-// Linux specifically targets a file manager, not just any registered
-// handler for `inode/directory`. `xdg-open` consults the user's MIME
-// associations, and users often have those bound to non-file-manager
-// tools (e.g. search apps like Catfish). The Freedesktop
-// `org.freedesktop.FileManager1.ShowFolders` D-Bus method is the
-// purpose-built API for "show me this folder in the file manager",
-// which Thunar, Nautilus, Dolphin, Nemo, and others implement. Fall
-// back to `xdg-open` only if the D-Bus call fails (e.g. no running
-// FileManager1 service), which on sane desktops should never happen.
 func (a *App) RevealLibraryInExplorer() error {
 	if a.currentLibrary == "" {
 		return fmt.Errorf("no library open")
@@ -498,10 +352,6 @@ func (a *App) RevealLibraryInExplorer() error {
 	}
 }
 
-// revealOnLinux first tries the Freedesktop FileManager1 D-Bus method,
-// which dispatches to the running file manager (Thunar, Nautilus, etc.)
-// regardless of how the user has their `inode/directory` MIME type
-// bound. Falls back to `xdg-open` when the D-Bus call fails.
 func revealOnLinux(path string) error {
 	uri := "file://" + path
 	dbus := exec.Command(
@@ -520,8 +370,6 @@ func revealOnLinux(path string) error {
 	return detachedExec(exec.Command("xdg-open", path))
 }
 
-// detachedExec starts cmd and detaches its reaper so the parent isn't
-// blocked waiting for the file manager to exit.
 func detachedExec(cmd *exec.Cmd) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("reveal failed: %w", err)
@@ -530,16 +378,6 @@ func detachedExec(cmd *exec.Cmd) error {
 	return nil
 }
 
-// ShowAboutDialog surfaces a native info dialog carrying the app name
-// and current version. The version string is injected via ldflags
-// (see version.go) so release builds show a real tag and dev builds
-// show "dev".
-//
-// This uses runtime.MessageDialog rather than the macOS
-// NSApplicationOrderFrontStandardAboutPanel, which Wails v2 does not
-// expose. On macOS, menu.AppMenu()'s stock About item remains —
-// accepted as a harmless duplicate in exchange for Windows/Linux
-// users gaining an About they otherwise lack.
 func (a *App) ShowAboutDialog() error {
 	if a.ctx == nil {
 		return nil
@@ -553,25 +391,12 @@ func (a *App) ShowAboutDialog() error {
 	return err
 }
 
-// SetInitialMenu is called from main() after BuildMenu produces the
-// startup menu. This lets SetDisabledCommands see the current tree even
-// before any user-driven state change. No lock is needed because main()
-// calls this strictly before wails.Run, but we take the lock anyway to
-// keep invariants uniform.
 func (a *App) SetInitialMenu(m *menu.Menu) {
 	a.menuMu.Lock()
 	defer a.menuMu.Unlock()
 	a.currentMenu = m
 }
 
-// GetCommands returns the palette-facing projection of the catalog.
-// The frontend calls this once on palette open to render labels and
-// categories. Handlers are keyed by ID on the frontend; metadata stays
-// authoritative here.
-//
-// Platform-restricted commands are filtered out so the palette on (say)
-// macOS doesn't advertise Linux-only Undo/Redo/Cut/Copy/Paste entries
-// that would have no matching frontend handler anyway.
 func (a *App) GetCommands() []CommandMeta {
 	cmds := Commands()
 	out := make([]CommandMeta, 0, len(cmds))
@@ -590,23 +415,10 @@ func (a *App) GetCommands() []CommandMeta {
 	return out
 }
 
-// Quit ends the app. Bound to the File > Quit menu entry on Windows/
-// Linux (macOS's AppMenu role provides its own Cmd-Q). Runs through
-// the Wails runtime so WindowBeforeClose (and our flush-pending-save
-// hook) get a chance to finish.
 func (a *App) Quit() {
 	runtime.Quit(a.ctx)
 }
 
-// SetDisabledCommands rebuilds the native menu with the listed IDs
-// flagged as Disabled, and applies the new menu via
-// runtime.MenuUpdateApplicationMenu. The frontend dispatcher calls this
-// after diff-and-skip so the wire is quiet when the disabled set is
-// stable across reactive blips.
-//
-// Ordering: the disabled-set diff happens on the frontend, so a no-op
-// call here means something genuinely changed. Still cheap enough to
-// rebuild unconditionally.
 func (a *App) SetDisabledCommands(ids []string) error {
 	set := make(map[string]bool, len(ids))
 	for _, id := range ids {
@@ -624,19 +436,7 @@ func (a *App) SetDisabledCommands(ids []string) error {
 	return nil
 }
 
-// BeforeClose is the Wails OnBeforeClose hook. It emits a flush-request
-// event to the frontend, waits for the frontend's acknowledgement, and then
-// allows the window to close. If the frontend doesn't reply within
-// beforeCloseTimeout (broken frontend, no active listener, etc.), the close
-// proceeds rather than hang the user's window.
-//
-// Ordering note: the one-shot listener must be registered BEFORE emitting
-// the request, otherwise a fast frontend can reply before we subscribe.
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
-	// Capture window geometry before the flush handshake. Reads are
-	// synchronous and fit comfortably inside the beforeCloseTimeout
-	// budget. Doing it first guarantees geometry is persisted even if
-	// the frontend flush stalls and we time out.
 	_ = a.SaveWindowBoundsIfNormal()
 
 	done := make(chan struct{})

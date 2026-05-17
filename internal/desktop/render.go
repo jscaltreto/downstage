@@ -15,8 +15,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// PdfExportOptions mirrors the frontend's ExportPdfOptions so the Wails
-// bridge can forward the user's export choices end-to-end.
 type PdfExportOptions struct {
 	PageSize      string `json:"pageSize"`
 	Style         string `json:"style"`
@@ -24,7 +22,6 @@ type PdfExportOptions struct {
 	BookletGutter string `json:"bookletGutter"`
 }
 
-// FileFilter describes a file type filter for save dialogs.
 type FileFilter struct {
 	DisplayName string `json:"displayName"`
 	Pattern     string `json:"pattern"`

@@ -41,17 +41,13 @@ const activeContent = ref("");
 const pageStyle = ref("standard");
 const isV1Document = ref(false);
 
-// Status-bar-bound editor telemetry. Editor.vue emits `update:cursor`
-// (1-based line/col) on every selection or doc change, and
-// `update:wordCount` whenever the 500ms stats debounce resolves.
-// Desktop host collects both into refs so the StatusBar can render.
 const cursor = ref<{ line: number; col: number }>({ line: 1, col: 1 });
 const wordCount = ref(0);
 
-// Sidebar drag state. Mouse handlers are attached to `window` on drag
-// start so the mouse can leave the handle hitbox and still resize; they
-// detach on mouseup. `startX` and `startWidth` are captured at drag
-// start so intermediate moves don't accumulate floating error.
+function errorMessage(error: unknown): string {
+  return String((error as { message?: unknown } | null)?.message ?? error);
+}
+
 let sidebarDragStartX = 0;
 let sidebarDragStartWidth = 0;
 function beginSidebarDrag(e: MouseEvent) {
@@ -76,13 +72,10 @@ function resetSidebarWidth() {
 const toastManager = ref<InstanceType<typeof ToastManager> | null>(null);
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
 
-// Host-owned drawer + search state (lifted out of Editor.vue so commands
-// can open specific tabs / trigger search from the menu).
 const drawerOpen = ref(false);
 const drawerTab = ref<WorkbenchTab>('issues');
 const searchRequest = ref<{ mode: SearchMode; nonce: number }>({ mode: 'find', nonce: 0 });
 
-// Host-owned palette + settings dialog state.
 const paletteOpen = ref(false);
 const paletteMode = ref<'command' | 'file'>('command');
 const settingsOpen = ref(false);
@@ -97,9 +90,6 @@ function openSettings(tab: 'library' | 'appearance' | 'export' | 'spellcheck' = 
   settingsOpen.value = true;
 }
 
-// PDF export dialog state. Handler in commands.ts calls openExportDialog
-// through the command context; AppDesktop owns the dialog so it can pass
-// persisted defaults from env.getExportPreferences on each open.
 const exportDialogOpen = ref(false);
 const exportInitialOptions = ref<ExportPdfOptions>({
   pageSize: 'letter',
@@ -109,14 +99,8 @@ const exportInitialOptions = ref<ExportPdfOptions>({
 });
 
 async function openExportDialog() {
-  // Pull the latest persisted export prefs so Settings changes (page
-  // size) and previous-dialog choices (style, layout, gutter) show up
-  // as the initial state every time.
   try {
     const prefs = await props.env.getExportPreferences();
-    // Manuscript only supports single layout on the Go side. If the
-    // stored style is standard, force layout=single for the initial
-    // state so the dialog opens in a valid combo.
     const style = prefs.style === 'condensed' ? 'condensed' : 'standard';
     const layout = style === 'standard' ? 'single' : prefs.layout;
     exportInitialOptions.value = {
@@ -125,21 +109,15 @@ async function openExportDialog() {
       layout,
       bookletGutter: prefs.bookletGutter,
     };
-  } catch {
-    // First-run or stale prefs — fall back to the hard-coded defaults.
-  }
+  } catch {}
   exportDialogOpen.value = true;
 }
 
 async function handleExportConfirmed(opts: ExportPdfOptions) {
   exportDialogOpen.value = false;
   try {
-    // Persist the chosen options before rendering. If rendering fails,
-    // the user's last choices still roll over to the next attempt.
     await props.env.setExportPreferences(opts);
-  } catch {
-    // Non-fatal — proceed with the export even if persistence failed.
-  }
+  } catch {}
 
   await flushSave();
   const source = editorContent.value;
@@ -160,15 +138,11 @@ async function handleExportConfirmed(opts: ExportPdfOptions) {
     await props.env.saveFile(filename, pdfBytes, [
       { displayName: 'PDF Files (*.pdf)', pattern: '*.pdf' },
     ]);
-  } catch (e: any) {
-    toastManager.value?.addToast(`Failed to export PDF: ${e?.message ?? e}`, 'error');
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Failed to export PDF: ${errorMessage(error)}`, 'error');
   }
 }
 
-// New-folder prompt state. Single modal fanned in from both the
-// library-tree "New Folder" button (sidebar) and the palette-dispatched
-// `library.newFolder` command. `parentPath` is the folder the new one
-// will be created inside — empty string = library root.
 const newFolderOpen = ref(false);
 const newFolderParent = ref('');
 const newFolderError = ref<string | null>(null);
@@ -198,17 +172,11 @@ async function submitNewFolder(name: string) {
     newFolderOpen.value = false;
     newFolderError.value = null;
     toastManager.value?.addToast(`Created folder "${name}"`, 'success');
-  } catch (e: any) {
-    newFolderError.value = `Failed to create folder: ${e?.message ?? e}`;
+  } catch (error: unknown) {
+    newFolderError.value = `Failed to create folder: ${errorMessage(error)}`;
   }
 }
 
-// Save Version dialog. Opened by the `file.saveVersion` command
-// (Cmd-Shift-S). Pre-filled with `Snapshot <filename>` so the user
-// can either accept the default with Enter or type a custom name.
-// Cancel (or Escape) leaves no snapshot; that matches the
-// hotkey-as-intentional-action UX — accidentally hitting the shortcut
-// shouldn't create a junk version.
 const saveVersionOpen = ref(false);
 const saveVersionInitial = ref('');
 const saveVersionError = ref<string | null>(null);
@@ -228,8 +196,8 @@ async function submitSaveVersion(name: string) {
     saveVersionOpen.value = false;
     saveVersionError.value = null;
     toastManager.value?.addToast('Version saved', 'success');
-  } catch (e: any) {
-    const message = String(e?.message ?? e);
+  } catch (error: unknown) {
+    const message = errorMessage(error);
     if (message.includes('downstage: nothing-to-snapshot')) {
       saveVersionOpen.value = false;
       saveVersionError.value = null;
@@ -242,13 +210,8 @@ async function submitSaveVersion(name: string) {
 
 let saveTimer: number | null = null;
 
-// Dispatcher is instantiated on mount (needs env + refs ready) and is
-// referenced by both the menu event listener (via dispatcher-registry)
-// and by local UI handlers (sidebar buttons, welcome screen) that want
-// to dispatch the same commands the menu does.
 let dispatcher: CommandDispatcher | null = null;
 
-// Basename helpers used by the status bar.
 const libraryNameBase = computed(
   () => workspace.state.libraryPath?.split(/[\\/]/).pop() ?? '',
 );
@@ -256,12 +219,6 @@ const activeFileBase = computed(
   () => workspace.state.activeFile?.split(/[\\/]/).pop() ?? '',
 );
 
-// `editorContent` is what the editor shows. Three branches:
-//   - external-file view (read-only) → externalFile.content
-//   - revision view (read-only) → viewingRevisionContent
-//   - live buffer → activeContent
-// The setter drops writes in both read-only modes; the editor is also
-// read-only in those modes, so this is belt-and-suspenders.
 const isViewingRevision = computed(
   () => workspace.state.viewingRevisionHash !== null,
 );
@@ -271,25 +228,16 @@ const isViewingExternal = computed(
 const isEditorReadOnly = computed(
   () => isViewingRevision.value || isViewingExternal.value,
 );
-// Compare mode is the side-by-side diff view; renders only when a
-// revision is selected AND the mode flag is set. clearRevisionView
-// resets the flag, so toggling out of revision view automatically
-// drops compare too.
 const inCompareDiff = computed(
   () =>
     isViewingRevision.value &&
     workspace.state.revisionViewMode === 'compare',
 );
-// compareTwo: A and B are both historical revisions. Subset of
-// inCompareDiff; mutually exclusive with compareCurrent.
 const inCompareTwo = computed(
   () =>
     inCompareDiff.value &&
     workspace.state.compareSecondHash !== null,
 );
-// Label for the diff's "before" pane — folds the revision metadata
-// into a short, human-readable string. Falls back to a hash prefix if
-// the meta lookup somehow failed.
 const compareOriginalLabel = computed(() => {
   const meta = workspace.state.viewingRevisionMeta;
   if (!meta) {
@@ -298,8 +246,6 @@ const compareOriginalLabel = computed(() => {
   }
   return `Saved ${formatRevisionTimestamp(meta.timestamp)}`;
 });
-// Label for the diff's "after" pane in compareTwo. Falls back to a
-// hash prefix if meta is somehow missing.
 const compareSecondLabel = computed(() => {
   const meta = workspace.state.compareSecondMeta;
   if (!meta) {
@@ -325,9 +271,6 @@ const editorContent = computed<string>({
   },
 });
 
-// documentKey identifies the buffer shown in the editor. External and
-// revision views get distinct keys so the shared editor resets transient
-// state (diagnostics, search, stats, outline) when toggling modes.
 const editorDocumentKey = computed(() => {
   if (isViewingExternal.value) {
     return `external:${workspace.state.externalFile?.absPath ?? ""}`;
@@ -353,9 +296,6 @@ onMounted(async () => {
     }
   }
 
-  // Drawer-tab restore. Workspace.init() hydrated `lastDrawerTab`; map
-  // "" → 'issues' default. Then watch the ref and persist every
-  // user-driven change so the next launch opens on the same tab.
   if (workspace.state.lastDrawerTab) {
     drawerTab.value = workspace.state.lastDrawerTab as WorkbenchTab;
   }
@@ -363,20 +303,11 @@ onMounted(async () => {
     workspace.setLastDrawerTab(next);
   });
 
-  // Live-save window bounds on resize. Position is captured at quit via
-  // BeforeClose (Wails has no cross-platform move event); size changes
-  // fire here. Debounced so a drag doesn't hammer Go. The backend
-  // refuses to overwrite normal bounds while maximized, so a maximized
-  // resize is a no-op.
   window.addEventListener('resize', scheduleBoundsSave);
 
   isLoaded.value = true;
   registerFlushSave(() => flushSave());
 
-  // Dispatcher setup: build the context, wire handlers, register the
-  // dispatcher with the module-scope event subscriber, and kick off the
-  // first disabled-set push so the menu renders with the right Disabled
-  // flags on launch.
   dispatcher = new CommandDispatcher({
     setDisabledCommands: (ids) => props.env.setDisabledCommands(ids),
   });
@@ -393,8 +324,6 @@ onMounted(async () => {
     editorContent,
     isV1Document,
     isViewingRevision,
-    // CommandContext field name is `isInCompareTwo`; the host's
-    // computed is `inCompareTwo` (reads better in templates).
     isInCompareTwo: inCompareTwo,
     isViewingExternal,
     flushSave,
@@ -423,25 +352,12 @@ onMounted(async () => {
   }
   registerDispatcher(dispatcher);
 
-  // React to any state that an isEnabled predicate might read. Vue
-  // batches these into one microtask; the dispatcher further diffs the
-  // resulting set against the last one it sent to Go so quiet state
-  // changes produce zero wire traffic.
   watchEffect(() => {
-    // Touch the reactive fields the predicates care about so watchEffect
-    // tracks them. Running dispatcher.scheduleRefresh inside the effect
-    // is what actually kicks the microtask.
     void workspace.state.activeFile;
     void workspace.libraryFiles.value.length;
     void workspace.state.viewingRevisionHash;
-    // canCopyAll / canExport gate on isInCompareTwo, which is derived
-    // from these two — Vue won't track the predicate's inputs unless
-    // we read them here.
     void workspace.state.revisionViewMode;
     void workspace.state.compareSecondHash;
-    // canExportDs gates on isViewingExternal, which is derived from
-    // workspace.state.externalFile. Touch it so the disabled set
-    // refreshes on File → Open / Close external transitions.
     void workspace.state.externalFile;
     void isV1Document.value;
     dispatcher?.scheduleRefresh();
@@ -457,15 +373,9 @@ onUnmounted(() => {
     boundsSaveTimer = null;
   }
   void flushSave();
-  // Best-effort: drain any in-flight preference writes if the app tears
-  // down through component unmount rather than through the Wails
-  // before-close path (e.g. during tests, or SPA-style navigation).
   void props.env.flushPreferences();
 });
 
-// Sidebar-collapse cancels picking-second mode. Can't pick a second
-// revision from a list you can't see — bail gracefully instead of
-// leaving the user in a stuck mode after they collapse.
 watch(
   () => workspace.state.sidebarCollapsed,
   (collapsed) => {
@@ -475,10 +385,6 @@ watch(
   },
 );
 
-// Debounce handle for the window-resize → saveWindowBoundsIfNormal
-// pipeline. 500ms lets a user's drag settle before we hit Go, which
-// is the window between "still dragging" and "final size reached"
-// visible to most humans.
 let boundsSaveTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleBoundsSave() {
   if (boundsSaveTimer !== null) clearTimeout(boundsSaveTimer);
@@ -488,10 +394,6 @@ function scheduleBoundsSave() {
   }, 500);
 }
 
-// flushSave resolves when any pending debounced write is durable on disk.
-// It must be awaited before any state transition that could clobber
-// `workspace.state.activeFile` or change the project root — otherwise the
-// inner guard in `workspace.saveFile` drops the write silently.
 async function flushSave(): Promise<void> {
   if (!saveTimer) return;
   clearTimeout(saveTimer);
@@ -501,27 +403,18 @@ async function flushSave(): Promise<void> {
   }
 }
 
-// Welcome screen / empty-sidebar "New Play" button fires this.
 function handleNewPlay() {
   void dispatcher?.dispatch('file.newPlay');
 }
 
-// Status-bar library label click: open the library folder in the host
-// OS's file explorer. The library location itself is managed through
-// Settings, so this click has a narrower job than "open folder".
 async function handleRevealLibrary() {
   try {
     await props.env.revealLibraryInExplorer();
-  } catch (e: any) {
-    toastManager.value?.addToast(
-      `Reveal failed: ${e?.message ?? e}`,
-      'error',
-    );
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Reveal failed: ${errorMessage(error)}`, 'error');
   }
 }
 
-// External-file banner helpers. openExternalFile is invoked via the
-// file.open command; these handlers wire the banner buttons.
 const externalFileBasename = computed(() => {
   const abs = workspace.state.externalFile?.absPath ?? '';
   return abs.split(/[\\/]/).pop() || abs;
@@ -531,11 +424,8 @@ async function handleAddExternalFileToLibrary() {
   try {
     const rel = await workspace.addExternalFileToLibrary("");
     toastManager.value?.addToast(`Added ${rel} to your library`, "success");
-  } catch (e: any) {
-    toastManager.value?.addToast(
-      `Failed to add file to library: ${e?.message ?? e}`,
-      "error",
-    );
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Failed to add file to library: ${errorMessage(error)}`, "error");
   }
 }
 
@@ -544,11 +434,6 @@ function handleCloseExternalFile() {
   activeContent.value = "";
 }
 
-// Settings > Library "Change…" button emits this. Runs the full switch
-// flow: flush the live buffer, change location via workspace, toast,
-// re-select the first file in the new library if any. Kept here (not
-// in commands.ts) because it's only invoked from Settings, not from
-// the menu / palette dispatcher.
 async function handleChangeLibraryLocation() {
   await flushSave();
   const path = await workspace.changeLibraryLocation();
@@ -566,34 +451,18 @@ async function selectLibraryFile(path: string) {
 }
 
 async function handleViewRevision(hash: string) {
-  // Flush in-flight edits before switching buffers so unwritten changes
-  // aren't lost when the user exits the preview. VersionsPanel emits
-  // this for both left-clicks on a row and the "View this version"
-  // context-menu item.
   await flushSave();
   try {
     await workspace.viewRevision(hash);
-  } catch (e: any) {
-    toastManager.value?.addToast(
-      `Failed to load version: ${e?.message ?? e}`,
-      "error",
-    );
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Failed to load version: ${errorMessage(error)}`, "error");
   }
 }
 
-// "Compare to current" menu action from VersionsPanel: load the
-// revision (with flush) if it's not already active, then flip
-// revisionViewMode to 'compare'. Two-step chained here so the panel
-// stays workspace-only and the host owns the flush concern.
 async function handleCompareToCurrent(hash: string) {
   if (workspace.state.viewingRevisionHash !== hash) {
     await handleViewRevision(hash);
   }
-  // If we're already in compareTwo (A vs B), drop the B side first
-  // so the toggle lands us at compareCurrent on A. Without this,
-  // re-invoking "Compare to current" while in compareTwo is a no-op
-  // (revisionViewMode is already 'compare') and the user is stuck
-  // viewing the stale A-vs-B diff.
   workspace.stopCompareTwo();
   if (workspace.state.revisionViewMode !== 'compare') {
     workspace.toggleRevisionCompare();
@@ -608,24 +477,13 @@ async function handleRestoreRevision() {
   const hash = workspace.state.viewingRevisionHash;
   if (!hash) return;
   try {
-    // Pass the live buffer (not the revision content) — restoreRevision
-    // snapshots it before overwriting so the restore is itself reversible.
     const restored = await workspace.restoreRevision(hash, activeContent.value);
     activeContent.value = restored;
     toastManager.value?.addToast("Version restored", "success");
-  } catch (e: any) {
-    toastManager.value?.addToast(
-      `Failed to restore version: ${e?.message ?? e}`,
-      "error",
-    );
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Failed to restore version: ${errorMessage(error)}`, "error");
   }
 }
-
-// File-level commands (new play, open folder, copy all, save version,
-// export PDF) live in web/src/desktop/commands.ts. They're registered
-// with the CommandDispatcher in onMounted below. Sidebar-contextual
-// actions (file switch, revision view/restore) stay as local functions
-// because they're not on the menu or palette.
 
 async function addSpellAllowlistWord(word: string) {
   return workspace.addAllowlistWord(word);
@@ -651,11 +509,6 @@ watch(activeContent, (newContent) => {
       Loading Downstage editor...
     </div>
 
-    <!-- Welcome Screen. initApp auto-creates the default library at
-         ~/Documents/Downstage Plays so this view is only reached in the
-         degenerate case (deleted library, permissions issue). The
-         remedy is Settings — offer a direct path there and nothing
-         else. -->
     <div v-else-if="!workspace.state.libraryPath" class="flex-1 flex items-center justify-center bg-page-glow p-8">
         <div class="max-w-2xl w-full text-center">
             <div class="mb-12 inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-brass-500/10 text-brass-500 shadow-inner border border-brass-500/20">
@@ -691,7 +544,6 @@ watch(activeContent, (newContent) => {
     </div>
 
     <main v-else class="flex-1 overflow-hidden flex relative">
-      <!-- Project Sidebar -->
       <aside
         v-if="!workspace.state.sidebarCollapsed && workspace.state.libraryPath"
         :style="{ width: workspace.state.sidebarWidth + 'px' }"
@@ -783,9 +635,6 @@ watch(activeContent, (newContent) => {
                 </button>
             </div>
         </div>
-        <!-- Single-revision banner (compareCurrent or preview). Hidden in
-             compareTwo — that mode gets its own banner below with two
-             revision labels and a single "Stop comparing" CTA. -->
         <div
             v-if="isViewingRevision && !inCompareTwo && workspace.state.viewingRevisionMeta"
             class="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/30 text-ember-950 dark:text-amber-100 shadow-inner z-10"
@@ -829,9 +678,6 @@ watch(activeContent, (newContent) => {
                 </button>
             </div>
         </div>
-        <!-- compareTwo banner: distinct two-revision form. Single CTA
-             ("Stop comparing" → compareCurrent on A). No Restore — that
-             would be ambiguous from arbitrary A/B. -->
         <div
             v-if="inCompareTwo && workspace.state.viewingRevisionMeta && workspace.state.compareSecondMeta"
             class="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/30 text-ember-950 dark:text-amber-100 shadow-inner z-10"
@@ -861,13 +707,6 @@ watch(activeContent, (newContent) => {
                 </button>
             </div>
         </div>
-        <!-- Editor wrapper: v-show on a wrapper div, not on <Editor>
-             directly. Editor.vue is a multi-root component (main pane
-             + two BaseModal overlays); Vue silently drops v-show on
-             multi-root components because it can't decide which root
-             gets `display: none`. The wrapper guarantees the entire
-             editor surface (including its modals) hides as a unit
-             while compareDiff is active. -->
         <div
             v-if="workspace.state.activeFile || isViewingExternal"
             v-show="!inCompareDiff"

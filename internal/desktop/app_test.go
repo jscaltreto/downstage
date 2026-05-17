@@ -99,14 +99,9 @@ func TestSafePath_BlocksAbsoluteInput(t *testing.T) {
 	assert.Contains(t, err.Error(), "absolute")
 }
 
-// Regression: a dangling symlink leaf whose target is outside the project
-// previously passed validation because EvalSymlinks(joined) errored and the
-// old code fell back to trusting the parent. os.WriteFile would then follow
-// the symlink outside the project.
 func TestSafePath_BlocksDanglingSymlinkLeafOutside(t *testing.T) {
 	a := testApp(t)
 
-	// Target outside the project that does not exist.
 	outsideDir := t.TempDir()
 	target := filepath.Join(outsideDir, "does-not-exist")
 
@@ -116,14 +111,10 @@ func TestSafePath_BlocksDanglingSymlinkLeafOutside(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "path escapes library root")
 
-	// And confirm that no file was created at the outside target.
 	_, statErr := os.Stat(target)
 	assert.True(t, os.IsNotExist(statErr), "target should not have been materialized")
 }
 
-// A dangling leaf symlink pointing inside the project is still rejected —
-// writers don't need leaf symlinks, and allowing them introduces a TOCTOU
-// window where the target could be swapped between safePath and the write.
 func TestSafePath_BlocksDanglingSymlinkLeafInside(t *testing.T) {
 	a := testApp(t)
 
@@ -135,7 +126,6 @@ func TestSafePath_BlocksDanglingSymlinkLeafInside(t *testing.T) {
 	assert.Contains(t, err.Error(), "leaf symlinks are not allowed")
 }
 
-// Even a live symlink leaf pointing to a file inside the project is rejected.
 func TestSafePath_BlocksLiveSymlinkLeafInsideRoot(t *testing.T) {
 	a := testApp(t)
 
@@ -163,9 +153,6 @@ func TestConfigRoundTrip(t *testing.T) {
 	assert.Equal(t, "play.ds", config.LastActiveLibraryFile)
 }
 
-// writeConfig is symmetric: empty fields clear. The old merge-based
-// saveConfig could not clear LastActiveLibraryFile, which broke project
-// switches (the previous project's active file stayed behind).
 func TestConfigRoundTrip_ClearActiveFile(t *testing.T) {
 	a := testAppWithConfig(t)
 
@@ -178,10 +165,6 @@ func TestConfigRoundTrip_ClearActiveFile(t *testing.T) {
 	assert.Equal(t, "", cfg.LastActiveLibraryFile)
 }
 
-// Regression: a pre-rename config on disk uses `lastProjectPath` and
-// `lastActiveProjectFile`. readConfig must migrate both into the new
-// field names so the first launch after upgrade finds the user's library
-// and last-opened file. Dropping either is a data-loss bug.
 func TestReadConfig_MigratesLegacyFields(t *testing.T) {
 	a := testAppWithConfig(t)
 
@@ -194,9 +177,6 @@ func TestReadConfig_MigratesLegacyFields(t *testing.T) {
 	assert.Equal(t, "play.ds", cfg.LastActiveLibraryFile)
 }
 
-// Regression: when the new fields are already populated, a legacy field
-// must NOT clobber them. This handles the case where a user downgrades,
-// the old build writes both shapes, then they upgrade again.
 func TestReadConfig_NewFieldsTakePrecedenceOverLegacy(t *testing.T) {
 	a := testAppWithConfig(t)
 
@@ -208,9 +188,6 @@ func TestReadConfig_NewFieldsTakePrecedenceOverLegacy(t *testing.T) {
 	assert.Equal(t, "/new", cfg.LastLibraryPath)
 }
 
-// RevealLibraryInExplorer must refuse to spawn anything when no library
-// is open. The positive path shells out to a platform-native command,
-// which we don't cover in unit tests.
 func TestRevealLibraryInExplorer_NoLibrary(t *testing.T) {
 	a := &App{}
 	err := a.RevealLibraryInExplorer()
@@ -218,20 +195,14 @@ func TestRevealLibraryInExplorer_NoLibrary(t *testing.T) {
 	assert.Contains(t, err.Error(), "no library open")
 }
 
-// ReadLibraryFile used to call saveConfig on every read — a disk write on
-// a hot path. The current contract is: config is only touched via
-// SetActiveLibraryFile (on file switch) or ChangeLibraryLocation (on library
-// switch).
 func TestReadLibraryFile_DoesNotWriteConfig(t *testing.T) {
 	a := testAppWithConfig(t)
 	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("x"), 0644))
 
-	// Pre-seed config with a known value so we can detect mutation.
 	require.NoError(t, a.writeConfig(Config{LastLibraryPath: "/x", LastActiveLibraryFile: "prev.ds"}))
 	statBefore, err := os.Stat(a.configPath)
 	require.NoError(t, err)
 
-	// Small sleep so mtime would differ if a write did happen.
 	time.Sleep(10 * time.Millisecond)
 
 	_, err = a.ReadLibraryFile("play.ds")

@@ -11,9 +11,6 @@ func diagnosticSeverity(severity protocol.DiagnosticSeverity) string {
 	case protocol.DiagnosticSeverityInformation:
 		return "info"
 	default:
-		// Unknown severity defaults to the lowest level rather than the
-		// highest — we never want to surface an unknown classification as
-		// a blocking error.
 		return "info"
 	}
 }

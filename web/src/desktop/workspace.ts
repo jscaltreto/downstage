@@ -5,12 +5,7 @@ export type DrawerDock = 'bottom' | 'right';
 
 export interface WorkspaceState {
   libraryPath: string | null;
-  // The nested library tree. Authoritative state — `libraryFiles` is a
-  // computed flat derivation used by flat-file consumers (palette file
-  // mode, navigate.nextFile/prevFile/goToFile).
   libraryTree: LibraryNode[];
-  // Folder paths that are currently expanded in the sidebar tree.
-  // Session-only for v1; not persisted across launches.
   expandedFolders: Set<string>;
   activeFile: string | null;
   revisions: Revision[];
@@ -21,87 +16,35 @@ export interface WorkspaceState {
   drawerRightWidth: number;
   spellAllowlist: string[];
   isLoadingFile: boolean;
-  // Per-file git status for the status bar — null until an active file
-  // resolves. Dirty flips via a fast local path on save; HeadAt and the
-  // other fields come from the backend on file-switch / snapshot /
-  // restore and after a reconcile debounce.
   gitStatus: FileGitStatus | null;
-  // Revision-view mode: when a user clicks an older snapshot, these fields
-  // carry the read-only preview. `activeFile` still points at the live file;
-  // the banner + read-only editor read from viewingRevisionContent. Null
-  // here means the editor is showing the live working copy.
   viewingRevisionHash: string | null;
   viewingRevisionContent: string | null;
   viewingRevisionMeta: Revision | null;
-  // 'compare' swaps the editor for a side-by-side diff against the live
-  // buffer; 'preview' is the original read-only single-pane view. Only
-  // meaningful while viewingRevisionHash !== null. clearRevisionView
-  // resets to 'preview' on every revision-exit path (file/library
-  // switch, restore, retarget). viewRevision deliberately does NOT
-  // touch it — switching revisions in the sidebar preserves the mode.
   revisionViewMode: 'preview' | 'compare';
-  // Second-revision fields for arbitrary revision-vs-revision compare
-  // ("Compare with…" from the right-click menu). When set alongside
-  // revisionViewMode === 'compare', the diff renders viewingRevision*
-  // on the left and compareSecond* on the right. Null in compareCurrent.
   compareSecondHash: string | null;
   compareSecondContent: string | null;
   compareSecondMeta: Revision | null;
-  // True while the user has invoked "Compare with…" and the next
-  // revision click should resolve as the second side. Orthogonal to
-  // revisionViewMode — picking can start from either preview or
-  // compareCurrent.
   pickingSecondForCompare: boolean;
-  // Library-scoped set of commit hashes the user has hidden from the
-  // Versions panel. Filtered against state.revisions by the computed
-  // `visibleRevisions`. Loaded in init() and changeLibraryLocation
-  // before the first selectFile so renders never flash unfiltered.
   hiddenRevisionHashes: Set<string>;
-  // Session-only toggle that surfaces hidden rows (greyed) for
-  // unhiding. Not persisted — opening the library starts clean.
   showHidden: boolean;
-  // External-file mode: populated when the user opened a .ds file from
-  // outside the library via File → Open. The editor is rendered read-
-  // only with an "Add to Library" banner until the user either imports
-  // the file or closes the view. `activeFile` is null while this is
-  // set, so the revisions panel / git status bar short-circuit cleanly.
   externalFile: { absPath: string; content: string } | null;
 }
 
-// How long after the last save the workspace waits before re-querying
-// backend git status to confirm the dirty flag. Short enough that an
-// undo-to-HEAD clears the dot within a second or two; long enough that
-// a burst of keystrokes doesn't hammer go-git.
 const dirtyReconcileMs = 2000;
 
-// Sidebar width clamps. 180 is narrow enough to nearly hide the file
-// names; 600 is generous without crowding the editor on typical
-// laptop displays.
 export const minSidebarWidth = 180;
 export const maxSidebarWidth = 600;
 export const defaultSidebarWidth = 256;
 
-// Drawer right-dock width clamps and default. 240 is narrow enough to
-// be a hint pane; 800 is enough to host Find & Replace comfortably
-// while leaving the editor usable on a 13" display.
 export const minDrawerRightWidth = 240;
 export const maxDrawerRightWidth = 800;
 export const defaultDrawerRightWidth = 360;
 
-// Debounce between rapid mouse-drag sidebar/drawer updates and the
-// backend persistence call. Reactive state updates at frame rate; the
-// persisted prefs-cache write only needs to catch up on pause.
 const sidebarPersistDebounceMs = 300;
 const drawerWidthPersistDebounceMs = 300;
 
-// Prefix the Go backend uses for the "clean worktree after staging" sentinel.
-// Kept in sync with internal/desktop/git.go:ErrNothingToSnapshot.
 const nothingToSnapshotPrefix = "downstage: nothing-to-snapshot";
 
-// Match permissively: Wails' RPC layer doesn't always deliver real
-// `Error` instances on the JS side, so `instanceof Error` is
-// unreliable. Pull whatever string representation we can find and
-// check for the prefix. Same shape as the handler in commands.ts.
 function isNothingToSnapshotError(e: unknown): boolean {
   const message = String((e as { message?: unknown } | null)?.message ?? e ?? "");
   return message.includes(nothingToSnapshotPrefix);
@@ -109,28 +52,10 @@ function isNothingToSnapshotError(e: unknown): boolean {
 
 export class Workspace {
   public state: WorkspaceState;
-  // libraryFiles is a reactive computed flat listing derived from
-  // libraryTree. Traversal order: folders alpha-first, files alpha
-  // within each level. Kept as a separate surface so
-  // CommandPalette file mode and navigate.{next,prev,goToFile} —
-  // which treat the library as a flat list — don't need to walk the
-  // tree themselves on every access.
   public libraryFiles: ComputedRef<LibraryFile[]>;
-  // visibleRevisions = state.revisions filtered by hiddenRevisionHashes
-  // unless showHidden is on. Sidebar v-for binds to this; navigation
-  // and command predicates that need the unfiltered list use
-  // state.revisions directly.
   public visibleRevisions!: ComputedRef<Revision[]>;
 
-  // hydrated guards any persistence side effects that might otherwise fire
-  // during the window between constructor and init() completion. The
-  // constructor seeds state with placeholder defaults; the env read
-  // populates the real values in init(). Without the guard, a naive
-  // toggleSidebar fired mid-init could overwrite the real value with the
-  // placeholder.
   private hydrated = false;
-  // ReturnType<typeof setTimeout> covers both browser (number) and Node
-  // (NodeJS.Timeout) — the unit tests run in Node without a `window`.
   private dirtyReconcileTimer: ReturnType<typeof setTimeout> | null = null;
   private sidebarPersistTimer: ReturnType<typeof setTimeout> | null = null;
   private drawerWidthPersistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -142,7 +67,6 @@ export class Workspace {
       expandedFolders: new Set<string>(),
       activeFile: null,
       revisions: [],
-      // Placeholder. Real values come from env pref reads in init.
       sidebarCollapsed: false,
       sidebarWidth: defaultSidebarWidth,
       lastDrawerTab: "",
@@ -165,11 +89,6 @@ export class Workspace {
     });
 
     this.libraryFiles = computed(() => flattenLibraryTree(this.state.libraryTree));
-    // visibleRevisions filters state.revisions against the hidden set
-    // unless the session showHidden toggle is on. The hidden filter
-    // applies regardless of whether the revision is currently the
-    // active "viewing" hash — hiding the row you're viewing auto-
-    // exits revision view (handled in hideRevision below).
     this.visibleRevisions = computed(() => {
       if (this.state.showHidden) return this.state.revisions;
       if (this.state.hiddenRevisionHashes.size === 0) {
@@ -208,26 +127,16 @@ export class Workspace {
     this.state.revisions = [];
     this.state.gitStatus = null;
     this.state.externalFile = null;
-    // showHidden is a session-only UI toggle; it's per-library by
-    // semantics ("show me the hashes I hid in THIS library"). Carry-
-    // over to a new library would silently reveal a different set
-    // and confuse the user.
     this.state.showHidden = false;
     this.cancelDirtyReconcile();
     this.clearRevisionView();
     this.state.libraryTree = await this.env.getLibraryTree();
-    // Allowlist is library-scoped — reload after a library switch.
     this.state.spellAllowlist = await this.env.getSpellAllowlist();
-    // Hidden-revisions is library-scoped too. Reload BEFORE the host's
-    // downstream selectFile (which calls loadRevisions) so the
-    // Versions panel doesn't briefly render unfiltered.
     await this.loadHiddenRevisions();
     return path;
   }
 
   async selectFile(path: string): Promise<string> {
-    // Selecting a library file always exits external-file view — the
-    // editor now represents a real, editable file.
     this.state.externalFile = null;
     this.state.activeFile = path;
     this.clearRevisionView();
@@ -235,8 +144,6 @@ export class Workspace {
     this.state.isLoadingFile = true;
     try {
       const content = await this.env.readLibraryFile(path);
-      // Persist the active-file pointer explicitly here, once per file
-      // switch, instead of letting readLibraryFile do it on every read.
       await this.env.setActiveLibraryFile(path);
       await this.loadRevisions();
       await this.refreshGitStatus();
@@ -246,22 +153,14 @@ export class Workspace {
     }
   }
 
-  // openExternalFile implements the File → Open flow. The state
-  // transitions are sequenced so intermediate states are always
-  // coherent — see internal/desktop/AGENTS.md for the contract and
-  // the plan-review discussion.
   async openExternalFile(absPath: string): Promise<string> {
     const result = await this.env.readExternalFile(absPath);
 
     if (result.insideLibrary) {
-      // Picked a file that lives inside the library. Clear external
-      // state first so selectFile cannot see lingering external mode,
-      // then route through the normal file-open path.
       this.state.externalFile = null;
       return this.selectFile(result.relativePath);
     }
 
-    // Genuinely external — enter read-only mode.
     this.clearRevisionView();
     this.cancelDirtyReconcile();
     this.state.activeFile = null;
@@ -278,8 +177,6 @@ export class Workspace {
     }
     const newRel = await this.env.addExternalFileToLibrary(external.absPath, destRelDir);
     this.state.libraryTree = await this.env.getLibraryTree();
-    // Clear external state before selectFile so the editor transitions
-    // cleanly from read-only external view to editable library file.
     this.state.externalFile = null;
     await this.selectFile(newRel);
     return newRel;
@@ -288,8 +185,6 @@ export class Workspace {
   async createFolder(relPath: string): Promise<void> {
     await this.env.createLibraryFolder(relPath);
     this.state.libraryTree = await this.env.getLibraryTree();
-    // Auto-expand every ancestor of the new folder so the user sees it
-    // land where they created it.
     let prefix = "";
     for (const segment of relPath.split("/")) {
       prefix = prefix ? `${prefix}/${segment}` : segment;
@@ -311,15 +206,6 @@ export class Workspace {
     return newPath;
   }
 
-  // retargetActiveFile updates state.activeFile after a move or rename.
-  // Three cases:
-  //   - activeFile === src: the file itself moved.
-  //   - activeFile starts with `src + "/"`: active lives inside a
-  //     moved folder. Prefix-substitute, not string-replace — the "/"
-  //     guard prevents `foo.ds` getting rewritten when `foo` is moved.
-  //   - otherwise: no change.
-  // Also clears viewingRevision* if the active file moved, since the
-  // revision view's identifier is the now-invalid old path.
   private retargetActiveFile(src: string, dst: string): void {
     const active = this.state.activeFile;
     if (active === null) return;
@@ -351,10 +237,6 @@ export class Workspace {
   async saveFile(content: string) {
     if (!this.state.activeFile) return;
     await this.env.writeLibraryFile(this.state.activeFile, content);
-    // Fast path: flip dirty locally so the status bar dot appears with
-    // zero IPC latency. Correctness path: schedule a debounced
-    // refreshGitStatus so an undo-to-HEAD eventually clears the dot,
-    // which a monotonic markDirtyLocally alone could never do.
     this.markDirtyLocally();
     this.scheduleDirtyReconcile();
   }
@@ -373,10 +255,6 @@ export class Workspace {
     await this.refreshGitStatus();
   }
 
-  // refreshGitStatus pulls the backend's view of the active file into
-  // state.gitStatus. Called on file switch, snapshot, restore, and the
-  // debounced reconcile cycle after a save. A no-op when there is no
-  // active file.
   async refreshGitStatus() {
     const file = this.state.activeFile;
     if (!file) {
@@ -386,17 +264,10 @@ export class Workspace {
     try {
       this.state.gitStatus = await this.env.getFileGitStatus(file);
     } catch {
-      // Surface "unknown" rather than sticking with a stale cached
-      // value — the UI prefers showing nothing to showing wrong info.
       this.state.gitStatus = null;
     }
   }
 
-  // markDirtyLocally is the fast path used right after a successful
-  // writeLibraryFile. It only ever flips Dirty=true and is safe to call
-  // with no gitStatus cached (it materializes a minimal record in that
-  // case). HeadAt / HasHead stay untouched so the "Last snapshot"
-  // display doesn't regress.
   markDirtyLocally() {
     if (!this.state.activeFile) return;
     const prev = this.state.gitStatus;
@@ -440,18 +311,10 @@ export class Workspace {
     }
   }
 
-  // viewRevision loads a historical snapshot into read-only view mode.
-  // The editor shows viewingRevisionContent (with a banner) until the user
-  // either restores or exits the view. `activeFile` stays put so the
-  // revisions list and file context remain correct.
   async viewRevision(hash: string): Promise<void> {
     if (!this.state.activeFile) return;
     const meta =
       this.state.revisions.find((r) => r.hash === hash) ?? null;
-    // Use the revision's historical path — the file may have lived
-    // at a different location at the time of this commit if it's
-    // been moved/renamed since. `meta?.path` is authoritative; fall
-    // back to activeFile when missing (older backend or repair path).
     const lookupPath = meta?.path || this.state.activeFile;
     const content = await this.env.readFileAtRevision(lookupPath, hash);
     this.state.viewingRevisionHash = hash;
@@ -470,41 +333,22 @@ export class Workspace {
     this.state.pickingSecondForCompare = false;
   }
 
-  // Flips the revision view between preview (read-only single pane) and
-  // compare (side-by-side diff vs. the live buffer). No-op when no
-  // revision is currently selected — toggling compare without a revision
-  // would render an empty diff, so we ignore the call instead of
-  // entering a meaningless mode.
   toggleRevisionCompare(): void {
     if (this.state.viewingRevisionHash === null) return;
     this.state.revisionViewMode =
       this.state.revisionViewMode === 'compare' ? 'preview' : 'compare';
   }
 
-  // Enters picking-second-for-compare mode. The `hash` becomes the
-  // "A" side of the eventual diff; the next revision row click will
-  // resolve to the B side via resolvePickSecond. No-op when no
-  // revision is currently in view — picking without an A is
-  // nonsensical.
   async startPickSecond(hash: string): Promise<void> {
-    // If A isn't already the active revision, load it first so the
-    // banner labels and the eventual diff render against a known A.
     if (this.state.viewingRevisionHash !== hash) {
       await this.viewRevision(hash);
     }
     this.state.pickingSecondForCompare = true;
   }
 
-  // Resolves the second side of an arbitrary compare. Loads B's
-  // content (using the historical path if the file has been renamed
-  // since), flips revisionViewMode to 'compare', and exits picking
-  // mode. Self-compare (B === A) is a no-op — clicking the
-  // originally-picked row doesn't produce a meaningful diff.
   async resolvePickSecond(hash: string): Promise<void> {
     if (!this.state.pickingSecondForCompare) return;
     if (hash === this.state.viewingRevisionHash) {
-      // Self-compare prevention. Keep picking mode open so the user
-      // can still pick a different row.
       return;
     }
     const meta = this.state.revisions.find((r) => r.hash === hash) ?? null;
@@ -518,30 +362,16 @@ export class Workspace {
     this.state.pickingSecondForCompare = false;
   }
 
-  // Cancels picking mode without touching the A-side. The user lands
-  // back in whatever mode (preview or compareCurrent) they were in
-  // before starting the pick.
   cancelPickSecond(): void {
     this.state.pickingSecondForCompare = false;
   }
 
-  // Internal partial-reset: drops the B-side of compareTwo without
-  // exiting revision view. The A-side stays loaded; revisionViewMode
-  // stays 'compare'. The result is compareCurrent on A.
-  //
-  // Used by the host's `handleCompareToCurrent` so that re-invoking
-  // "Compare to current" while already in compareTwo (A vs B) drops
-  // back to A-vs-live-buffer instead of being a no-op. The user-
-  // facing "Stop comparing" banner button is a full exit and routes
-  // through `clearRevisionView` — this helper is NOT exposed to that
-  // path.
   stopCompareTwo(): void {
     this.state.compareSecondHash = null;
     this.state.compareSecondContent = null;
     this.state.compareSecondMeta = null;
   }
 
-  // Library-scoped hidden-revisions IO.
   private async loadHiddenRevisions(): Promise<void> {
     try {
       const hashes = await this.env.getHiddenRevisions();
@@ -551,9 +381,6 @@ export class Workspace {
     }
   }
 
-  // Hides a revision. Auto-exits revision view if the hidden hash is
-  // currently the active A-side or B-side — otherwise the banner
-  // would point at a row that no longer renders, an orphan state.
   async hideRevision(hash: string): Promise<void> {
     await this.env.hideRevision(hash);
     this.state.hiddenRevisionHashes = new Set(this.state.hiddenRevisionHashes).add(hash);
@@ -576,16 +403,6 @@ export class Workspace {
     this.state.showHidden = !this.state.showHidden;
   }
 
-  // restoreRevision takes the live editor content, first attempts a
-  // pre-restore snapshot so the user can reverse the action, then overwrites
-  // the working copy with the revision's content and snapshots that too.
-  // Returns the new editor content so the caller can swap its reactive
-  // buffer. Leaves revision-view mode cleared on success.
-  //
-  // Snapshot failures on the pre-restore step are tolerated when they are
-  // the "nothing to snapshot" sentinel — nothing to back up means the
-  // previous snapshot already represents the current on-disk state. Any
-  // other error aborts before we overwrite.
   async restoreRevision(
     hash: string,
     liveContent: string,
@@ -595,29 +412,19 @@ export class Workspace {
       throw new Error("no active file to restore");
     }
 
-    // 1. Persist the in-memory live content so step 2 can capture it.
     await this.env.writeLibraryFile(file, liveContent);
 
-    // 2. Snapshot the pre-restore state. If nothing to commit, HEAD is
-    //    already a faithful backup — swallow the sentinel and continue.
     try {
       await this.env.snapshotFile(file, "Auto-save before restore");
     } catch (e) {
       if (!isNothingToSnapshotError(e)) throw e;
     }
 
-    // 3. Read the revision content and write it into the working
-    //    copy. The revision may be from before a rename, so look up
-    //    the content at the path the file had at that commit (tracked
-    //    on each Revision).
     const meta = this.state.revisions.find((r) => r.hash === hash) ?? null;
     const lookupPath = meta?.path || file;
     const revisionContent = await this.env.readFileAtRevision(lookupPath, hash);
     await this.env.writeLibraryFile(file, revisionContent);
 
-    // 4. Commit the restore so it shows up in the revisions list. The
-    //    pre-restore step guarantees we have something to diff against, but
-    //    defensively tolerate the sentinel here too.
     const short = hash.substring(0, 7);
     try {
       await this.env.snapshotFile(file, `Restore version ${short}`);
@@ -650,17 +457,10 @@ export class Workspace {
 
   toggleSidebar() {
     this.state.sidebarCollapsed = !this.state.sidebarCollapsed;
-    // Persist via env. Guard on hydrated so an accidental pre-init toggle
-    // doesn't clobber the real stored value with the placeholder default.
     if (!this.hydrated) return;
     void this.env.setSidebarCollapsed(this.state.sidebarCollapsed);
   }
 
-  // setSidebarWidth updates the reactive state synchronously (so the
-  // drag handle redraws at frame rate) and debounces the backend write.
-  // Clamps into [minSidebarWidth, maxSidebarWidth]. Gated on hydrated
-  // so a pre-init write can't clobber the real stored value with a
-  // placeholder.
   setSidebarWidth(px: number) {
     const next = clampSidebarWidth(px);
     this.state.sidebarWidth = next;
@@ -674,25 +474,18 @@ export class Workspace {
     }, sidebarPersistDebounceMs);
   }
 
-  // setLastDrawerTab mirrors the tab selection into state + persists
-  // through the prefs cache. No debounce — tab switches are
-  // user-driven and infrequent.
   setLastDrawerTab(id: string) {
     this.state.lastDrawerTab = id;
     if (!this.hydrated) return;
     void this.env.setLastDrawerTab(id);
   }
 
-  // setDrawerDock flips the workbench drawer between bottom (default)
-  // and right (vertical side-dock). Persists through the prefs cache.
   setDrawerDock(dock: DrawerDock) {
     this.state.drawerDock = dock;
     if (!this.hydrated) return;
     void this.env.setDrawerDock(dock);
   }
 
-  // setDrawerRightWidth updates the reactive width (so the resize
-  // handle redraws at frame rate) and debounces the backend write.
   setDrawerRightWidth(px: number) {
     const next = clampDrawerRightWidth(px);
     this.state.drawerRightWidth = next;
@@ -717,13 +510,6 @@ function clampDrawerRightWidth(px: number): number {
   return Math.max(minDrawerRightWidth, Math.min(maxDrawerRightWidth, Math.round(px)));
 }
 
-// flattenLibraryTree walks the tree in a folders-before-files order
-// (matching GetLibraryTree's sort) and emits every `.ds` file as a
-// LibraryFile. Consumers that think in flat terms (command palette
-// file mode, navigate.{next,prev,goToFile}) read this instead of
-// walking the tree themselves. Nested files appear after their parent
-// folder's own children but before any sibling folder's files — which
-// is what falls out of an in-order traversal.
 export function flattenLibraryTree(nodes: readonly LibraryNode[]): LibraryFile[] {
   const out: LibraryFile[] = [];
   const walk = (ns: readonly LibraryNode[]) => {

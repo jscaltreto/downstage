@@ -5,13 +5,6 @@ import type { Workspace } from './workspace';
 import type { LibraryNode } from './types';
 import LibraryTreeNode from './LibraryTreeNode.vue';
 
-// Sidebar tree renderer. Expand/collapse, click-to-select, drag-and-
-// drop move (file or folder → folder), right-click context menu for
-// Rename / New Folder Here, inline rename via Enter/Escape.
-//
-// v1 scope: no multi-select, no keyboard navigation, no cut/copy/
-// paste, no delete. Those can follow.
-
 const props = defineProps<{
   workspace: Workspace;
 }>();
@@ -20,8 +13,6 @@ const emit = defineEmits<{
   (e: 'select-file', path: string): void;
   (e: 'error', message: string): void;
   (e: 'info', message: string): void;
-  // parentPath = '' means create at library root; otherwise inside the
-  // given folder. Host (AppDesktop.vue) owns the prompt modal.
   (e: 'request-new-folder', parentPath: string): void;
 }>();
 
@@ -37,6 +28,14 @@ const contextMenu = ref<{
 
 const draggedPath = ref<string | null>(null);
 const dropTarget = ref<string | null>(null);
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String((error as { message?: unknown }).message ?? error);
+  }
+  return String(error);
+}
 
 const tree = computed(() => props.workspace.state.libraryTree);
 
@@ -64,8 +63,8 @@ async function commitRename(node: LibraryNode) {
   try {
     const newPath = await props.workspace.renameEntry(node.path, newName);
     if (node.kind === 'file') emit('select-file', newPath);
-  } catch (e: any) {
-    emit('error', `Rename failed: ${e?.message ?? e}`);
+  } catch (error: unknown) {
+    emit('error', `Rename failed: ${errorMessage(error)}`);
   }
 }
 
@@ -92,8 +91,6 @@ function onSelectFile(node: LibraryNode) {
   emit('select-file', node.path);
 }
 
-// --- Drag-and-drop ---
-
 function onDragStart(event: DragEvent, node: LibraryNode) {
   draggedPath.value = node.path;
   if (event.dataTransfer) {
@@ -110,10 +107,7 @@ function onDragEnd() {
 function canDropOn(targetPath: string): boolean {
   if (draggedPath.value === null) return false;
   if (targetPath === draggedPath.value) return false;
-  // Dropping a folder into its own descendant is a no-op at best and
-  // an rm -rf at worst. Block client-side; backend re-validates.
   if (targetPath.startsWith(draggedPath.value + '/')) return false;
-  // No-op: the source already lives directly under the target.
   const srcParent = draggedPath.value.includes('/')
     ? draggedPath.value.slice(0, draggedPath.value.lastIndexOf('/'))
     : '';
@@ -140,19 +134,14 @@ async function onDrop(event: DragEvent, targetPath: string) {
   try {
     const newPath = await props.workspace.moveEntry(src, dst);
     emit('info', `Moved to ${newPath}`);
-  } catch (e: any) {
-    emit('error', `Move failed: ${e?.message ?? e}`);
+  } catch (error: unknown) {
+    emit('error', `Move failed: ${errorMessage(error)}`);
   }
 }
 </script>
 
 <template>
   <div class="flex-1 overflow-y-auto p-2 custom-scrollbar border-b border-border" @click="closeContextMenu">
-    <!-- Header doubles as the root drop zone. Nested rows `.stop`
-         their drag events to avoid a double-target bug, which also
-         means the outer tree container rarely sees dragovers when
-         the list is dense — so the header is where you drop to
-         land at the library root. -->
     <div
       class="flex items-center justify-between px-2 pb-2 rounded transition-colors"
       :class="dropTarget === '' ? 'bg-brass-500/10 ring-1 ring-brass-500/30' : ''"

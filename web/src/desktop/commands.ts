@@ -1,12 +1,3 @@
-// Command handler map. The catalog (labels, IDs, accelerators, menu
-// paths, categories) lives on the Go side in internal/desktop/commands.go
-// so Wails can build the native menu. This file's only job is to map
-// IDs to handler bodies (and optional enablement predicates).
-//
-// Adding a command: add it to the Go catalog, then add a handler entry
-// here. Changing a label or accelerator: Go only. Keep this file
-// metadata-free.
-
 import type { Ref } from "vue";
 import type { Store } from "../core/store";
 import type { Workspace } from "./workspace";
@@ -15,8 +6,6 @@ import type { HandlerEntry } from "./command-dispatcher";
 import type { WorkbenchTab } from "../components/shared/workbench-tabs";
 import type { SearchMode } from "../core/engine";
 
-// Anything a command handler might need, injected by the host. Keeps the
-// handlers decoupled from the Vue component they live next to.
 export interface CommandContext {
   env: DesktopCapabilities;
   store: Store;
@@ -24,30 +13,13 @@ export interface CommandContext {
   toast: {
     addToast: (message: string, kind: "success" | "error" | "info", durationMs?: number) => void;
   };
-  // Reactive refs owned by AppDesktop.
   activeContent: Ref<string>;
   editorContent: Ref<string>;
   isV1Document: Ref<boolean>;
   isViewingRevision: Ref<boolean>;
-  // True while viewing a side-by-side diff between two historical
-  // revisions (not vs. the live buffer). Commands that operate on
-  // "the visible content" — Copy Whole Document, Export DS, Export
-  // PDF — disable in this mode because the visible content is a
-  // diff between A and B, not either one of them.
   isInCompareTwo: Ref<boolean>;
-  // True while the editor is showing a read-only external file
-  // (File → Open with a path outside the library). The Export DS
-  // command supports this mode — saving an external file to an
-  // arbitrary path is a meaningful action even without an active
-  // library file — so its predicate must include external mode.
   isViewingExternal: Ref<boolean>;
-  // Flushing the debounced file save. Save Version / Export / Open Folder
-  // all need the live buffer durable on disk before they proceed.
   flushSave: () => Promise<void>;
-  // Narrow imperative hooks on the shared editor. applyFormat is used
-  // by both platforms; undo/redo/cut/copy/paste/selectAll back the
-  // Linux-only Edit menu entries (macOS/Windows get these from the
-  // native EditMenu role and never call the host hooks).
   editor: {
     applyFormat: (action: string) => void;
     undo: () => void;
@@ -57,8 +29,6 @@ export interface CommandContext {
     paste: () => void;
     selectAll: () => void;
   };
-  // Host-owned UI state the host has lifted out of Editor.vue. Commands
-  // mutate these refs directly; Editor reacts through v-model props.
   ui: {
     drawerOpen: Ref<boolean>;
     drawerTab: Ref<WorkbenchTab>;
@@ -66,21 +36,17 @@ export interface CommandContext {
     openPalette: (mode?: "command" | "file") => void;
     openSettings: (tab?: "library" | "appearance" | "export" | "spellcheck") => void;
     openNewFolderPrompt: (parentPath?: string) => void;
-    // Opens the PDF export dialog. The host owns the dialog state and
-    // the render/save pipeline; this is just the trigger. Fire-and-
-    // forget: the host loads persisted prefs asynchronously before the
-    // dialog appears.
     openExportDialog: () => void;
-    // Opens the "Save Version" name dialog. Host pre-fills with a
-    // sensible default and submits the snapshot. Cmd-Shift-S hits
-    // this; Cmd-S goes through file.save and does NOT snapshot.
     openSaveVersionPrompt: () => void;
   };
 }
 
-// Template seed for the New Play command.
 const newPlayTemplate = () =>
   `# Untitled Play\nSubtitle: A Play in One Act\nAuthor: Your Name\nDate: ${new Date().getFullYear()}\nDraft: First\n\n## Dramatis Personae\n\nPROTAGONIST - Add your cast here\n\n## ACT I\n\n### SCENE 1\n\n> Describe the setting here.\n\nPROTAGONIST\nWrite your opening lines here.\n`;
+
+function errorMessage(error: unknown): string {
+  return String((error as { message?: unknown } | null)?.message ?? error);
+}
 
 export function createCommandHandlers(ctx: CommandContext): Array<[string, HandlerEntry]> {
   const {
@@ -89,24 +55,13 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     flushSave, editor, ui,
   } = ctx;
 
-  // Common enablement predicates — hoisted so the ID→predicate mapping
-  // is a clean lookup rather than inline repetition.
   const hasActiveFile = () => !!workspace.state.activeFile;
   const hasActiveFileEditable = () => hasActiveFile() && !isViewingRevision.value;
-  // canExport / canCopyAll: also gate on compareTwo. In compareTwo the
-  // editorContent buffer is the historical A side; copying or
-  // exporting it would silently produce a misleading result, so the
-  // command surfaces as greyed in menu + palette.
   const canExport = () => hasActiveFile() && !isV1Document.value && !isInCompareTwo.value;
   const canCopyAll = () => hasActiveFile() && !isInCompareTwo.value;
-  // canExportDs: like canCopyAll but also enabled in external-file
-  // mode. handleExportDs explicitly supports saving an external file
-  // to an arbitrary disk path — useful for read-only previews where
-  // the user wants to copy the file out of the library boundary.
   const canExportDs = () =>
     (hasActiveFile() || isViewingExternal.value) && !isInCompareTwo.value;
 
-  // Opens a workbench drawer tab, toggling if the tab is already open.
   const toggleDrawerTab = (tab: WorkbenchTab) => {
     if (ui.drawerOpen.value && ui.drawerTab.value === tab) {
       ui.drawerOpen.value = false;
@@ -116,8 +71,6 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ui.drawerOpen.value = true;
   };
 
-  // Bumps the search-request nonce so Editor watches the change and
-  // opens its find-drawer in the requested mode.
   const openSearch = (mode: SearchMode) => {
     ui.searchRequest.value = { mode, nonce: ui.searchRequest.value.nonce + 1 };
   };
@@ -132,8 +85,8 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
       const path = await workspace.createFile("Untitled Play", newPlayTemplate());
       activeContent.value = await workspace.selectFile(path);
       toast.addToast("Created new play", "success");
-    } catch (e: any) {
-      toast.addToast(`Failed to create file: ${e?.message ?? e}`, "error");
+    } catch (error: unknown) {
+      toast.addToast(`Failed to create file: ${errorMessage(error)}`, "error");
     }
   }
 
@@ -148,42 +101,24 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
         const name = absPath.split(/[\\/]/).pop() ?? "file";
         toast.addToast(`Opened ${name} read-only — use Add to Library to keep editing`, "info", 6000);
       }
-    } catch (e: any) {
-      toast.addToast(`Failed to open file: ${e?.message ?? e}`, "error");
+    } catch (error: unknown) {
+      toast.addToast(`Failed to open file: ${errorMessage(error)}`, "error");
     }
   }
 
-  // file.save (Cmd-S): muscle-memory "save my work". Flushes the
-  // debounced autosave to disk immediately. NOT a git snapshot — that
-  // lives on file.saveVersion (Cmd-Shift-S) so users don't accumulate
-  // junk revisions every time they reach for Cmd-S.
   async function handleSave() {
     await flushSave();
   }
 
-  // file.saveVersion (Cmd-Shift-S): open the name dialog. The host
-  // pre-fills the input with a sensible default and submits the
-  // snapshot via workspace.snapshotFile on confirm. Empty/Escape
-  // produces no snapshot — the hotkey is intentional, but the dialog
-  // isn't a commitment.
   function handleSaveVersion() {
     if (!workspace.state.activeFile) return;
     ui.openSaveVersionPrompt();
   }
 
-  // Export opens the PDF dialog. The host (AppDesktop) renders the
-  // dialog, loads persisted defaults from env.getExportPreferences, and
-  // handles render + save on confirm. Keeping the handler tiny keeps
-  // all of the export pipeline's state in one place.
   function handleExport() {
     ui.openExportDialog();
   }
 
-  // Export raw Downstage script (`.ds`) via the native save dialog.
-  // Lets users hand a play off to someone without the library
-  // structure around it, or drop a copy to arbitrary disk outside the
-  // library folder. Saves the live buffer (post-flushSave) so the
-  // exported file reflects the editor's current state.
   async function handleExportDs() {
     if (!workspace.state.activeFile && !workspace.state.externalFile) return;
     await flushSave();
@@ -196,8 +131,8 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
       await env.saveFile(baseName, source, [
         { displayName: "Downstage Files (*.ds)", pattern: "*.ds" },
       ]);
-    } catch (e: any) {
-      toast.addToast(`Failed to export file: ${e?.message ?? e}`, "error");
+    } catch (error: unknown) {
+      toast.addToast(`Failed to export file: ${errorMessage(error)}`, "error");
     }
   }
 
@@ -205,8 +140,8 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     await flushSave();
     try {
       await env.quit();
-    } catch (e: any) {
-      toast.addToast(`Failed to quit: ${e?.message ?? e}`, "error");
+    } catch (error: unknown) {
+      toast.addToast(`Failed to quit: ${errorMessage(error)}`, "error");
     }
   }
 
@@ -215,9 +150,6 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     toast.addToast("Copied to clipboard", "success");
   }
 
-  // File navigation. Wraps modulo list length so Next at the end cycles
-  // to the start; Prev at the start cycles to the end. Small niceness
-  // over staying put, and more Finder-like.
   function navigateFile(direction: 1 | -1) {
     const files = workspace.libraryFiles.value;
     if (files.length === 0) return;
@@ -238,7 +170,6 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
   }
 
   return [
-    // File
     ["file.newPlay", { handler: handleNewPlay }],
     ["file.open", { handler: handleOpen }],
     ["library.newFolder", { handler: handleNewFolder }],
@@ -250,13 +181,6 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["file.settings.spellcheck", { handler: () => ui.openSettings("spellcheck") }],
     ["file.quit", { handler: handleQuit }],
 
-    // Edit — Undo/Redo/Cut/Copy/Paste/Select All are Linux-only
-    // catalog entries (see internal/desktop/commands.go). On macOS and
-    // Windows the native EditMenu role fills those slots and the
-    // dispatcher never sees the IDs. Registering the handlers
-    // unconditionally here is fine: the Go catalog's platform filter
-    // keeps them out of the menu/palette on non-Linux platforms, so
-    // nothing will dispatch them anyway.
     ["edit.undo", { handler: () => editor.undo(), isEnabled: hasActiveFileEditable }],
     ["edit.redo", { handler: () => editor.redo(), isEnabled: hasActiveFileEditable }],
     ["edit.cut", { handler: () => editor.cut(), isEnabled: hasActiveFileEditable }],
@@ -267,7 +191,6 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["edit.findReplace", { handler: () => openSearch("replace"), isEnabled: hasActiveFile }],
     ["edit.copyAll", { handler: handleCopyAll, isEnabled: canCopyAll }],
 
-    // View
     ["view.commandPalette", { handler: () => ui.openPalette("command") }],
     ["view.togglePreview", {
       handler: () => { store.state.previewHidden = !store.state.previewHidden; },
@@ -277,7 +200,6 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["view.toggleOutline", { handler: () => toggleDrawerTab("outline"), isEnabled: hasActiveFile }],
     ["view.toggleStats", { handler: () => toggleDrawerTab("stats"), isEnabled: hasActiveFile }],
 
-    // Navigate
     ["navigate.nextFile", {
       handler: () => navigateFile(1),
       isEnabled: () => workspace.libraryFiles.value.length > 1,
@@ -291,15 +213,11 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
       isEnabled: () => workspace.libraryFiles.value.length > 0,
     }],
 
-    // Format — character styles (inline wraps). Menu accelerators own
-    // Cmd+B/I/U/Shift-X; the engine's custom keymap that previously
-    // bound them has been removed.
     ["format.bold", { handler: () => editor.applyFormat("bold"), isEnabled: hasActiveFileEditable }],
     ["format.italic", { handler: () => editor.applyFormat("italic"), isEnabled: hasActiveFileEditable }],
     ["format.underline", { handler: () => editor.applyFormat("underline"), isEnabled: hasActiveFileEditable }],
     ["format.strikethrough", { handler: () => editor.applyFormat("strikethrough"), isEnabled: hasActiveFileEditable }],
 
-    // Insert — structural inserts (snippets spliced at the cursor).
     ["insert.cue", { handler: () => editor.applyFormat("cue"), isEnabled: hasActiveFileEditable }],
     ["insert.direction", { handler: () => editor.applyFormat("direction"), isEnabled: hasActiveFileEditable }],
     ["insert.act", { handler: () => editor.applyFormat("act"), isEnabled: hasActiveFileEditable }],
@@ -307,7 +225,6 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["insert.song", { handler: () => editor.applyFormat("song"), isEnabled: hasActiveFileEditable }],
     ["insert.pageBreak", { handler: () => editor.applyFormat("page-break"), isEnabled: hasActiveFileEditable }],
 
-    // Help
     ["help.toggle", { handler: () => toggleDrawerTab("help"), isEnabled: hasActiveFile }],
     ["help.github", { handler: () => env.openURL("https://github.com/jscaltreto/downstage") }],
     ["help.docs", { handler: () => env.openURL("https://getdownstage.com/docs") }],

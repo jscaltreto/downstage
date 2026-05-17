@@ -10,9 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// isolateGitIdentity points HOME at a scratch dir so the developer's
-// personal gitconfig doesn't leak into GetFileGitStatus tests — commit
-// metadata we assert on should be deterministic per run.
 func isolateGitIdentity(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
@@ -59,7 +56,6 @@ func TestGetFileGitStatus_StagedChange(t *testing.T) {
 	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
 	require.NoError(t, a.WriteLibraryFile("play.ds", "v2"))
 
-	// Stage the change without committing.
 	r, err := git.PlainOpen(a.currentLibrary)
 	require.NoError(t, err)
 	w, err := r.Worktree()
@@ -77,7 +73,6 @@ func TestGetFileGitStatus_NeverCommittedFile(t *testing.T) {
 	isolateGitIdentity(t)
 	a := testApp(t)
 
-	// Init a repo so "no repo" isn't what we're testing here.
 	_, err := git.PlainInit(a.currentLibrary, false)
 	require.NoError(t, err)
 	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
@@ -98,8 +93,6 @@ func TestGetFileGitStatus_DeletedOnDisk(t *testing.T) {
 	require.NoError(t, a.WriteLibraryFile("play.ds", "v1"))
 	require.NoError(t, a.SnapshotFile("play.ds", "initial"))
 
-	// Delete the working copy so Missing fires; git history still
-	// remembers it.
 	require.NoError(t, os.Remove(filepath.Join(a.currentLibrary, "play.ds")))
 
 	st, err := a.GetFileGitStatus("play.ds")
@@ -112,7 +105,6 @@ func TestGetFileGitStatus_DeletedOnDisk(t *testing.T) {
 
 func TestGetFileGitStatus_NoRepo(t *testing.T) {
 	a := testApp(t)
-	// No git init. WriteLibraryFile does not implicitly init.
 	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("v1"), 0644))
 
 	st, err := a.GetFileGitStatus("play.ds")

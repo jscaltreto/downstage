@@ -14,31 +14,9 @@ import type {
   ExportPdfOptions,
 } from "./core/types";
 import type { CommandMeta, DesktopCapabilities, ExternalFileResult, FileGitStatus, LibraryFile, LibraryNode, Revision } from "./desktop/types";
-
-// Defensive reshape for LibraryNode coming off the wire. The Go side
-// emits exactly "folder" or "file" for `kind`, but the generated Wails
-// TS model types it as a plain string. Narrow and recurse so the
-// frontend's v-if chains have a tight union to discriminate.
-function normalizeLibraryNode(n: any): LibraryNode {
-  const kind: "folder" | "file" = n?.kind === "folder" ? "folder" : "file";
-  return {
-    path: String(n?.path ?? ""),
-    name: String(n?.name ?? ""),
-    kind,
-    children: Array.isArray(n?.children)
-      ? n.children.map(normalizeLibraryNode)
-      : undefined,
-    updatedAt: n?.updatedAt ? String(n.updatedAt) : undefined,
-  };
-}
 import { invokeRegisteredFlushSave } from "./desktop/flush-save";
 import { createPrefsCache } from "./desktop/prefs-cache";
 import { dispatchCommand } from "./desktop/dispatcher-registry";
-
-// Structural shape of the Go Preferences struct. Intentionally not
-// imported from the Wails-generated module — this file keeps a thin
-// structural copy so unit tests that don't have wailsjs/ available can
-// reason about the type.
 interface WailsPreferences {
   theme?: string;
   previewHidden?: boolean;
@@ -54,25 +32,15 @@ interface WailsPreferences {
   exportBookletGutter?: string;
 }
 
-// @ts-ignore — generated at build time by Wails
 import * as App from "./wailsjs/go/desktop/App";
-// @ts-ignore — generated at build time by Wails
 import { EventsOn, EventsEmit } from "./wailsjs/runtime/runtime";
 
 declare const __APP_VERSION__: string;
 
-// Event names MUST match internal/desktop/app.go.
 const EVT_BEFORE_CLOSE = "downstage:before-close";
 const EVT_FLUSH_COMPLETE = "downstage:flush-complete";
 const EVT_COMMAND_EXECUTE = "command:execute";
 
-// Tie the Wails lifecycle event to the active flushSave registered by
-// AppDesktop.vue. Registering happens in `desktop/flush-save.ts` — this
-// file only lives on the desktop build graph, so tests that mount the
-// component against an in-memory env don't need the Wails runtime loaded.
-// Native-menu click → TS dispatcher. AppDesktop.vue registers the live
-// dispatcher via the dispatcher-registry in onMounted. Subscribing at
-// module scope means we don't miss a click fired during Vue mount.
 EventsOn(EVT_COMMAND_EXECUTE, (id: unknown) => {
   if (typeof id === "string") {
     void dispatchCommand(id);
@@ -81,25 +49,53 @@ EventsOn(EVT_COMMAND_EXECUTE, (id: unknown) => {
 
 EventsOn(EVT_BEFORE_CLOSE, async () => {
   try {
-    // Documents first — losing an unsaved edit is worse than losing a
-    // sidebar toggle, so prioritize the file flush if one is stalled.
     await invokeRegisteredFlushSave();
-    // Then preferences — the cache's chain may still have unresolved
-    // writes from a late toggle; await them before releasing the close.
     await env.flushPreferences();
-  } catch (e) {
-    console.error("before-close flush failed:", e);
+  } catch (error: unknown) {
+    console.error("before-close flush failed:", error);
   } finally {
     EventsEmit(EVT_FLUSH_COMPLETE);
   }
 });
 
+function normalizeLibraryNode(node: unknown): LibraryNode {
+  const current = node as {
+    kind?: unknown;
+    path?: unknown;
+    name?: unknown;
+    children?: unknown;
+    updatedAt?: unknown;
+  } | null;
+  const kind: "folder" | "file" = current?.kind === "folder" ? "folder" : "file";
+  return {
+    path: String(current?.path ?? ""),
+    name: String(current?.name ?? ""),
+    kind,
+    children: Array.isArray(current?.children)
+      ? current.children.map(normalizeLibraryNode)
+      : undefined,
+    updatedAt: current?.updatedAt ? String(current.updatedAt) : undefined,
+  };
+}
+
+function normalizeCommandMeta(command: unknown): CommandMeta {
+  const current = command as {
+    id?: unknown;
+    label?: unknown;
+    category?: unknown;
+    accelerator?: unknown;
+    paletteHidden?: unknown;
+  } | null;
+  return {
+    id: String(current?.id ?? ""),
+    label: String(current?.label ?? ""),
+    category: String(current?.category ?? ""),
+    accelerator: current?.accelerator ? String(current.accelerator) : undefined,
+    paletteHidden: !!current?.paletteHidden,
+  };
+}
+
 class WailsBridge implements DesktopCapabilities {
-  // All pref reads and writes go through this cache — it maintains the
-  // authoritative in-memory snapshot of the Go Preferences struct and
-  // serializes writes back through App.SetPreferences so concurrent
-  // updates from Store (theme/preview/spellcheck) and Workspace (sidebar)
-  // can't race through independent read-modify-write cycles.
   private prefs = createPrefsCache<WailsPreferences>({
     load: async () => {
       const all = await App.GetPreferences();
@@ -211,9 +207,6 @@ class WailsBridge implements DesktopCapabilities {
 
   async getLibraryTree(): Promise<LibraryNode[]> {
     const raw = await App.GetLibraryTree();
-    // Defensive reshape for the discriminated union — the Go side always
-    // emits "folder" or "file" but TS sees `string` on the generated
-    // model type.
     return (raw ?? []).map(normalizeLibraryNode);
   }
 
@@ -267,8 +260,6 @@ class WailsBridge implements DesktopCapabilities {
 
   async getFileGitStatus(path: string): Promise<FileGitStatus> {
     const raw = await App.GetFileGitStatus(path);
-    // Defensive reshape so missing/typos in the generated Wails types
-    // can't leak undefined fields into the UI.
     return {
       dirty: !!raw?.dirty,
       headAt: raw?.headAt ? String(raw.headAt) : "",
@@ -302,11 +293,6 @@ class WailsBridge implements DesktopCapabilities {
     return App.RemoveSpellAllowlistWord(word);
   }
 
-  // Preferences — both env projections delegate to the shared prefs cache
-  // so interleaved writes can't lose each other's fields. Reads apply
-  // the theme default on the frontend too (the Go getter normalizes,
-  // but the cache surfaces whatever is on disk and the web env does the
-  // same defensive normalization).
   async getEditorPreferences(): Promise<EditorPreferences> {
     const all = await this.prefs.get();
     return {
@@ -369,10 +355,6 @@ class WailsBridge implements DesktopCapabilities {
     await this.prefs.update({ drawerRightWidth: px });
   }
 
-  // Export preferences. Page size is persisted (Settings → Export);
-  // style/layout/gutter track the last-used values from the export
-  // dialog. All reads apply defaults so a first-run user gets
-  // letter/standard/single without a round-trip through the dialog.
   async getExportPreferences(): Promise<ExportPdfOptions> {
     const all = await this.prefs.get();
     const pageSize = all.exportPageSize === "a4" ? "a4" : "letter";
@@ -411,16 +393,7 @@ class WailsBridge implements DesktopCapabilities {
 
   async getCommands(): Promise<CommandMeta[]> {
     const raw = await App.GetCommands();
-    // The Go binding returns `desktop.CommandMeta[]`; reshape defensively
-    // so TS callers see a consistent structural type even if the
-    // generated types drift.
-    return (raw ?? []).map((c: any) => ({
-      id: String(c?.id ?? ""),
-      label: String(c?.label ?? ""),
-      category: String(c?.category ?? ""),
-      accelerator: c?.accelerator ? String(c.accelerator) : undefined,
-      paletteHidden: !!c?.paletteHidden,
-    }));
+    return (raw ?? []).map(normalizeCommandMeta);
   }
 
   async setDisabledCommands(ids: string[]): Promise<void> {

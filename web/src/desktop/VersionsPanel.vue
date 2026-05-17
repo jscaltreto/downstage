@@ -1,15 +1,4 @@
 <script setup lang="ts">
-// Versions sidebar: lists the active file's snapshots, owns the right-
-// click context menu (View / Compare to current / Compare with… /
-// Copy hash / Hide), surfaces the "Show hidden (N)" toggle and the
-// picking-mode hint banner. Mirrors LibraryTree.vue's pattern: local
-// ref<{ rev, x, y } | null> menu state, @contextmenu.prevent per
-// row, click-outside dismiss via @click on the scroll wrapper.
-//
-// Workspace-only operations (Hide, Unhide, Copy hash, Compare with…,
-// Cancel pick) run directly against `props.workspace`. Operations
-// that need the live buffer flushed to disk first (View, Compare to
-// current) emit up to the host, which owns flushSave.
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { History, FolderSync } from 'lucide-vue-next';
 import type { Workspace } from './workspace';
@@ -18,21 +7,12 @@ import { formatRevisionTimestamp } from './revision-format';
 
 const props = defineProps<{
   workspace: Workspace;
-  // The host-owned "is a revision currently in view?" predicate.
-  // Passed as a prop (rather than re-derived here) so the panel and
-  // the editor banner agree without a second source of truth.
   isViewingRevision: boolean;
 }>();
 
 const emit = defineEmits<{
-  // Left-click on a revision row when not in picking mode, OR the
-  // "View this version" menu action. Host runs flushSave then
-  // workspace.viewRevision.
   (e: 'view-revision', hash: string): void;
-  // "Current (editing)" row click — fully exits revision view.
   (e: 'exit-revision-view'): void;
-  // "Compare to current" menu action: host views the revision (with
-  // flush) and toggles compare mode on.
   (e: 'compare-to-current', hash: string): void;
   (e: 'error', message: string): void;
   (e: 'info', message: string): void;
@@ -42,8 +22,14 @@ const inPickingMode = computed(
   () => props.workspace.state.pickingSecondForCompare,
 );
 
-// Right-click context menu state. Position is window-coords so the
-// fixed-position overlay anchors to the actual click point.
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String((error as { message?: unknown }).message ?? error);
+  }
+  return String(error);
+}
+
 const revisionMenu = ref<{ rev: Revision; x: number; y: number } | null>(null);
 
 function openRevisionMenu(event: MouseEvent, rev: Revision) {
@@ -55,15 +41,12 @@ function closeRevisionMenu() {
   revisionMenu.value = null;
 }
 
-// Single click-handler for revision rows. Routes between view-this
-// and resolve-the-pick based on whether the user is in "Compare
-// with…" picking mode.
 async function onRevisionRowClick(hash: string) {
   if (props.workspace.state.pickingSecondForCompare) {
     try {
       await props.workspace.resolvePickSecond(hash);
-    } catch (e: any) {
-      emit('error', `Failed to load second version: ${e?.message ?? e}`);
+    } catch (error: unknown) {
+      emit('error', `Failed to load second version: ${errorMessage(error)}`);
     }
     return;
   }
@@ -84,8 +67,8 @@ async function menuCompareWith(rev: Revision) {
   closeRevisionMenu();
   try {
     await props.workspace.startPickSecond(rev.hash);
-  } catch (e: any) {
-    emit('error', `Failed to load version: ${e?.message ?? e}`);
+  } catch (error: unknown) {
+    emit('error', `Failed to load version: ${errorMessage(error)}`);
   }
 }
 
@@ -103,8 +86,8 @@ async function menuHideRevision(rev: Revision) {
   closeRevisionMenu();
   try {
     await props.workspace.hideRevision(rev.hash);
-  } catch (e: any) {
-    emit('error', `Failed to hide version: ${e?.message ?? e}`);
+  } catch (error: unknown) {
+    emit('error', `Failed to hide version: ${errorMessage(error)}`);
   }
 }
 
@@ -112,15 +95,11 @@ async function menuUnhideRevision(rev: Revision) {
   closeRevisionMenu();
   try {
     await props.workspace.unhideRevision(rev.hash);
-  } catch (e: any) {
-    emit('error', `Failed to unhide version: ${e?.message ?? e}`);
+  } catch (error: unknown) {
+    emit('error', `Failed to unhide version: ${errorMessage(error)}`);
   }
 }
 
-// Escape cancels picking. Window-level listener scoped to the
-// component lifecycle so it doesn't interfere with other Escape
-// handlers (palette, modals) — those are mutually exclusive with a
-// picking flow.
 function onPickingKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && props.workspace.state.pickingSecondForCompare) {
     props.workspace.cancelPickSecond();
@@ -226,9 +205,6 @@ onUnmounted(() => {
         <p class="text-[10px] text-text-muted italic">All versions hidden. Click "Show hidden" above to unhide.</p>
       </div>
     </div>
-    <!-- Right-click context menu. Fixed positioning anchored to mouse
-         coords (LibraryTree pattern). Click-outside closes via the
-         @click handler on the scrollable revisions container above. -->
     <div
       v-if="revisionMenu"
       class="fixed z-50 min-w-[180px] rounded-md border border-border bg-[var(--color-page-surface)] shadow-lg py-1"

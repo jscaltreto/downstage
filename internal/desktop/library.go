@@ -18,28 +18,14 @@ import (
 
 const dictionaryPath = ".downstage/dictionary.txt"
 
-// hiddenRevisionsPath stores the per-library list of commit hashes the
-// user has chosen to hide from the Versions panel. Plain text, one
-// full hash per line, sorted and deduped on write. No JSON, no schema
-// version — past and future builds all understand "one hash per
-// line", which dodges the older-build-overwrites-future-data class
-// of bug a versioned format would invite.
 const hiddenRevisionsPath = ".downstage/hidden-revisions.txt"
 
-// LibraryFile represents a .ds file in the library directory. Kept as
-// the wire type returned inside `LibraryNode.Kind == "file"` children;
-// paths use forward-slash separators so the frontend can do path math
-// without branching on platform.
 type LibraryFile struct {
 	Path      string `json:"path"`
 	Name      string `json:"name"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
-// LibraryNode is a single entry in the library tree returned by
-// GetLibraryTree. Folders carry Children; files carry UpdatedAt. Path is
-// always library-root-relative with forward-slash separators. Kind is
-// "folder" or "file" — the frontend branches on it.
 type LibraryNode struct {
 	Path      string        `json:"path"`
 	Name      string        `json:"name"`
@@ -48,9 +34,6 @@ type LibraryNode struct {
 	UpdatedAt string        `json:"updatedAt,omitempty"`
 }
 
-// ChangeLibraryLocation shows a folder picker and switches the active
-// library to the chosen directory. Returns the selected path, or "" when
-// the user cancels.
 func (a *App) ChangeLibraryLocation() (string, error) {
 	selection, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Choose Library Location",
@@ -63,10 +46,6 @@ func (a *App) ChangeLibraryLocation() (string, error) {
 	}
 	a.currentLibrary = selection
 
-	// Switch libraries: update only the library fields. Prior to the
-	// updateConfig migration this path wrote Config{...} wholesale,
-	// silently zeroing Preferences and WindowState every time the user
-	// changed folders. Now other subtrees are preserved.
 	if err := a.updateConfig(func(c *Config) {
 		c.LastLibraryPath = selection
 		c.LastActiveLibraryFile = ""
@@ -78,11 +57,6 @@ func (a *App) ChangeLibraryLocation() (string, error) {
 	return selection, nil
 }
 
-// GetLibraryTree returns the library as a nested tree: folders first
-// (alpha per level), then files (alpha per level). `.git` and
-// `.downstage` are skipped, and only `.ds` files appear as leaves.
-// Always returns a non-nil slice so the frontend's `.length` / `.map`
-// are safe on a fresh install.
 func (a *App) GetLibraryTree() ([]LibraryNode, error) {
 	if a.currentLibrary == "" {
 		return []LibraryNode{}, nil
@@ -94,9 +68,6 @@ func (a *App) GetLibraryTree() ([]LibraryNode, error) {
 	return nodes, nil
 }
 
-// buildLibraryChildren reads the entries at root/relDir and returns the
-// LibraryNode children sorted folders-first then files-alpha. Nested
-// folders recurse.
 func buildLibraryChildren(root, relDir string) ([]LibraryNode, error) {
 	fullDir := filepath.Join(root, relDir)
 	entries, err := os.ReadDir(fullDir)
@@ -156,10 +127,6 @@ func buildLibraryChildren(root, relDir string) ([]LibraryNode, error) {
 	return out, nil
 }
 
-// CreateLibraryFolder creates a new folder inside the library. Unlike
-// CreateLibraryFile, the name is taken as-is — no collision suffix,
-// because folder creation is an explicit user action and a silent
-// rename would be surprising. Returns an error if the path exists.
 func (a *App) CreateLibraryFolder(relPath string) error {
 	fullPath, err := a.safePath(relPath)
 	if err != nil {
@@ -171,20 +138,6 @@ func (a *App) CreateLibraryFolder(relPath string) error {
 	return os.MkdirAll(fullPath, 0755)
 }
 
-// MoveLibraryEntry moves srcRel to dstRel inside the library. Rejects
-// when the destination already exists (no overwrite, no auto-suffix)
-// and when the destination would land inside the source (can't move a
-// folder into itself). Returns the new rel path with forward slashes
-// so the frontend can update its active-file tracking.
-//
-// The move is auto-committed. A filesystem-only rename would leave the
-// repo in an inconsistent intermediate state (old path tracked-but-
-// missing, new path untracked); a structural action like move is
-// deliberate user input, so recording it as a commit up front keeps
-// the repo clean and gives git's rename detection an unambiguous
-// signal that `GetRevisions`'s follow-renames walk can hook into.
-// Auto-commit here does not extend to content saves — those remain
-// explicit via SnapshotFile.
 func (a *App) MoveLibraryEntry(srcRel, dstRel string) (string, error) {
 	srcFull, err := a.safePath(srcRel)
 	if err != nil {
@@ -200,7 +153,6 @@ func (a *App) MoveLibraryEntry(srcRel, dstRel string) (string, error) {
 	if _, err := os.Stat(dstFull); err == nil {
 		return "", fmt.Errorf("a file or folder already exists at %q", dstRel)
 	}
-	// Reject "move folder into itself" before calling Rename.
 	srcClean := filepath.Clean(srcFull)
 	dstClean := filepath.Clean(dstFull)
 	if pathInsideRoot(dstClean, srcClean) {
@@ -210,10 +162,6 @@ func (a *App) MoveLibraryEntry(srcRel, dstRel string) (string, error) {
 		return "", fmt.Errorf("make destination dir: %w", err)
 	}
 
-	// Collect the pre-move relative paths to stage as deletions. For
-	// files this is just srcRel; for folders we need every .ds file
-	// underneath, so git records the full rename pattern rather than
-	// a single directory entry (go-git stages files, not directories).
 	srcSubPaths, err := collectTrackedPaths(srcFull, srcRel)
 	if err != nil {
 		return "", fmt.Errorf("enumerate source: %w", err)
@@ -225,11 +173,6 @@ func (a *App) MoveLibraryEntry(srcRel, dstRel string) (string, error) {
 
 	cleanDst := filepath.ToSlash(filepath.Clean(dstRel))
 
-	// Commit the move. On a fresh library with no commits, this is the
-	// first commit and creates HEAD. We treat a repo-init failure or
-	// commit failure as non-fatal — the filesystem move already
-	// succeeded, and the next snapshot will pick up the changes — but
-	// we surface the error so the frontend can toast it.
 	if err := a.commitMove(srcSubPaths, cleanDst); err != nil {
 		slog.Warn("library move: commit failed (filesystem move succeeded)", "err", err)
 	}
@@ -237,10 +180,6 @@ func (a *App) MoveLibraryEntry(srcRel, dstRel string) (string, error) {
 	return cleanDst, nil
 }
 
-// collectTrackedPaths returns the library-relative forward-slash paths
-// that will need to be staged as deletions after a rename. For a
-// single file, that's one path. For a folder, it's every .ds file
-// inside (git stages files, not directories).
 func collectTrackedPaths(fullPath, relPath string) ([]string, error) {
 	info, err := os.Stat(fullPath)
 	if err != nil {
@@ -274,9 +213,6 @@ func collectTrackedPaths(fullPath, relPath string) ([]string, error) {
 	return paths, err
 }
 
-// commitMove stages the pre-move source paths as deletions and the
-// post-move destination as added files, then commits. Assumes the
-// filesystem rename already happened.
 func (a *App) commitMove(srcPaths []string, dstRel string) error {
 	if a.currentLibrary == "" {
 		return fmt.Errorf("no library open")
@@ -293,20 +229,12 @@ func (a *App) commitMove(srcPaths []string, dstRel string) error {
 		return fmt.Errorf("worktree: %w", err)
 	}
 
-	// Stage deletions (old paths). `Remove` is a no-op-with-error when
-	// the path wasn't previously tracked (e.g. a brand-new file that
-	// hadn't been snapshotted yet) — swallow that case so the first-
-	// snapshot-also-moved flow still works.
 	for _, p := range srcPaths {
 		if _, err := w.Remove(p); err != nil && !errors.Is(err, index.ErrEntryNotFound) {
 			slog.Warn("library move: remove failed", "path", p, "err", err)
 		}
 	}
 
-	// Stage additions. If dst is a directory, walk it and Add every
-	// .ds file. AddWithOptions(All: true, Path: dstRel) would do this
-	// in one go but we keep the behavior explicit so we can log per-
-	// file failures.
 	fullDst := filepath.Join(a.currentLibrary, dstRel)
 	info, err := os.Stat(fullDst)
 	if err != nil {
@@ -336,8 +264,6 @@ func (a *App) commitMove(srcPaths []string, dstRel string) error {
 		}
 	}
 
-	// Nothing to commit? (e.g. user moved an untracked file to a new
-	// location — no tree delta from HEAD's perspective.) Skip silently.
 	status, err := w.Status()
 	if err != nil {
 		return fmt.Errorf("status: %w", err)
@@ -357,9 +283,6 @@ func (a *App) commitMove(srcPaths []string, dstRel string) error {
 	return nil
 }
 
-// RenameLibraryEntry renames srcRel's basename to newName, preserving
-// its parent directory. newName must not contain separators. Returns
-// the new rel path with forward slashes.
 func (a *App) RenameLibraryEntry(srcRel, newName string) (string, error) {
 	if newName == "" {
 		return "", fmt.Errorf("new name is empty")
@@ -426,9 +349,6 @@ func (a *App) CreateLibraryFile(name string, content string) (string, error) {
 			break
 		}
 		if err != nil {
-			// Non-ENOENT (permission denied, IO failure, etc.). Bail
-			// out instead of suffixing forever — the loop has no way
-			// to make progress against a real filesystem error.
 			return "", fmt.Errorf("stat %q: %w", fullPath, err)
 		}
 		finalName = fmt.Sprintf("%s-%d.ds", base, counter)
@@ -445,28 +365,14 @@ func (a *App) CreateLibraryFile(name string, content string) (string, error) {
 	return finalName, nil
 }
 
-// ExternalFileResult is returned by ReadExternalFile. When the chosen
-// path happens to live inside the current library, InsideLibrary is
-// true and RelativePath is its library-relative path — the frontend
-// should route through the normal selectFile flow instead of showing
-// the external-file banner.
 type ExternalFileResult struct {
 	Content       string `json:"content"`
 	InsideLibrary bool   `json:"insideLibrary"`
 	RelativePath  string `json:"relativePath"`
 }
 
-// externalFileMaxBytes caps how much we'll pull off disk for an
-// external .ds open. Plaintext manuscripts fit in well under 100 KiB;
-// the 5 MiB cap is 50× generous and guards against symlinks-to-huge-
-// files or malformed inputs.
 const externalFileMaxBytes = 5 * 1024 * 1024
 
-// OpenExternalFileDialog shows a native open-file dialog filtered to
-// .ds files. Returns the chosen absolute path, or "" when the user
-// cancels. This is a separate binding from ChangeLibraryLocation (a
-// directory picker) because the frontend's File → Open flow needs a
-// file picker, not a folder picker.
 func (a *App) OpenExternalFileDialog() (string, error) {
 	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Open File",
@@ -476,20 +382,6 @@ func (a *App) OpenExternalFileDialog() (string, error) {
 	})
 }
 
-// ReadExternalFile reads a .ds file from an arbitrary absolute path
-// into memory for the read-only "File → Open" preview. Guards:
-//
-//   - absolute path required (File → Open dialog returns absolute paths;
-//     reject anything else at the boundary)
-//   - case-insensitive .ds extension required
-//   - leaf symlinks rejected (mirrors safePath's rule; guards against
-//     symlinks-to-hostile-targets)
-//   - size capped at externalFileMaxBytes
-//
-// When the resolved path lives inside the current library, returns
-// InsideLibrary=true + RelativePath so the frontend can route through
-// the normal selectFile flow — it should NOT present the external-file
-// banner for a file the library already owns.
 func (a *App) ReadExternalFile(absPath string) (ExternalFileResult, error) {
 	if !filepath.IsAbs(absPath) {
 		return ExternalFileResult{}, fmt.Errorf("absolute path required")
@@ -498,8 +390,6 @@ func (a *App) ReadExternalFile(absPath string) (ExternalFileResult, error) {
 		return ExternalFileResult{}, fmt.Errorf("only .ds files can be opened")
 	}
 
-	// Reject leaf symlinks before following them. os.Lstat reveals the
-	// link itself; EvalSymlinks would quietly follow.
 	if info, err := os.Lstat(absPath); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 {
 			return ExternalFileResult{}, fmt.Errorf("symlinks are not allowed")
@@ -513,8 +403,6 @@ func (a *App) ReadExternalFile(absPath string) (ExternalFileResult, error) {
 		return ExternalFileResult{}, fmt.Errorf("resolve path: %w", err)
 	}
 
-	// Detect in-library: a path under the active library should flow
-	// through the normal file-open path, not the external-file banner.
 	var insideLibrary bool
 	var relativePath string
 	if a.currentLibrary != "" {
@@ -528,8 +416,6 @@ func (a *App) ReadExternalFile(absPath string) (ExternalFileResult, error) {
 		}
 	}
 
-	// Size-cap the read. Anything larger is almost certainly not a
-	// manuscript the editor can render usefully.
 	f, err := os.Open(resolved)
 	if err != nil {
 		return ExternalFileResult{}, fmt.Errorf("open file: %w", err)
@@ -554,10 +440,6 @@ func (a *App) ReadExternalFile(absPath string) (ExternalFileResult, error) {
 	}, nil
 }
 
-// AddExternalFileToLibrary copies absSrc into the current library under
-// destRelDir (empty string = library root) and returns the new path
-// relative to the library. Collision handling matches CreateLibraryFile:
-// an existing target name gets a `-N` suffix.
 func (a *App) AddExternalFileToLibrary(absSrc string, destRelDir string) (string, error) {
 	if a.currentLibrary == "" {
 		return "", fmt.Errorf("no library open")
@@ -575,8 +457,6 @@ func (a *App) AddExternalFileToLibrary(absSrc string, destRelDir string) (string
 	}
 
 	base := filepath.Base(absSrc)
-	// Strip `.ds` suffix for the collision-suffix loop so we get
-	// `foo-1.ds`, not `foo.ds-1`.
 	stem := strings.TrimSuffix(base, ".ds")
 	finalRel := base
 	counter := 1
@@ -701,8 +581,6 @@ func (a *App) RemoveSpellAllowlistWord(word string) (bool, error) {
 	return true, nil
 }
 
-// hiddenRevisionsFile resolves the on-disk path; returns "" if no
-// library is open.
 func (a *App) hiddenRevisionsFile() string {
 	if a.currentLibrary == "" {
 		return ""
@@ -710,15 +588,6 @@ func (a *App) hiddenRevisionsFile() string {
 	return filepath.Join(a.currentLibrary, hiddenRevisionsPath)
 }
 
-// readHiddenRevisions returns the current hidden set as a slice.
-// Missing file → empty slice, nil error (normal first-run state).
-// Any other read failure → nil + error. Callers that subsequently
-// write MUST propagate the error; otherwise a transient EACCES / EIO
-// reads as "empty set" and the next write would erase the on-disk
-// hashes.
-//
-// Caller is responsible for holding hiddenMu if mutating; readers
-// that don't subsequently write don't need the lock.
 func (a *App) readHiddenRevisions() ([]string, error) {
 	path := a.hiddenRevisionsFile()
 	if path == "" {
@@ -741,13 +610,6 @@ func (a *App) readHiddenRevisions() ([]string, error) {
 	return hashes, nil
 }
 
-// writeHiddenRevisions persists the set. Sorts and dedupes before
-// writing so the file is deterministic across runs that happened to
-// add hashes in different orders. Writes atomically: marshal to a
-// sibling .tmp file then os.Rename over the destination, avoiding
-// torn writes on process exit.
-//
-// Caller MUST hold hiddenMu.
 func (a *App) writeHiddenRevisions(hashes []string) error {
 	path := a.hiddenRevisionsFile()
 	if path == "" {
@@ -782,19 +644,12 @@ func (a *App) writeHiddenRevisions(hashes []string) error {
 		return err
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		// Clean up the orphan tmp file on rename failure so a future
-		// run doesn't see a stale half-write.
 		_ = os.Remove(tmp)
 		return err
 	}
 	return nil
 }
 
-// GetHiddenRevisions returns the library's hidden hashes. Empty slice
-// (never nil) so the JSON wire payload to the frontend is always an
-// array, never a JS null. Read errors propagate so the frontend can
-// surface a real failure instead of silently rendering as
-// "no hidden revisions".
 func (a *App) GetHiddenRevisions() ([]string, error) {
 	a.hiddenMu.Lock()
 	defer a.hiddenMu.Unlock()
@@ -808,13 +663,6 @@ func (a *App) GetHiddenRevisions() ([]string, error) {
 	return h, nil
 }
 
-// HideRevision marks a hash as hidden. Idempotent — adding an already-
-// hidden hash is a no-op success. The frontend filters the Versions
-// list by this set; nothing about git history is altered.
-//
-// Refuses to mutate if the existing file can't be read cleanly: a
-// transient EACCES / EIO would otherwise discard the existing hashes
-// on the next write.
 func (a *App) HideRevision(hash string) error {
 	hash = strings.TrimSpace(hash)
 	if hash == "" {
@@ -835,9 +683,6 @@ func (a *App) HideRevision(hash string) error {
 	return a.writeHiddenRevisions(current)
 }
 
-// UnhideRevision removes a hash. Idempotent — unhiding an absent hash
-// is a no-op success. Refuses to mutate on read failure for the same
-// data-preservation reason as HideRevision.
 func (a *App) UnhideRevision(hash string) error {
 	hash = strings.TrimSpace(hash)
 	if hash == "" {

@@ -1,27 +1,5 @@
 package desktop
 
-// The command catalog is the single source of truth for app-level command
-// metadata: ID, label, menu path, accelerator, and palette visibility.
-// menu.go consumes it to build the native menu; the frontend fetches the
-// palette-facing projection via GetCommands() and registers handlers by
-// ID. Adding a command is one entry here plus one handler in the
-// frontend's commands.ts — nothing else.
-//
-// Category is the palette grouping (for display only; the menu structure
-// is driven by MenuPath).
-//
-// MenuPath places the item in the native menu. MenuPath[0] is the
-// top-level menu label. A non-leaf MenuPath[1...] nests into submenus.
-// A nil or empty MenuPath means "not on the menu" — typically used for
-// palette-only or programmatically-dispatched commands.
-//
-// BeforeSeparator inserts a separator line in the menu immediately
-// before this item. Used for visual grouping within a top-level menu.
-//
-// Accelerator is a Wails accelerator string like "cmdorctrl+n" parsed
-// by github.com/wailsapp/wails/v2/pkg/menu/keys. Empty means no
-// keyboard shortcut.
-
 type CommandCategory string
 
 const (
@@ -34,53 +12,28 @@ const (
 	CategoryHelp     CommandCategory = "help"
 )
 
-// Command is the full catalog entry used by menu.go. Not exposed to the
-// frontend verbatim — GetCommands returns CommandMeta instead.
 type Command struct {
-	ID          string
-	Label       string
-	Category    CommandCategory
-	Accelerator string
-	// MenuPath places the item in the native menu. MenuPath[0] is the
-	// top-level menu label; MenuPath[1] (optional) nests into a submenu
-	// by that name. A nil/empty MenuPath means "not on the menu" —
-	// typically used for palette-only or programmatically-dispatched
-	// commands.
+	ID              string
+	Label           string
+	Category        CommandCategory
+	Accelerator     string
 	MenuPath        []string
 	BeforeSeparator bool
-	// PaletteVisible defaults to true; set false to hide from the palette
-	// (e.g. programmatic commands that shouldn't appear as a user-selectable
-	// entry).
-	PaletteHidden bool
-	// Platforms restricts this command's menu AND palette visibility to
-	// the listed GOOS values. Empty = all platforms. Used when a native
-	// menu role (macOS EditMenu, AppMenu's Quit) covers the same ground
-	// on some OS but the rest need manual catalog entries.
-	Platforms []string
+	PaletteHidden   bool
+	Platforms       []string
 }
 
-// CommandMeta is the palette-facing projection of a Command. Labels,
-// categories, and accelerators come from Go; TS owns handlers.
 type CommandMeta struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	Category    string `json:"category"`
-	Accelerator string `json:"accelerator,omitempty"`
-	// True when this command should not be shown in the palette (it's
-	// menu-only or programmatic).
-	PaletteHidden bool `json:"paletteHidden,omitempty"`
+	ID            string `json:"id"`
+	Label         string `json:"label"`
+	Category      string `json:"category"`
+	Accelerator   string `json:"accelerator,omitempty"`
+	PaletteHidden bool   `json:"paletteHidden,omitempty"`
 }
 
-// Command IDs. Exported as constants so menu.go, tests, and anyone
-// grep-navigating the codebase can reach them without reopening this file.
 const (
-	CmdFileNewPlay = "file.newPlay"
-	CmdFileOpen    = "file.open"
-	// CmdFileSave is the Cmd-S muscle-memory command — it flushes the
-	// debounced autosave to disk immediately. It is NOT a git
-	// snapshot; that lives on Cmd-Shift-S (CmdFileSaveVersion) so
-	// users don't accumulate revisions every time they reach for
-	// "save my work".
+	CmdFileNewPlay            = "file.newPlay"
+	CmdFileOpen               = "file.open"
 	CmdFileSave               = "file.save"
 	CmdFileSaveVersion        = "file.saveVersion"
 	CmdFileExportPDF          = "file.exportPdf"
@@ -89,9 +42,6 @@ const (
 	CmdFileSettingsSpellcheck = "file.settings.spellcheck"
 	CmdFileQuit               = "file.quit"
 
-	// Edit basics — Undo/Redo/Cut/Copy/Paste/Select All. On macOS and
-	// Windows the native EditMenu role already provides these, so these
-	// catalog entries are Linux-only. See commands.go's Platforms field.
 	CmdEditUndo      = "edit.undo"
 	CmdEditRedo      = "edit.redo"
 	CmdEditCut       = "edit.cut"
@@ -139,39 +89,19 @@ var (
 	nonMacPlatforms = []string{"linux", "windows"}
 )
 
-// Commands returns the canonical ordered catalog. The order governs the
-// palette's default sort and the order items appear within their menu
-// submenus. Keep related commands grouped and use BeforeSeparator for
-// visual breaks.
+// Commands returns the canonical ordered catalog.
 func Commands() []Command {
 	return []Command{
-		// File
 		{ID: CmdFileNewPlay, Label: "New Play", Category: CategoryFile, Accelerator: "cmdorctrl+n", MenuPath: []string{"File"}},
 		{ID: CmdFileOpen, Label: "Open…", Category: CategoryFile, Accelerator: "cmdorctrl+o", MenuPath: []string{"File"}},
-		// Save = "flush the autosave to disk now". No git snapshot, no
-		// dialog. Cmd-S is muscle memory; routing it to a snapshot
-		// would accumulate junk versions every time a user reaches for
-		// it. The git snapshot is on Cmd-Shift-S below.
 		{ID: CmdFileSave, Label: "Save", Category: CategoryFile, Accelerator: "cmdorctrl+s", MenuPath: []string{"File"}, BeforeSeparator: true},
 		{ID: CmdFileSaveVersion, Label: "Save Version…", Category: CategoryFile, Accelerator: "cmdorctrl+shift+s", MenuPath: []string{"File"}},
-		// Export submenu: PDF + raw .ds file save-as. Labels mirror common
-		// editor conventions (File > Export > ...).
 		{ID: CmdFileExportPDF, Label: "PDF…", Category: CategoryFile, Accelerator: "cmdorctrl+e", MenuPath: []string{"File", "Export"}},
 		{ID: CmdFileExportDs, Label: "Downstage File…", Category: CategoryFile, MenuPath: []string{"File", "Export"}},
 		{ID: CmdFileSettings, Label: "Settings…", Category: CategoryFile, Accelerator: "cmdorctrl+,", MenuPath: []string{"File"}, BeforeSeparator: true},
-		// Palette-hidden programmatic command used by the in-editor
-		// SpellCheck toolbar button to open Settings on the Spellcheck tab.
 		{ID: CmdFileSettingsSpellcheck, Label: "Spellcheck Settings", Category: CategoryFile, PaletteHidden: true},
-		// Quit lives in File on Windows/Linux. macOS's AppMenu role already
-		// provides "Quit Downstage Write" in the app menu, so we skip this
-		// entry on darwin to avoid duplicates.
 		{ID: CmdFileQuit, Label: "Quit Downstage Write", Category: CategoryFile, Accelerator: "cmdorctrl+q", MenuPath: []string{"File"}, BeforeSeparator: true, Platforms: nonMacPlatforms},
 
-		// Edit — macOS/Windows get the native EditMenu role prepended with
-		// Undo/Redo/Cut/Copy/Paste/Select All. Linux's webkit2gtk chokes
-		// on the role (GTK_IS_MENU_ITEM assertion), so these six are
-		// reinstated as Linux-only catalog entries. The handlers dispatch
-		// via the editor's imperative API.
 		{ID: CmdEditUndo, Label: "Undo", Category: CategoryEdit, Accelerator: "cmdorctrl+z", MenuPath: []string{"Edit"}, Platforms: linuxOnly},
 		{ID: CmdEditRedo, Label: "Redo", Category: CategoryEdit, Accelerator: "cmdorctrl+shift+z", MenuPath: []string{"Edit"}, Platforms: linuxOnly},
 		{ID: CmdEditCut, Label: "Cut", Category: CategoryEdit, Accelerator: "cmdorctrl+x", MenuPath: []string{"Edit"}, BeforeSeparator: true, Platforms: linuxOnly},
@@ -183,7 +113,6 @@ func Commands() []Command {
 		{ID: CmdEditFindReplace, Label: "Find & Replace", Category: CategoryEdit, Accelerator: "cmdorctrl+optionoralt+f", MenuPath: []string{"Edit"}},
 		{ID: CmdEditCopyAll, Label: "Copy Whole Document", Category: CategoryEdit, MenuPath: []string{"Edit"}, BeforeSeparator: true},
 
-		// View
 		{ID: CmdViewCommandPalette, Label: "Command Palette…", Category: CategoryView, Accelerator: "cmdorctrl+k", MenuPath: []string{"View"}},
 		{ID: CmdViewTogglePreview, Label: "Toggle Preview", Category: CategoryView, Accelerator: "cmdorctrl+\\", MenuPath: []string{"View"}, BeforeSeparator: true},
 		{ID: CmdViewToggleSidebar, Label: "Toggle Sidebar", Category: CategoryView, Accelerator: "cmdorctrl+shift+b", MenuPath: []string{"View"}},
@@ -191,14 +120,10 @@ func Commands() []Command {
 		{ID: CmdViewToggleOutline, Label: "Outline", Category: CategoryView, MenuPath: []string{"View"}},
 		{ID: CmdViewToggleStats, Label: "Stats", Category: CategoryView, MenuPath: []string{"View"}},
 
-		// Navigate
 		{ID: CmdNavigateNextFile, Label: "Next File", Category: CategoryNavigate, MenuPath: []string{"Navigate"}},
 		{ID: CmdNavigatePrevFile, Label: "Previous File", Category: CategoryNavigate, MenuPath: []string{"Navigate"}},
 		{ID: CmdNavigateGoToFile, Label: "Go to File…", Category: CategoryNavigate, MenuPath: []string{"Navigate"}},
 
-		// Insert — structural elements that splice a template into the
-		// document at the cursor. Lives in its own top-level menu because
-		// these are document-structure operations, not character styles.
 		{ID: CmdInsertCue, Label: "Dialogue", Category: CategoryInsert, MenuPath: []string{"Insert"}},
 		{ID: CmdInsertDirection, Label: "Stage Direction", Category: CategoryInsert, MenuPath: []string{"Insert"}},
 		{ID: CmdInsertAct, Label: "Act Heading", Category: CategoryInsert, MenuPath: []string{"Insert"}, BeforeSeparator: true},
@@ -206,19 +131,13 @@ func Commands() []Command {
 		{ID: CmdInsertSong, Label: "Song Block", Category: CategoryInsert, MenuPath: []string{"Insert"}},
 		{ID: CmdInsertPageBreak, Label: "Page Break", Category: CategoryInsert, MenuPath: []string{"Insert"}, BeforeSeparator: true},
 
-		// Format — character styles only. Structural insertions moved to
-		// the Insert menu; keeping these four (bold/italic/underline/
-		// strikethrough) mirrors what a user expects from "Format" in
-		// any word processor.
 		{ID: CmdFormatBold, Label: "Bold", Category: CategoryFormat, Accelerator: "cmdorctrl+b", MenuPath: []string{"Format"}},
 		{ID: CmdFormatItalic, Label: "Italic", Category: CategoryFormat, Accelerator: "cmdorctrl+i", MenuPath: []string{"Format"}},
 		{ID: CmdFormatUnderline, Label: "Underline", Category: CategoryFormat, Accelerator: "cmdorctrl+u", MenuPath: []string{"Format"}},
 		{ID: CmdFormatStrikethrough, Label: "Strikethrough", Category: CategoryFormat, Accelerator: "cmdorctrl+shift+x", MenuPath: []string{"Format"}},
 
-		// Library (palette + sidebar only; no menu entry)
 		{ID: CmdLibraryNewFolder, Label: "New Folder", Category: CategoryFile},
 
-		// Help
 		{ID: CmdHelpToggle, Label: "View Help", Category: CategoryHelp, Accelerator: "cmdorctrl+shift+/", MenuPath: []string{"Help"}},
 		{ID: CmdHelpGitHub, Label: "GitHub", Category: CategoryHelp, MenuPath: []string{"Help"}, BeforeSeparator: true},
 		{ID: CmdHelpDocs, Label: "Documentation", Category: CategoryHelp, MenuPath: []string{"Help"}},
@@ -226,9 +145,6 @@ func Commands() []Command {
 	}
 }
 
-// PlatformAllows reports whether the command should be visible on the
-// given GOOS value. Used by both menu.go (menu rendering) and
-// GetCommands (palette surface) so the two stay in sync.
 func (c Command) PlatformAllows(goos string) bool {
 	if len(c.Platforms) == 0 {
 		return true
