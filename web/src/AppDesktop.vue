@@ -7,7 +7,7 @@ import {
 } from 'lucide-vue-next';
 import { Store } from './core/store';
 import type { EditorEnv, ExportPdfOptions } from './core/types';
-import type { DesktopCapabilities, Revision } from './desktop/types';
+import type { DesktopCapabilities } from './desktop/types';
 import { Workspace } from './desktop/workspace';
 import { registerFlushSave } from './desktop/flush-save';
 import { CommandDispatcher } from './desktop/command-dispatcher';
@@ -24,6 +24,8 @@ import PromptModal from './desktop/PromptModal.vue';
 import StatusBar from './desktop/StatusBar.vue';
 import ExportPdfModal from './components/shared/ExportPdfModal.vue';
 import RevisionDiffView from './desktop/RevisionDiffView.vue';
+import VersionsPanel from './desktop/VersionsPanel.vue';
+import { formatRevisionTimestamp } from './desktop/revision-format';
 
 const props = defineProps<{
   env: DesktopCapabilities;
@@ -248,12 +250,6 @@ const inCompareTwo = computed(
     inCompareDiff.value &&
     workspace.state.compareSecondHash !== null,
 );
-// Picking-second-for-compare. Banner above the Versions panel uses
-// this to render the hint; revisionRow click router uses it to
-// decide between view-this and resolve-the-pick.
-const inPickingMode = computed(
-  () => workspace.state.pickingSecondForCompare,
-);
 // Label for the diff's "before" pane — folds the revision metadata
 // into a short, human-readable string. Falls back to a hash prefix if
 // the meta lookup somehow failed.
@@ -305,17 +301,6 @@ const editorDocumentKey = computed(() => {
     : workspace.state.activeFile;
 });
 
-function formatRevisionTimestamp(ts: string): string {
-  const date = new Date(ts);
-  if (Number.isNaN(date.getTime())) return ts;
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 onMounted(async () => {
   await store.init();
@@ -424,9 +409,6 @@ onUnmounted(() => {
   registerFlushSave(null);
   registerDispatcher(null);
   window.removeEventListener('resize', scheduleBoundsSave);
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('keydown', onPickingKeydown);
-  }
   if (boundsSaveTimer !== null) {
     clearTimeout(boundsSaveTimer);
     boundsSaveTimer = null;
@@ -542,7 +524,9 @@ async function selectLibraryFile(path: string) {
 
 async function handleViewRevision(hash: string) {
   // Flush in-flight edits before switching buffers so unwritten changes
-  // aren't lost when the user exits the preview.
+  // aren't lost when the user exits the preview. VersionsPanel emits
+  // this for both left-clicks on a row and the "View this version"
+  // context-menu item.
   await flushSave();
   try {
     await workspace.viewRevision(hash);
@@ -554,115 +538,17 @@ async function handleViewRevision(hash: string) {
   }
 }
 
-// Single click-handler for revision rows in the Versions sidebar.
-// Routes between view-this and resolve-the-pick based on whether the
-// user is currently in "Compare with…" picking mode. The router lets
-// the row template stay declarative — one @click, two behaviors.
-async function onRevisionRowClick(hash: string) {
-  if (workspace.state.pickingSecondForCompare) {
-    try {
-      await workspace.resolvePickSecond(hash);
-    } catch (e: any) {
-      toastManager.value?.addToast(
-        `Failed to load second version: ${e?.message ?? e}`,
-        "error",
-      );
-    }
-    return;
-  }
-  await handleViewRevision(hash);
-}
-
-// Right-click context menu on revision rows. Mirrors the LibraryTree
-// pattern: local ref<{ rev, x, y } | null>, fixed-position overlay
-// anchored to mouse coords, click-outside closes via @click on the
-// scroll wrapper, @click.stop on the menu itself.
-const revisionMenu = ref<{ rev: Revision; x: number; y: number } | null>(null);
-
-function openRevisionMenu(event: MouseEvent, rev: Revision) {
-  event.preventDefault();
-  revisionMenu.value = { rev, x: event.clientX, y: event.clientY };
-}
-
-function closeRevisionMenu() {
-  revisionMenu.value = null;
-}
-
-async function menuViewRevision(rev: Revision) {
-  closeRevisionMenu();
-  await handleViewRevision(rev.hash);
-}
-
-async function menuCompareToCurrent(rev: Revision) {
-  closeRevisionMenu();
-  // Load the revision first if it isn't already the active one, then
-  // toggle into compare mode. Two operations chained so the user
-  // always ends up in compareCurrent regardless of starting state.
-  if (workspace.state.viewingRevisionHash !== rev.hash) {
-    await handleViewRevision(rev.hash);
+// "Compare to current" menu action from VersionsPanel: load the
+// revision (with flush) if it's not already active, then flip
+// revisionViewMode to 'compare'. Two-step chained here so the panel
+// stays workspace-only and the host owns the flush concern.
+async function handleCompareToCurrent(hash: string) {
+  if (workspace.state.viewingRevisionHash !== hash) {
+    await handleViewRevision(hash);
   }
   if (workspace.state.revisionViewMode !== 'compare') {
     workspace.toggleRevisionCompare();
   }
-}
-
-async function menuCompareWith(rev: Revision) {
-  closeRevisionMenu();
-  try {
-    await workspace.startPickSecond(rev.hash);
-  } catch (e: any) {
-    toastManager.value?.addToast(
-      `Failed to load version: ${e?.message ?? e}`,
-      "error",
-    );
-  }
-}
-
-async function menuCopyHash(rev: Revision) {
-  closeRevisionMenu();
-  try {
-    await navigator.clipboard.writeText(rev.hash);
-    toastManager.value?.addToast("Hash copied to clipboard", "success");
-  } catch {
-    toastManager.value?.addToast("Failed to copy hash", "error");
-  }
-}
-
-async function menuHideRevision(rev: Revision) {
-  closeRevisionMenu();
-  try {
-    await workspace.hideRevision(rev.hash);
-  } catch (e: any) {
-    toastManager.value?.addToast(
-      `Failed to hide version: ${e?.message ?? e}`,
-      "error",
-    );
-  }
-}
-
-async function menuUnhideRevision(rev: Revision) {
-  closeRevisionMenu();
-  try {
-    await workspace.unhideRevision(rev.hash);
-  } catch (e: any) {
-    toastManager.value?.addToast(
-      `Failed to unhide version: ${e?.message ?? e}`,
-      "error",
-    );
-  }
-}
-
-// Escape cancels picking mode. Document-level handler scoped via the
-// usual Vue lifecycle so it stays cheap. Doesn't interfere with the
-// existing palette/modal Escape handlers because picking is mutually
-// exclusive with those flows.
-function onPickingKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && workspace.state.pickingSecondForCompare) {
-    workspace.cancelPickSecond();
-  }
-}
-if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', onPickingKeydown);
 }
 
 function handleExitRevisionView() {
@@ -785,152 +671,16 @@ watch(activeContent, (newContent) => {
           @request-new-folder="openNewFolderPrompt"
         />
 
-        <!-- Revisions Section -->
-        <div v-if="workspace.state.activeFile" class="h-1/3 flex flex-col bg-black/[0.01] dark:bg-white/[0.01]">
-            <div class="p-3 border-b border-border bg-black/[0.02] dark:bg-white/[0.02] flex items-center justify-between gap-2">
-                <h3 class="text-[10px] uppercase tracking-[0.2em] text-text-muted font-bold flex items-center gap-2">
-                    <History class="w-3.5 h-3.5 opacity-50" /> Versions
-                </h3>
-                <button
-                    v-if="workspace.state.hiddenRevisionHashes.size > 0"
-                    type="button"
-                    @click="workspace.toggleShowHidden()"
-                    class="text-[9px] uppercase tracking-wider font-bold text-text-muted hover:text-brass-500 transition-colors"
-                    :title="workspace.state.showHidden ? 'Collapse hidden versions' : 'Show hidden versions for unhiding'"
-                >
-                    {{ workspace.state.showHidden ? 'Hide hidden' : `Show hidden (${workspace.state.hiddenRevisionHashes.size})` }}
-                </button>
-            </div>
-            <div
-                v-if="inPickingMode && workspace.state.viewingRevisionMeta"
-                class="px-3 py-2 border-b border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-300 flex items-center justify-between gap-2"
-            >
-                <span class="truncate">
-                    <span class="font-bold">Pick another version</span> to compare with
-                    <span class="italic">{{ formatRevisionTimestamp(workspace.state.viewingRevisionMeta.timestamp) }}</span>
-                </span>
-                <button
-                    type="button"
-                    @click="workspace.cancelPickSecond()"
-                    class="shrink-0 font-bold hover:underline"
-                >
-                    Cancel
-                </button>
-            </div>
-            <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1" @click="closeRevisionMenu">
-                <button
-                    v-if="workspace.state.revisions.length > 0"
-                    type="button"
-                    @click="handleExitRevisionView"
-                    class="w-full text-left p-2 rounded transition-colors border"
-                    :class="!isViewingRevision
-                        ? 'bg-brass-500/10 border-brass-500/20 text-brass-500 font-bold'
-                        : 'border-transparent hover:bg-black/5 dark:hover:bg-white/5 text-text-main'"
-                    :title="isViewingRevision ? 'Return to current version' : 'Current version'"
-                >
-                    <div class="text-[11px] font-bold truncate flex items-center gap-1.5">
-                        <FolderSync v-if="!isViewingRevision" class="w-3 h-3" />
-                        <span>Current (editing)</span>
-                    </div>
-                </button>
-                <button
-                    v-for="rev in workspace.visibleRevisions.value"
-                    :key="rev.hash"
-                    type="button"
-                    @click="onRevisionRowClick(rev.hash)"
-                    @contextmenu.prevent="openRevisionMenu($event, rev)"
-                    class="w-full text-left p-2 rounded transition-colors border"
-                    :class="[
-                        workspace.state.viewingRevisionHash === rev.hash
-                            ? 'bg-brass-500/10 border-brass-500/20 text-brass-500'
-                            : 'border-transparent hover:bg-black/5 dark:hover:bg-white/5 text-text-main',
-                        workspace.state.compareSecondHash === rev.hash
-                            ? 'ring-1 ring-amber-500/60' : '',
-                        workspace.state.hiddenRevisionHashes.has(rev.hash)
-                            ? 'opacity-50 italic' : '',
-                    ]"
-                    :title="inPickingMode
-                        ? (workspace.state.viewingRevisionHash === rev.hash
-                            ? 'This version is already selected as A'
-                            : `Compare with this version (${formatRevisionTimestamp(rev.timestamp)})`)
-                        : `Preview this version (${formatRevisionTimestamp(rev.timestamp)})`"
-                >
-                    <div class="text-[11px] font-bold truncate flex items-center gap-1.5">
-                        <span
-                            v-if="inPickingMode && workspace.state.viewingRevisionHash === rev.hash"
-                            class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-500/30 text-amber-700 dark:text-amber-200 text-[8px] font-bold"
-                        >A</span>
-                        <span class="truncate">{{ rev.message }}</span>
-                    </div>
-                    <div class="flex justify-end items-center mt-1">
-                        <span class="text-[9px] text-text-muted italic">{{ formatRevisionTimestamp(rev.timestamp) }}</span>
-                    </div>
-                </button>
-                <div v-if="workspace.visibleRevisions.value.length === 0 && workspace.state.revisions.length === 0" class="p-4 text-center">
-                    <p class="text-[10px] text-text-muted italic">No versions yet. Click "Save Version" to create one.</p>
-                </div>
-                <div v-else-if="workspace.visibleRevisions.value.length === 0" class="p-4 text-center">
-                    <p class="text-[10px] text-text-muted italic">All versions hidden. Click "Show hidden" above to unhide.</p>
-                </div>
-            </div>
-        </div>
+        <VersionsPanel
+          :workspace="workspace"
+          :is-viewing-revision="isViewingRevision"
+          @view-revision="handleViewRevision"
+          @exit-revision-view="handleExitRevisionView"
+          @compare-to-current="handleCompareToCurrent"
+          @error="(message) => toastManager?.addToast(message, 'error')"
+          @info="(message) => toastManager?.addToast(message, 'success')"
+        />
       </aside>
-
-      <!-- Revision row context menu. Fixed positioning anchored to mouse
-           coords (LibraryTree pattern). Click-outside closes via the
-           @click handler on the scrollable revisions container above. -->
-      <div
-        v-if="revisionMenu"
-        class="fixed z-50 min-w-[180px] rounded-md border border-border bg-[var(--color-page-surface)] shadow-lg py-1"
-        :style="{ left: revisionMenu.x + 'px', top: revisionMenu.y + 'px' }"
-        @click.stop
-      >
-        <button
-          type="button"
-          class="w-full text-left px-3 py-1.5 text-xs hover:bg-brass-500/10 text-text-main"
-          @click="menuViewRevision(revisionMenu.rev)"
-        >
-          View this version
-        </button>
-        <button
-          type="button"
-          class="w-full text-left px-3 py-1.5 text-xs hover:bg-brass-500/10 text-text-main"
-          @click="menuCompareToCurrent(revisionMenu.rev)"
-        >
-          Compare to current
-        </button>
-        <button
-          type="button"
-          class="w-full text-left px-3 py-1.5 text-xs hover:bg-brass-500/10 text-text-main"
-          @click="menuCompareWith(revisionMenu.rev)"
-        >
-          Compare with…
-        </button>
-        <button
-          type="button"
-          class="w-full text-left px-3 py-1.5 text-xs hover:bg-brass-500/10 text-text-main"
-          @click="menuCopyHash(revisionMenu.rev)"
-        >
-          Copy hash
-        </button>
-        <div class="my-1 border-t border-border" />
-        <button
-          v-if="!workspace.state.hiddenRevisionHashes.has(revisionMenu.rev.hash)"
-          type="button"
-          class="w-full text-left px-3 py-1.5 text-xs hover:bg-brass-500/10 text-text-main"
-          @click="menuHideRevision(revisionMenu.rev)"
-        >
-          Hide this version
-        </button>
-        <button
-          v-else
-          type="button"
-          class="w-full text-left px-3 py-1.5 text-xs hover:bg-brass-500/10 text-text-main"
-          @click="menuUnhideRevision(revisionMenu.rev)"
-        >
-          Unhide
-        </button>
-      </div>
 
       <div
         v-if="!workspace.state.sidebarCollapsed && workspace.state.libraryPath"
