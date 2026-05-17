@@ -40,7 +40,11 @@ Thumbs.db
 .design_docs/
 .tmp/
 .codex
-web/src/wailsjs/
+# Wails-generated TS bindings for the desktop App methods. NOT ignored
+# (intentionally tracked) so CI's `tsc --noEmit` step can resolve the
+# imports without needing to install the Wails CLI and regenerate. The
+# files are regenerated on every `make desktop-build`; a stale entry
+# here will show up as a diff and prompt re-running the build.
 cmd/downstage-write/frontend/*
 !cmd/downstage-write/frontend/.gitkeep
 cmd/downstage-write/build/
