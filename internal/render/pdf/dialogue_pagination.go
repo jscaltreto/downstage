@@ -16,6 +16,17 @@ type bufferedDialogue struct {
 	parenthetical        string
 	parentheticalInlines []ast.Inline
 	lines                []bufferedDialogueLine
+	// markChanged signals that the dialogue's AST node is in
+	// Config.MarkChangedBlocks. Captured at BeginDialogue and consumed at
+	// the start of the first rendered segment so the asterisk lands on the
+	// page where the content actually paginates to.
+	markChanged bool
+	// node carries the source AST node pointer so the page-map recorder
+	// can record the dialogue's actual start page from inside
+	// renderSegment — by the time renderSegment runs, fpdf has already
+	// auto-paginated if the header didn't fit, and pdf.PageNo() reflects
+	// the page the dialogue truly starts on.
+	node *ast.Dialogue
 }
 
 type bufferedDialogueLine struct {
@@ -57,7 +68,20 @@ func (r *pdfRenderer) availableWrappedLines(dialogue bufferedDialogue, _ bool, f
 }
 
 func (r *pdfRenderer) renderSegment(dialogue bufferedDialogue, continuation, firstSegment bool, lines []bufferedDialogueLine, showMore bool) {
-	r.renderDialogueSegment(dialogue.character, dialogue.parenthetical, dialogue.parentheticalInlines, continuation, firstSegment, lines, showMore)
+	if firstSegment && dialogue.node != nil {
+		// Capture the actual start page now that fpdf has paginated for
+		// the header (availableWrappedLines may have called AddPage). This
+		// supersedes any earlier (and necessarily wrong) recording made at
+		// BeginDialogue, which fires before the dialogue is laid out.
+		r.recordBlockBegin(dialogue.node)
+		// Anchor the per-line asterisk span at the character-name line —
+		// renderDialogueHeader's first action is pdf.Ln(lineHeight) for
+		// the leading gap, so the name lands at current Y + lineHeight.
+		if dialogue.markChanged {
+			r.markChangeBeginAt(dialogue.node, r.pdf.PageNo(), r.pdf.GetY()+r.lineHeight)
+		}
+	}
+	r.renderDialogueSegment(dialogue.character, dialogue.parenthetical, dialogue.parentheticalInlines, continuation, firstSegment, lines, showMore, dialogue.markChanged)
 }
 
 func (r *pdfRenderer) addPage() {
@@ -68,7 +92,7 @@ func (r *pdfRenderer) showContinuationFooter() bool {
 	return true
 }
 
-func (r *pdfRenderer) renderDialogueSegment(character, parenthetical string, parentheticalInlines []ast.Inline, continuation, firstSegment bool, lines []bufferedDialogueLine, showMore bool) {
+func (r *pdfRenderer) renderDialogueSegment(character, parenthetical string, parentheticalInlines []ast.Inline, continuation, firstSegment bool, lines []bufferedDialogueLine, showMore bool, _ bool) {
 	r.renderDialogueHeader(character, parenthetical, parentheticalInlines, continuation, firstSegment)
 	dialogueMargin := r.bodyW * 0.15
 	dialogueX := r.marginL + dialogueMargin

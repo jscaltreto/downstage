@@ -156,6 +156,37 @@ type Config struct {
 	MarginLeft      float64
 	MarginRight     float64
 	SourceAnchors   bool // emit data-source-line attributes on block elements
+
+	// Revision-pages hooks. Each is independent and inert by default.
+
+	// PageLabelFormatter overrides the page-number text in the footer. When
+	// nil the renderer prints the natural fpdf page number. The argument is
+	// the internal fpdf page number (1-indexed).
+	PageLabelFormatter func(internalPage int) string
+	// PageHeaderFn returns the top-of-page annotation for the given internal
+	// fpdf page (1-indexed). When nil no header is drawn.
+	PageHeaderFn func(internalPage int) string
+	// SkipOutline disables PDF outline / bookmark emission. Used for
+	// revision-pages output, which has no canonical structure to bookmark.
+	SkipOutline bool
+	// MarkChangedBlocks is the set of block AST nodes whose visual lines
+	// should be marked with a right-margin asterisk. Set membership is
+	// keyed by AST node pointer (e.g. *ast.Dialogue, *ast.StageDirection,
+	// *ast.SectionLine). When nil or empty no asterisks are drawn.
+	MarkChangedBlocks map[any]bool
+	// RecordPageMap, when non-nil, receives per-block (startPage, endPage)
+	// records as the renderer walks the document.
+	RecordPageMap PageSpanRecorder
+}
+
+// PageSpanRecorder is the minimal interface the renderer needs from
+// pdf/pagemap.Recorder to record block page spans. It is declared in the
+// render package to avoid a render → pdf/pagemap import cycle; pagemap's
+// concrete Recorder satisfies this interface implicitly.
+type PageSpanRecorder interface {
+	Begin(key any, page int)
+	End(key any, page int)
+	Record(key any, page int)
 }
 
 // Validate checks that Config values are within acceptable ranges.

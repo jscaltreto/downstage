@@ -142,13 +142,15 @@ brew install downstage
 ## CLI Usage
 
 ```
-downstage parse play.ds       # Output AST as JSON
-downstage validate play.ds    # Check for errors
-downstage stats play.ds       # Report word/dialogue/runtime stats
-downstage render play.ds      # Render to PDF (default)
-downstage render -f html play.ds  # Render to HTML
-downstage lsp                 # Start LSP server (stdio)
-downstage version             # Print version info
+downstage parse play.ds            # Output AST as JSON
+downstage validate play.ds         # Check for errors
+downstage stats play.ds            # Report word/dialogue/runtime stats
+downstage render play.ds           # Render to PDF (default)
+downstage render -f html play.ds   # Render to HTML
+downstage revisions play_v2.ds --against play_v1.ds   # Render revision pages
+downstage revisions play.ds --from HEAD~1             # ...against a git ref
+downstage lsp                      # Start LSP server (stdio)
+downstage version                  # Print version info
 ```
 
 Use `-v` or `--verbose` to enable debug logging on any command.
@@ -190,6 +192,36 @@ Acting edition can be imposed for print via `--pdf-layout`:
 
 HTML produces a self-contained document with embedded CSS using semantic
 `.downstage-*` class names for custom styling.
+
+### Revision Pages
+
+`downstage revisions` produces a small PDF containing only the pages that changed
+between two drafts of a play — the Hollywood "revision pages" workflow. Print
+the result and slot the pages into a v1 binder by their A/B/C-suffixed numbers;
+changed blocks get a right-margin asterisk and each page has a top-margin note
+indicating where it inserts or replaces in the v1 print.
+
+```
+downstage revisions v2.ds --against v1.ds            # explicit prior version
+downstage revisions v2.ds --from HEAD~1              # prior version from git
+downstage revisions v2.ds --against v1.ds -o rev.pdf # custom output path
+```
+
+Useful flags:
+
+- `--page-numbers v1-labels|natural|none` — default `v1-labels` (A/B/C suffix
+  off v1 page numbers). `natural` numbers from 1, `none` suppresses the footer.
+- `--mark-changes / --no-mark-changes` — right-margin asterisks (default on).
+- `--anchor-window N` — merge change hunks separated by ≤ N equal blocks into a
+  single region (default 4). Lower for tighter regions, higher for fewer.
+- `--removed-marker / --no-removed-marker` — emit a REMOVED placeholder page
+  when a revision shortens v1's pagination (default on).
+
+Exit codes: 0 success, 1 parse/render error, 2 no differences detected,
+3 git-ref resolution failed.
+
+Block-level granularity: when one word changes inside a long dialogue cue, the
+whole cue is marked. Per-visual-line marking is a planned follow-up.
 
 ### Statistics
 
