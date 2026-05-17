@@ -95,6 +95,21 @@ export class Engine {
     // status bar; web ignores. Defaults to a no-op so existing
     // constructor sites keep working.
     private onCursorChange: (pos: { line: number; col: number }) => void = () => {},
+    // Optional host-level accelerators. The desktop app leaves this
+    // undefined because its native menu registers the same keys via
+    // Wails — letting CodeMirror also bind them would create two
+    // sources of truth. The web app has no native menu, so AppWeb
+    // passes handlers here and the engine binds them on a CodeMirror
+    // keymap above the framework defaults. Each handler returns void;
+    // the bound CM command always returns true (handled) so the
+    // browser's default for the key (native Find, bookmark dialog,
+    // etc.) doesn't fire.
+    private accelerators?: {
+      onSearch: (mode: SearchMode) => void;
+      applyFormat: (action: string) => void;
+      togglePreview: () => void;
+      toggleHelp: () => void;
+    },
   ) {}
 
   init(initialContent: string, isDark: boolean, spellcheckEnabled = false) {
@@ -120,16 +135,38 @@ export class Engine {
       },
     });
 
-    // App-level shortcuts (Find, Bold, Toggle Preview, etc.) are owned by
-    // the native menu on desktop and by the command catalog on web. The
-    // engine deliberately stops registering them here so accelerators live
-    // in exactly one place. CM keeps only its framework keymaps below.
+    // App-level shortcuts. On desktop these are owned by the native
+    // menu and `this.accelerators` is undefined here — Wails registers
+    // each key. On web there's no native menu, so AppWeb passes
+    // handlers via the optional `accelerators` argument and the engine
+    // binds a CodeMirror keymap that routes through them. Without this,
+    // Cmd-F / Cmd-B / Cmd-\ / etc. fall through to the browser
+    // (native Find, bookmarks dialog, do-nothing) on the web app.
+    const acc = this.accelerators;
+    const editorAccelKeymap = acc
+      ? keymap.of([
+          { key: "Mod-f", preventDefault: true, run: () => { acc.onSearch("find"); return true; } },
+          { key: "Mod-h", preventDefault: true, run: () => { acc.onSearch("replace"); return true; } },
+          { key: "Mod-Alt-f", preventDefault: true, run: () => { acc.onSearch("replace"); return true; } },
+          { key: "Mod-b", preventDefault: true, run: () => { acc.applyFormat("bold"); return true; } },
+          { key: "Mod-i", preventDefault: true, run: () => { acc.applyFormat("italic"); return true; } },
+          { key: "Mod-u", preventDefault: true, run: () => { acc.applyFormat("underline"); return true; } },
+          { key: "Mod-\\", preventDefault: true, run: () => { acc.togglePreview(); return true; } },
+          { key: "Mod-Shift-/", preventDefault: true, run: () => { acc.toggleHelp(); return true; } },
+        ])
+      : keymap.of([]);
+
     this.view = new EditorView({
       state: EditorState.create({
         doc: initialContent,
         extensions: [
           lineNumbers(),
           history(),
+          // Host accelerators MUST come before the framework keymaps so
+          // Mod-f (host: open search) wins over any CM default for the
+          // same key. Empty when accelerators isn't passed — desktop
+          // case.
+          editorAccelKeymap,
           keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
           themeCompartment.of(isDark ? oneDark : lightTheme),
           lintCompartment.of(this.createLintExtension()),

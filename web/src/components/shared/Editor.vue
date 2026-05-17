@@ -66,6 +66,13 @@ const props = withDefaults(
     // leaves this at the default.
     drawerDock?: DrawerDock;
     drawerRightWidth?: number;
+    // When true, the underlying CodeMirror instance binds app-level
+    // accelerators (Cmd-F, Cmd-B/I/U, Cmd-\, Cmd-Shift-/) to internal
+    // handlers. The web host opts in because it has no native menu to
+    // catch those keys. The desktop host leaves this false because its
+    // Wails-registered native menu fires the same actions at the OS
+    // level — binding here too would either double-fire or be dead code.
+    bindEngineAccelerators?: boolean;
     getSpellAllowlist: () => string[];
     addSpellAllowlistWord: (word: string) => Promise<boolean>;
     removeSpellAllowlistWord: (word: string) => Promise<boolean>;
@@ -80,6 +87,7 @@ const props = withDefaults(
     externalSpellcheck: false,
     drawerDock: 'bottom',
     drawerRightWidth: 360,
+    bindEngineAccelerators: false,
   },
 );
 
@@ -329,6 +337,20 @@ onMounted(async () => {
   // long as the editor; it just gets a fresh iframe reference
   // whenever the preview is mounted.
   if (editorContainer.value) {
+    // Web host opts into engine-level accelerator binding via the
+    // bindEngineAccelerators prop. The bag routes through the same
+    // internal Editor handlers the toolbar buttons use, so keyboard
+    // and click paths converge on identical behavior. Desktop leaves
+    // this undefined; its native menu owns the keys at the OS layer.
+    const accelerators = props.bindEngineAccelerators
+      ? {
+          onSearch: (mode: SearchMode) => openSearch(mode),
+          applyFormat: (action: string) => handleFormat(action),
+          togglePreview: () => { previewVisible.value = !previewVisible.value; },
+          toggleHelp: () => toggleHelp(),
+        }
+      : undefined;
+
     engine = new Engine(
       editorContainer.value,
       props.env,
@@ -347,6 +369,7 @@ onMounted(async () => {
       (next) => { diagnostics.value = next; },
       applySearchSummary,
       (pos) => emit('update:cursor', pos),
+      accelerators,
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
     if (props.readOnly) engine.setReadOnly(true);

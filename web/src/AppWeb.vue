@@ -501,6 +501,7 @@ watch(activeContent, (newContent) => {
         :get-spell-allowlist="() => activeSavedDraft?.spellAllowlist || []"
         :add-spell-allowlist-word="addSpellAllowlistWord"
         :remove-spell-allowlist-word="removeSpellAllowlistWord"
+        :bind-engine-accelerators="true"
         @migration-state-change="isV1Document = $event"
       />
     </main>
