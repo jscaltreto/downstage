@@ -41,5 +41,6 @@ Thumbs.db
 .tmp/
 .codex
 web/src/wailsjs/
-cmd/downstage-write/frontend/
+cmd/downstage-write/frontend/*
+!cmd/downstage-write/frontend/.gitkeep
 cmd/downstage-write/build/
