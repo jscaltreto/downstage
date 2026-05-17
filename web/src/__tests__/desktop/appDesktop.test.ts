@@ -121,6 +121,9 @@ function createEnv(init: { files?: LibraryFile[]; openReturn?: string; revisions
     snapshotFile: async (p, m) => { record(`snapshotFile:${p}:${m}`); },
     getRevisions: async (p, _limit) => { record(`getRevisions:${p}`); return revisions; },
     readFileAtRevision: async (p, h) => { record(`readFileAtRevision:${p}:${h}`); return contents[p] ?? ""; },
+    getHiddenRevisions: async () => { record("getHiddenRevisions"); return []; },
+    hideRevision: async (hash) => { record(`hideRevision:${hash}`); },
+    unhideRevision: async (hash) => { record(`unhideRevision:${hash}`); },
     getFileGitStatus: async (p) => {
       record(`getFileGitStatus:${p}`);
       return { dirty: false, headAt: "", hasHead: false, untracked: true, missing: false };
@@ -324,5 +327,122 @@ describe("AppDesktop revision compare", () => {
 
     expect(wrapper.findComponent({ name: "RevisionDiffView" }).exists()).toBe(false);
     expect(wrapper.findComponent({ name: "Editor" }).exists()).toBe(true);
+  });
+});
+
+describe("AppDesktop revision context menu", () => {
+  async function mountWithRevisions() {
+    stubDom();
+    const env = createEnv({
+      files: [{ path: "play.ds", name: "play.ds", updatedAt: "" }],
+      revisions: [
+        { hash: "abc1234567aaaa", path: "play.ds", message: "draft a", author: "x", timestamp: "2026-04-17T00:00:00Z" },
+        { hash: "def4567890bbbb", path: "play.ds", message: "draft b", author: "x", timestamp: "2026-04-18T00:00:00Z" },
+      ],
+    });
+    env._setContent("play.ds", "live");
+    const wrapper = mount(AppDesktop, {
+      props: { env },
+      global: { stubs: globalStubs },
+    });
+    await flushPromises();
+    return { wrapper, env };
+  }
+
+  // Find a revision row by its title prefix. Stable selector — doesn't
+  // require us to leak test-only attrs into production markup.
+  function findRevRow(wrapper: ReturnType<typeof mount>, message: string) {
+    return wrapper.findAll('button').find(b =>
+      b.text().includes(message),
+    );
+  }
+
+  it("right-click opens the revision context menu with five items", async () => {
+    const { wrapper } = await mountWithRevisions();
+    const rowA = findRevRow(wrapper, "draft a");
+    expect(rowA).toBeTruthy();
+
+    await rowA!.trigger('contextmenu');
+    await flushPromises();
+
+    const labels = wrapper.findAll('button').map(b => b.text());
+    expect(labels).toContain('View this version');
+    expect(labels).toContain('Compare to current');
+    expect(labels).toContain('Compare with…');
+    expect(labels).toContain('Copy hash');
+    expect(labels).toContain('Hide this version');
+  });
+
+  it("Hide this version removes the row and records the env call", async () => {
+    const { wrapper, env } = await mountWithRevisions();
+    const rowA = findRevRow(wrapper, "draft a");
+    await rowA!.trigger('contextmenu');
+    await flushPromises();
+
+    const hideBtn = wrapper.findAll('button').find(b => b.text() === 'Hide this version');
+    expect(hideBtn).toBeTruthy();
+    await hideBtn!.trigger('click');
+    await flushPromises();
+
+    expect(env._calls).toContain("hideRevision:abc1234567aaaa");
+    // Row disappears from the visible list (showHidden is off by
+    // default), and "Show hidden (1)" toggle appears.
+    expect(findRevRow(wrapper, "draft a")).toBeUndefined();
+    expect(wrapper.findAll('button').some(b => b.text().includes('Show hidden (1)'))).toBe(true);
+  });
+
+  it("Compare with… enters picking mode; clicking a second row promotes to compareTwo", async () => {
+    const { wrapper } = await mountWithRevisions();
+
+    // Open context menu on A and click "Compare with…".
+    await findRevRow(wrapper, "draft a")!.trigger('contextmenu');
+    await flushPromises();
+    const compareWithBtn = wrapper.findAll('button').find(b => b.text() === 'Compare with…');
+    await compareWithBtn!.trigger('click');
+    await flushPromises();
+
+    // Picking banner appears in the Versions panel header.
+    expect(wrapper.text()).toContain('Pick another version');
+
+    // Click the second row → resolves to compareTwo. The compareTwo
+    // banner ("Comparing versions") replaces the single-revision one,
+    // and RevisionDiffView mounts with the second hash's content as
+    // `modified`.
+    await findRevRow(wrapper, "draft b")!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Comparing versions');
+    const diff = wrapper.findComponent({ name: "RevisionDiffView" });
+    expect(diff.exists()).toBe(true);
+    // The diff's `modified` prop should be the second-revision content
+    // (env stub returns play.ds live content for any readFileAtRevision
+    // — what matters here is the prop wiring, not the actual content).
+    expect(diff.props('modifiedLabel')).toContain('Saved');
+  });
+
+  it("Stop comparing fully exits revision view back to the current buffer", async () => {
+    const { wrapper } = await mountWithRevisions();
+
+    // Drive into compareTwo via the same path as the previous test.
+    await findRevRow(wrapper, "draft a")!.trigger('contextmenu');
+    await flushPromises();
+    await wrapper.findAll('button').find(b => b.text() === 'Compare with…')!.trigger('click');
+    await flushPromises();
+    await findRevRow(wrapper, "draft b")!.trigger('click');
+    await flushPromises();
+
+    // Click "Stop comparing" → full exit. The compareTwo banner
+    // disappears, the single-revision "Viewing older version" banner
+    // does NOT take its place (that would be a clever-not-helpful
+    // intermediate state — user wanted to stop comparing, not pivot
+    // to a different comparison), and the diff component unmounts.
+    const stopBtn = wrapper.findAll('button').find(b => b.text().includes('Stop comparing'));
+    expect(stopBtn).toBeTruthy();
+    await stopBtn!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('Comparing versions');
+    expect(wrapper.text()).not.toContain('Viewing older version');
+    expect(wrapper.findComponent({ name: "RevisionDiffView" }).exists()).toBe(false);
   });
 });

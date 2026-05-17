@@ -116,21 +116,71 @@ watch(
         {{ modifiedLabel }}
       </div>
     </div>
-    <div ref="hostEl" class="revision-diff-host flex-1 overflow-auto"></div>
+    <!-- Pin the merge view to all four sides via absolute positioning
+         inside a relative flex-1 parent. Mirrors the main Editor's
+         pattern (Editor.vue's editorContainer). CodeMirror sizes its
+         editors to content by default; without an absolute container
+         the panes collapse to a content-height void instead of filling
+         the editor area. -->
+    <div class="relative flex-1 min-h-0">
+      <div ref="hostEl" class="revision-diff-host absolute inset-0 overflow-hidden"></div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* @codemirror/merge's design assumes .cm-mergeView is the scrolling
+   container with inner editors auto-sized to content. Its baseTheme
+   forces `.cm-scroller, .cm-editor { height: auto !important }` inside
+   .cm-mergeView (see node_modules/@codemirror/merge/dist/index.cjs
+   around the externalTheme/baseTheme exports). Without explicit
+   overrides, the editors collapse to content-height and leave a void
+   below short documents. We re-impose a top-down height chain so the
+   editor canvas paints the full available area. */
+.revision-diff-host {
+  display: flex;
+  flex-direction: column;
+}
 .revision-diff-host :deep(.cm-mergeView) {
-  height: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* The default `overflow-y: auto` would let the merge view itself
+     scroll; we let each side's .cm-scroller handle scroll instead so
+     the two panes stay vertically aligned independent of each other. */
+  overflow: hidden;
 }
 .revision-diff-host :deep(.cm-mergeViewEditors) {
-  height: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  /* `display: flex` is the package default but is re-stated here so
+     editors stretch when @codemirror/merge's externalTheme isn't
+     applied (e.g., before the first measure). */
+  display: flex;
+  align-items: stretch;
 }
-.revision-diff-host :deep(.cm-editor) {
-  height: 100%;
+.revision-diff-host :deep(.cm-mergeViewEditor) {
+  /* Package defaults flex-grow:1 + flex-basis:0; nothing to add — but
+     pin min-width:0 so a long line on one side can't push the column
+     wider than its share. */
+  min-width: 0;
 }
-.revision-diff-host :deep(.cm-scroller) {
-  overflow: auto;
+/* Override the baseTheme's `height: auto !important` so editors fill
+   the merge view's height instead of collapsing to content. The
+   !important is required because the package uses it. */
+.revision-diff-host :deep(.cm-mergeView .cm-editor) {
+  height: 100% !important;
+}
+.revision-diff-host :deep(.cm-mergeView .cm-scroller) {
+  height: 100% !important;
+  overflow: auto !important;
+}
+/* The content layer (where text and gutters paint) is still content-
+   sized inside .cm-scroller; min-height makes it claim the full
+   scroller height so the editor's background extends past the last
+   line for short documents. */
+.revision-diff-host :deep(.cm-content) {
+  min-height: 100%;
 }
 </style>

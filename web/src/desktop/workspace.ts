@@ -40,6 +40,26 @@ export interface WorkspaceState {
   // switch, restore, retarget). viewRevision deliberately does NOT
   // touch it — switching revisions in the sidebar preserves the mode.
   revisionViewMode: 'preview' | 'compare';
+  // Second-revision fields for arbitrary revision-vs-revision compare
+  // ("Compare with…" from the right-click menu). When set alongside
+  // revisionViewMode === 'compare', the diff renders viewingRevision*
+  // on the left and compareSecond* on the right. Null in compareCurrent.
+  compareSecondHash: string | null;
+  compareSecondContent: string | null;
+  compareSecondMeta: Revision | null;
+  // True while the user has invoked "Compare with…" and the next
+  // revision click should resolve as the second side. Orthogonal to
+  // revisionViewMode — picking can start from either preview or
+  // compareCurrent.
+  pickingSecondForCompare: boolean;
+  // Library-scoped set of commit hashes the user has hidden from the
+  // Versions panel. Filtered against state.revisions by the computed
+  // `visibleRevisions`. Loaded in init() and changeLibraryLocation
+  // before the first selectFile so renders never flash unfiltered.
+  hiddenRevisionHashes: Set<string>;
+  // Session-only toggle that surfaces hidden rows (greyed) for
+  // unhiding. Not persisted — opening the library starts clean.
+  showHidden: boolean;
   // External-file mode: populated when the user opened a .ds file from
   // outside the library via File → Open. The editor is rendered read-
   // only with an "Add to Library" banner until the user either imports
@@ -96,6 +116,11 @@ export class Workspace {
   // which treat the library as a flat list — don't need to walk the
   // tree themselves on every access.
   public libraryFiles: ComputedRef<LibraryFile[]>;
+  // visibleRevisions = state.revisions filtered by hiddenRevisionHashes
+  // unless showHidden is on. Sidebar v-for binds to this; navigation
+  // and command predicates that need the unfiltered list use
+  // state.revisions directly.
+  public visibleRevisions!: ComputedRef<Revision[]>;
 
   // hydrated guards any persistence side effects that might otherwise fire
   // during the window between constructor and init() completion. The
@@ -130,10 +155,30 @@ export class Workspace {
       viewingRevisionContent: null,
       viewingRevisionMeta: null,
       revisionViewMode: 'preview',
+      compareSecondHash: null,
+      compareSecondContent: null,
+      compareSecondMeta: null,
+      pickingSecondForCompare: false,
+      hiddenRevisionHashes: new Set<string>(),
+      showHidden: false,
       externalFile: null,
     });
 
     this.libraryFiles = computed(() => flattenLibraryTree(this.state.libraryTree));
+    // visibleRevisions filters state.revisions against the hidden set
+    // unless the session showHidden toggle is on. The hidden filter
+    // applies regardless of whether the revision is currently the
+    // active "viewing" hash — hiding the row you're viewing auto-
+    // exits revision view (handled in hideRevision below).
+    this.visibleRevisions = computed(() => {
+      if (this.state.showHidden) return this.state.revisions;
+      if (this.state.hiddenRevisionHashes.size === 0) {
+        return this.state.revisions;
+      }
+      return this.state.revisions.filter(
+        (r) => !this.state.hiddenRevisionHashes.has(r.hash),
+      );
+    });
   }
 
   async init() {
@@ -141,6 +186,7 @@ export class Workspace {
     if (this.state.libraryPath) {
       this.state.libraryTree = await this.env.getLibraryTree();
       this.state.spellAllowlist = await this.env.getSpellAllowlist();
+      await this.loadHiddenRevisions();
     }
     this.state.sidebarCollapsed = await this.env.getSidebarCollapsed();
     const storedWidth = await this.env.getSidebarWidth();
@@ -167,6 +213,10 @@ export class Workspace {
     this.state.libraryTree = await this.env.getLibraryTree();
     // Allowlist is library-scoped — reload after a library switch.
     this.state.spellAllowlist = await this.env.getSpellAllowlist();
+    // Hidden-revisions is library-scoped too. Reload BEFORE the host's
+    // downstream selectFile (which calls loadRevisions) so the
+    // Versions panel doesn't briefly render unfiltered.
+    await this.loadHiddenRevisions();
     return path;
   }
 
@@ -409,6 +459,10 @@ export class Workspace {
     this.state.viewingRevisionContent = null;
     this.state.viewingRevisionMeta = null;
     this.state.revisionViewMode = 'preview';
+    this.state.compareSecondHash = null;
+    this.state.compareSecondContent = null;
+    this.state.compareSecondMeta = null;
+    this.state.pickingSecondForCompare = false;
   }
 
   // Flips the revision view between preview (read-only single pane) and
@@ -420,6 +474,85 @@ export class Workspace {
     if (this.state.viewingRevisionHash === null) return;
     this.state.revisionViewMode =
       this.state.revisionViewMode === 'compare' ? 'preview' : 'compare';
+  }
+
+  // Enters picking-second-for-compare mode. The `hash` becomes the
+  // "A" side of the eventual diff; the next revision row click will
+  // resolve to the B side via resolvePickSecond. No-op when no
+  // revision is currently in view — picking without an A is
+  // nonsensical.
+  async startPickSecond(hash: string): Promise<void> {
+    // If A isn't already the active revision, load it first so the
+    // banner labels and the eventual diff render against a known A.
+    if (this.state.viewingRevisionHash !== hash) {
+      await this.viewRevision(hash);
+    }
+    this.state.pickingSecondForCompare = true;
+  }
+
+  // Resolves the second side of an arbitrary compare. Loads B's
+  // content (using the historical path if the file has been renamed
+  // since), flips revisionViewMode to 'compare', and exits picking
+  // mode. Self-compare (B === A) is a no-op — clicking the
+  // originally-picked row doesn't produce a meaningful diff.
+  async resolvePickSecond(hash: string): Promise<void> {
+    if (!this.state.pickingSecondForCompare) return;
+    if (hash === this.state.viewingRevisionHash) {
+      // Self-compare prevention. Keep picking mode open so the user
+      // can still pick a different row.
+      return;
+    }
+    const meta = this.state.revisions.find((r) => r.hash === hash) ?? null;
+    const lookupPath = meta?.path || this.state.activeFile;
+    if (!lookupPath) return;
+    const content = await this.env.readFileAtRevision(lookupPath, hash);
+    this.state.compareSecondHash = hash;
+    this.state.compareSecondContent = content;
+    this.state.compareSecondMeta = meta;
+    this.state.revisionViewMode = 'compare';
+    this.state.pickingSecondForCompare = false;
+  }
+
+  // Cancels picking mode without touching the A-side. The user lands
+  // back in whatever mode (preview or compareCurrent) they were in
+  // before starting the pick.
+  cancelPickSecond(): void {
+    this.state.pickingSecondForCompare = false;
+  }
+
+  // Library-scoped hidden-revisions IO.
+  private async loadHiddenRevisions(): Promise<void> {
+    try {
+      const hashes = await this.env.getHiddenRevisions();
+      this.state.hiddenRevisionHashes = new Set(hashes);
+    } catch {
+      this.state.hiddenRevisionHashes = new Set();
+    }
+  }
+
+  // Hides a revision. Auto-exits revision view if the hidden hash is
+  // currently the active A-side or B-side — otherwise the banner
+  // would point at a row that no longer renders, an orphan state.
+  async hideRevision(hash: string): Promise<void> {
+    await this.env.hideRevision(hash);
+    this.state.hiddenRevisionHashes = new Set(this.state.hiddenRevisionHashes).add(hash);
+    if (
+      this.state.viewingRevisionHash === hash ||
+      this.state.compareSecondHash === hash
+    ) {
+      this.clearRevisionView();
+    }
+  }
+
+  async unhideRevision(hash: string): Promise<void> {
+    await this.env.unhideRevision(hash);
+    const next = new Set(this.state.hiddenRevisionHashes);
+    next.delete(hash);
+    this.state.hiddenRevisionHashes = next;
+  }
+
+  toggleShowHidden(): void {
+    this.state.showHidden = !this.state.showHidden;
   }
 
   // restoreRevision takes the live editor content, first attempts a

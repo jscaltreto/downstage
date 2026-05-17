@@ -19,6 +19,7 @@ interface StubEnv extends DesktopCapabilities {
   _contents: Record<string, string>;
   _revisions: Revision[];
   _openReturn: string;
+  _hiddenRevisions: string[];
 }
 
 function createEnv(initial?: Partial<StubEnv>): StubEnv {
@@ -28,6 +29,7 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
     _contents: initial?._contents ?? {},
     _revisions: initial?._revisions ?? [],
     _openReturn: initial?._openReturn ?? "/projects/alpha",
+    _hiddenRevisions: initial?._hiddenRevisions ?? [],
   } as unknown as StubEnv;
 
   const record = <T>(name: string, fn: () => T | Promise<T>) => {
@@ -102,6 +104,15 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
     readFileAtRevision: (p: string, h: string) => record(`readFileAtRevision:${p}:${h}`, async () => {
       const key = `${p}@${h}`;
       return state._contents[key] ?? "";
+    }),
+    getHiddenRevisions: () => record("getHiddenRevisions", async () => state._hiddenRevisions),
+    hideRevision: (hash: string) => record(`hideRevision:${hash}`, async () => {
+      if (!state._hiddenRevisions.includes(hash)) {
+        state._hiddenRevisions.push(hash);
+      }
+    }),
+    unhideRevision: (hash: string) => record(`unhideRevision:${hash}`, async () => {
+      state._hiddenRevisions = state._hiddenRevisions.filter((h) => h !== hash);
     }),
     getFileGitStatus: (p: string) => record(`getFileGitStatus:${p}`, async () => (
       (state as any)._gitStatus?.[p] ?? {
@@ -351,6 +362,229 @@ describe("Workspace", () => {
     // mode" rule the design depends on.
     expect(ws.state.viewingRevisionHash).toBeNull();
     expect(ws.state.revisionViewMode).toBe("preview");
+  });
+
+  it("hideRevision adds the hash; visibleRevisions filters it out", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "live" },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "a", author: "x", timestamp: "" },
+        { hash: "def", path: "play.ds", message: "b", author: "x", timestamp: "" },
+      ],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    expect(ws.visibleRevisions.value.map((r) => r.hash)).toEqual(["abc", "def"]);
+
+    await ws.hideRevision("abc");
+
+    expect(ws.state.hiddenRevisionHashes.has("abc")).toBe(true);
+    expect(ws.visibleRevisions.value.map((r) => r.hash)).toEqual(["def"]);
+    expect(env._calls).toContain("hideRevision:abc");
+  });
+
+  it("unhideRevision removes the hash; visibleRevisions includes it again", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "live" },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "a", author: "x", timestamp: "" },
+      ],
+      _hiddenRevisions: ["abc"],
+    });
+    const ws = new Workspace(env);
+    await ws.init();
+    await ws.selectFile("play.ds");
+    expect(ws.visibleRevisions.value).toEqual([]);
+
+    await ws.unhideRevision("abc");
+
+    expect(ws.state.hiddenRevisionHashes.has("abc")).toBe(false);
+    expect(ws.visibleRevisions.value.map((r) => r.hash)).toEqual(["abc"]);
+  });
+
+  it("toggleShowHidden flips; visibleRevisions returns all when on", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "live" },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "a", author: "x", timestamp: "" },
+        { hash: "def", path: "play.ds", message: "b", author: "x", timestamp: "" },
+      ],
+      _hiddenRevisions: ["abc"],
+    });
+    const ws = new Workspace(env);
+    await ws.init();
+    await ws.selectFile("play.ds");
+    expect(ws.visibleRevisions.value.map((r) => r.hash)).toEqual(["def"]);
+
+    ws.toggleShowHidden();
+
+    expect(ws.state.showHidden).toBe(true);
+    expect(ws.visibleRevisions.value.map((r) => r.hash)).toEqual(["abc", "def"]);
+  });
+
+  it("hideRevision on the active viewingRevisionHash auto-clears the revision view", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "live", "play.ds@abc": "older" },
+      _revisions: [{ hash: "abc", path: "play.ds", message: "m", author: "x", timestamp: "" }],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+    expect(ws.state.viewingRevisionHash).toBe("abc");
+
+    await ws.hideRevision("abc");
+
+    // The orphan-state fix: hiding the currently-viewed hash must auto-
+    // exit revision view so the banner doesn't point at an invisible row.
+    expect(ws.state.viewingRevisionHash).toBeNull();
+    expect(ws.state.revisionViewMode).toBe("preview");
+  });
+
+  it("hideRevision on compareSecondHash auto-clears compareTwo state", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: {
+        "play.ds": "live",
+        "play.ds@abc": "older-a",
+        "play.ds@def": "older-b",
+      },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "a", author: "x", timestamp: "" },
+        { hash: "def", path: "play.ds", message: "b", author: "x", timestamp: "" },
+      ],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+    await ws.startPickSecond("abc");
+    await ws.resolvePickSecond("def");
+    expect(ws.state.compareSecondHash).toBe("def");
+
+    await ws.hideRevision("def");
+
+    // Hiding the B-side also routes through clearRevisionView, so the
+    // user lands in a clean state instead of compareTwo-against-nothing.
+    expect(ws.state.viewingRevisionHash).toBeNull();
+    expect(ws.state.compareSecondHash).toBeNull();
+  });
+
+  it("startPickSecond + resolvePickSecond populates B fields and exits picking", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: {
+        "play.ds": "live",
+        "play.ds@abc": "older-a",
+        "play.ds@def": "older-b",
+      },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "a", author: "x", timestamp: "" },
+        { hash: "def", path: "play.ds", message: "b", author: "x", timestamp: "" },
+      ],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+    await ws.startPickSecond("abc");
+    expect(ws.state.pickingSecondForCompare).toBe(true);
+
+    await ws.resolvePickSecond("def");
+
+    expect(ws.state.viewingRevisionHash).toBe("abc");
+    expect(ws.state.compareSecondHash).toBe("def");
+    expect(ws.state.compareSecondContent).toBe("older-b");
+    expect(ws.state.compareSecondMeta?.message).toBe("b");
+    expect(ws.state.revisionViewMode).toBe("compare");
+    expect(ws.state.pickingSecondForCompare).toBe(false);
+  });
+
+  it("resolvePickSecond on the same hash as A is a no-op (self-compare prevention)", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "live", "play.ds@abc": "older-a" },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "a", author: "x", timestamp: "" },
+      ],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+    await ws.startPickSecond("abc");
+
+    await ws.resolvePickSecond("abc");
+
+    // Self-pick must not promote anything to compareSecond* nor exit
+    // picking mode — the user gets to try again.
+    expect(ws.state.compareSecondHash).toBeNull();
+    expect(ws.state.pickingSecondForCompare).toBe(true);
+  });
+
+  it("cancelPickSecond clears the pending state without touching A", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: { "play.ds": "live", "play.ds@abc": "older-a" },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "a", author: "x", timestamp: "" },
+      ],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+    await ws.startPickSecond("abc");
+
+    ws.cancelPickSecond();
+
+    expect(ws.state.pickingSecondForCompare).toBe(false);
+    expect(ws.state.viewingRevisionHash).toBe("abc");
+    expect(ws.state.viewingRevisionContent).toBe("older-a");
+  });
+
+  it("clearRevisionView resets pickingSecondForCompare AND compareSecond*", async () => {
+    stubLocalStorage();
+    const env = createEnv({
+      _contents: {
+        "play.ds": "live",
+        "play.ds@abc": "older-a",
+        "play.ds@def": "older-b",
+      },
+      _revisions: [
+        { hash: "abc", path: "play.ds", message: "a", author: "x", timestamp: "" },
+        { hash: "def", path: "play.ds", message: "b", author: "x", timestamp: "" },
+      ],
+    });
+    const ws = new Workspace(env);
+    await ws.selectFile("play.ds");
+    await ws.viewRevision("abc");
+    await ws.startPickSecond("abc");
+    await ws.resolvePickSecond("def");
+
+    ws.clearRevisionView();
+
+    // The full-exit path resets every revision-related field including
+    // the new ones. Anchors the single-source-of-truth rule.
+    expect(ws.state.viewingRevisionHash).toBeNull();
+    expect(ws.state.compareSecondHash).toBeNull();
+    expect(ws.state.pickingSecondForCompare).toBe(false);
+    expect(ws.state.revisionViewMode).toBe("preview");
+  });
+
+  it("changeLibraryLocation reloads hiddenRevisionHashes", async () => {
+    stubLocalStorage();
+    const env = createEnv({ _hiddenRevisions: ["before-switch"] });
+    const ws = new Workspace(env);
+    await ws.init();
+    expect(ws.state.hiddenRevisionHashes.has("before-switch")).toBe(true);
+
+    // Simulate a library switch by mutating what the env returns.
+    env._hiddenRevisions = ["after-switch"];
+
+    await ws.changeLibraryLocation();
+
+    expect(ws.state.hiddenRevisionHashes.has("before-switch")).toBe(false);
+    expect(ws.state.hiddenRevisionHashes.has("after-switch")).toBe(true);
   });
 
   it("restoreRevision snapshots the live state, overwrites with the revision, then snapshots the restore", async () => {

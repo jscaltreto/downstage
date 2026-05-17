@@ -104,6 +104,11 @@ type App struct {
 	// (and future state-reflection logic) can inspect the rendered tree.
 	menuMu      sync.Mutex
 	currentMenu *menu.Menu
+
+	// hiddenMu serializes read-modify-write on the hidden-revisions
+	// file so rapid hide/unhide clicks can't race and lose updates.
+	// The file itself is written atomically via tmp+rename.
+	hiddenMu sync.Mutex
 }
 
 func NewApp() *App {

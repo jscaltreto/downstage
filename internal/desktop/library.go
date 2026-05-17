@@ -18,6 +18,14 @@ import (
 
 const dictionaryPath = ".downstage/dictionary.txt"
 
+// hiddenRevisionsPath stores the per-library list of commit hashes the
+// user has chosen to hide from the Versions panel. Plain text, one
+// full hash per line, sorted and deduped on write. No JSON, no schema
+// version — past and future builds all understand "one hash per
+// line", which dodges the older-build-overwrites-future-data class
+// of bug a versioned format would invite.
+const hiddenRevisionsPath = ".downstage/hidden-revisions.txt"
+
 // LibraryFile represents a .ds file in the library directory. Kept as
 // the wire type returned inside `LibraryNode.Kind == "file"` children;
 // paths use forward-slash separators so the frontend can do path math
@@ -680,4 +688,149 @@ func (a *App) RemoveSpellAllowlistWord(word string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// hiddenRevisionsFile resolves the on-disk path; returns "" if no
+// library is open.
+func (a *App) hiddenRevisionsFile() string {
+	if a.currentLibrary == "" {
+		return ""
+	}
+	return filepath.Join(a.currentLibrary, hiddenRevisionsPath)
+}
+
+// readHiddenRevisions returns the current hidden set as a slice.
+// Missing file → empty slice (not an error). Unreadable file →
+// empty slice with a logged warning. Empty lines and surrounding
+// whitespace are ignored.
+//
+// Caller is responsible for holding hiddenMu if mutating; readers
+// that don't subsequently write don't need the lock.
+func (a *App) readHiddenRevisions() []string {
+	path := a.hiddenRevisionsFile()
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			slog.Warn("hidden-revisions: read failed", "path", path, "err", err)
+		}
+		return nil
+	}
+	var hashes []string
+	for _, line := range strings.Split(string(data), "\n") {
+		h := strings.TrimSpace(line)
+		if h != "" {
+			hashes = append(hashes, h)
+		}
+	}
+	return hashes
+}
+
+// writeHiddenRevisions persists the set. Sorts and dedupes before
+// writing so the file is deterministic across runs that happened to
+// add hashes in different orders. Writes atomically: marshal to a
+// sibling .tmp file then os.Rename over the destination, avoiding
+// torn writes on process exit.
+//
+// Caller MUST hold hiddenMu.
+func (a *App) writeHiddenRevisions(hashes []string) error {
+	path := a.hiddenRevisionsFile()
+	if path == "" {
+		return fmt.Errorf("no library open")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+
+	seen := make(map[string]struct{}, len(hashes))
+	cleaned := make([]string, 0, len(hashes))
+	for _, h := range hashes {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		if _, dup := seen[h]; dup {
+			continue
+		}
+		seen[h] = struct{}{}
+		cleaned = append(cleaned, h)
+	}
+	sort.Strings(cleaned)
+
+	body := strings.Join(cleaned, "\n")
+	if body != "" {
+		body += "\n"
+	}
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(body), 0644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		// Clean up the orphan tmp file on rename failure so a future
+		// run doesn't see a stale half-write.
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// GetHiddenRevisions returns the library's hidden hashes. Empty slice
+// (never nil) so the JSON wire payload to the frontend is always an
+// array, never a JS null.
+func (a *App) GetHiddenRevisions() []string {
+	a.hiddenMu.Lock()
+	defer a.hiddenMu.Unlock()
+	h := a.readHiddenRevisions()
+	if h == nil {
+		return []string{}
+	}
+	return h
+}
+
+// HideRevision marks a hash as hidden. Idempotent — adding an already-
+// hidden hash is a no-op success. The frontend filters the Versions
+// list by this set; nothing about git history is altered.
+func (a *App) HideRevision(hash string) error {
+	hash = strings.TrimSpace(hash)
+	if hash == "" {
+		return fmt.Errorf("hash is empty")
+	}
+	a.hiddenMu.Lock()
+	defer a.hiddenMu.Unlock()
+	current := a.readHiddenRevisions()
+	for _, existing := range current {
+		if existing == hash {
+			return nil
+		}
+	}
+	current = append(current, hash)
+	return a.writeHiddenRevisions(current)
+}
+
+// UnhideRevision removes a hash. Idempotent — unhiding an absent hash
+// is a no-op success.
+func (a *App) UnhideRevision(hash string) error {
+	hash = strings.TrimSpace(hash)
+	if hash == "" {
+		return fmt.Errorf("hash is empty")
+	}
+	a.hiddenMu.Lock()
+	defer a.hiddenMu.Unlock()
+	current := a.readHiddenRevisions()
+	next := make([]string, 0, len(current))
+	found := false
+	for _, existing := range current {
+		if existing == hash {
+			found = true
+			continue
+		}
+		next = append(next, existing)
+	}
+	if !found {
+		return nil
+	}
+	return a.writeHiddenRevisions(next)
 }

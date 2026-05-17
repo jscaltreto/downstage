@@ -29,6 +29,12 @@ export interface CommandContext {
   editorContent: Ref<string>;
   isV1Document: Ref<boolean>;
   isViewingRevision: Ref<boolean>;
+  // True while viewing a side-by-side diff between two historical
+  // revisions (not vs. the live buffer). Commands that operate on
+  // "the visible content" — Copy Whole Document, Export DS, Export
+  // PDF — disable in this mode because the visible content is a
+  // diff between A and B, not either one of them.
+  isInCompareTwo: Ref<boolean>;
   // Flushing the debounced file save. Save Version / Export / Open Folder
   // all need the live buffer durable on disk before they proceed.
   flushSave: () => Promise<void>;
@@ -71,14 +77,20 @@ const newPlayTemplate = () =>
 export function createCommandHandlers(ctx: CommandContext): Array<[string, HandlerEntry]> {
   const {
     env, store, workspace, toast, activeContent, editorContent,
-    isV1Document, isViewingRevision, flushSave, editor, ui,
+    isV1Document, isViewingRevision, isInCompareTwo, flushSave,
+    editor, ui,
   } = ctx;
 
   // Common enablement predicates — hoisted so the ID→predicate mapping
   // is a clean lookup rather than inline repetition.
   const hasActiveFile = () => !!workspace.state.activeFile;
   const hasActiveFileEditable = () => hasActiveFile() && !isViewingRevision.value;
-  const canExport = () => hasActiveFile() && !isV1Document.value;
+  // canExport / canCopyAll: also gate on compareTwo. In compareTwo the
+  // editorContent buffer is the historical A side; copying or
+  // exporting it would silently produce a misleading result, so the
+  // command surfaces as greyed in menu + palette.
+  const canExport = () => hasActiveFile() && !isV1Document.value && !isInCompareTwo.value;
+  const canCopyAll = () => hasActiveFile() && !isInCompareTwo.value;
 
   // Opens a workbench drawer tab, toggling if the tab is already open.
   const toggleDrawerTab = (tab: WorkbenchTab) => {
@@ -217,7 +229,7 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["library.newFolder", { handler: handleNewFolder }],
     ["file.saveVersion", { handler: handleSaveVersion, isEnabled: hasActiveFileEditable }],
     ["file.exportPdf", { handler: handleExport, isEnabled: canExport }],
-    ["file.exportDs", { handler: handleExportDs, isEnabled: hasActiveFile }],
+    ["file.exportDs", { handler: handleExportDs, isEnabled: canCopyAll }],
     ["file.settings", { handler: () => ui.openSettings() }],
     ["file.settings.spellcheck", { handler: () => ui.openSettings("spellcheck") }],
     ["file.quit", { handler: handleQuit }],
@@ -237,7 +249,7 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["edit.selectAll", { handler: () => editor.selectAll(), isEnabled: hasActiveFile }],
     ["edit.find", { handler: () => openSearch("find"), isEnabled: hasActiveFile }],
     ["edit.findReplace", { handler: () => openSearch("replace"), isEnabled: hasActiveFile }],
-    ["edit.copyAll", { handler: handleCopyAll, isEnabled: hasActiveFile }],
+    ["edit.copyAll", { handler: handleCopyAll, isEnabled: canCopyAll }],
 
     // View
     ["view.commandPalette", { handler: () => ui.openPalette("command") }],

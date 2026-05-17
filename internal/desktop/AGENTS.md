@@ -121,6 +121,19 @@ All methods live on a single `*App` struct, split across focused files:
 - The spellcheck dictionary lives at `.downstage/dictionary.txt` in the
   library root. This is a library-level resource, not a per-file or
   per-draft concept.
+- The hidden-revisions list lives at `.downstage/hidden-revisions.txt`
+  in the library root — plain text, one full commit hash per line,
+  sorted and deduped on write. Library-scoped, not per-file: a flat
+  set of hashes filters correctly regardless of how a file has moved.
+  Writes go through `hiddenMu` and use a tmp+rename atomic pattern,
+  so rapid hide/unhide clicks can't lose updates or leave torn writes
+  on a crash. The frontend filters the Versions list against this set;
+  nothing about git history is altered. Plain text (no JSON, no
+  schema version) intentionally — every past and future build
+  understands "one hash per line", which sidesteps the older-build-
+  overwrites-future-data risk a versioned format would carry. Future
+  metadata (e.g., "when hidden, by whom") would ship as a sibling
+  file, not by mutating this format.
 
 ## `OnBeforeClose` Event Contract
 

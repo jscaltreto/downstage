@@ -90,6 +90,15 @@ export interface LibraryEnv {
   // to avoid unbounded payloads on long-lived libraries.
   getRevisions(path: string, limit?: number): Promise<Revision[]>;
   readFileAtRevision(path: string, hash: string): Promise<string>;
+  // Library-scoped list of commit hashes the user has hidden from the
+  // Versions panel. Plain-text storage at
+  // `.downstage/hidden-revisions.txt`; the frontend filters
+  // `getRevisions()` output against this set. Mutations are
+  // idempotent — hiding an already-hidden hash or unhiding an absent
+  // hash is a no-op success.
+  getHiddenRevisions(): Promise<string[]>;
+  hideRevision(hash: string): Promise<void>;
+  unhideRevision(hash: string): Promise<void>;
   // Per-file status for the desktop status bar: dirty flag + last
   // snapshot time + missing/untracked signals. See FileGitStatus.
   getFileGitStatus(path: string): Promise<FileGitStatus>;

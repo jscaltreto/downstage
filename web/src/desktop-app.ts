@@ -253,6 +253,18 @@ class WailsBridge implements DesktopCapabilities {
     return await App.ReadFileAtRevision(path, hash);
   }
 
+  async getHiddenRevisions(): Promise<string[]> {
+    return await App.GetHiddenRevisions();
+  }
+
+  async hideRevision(hash: string): Promise<void> {
+    await App.HideRevision(hash);
+  }
+
+  async unhideRevision(hash: string): Promise<void> {
+    await App.UnhideRevision(hash);
+  }
+
   async getFileGitStatus(path: string): Promise<FileGitStatus> {
     const raw = await App.GetFileGitStatus(path);
     // Defensive reshape so missing/typos in the generated Wails types

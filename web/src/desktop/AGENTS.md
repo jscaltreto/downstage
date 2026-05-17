@@ -131,6 +131,64 @@ so switching documents automatically invalidates a prior dismissal.
   `createDownstageHighlighter` is reused so script tokens stay
   coloured in the diff; diagnostics, completion, search, and
   scroll-sync are deliberately excluded (read-only context).
+- **Right-click context menu** on a revision row offers View this
+  version / Compare to current / Compare with… / Copy hash / Hide
+  this version (or Unhide when the row is hidden). The menu mirrors
+  `LibraryTree.vue`'s pattern: local `ref<{ rev, x, y } | null>`
+  state in `AppDesktop.vue`, `@contextmenu.prevent` on each row,
+  click-outside dismiss via `@click="closeRevisionMenu"` on the
+  scroll wrapper, `@click.stop` on the menu itself. Restore is NOT
+  in the menu — destructive actions live on the banner only.
+- **Compare with… enters picking mode.** `Workspace.startPickSecond(hash)`
+  loads the picked revision as A and flips `pickingSecondForCompare`.
+  A persistent hint banner appears in the Versions header
+  ("Pick another version to compare with…"). The next revision row
+  click resolves to compareTwo via `resolvePickSecond(hash)`. Self-
+  compare (same hash as A) is a no-op so the user can try again.
+  Escape and sidebar-collapse cancel picking.
+- **compareTwo** = A and B are both historical revisions.
+  `workspace.state.compareSecondHash/Content/Meta` carry the B side.
+  The editor's revision banner is replaced by a compareTwo banner
+  ("Comparing [A] vs [B]") with a single "Stop comparing" CTA that
+  calls `clearRevisionView()` — a full exit back to the current
+  buffer. Stopping a comparison should not pivot the user into a
+  different one; the intermediate compareCurrent state was clever-
+  not-helpful. No Restore CTA in compareTwo (ambiguous from
+  arbitrary A/B; force the user to exit and pick a single revision
+  first). `RevisionDiffView`'s `modified` prop swaps from
+  `activeContent` to `compareSecondContent` and the modifiedLabel
+  flips from "Current" to the B-side timestamp.
+- **Disabled commands in compareTwo.** `edit.copyAll`, `file.exportDs`,
+  `file.exportPdf` gate on `isInCompareTwo` because `editorContent`
+  in compareTwo is the A-side buffer — copying or exporting it would
+  silently produce a misleading result. The dispatcher refresh
+  watcher in `AppDesktop.vue` touches
+  `workspace.state.revisionViewMode` AND
+  `workspace.state.compareSecondHash` so Vue tracks the
+  derived-predicate inputs and `setDisabledCommands` fires on
+  compare-two enter/exit.
+
+## Hidden Revisions
+
+- **`Workspace.state.hiddenRevisionHashes: Set<string>`** filters the
+  Versions panel without altering git history. Backing storage is
+  `.downstage/hidden-revisions.txt` (plain text, one full hash per
+  line, sorted + deduped, atomic tmp+rename writes — see the backend
+  `internal/desktop/AGENTS.md`). Loaded in `Workspace.init()` and
+  reloaded in `changeLibraryLocation()` BEFORE the host's downstream
+  `selectFile`, so the panel never briefly flashes unfiltered.
+- **`Workspace.visibleRevisions`** is the computed v-for source for
+  the sidebar; it filters `state.revisions` by the hidden set unless
+  `state.showHidden` is on (session-only toggle exposed by the
+  "Show hidden (N)" header button when N > 0).
+- **Hiding the currently-viewed revision auto-exits revision view.**
+  `Workspace.hideRevision(hash)` calls `clearRevisionView()` when
+  `hash === viewingRevisionHash` OR `hash === compareSecondHash`.
+  Otherwise the banner would point at a row that no longer renders —
+  an orphan state. Same goes for compareTwo's B-side.
+- `hideRevision` / `unhideRevision` are idempotent on both sides
+  (TS + Go). Hiding an already-hidden hash or unhiding an absent
+  hash is a silent success.
 
 ## Library Tree
 
