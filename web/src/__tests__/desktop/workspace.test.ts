@@ -1189,5 +1189,40 @@ describe("Workspace", () => {
       expect(ws.state.viewingRevisionHash).toBe("rev1");
       expect(ws.state.isLoadingFile).toBe(false);
     });
+
+    // Failed reads usually mean the file vanished out-of-band (deleted
+    // in another tool, network share dropped, etc.). Refresh the tree
+    // on failure so a stale row stops occupying space in the sidebar.
+    it("refreshes the library tree when a read fails", async () => {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [
+          { path: "alive.ds", name: "alive.ds", updatedAt: "" },
+          { path: "gone.ds", name: "gone.ds", updatedAt: "" },
+        ],
+        _contents: { "alive.ds": "ok" },
+      });
+      const ws = new Workspace(env);
+      await ws.init();
+      expect(ws.libraryFiles.value.map((f) => f.path)).toContain("gone.ds");
+      await ws.selectFile("alive.ds");
+
+      // Simulate gone.ds being deleted from disk: read throws AND the
+      // file is removed from the filesystem stub so the post-failure
+      // refresh observes the new reality.
+      const originalRead = env.readLibraryFile;
+      env.readLibraryFile = async (p: string) => {
+        if (p === "gone.ds") throw new Error("ENOENT");
+        return originalRead(p);
+      };
+      env._files = env._files.filter((f) => f.path !== "gone.ds");
+
+      await expect(ws.selectFile("gone.ds")).rejects.toThrow(/ENOENT/);
+
+      // The tree refresh inside the catch must have run — gone.ds
+      // should no longer be in the sidebar list.
+      expect(ws.libraryFiles.value.map((f) => f.path)).not.toContain("gone.ds");
+      expect(ws.libraryFiles.value.map((f) => f.path)).toContain("alive.ds");
+    });
   });
 });
