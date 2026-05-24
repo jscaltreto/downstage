@@ -185,6 +185,9 @@ jobs:
     needs:
       - vscode-vsix
       - upload-vsix
+    environment:
+      name: marketplace-publish
+      url: https://marketplace.visualstudio.com/items?itemName=downstage.downstage-vscode
     permissions:
       contents: read
 
@@ -238,6 +241,9 @@ jobs:
     needs:
       - vscode-vsix
       - upload-vsix
+    environment:
+      name: marketplace-publish
+      url: https://open-vsx.org/extension/downstage/downstage-vscode
     permissions:
       contents: read
 

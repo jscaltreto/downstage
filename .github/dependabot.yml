@@ -5,19 +5,46 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 5
     commit-message:
       prefix: "chore(deps)"
+    groups:
+      go-patch:
+        update-types: ["patch"]
 
   - package-ecosystem: npm
     directory: /editors/vscode
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 5
     commit-message:
       prefix: "chore(deps)"
+    groups:
+      vscode-patch:
+        update-types: ["patch"]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      web-patch:
+        update-types: ["patch"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 5
     commit-message:
       prefix: "chore(deps)"
+    groups:
+      actions-patch:
+        update-types: ["patch"]
