@@ -319,6 +319,52 @@ describe("AppDesktop flush ordering", () => {
     const writesToOther = env._calls.filter((c) => c === "writeLibraryFile:other.ds");
     expect(writesToOther).toEqual([]);
   });
+
+  // Regression for the M7 follow-up: when workspace.selectFile rejects
+  // (e.g. the file was deleted out from under the app), the host has to
+  // surface a toast. Pre-fix the rejection became an unhandled promise
+  // and the UI just silently reverted to the previous file — confusing.
+  it("surfaces a toast when selectFile fails for a sidebar click", async () => {
+    stubDom();
+    const env = createEnv({
+      files: [
+        { path: "play.ds", name: "play.ds", updatedAt: "" },
+        { path: "dead.ds", name: "dead.ds", updatedAt: "" },
+      ],
+    });
+    env._setContent("play.ds", "old");
+    const originalRead = env.readLibraryFile;
+    env.readLibraryFile = async (p: string) => {
+      if (p === "dead.ds") throw new Error("ENOENT: no such file");
+      return originalRead(p);
+    };
+
+    const addToast = vi.fn();
+    const wrapper = mount(AppDesktop, {
+      props: { env },
+      global: {
+        stubs: {
+          ...globalStubs,
+          ToastManager: {
+            name: "ToastManager",
+            template: '<div />',
+            methods: { addToast },
+          },
+        },
+      },
+    });
+    await flushPromises();
+    addToast.mockClear();
+
+    const deadRow = wrapper.find('[data-testid="library-tree-row"][data-path="dead.ds"]');
+    deadRow.trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises();
+
+    const errorCalls = addToast.mock.calls.filter((args) => args[1] === "error");
+    expect(errorCalls.length, `toast calls: ${JSON.stringify(addToast.mock.calls)}`).toBeGreaterThan(0);
+    expect(errorCalls[0][0]).toMatch(/dead\.ds/);
+  });
 });
 
 describe("AppDesktop revision compare", () => {

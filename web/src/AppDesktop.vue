@@ -450,9 +450,14 @@ async function handleChangeLibraryLocation() {
 
 async function selectLibraryFile(path: string) {
   await flushSave();
-  const content = await workspace.selectFile(path);
-  markProgrammaticLoad(path, content);
-  activeContent.value = content;
+  try {
+    const content = await workspace.selectFile(path);
+    markProgrammaticLoad(path, content);
+    activeContent.value = content;
+  } catch (error: unknown) {
+    const name = path.split(/[\\/]/).pop() ?? path;
+    toastManager.value?.addToast(`Failed to open ${name}: ${errorMessage(error)}`, "error");
+  }
 }
 
 async function handleViewRevision(hash: string) {
