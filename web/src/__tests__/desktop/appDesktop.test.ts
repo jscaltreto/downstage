@@ -288,6 +288,37 @@ describe("AppDesktop flush ordering", () => {
     expect(writeDone).toBeGreaterThanOrEqual(0);
     expect(readOther).toBeGreaterThan(writeDone);
   });
+
+  // M6: a programmatic file switch must NOT trigger the 1s autosave
+  // watcher to re-write the just-loaded bytes back to disk. Without the
+  // (file, content) sentinel, selecting "other.ds" would land its
+  // contents in activeContent, the watcher would fire, and 1s later we'd
+  // see a writeLibraryFile:other.ds with identical bytes — wasted I/O
+  // and a spurious dirty flicker. The fix: AppDesktop.markProgrammaticLoad
+  // suppresses the next tick when (file, content) matches.
+  it("programmatic file switch does NOT trigger autosave write to new file", async () => {
+    const { wrapper, env } = await mountApp({
+      files: [
+        { path: "play.ds", name: "play.ds", updatedAt: "" },
+        { path: "other.ds", name: "other.ds", updatedAt: "" },
+      ],
+    });
+    env._setContent("other.ds", "other-original-content");
+
+    // Click "other.ds" — a pure programmatic load, no prior user edit.
+    const otherRow = wrapper.find('[data-testid="library-tree-row"][data-path="other.ds"]');
+    otherRow.trigger("click");
+
+    // Let the autosave debounce (1s) fully fire, then any microtasks.
+    await vi.advanceTimersByTimeAsync(2500);
+    await flushPromises();
+
+    // The only writeLibraryFile in this scenario should be the initial
+    // flush of play.ds (if any). NO write to other.ds should appear —
+    // we just loaded it; writing it back would be a no-op disk hit.
+    const writesToOther = env._calls.filter((c) => c === "writeLibraryFile:other.ds");
+    expect(writesToOther).toEqual([]);
+  });
 });
 
 describe("AppDesktop revision compare", () => {

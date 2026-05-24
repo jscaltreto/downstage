@@ -35,6 +35,9 @@ type LibraryNode struct {
 }
 
 func (a *App) ChangeLibraryLocation() (string, error) {
+	// Run the directory dialog WITHOUT libMu held — the user may sit
+	// in the picker indefinitely and we mustn't block every other RPC
+	// while they decide.
 	selection, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Choose Library Location",
 	})
@@ -44,7 +47,12 @@ func (a *App) ChangeLibraryLocation() (string, error) {
 	if selection == "" {
 		return "", nil
 	}
+
+	// Now take the writer Lock for the brief field swap; release
+	// before the slower disk operations (config write + git init).
+	a.libMu.Lock()
 	a.currentLibrary = selection
+	a.libMu.Unlock()
 
 	if err := a.updateConfig(func(c *Config) {
 		c.LastLibraryPath = selection
@@ -58,6 +66,8 @@ func (a *App) ChangeLibraryLocation() (string, error) {
 }
 
 func (a *App) GetLibraryTree() ([]LibraryNode, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if a.currentLibrary == "" {
 		return []LibraryNode{}, nil
 	}
@@ -128,6 +138,8 @@ func buildLibraryChildren(root, relDir string) ([]LibraryNode, error) {
 }
 
 func (a *App) CreateLibraryFolder(relPath string) error {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	fullPath, err := a.safePath(relPath)
 	if err != nil {
 		return err
@@ -139,6 +151,8 @@ func (a *App) CreateLibraryFolder(relPath string) error {
 }
 
 func (a *App) MoveLibraryEntry(srcRel, dstRel string) (string, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	srcFull, err := a.safePath(srcRel)
 	if err != nil {
 		return "", fmt.Errorf("source: %w", err)
@@ -213,6 +227,10 @@ func collectTrackedPaths(fullPath, relPath string) ([]string, error) {
 	return paths, err
 }
 
+// commitMove is private; callers (MoveLibraryEntry, RenameLibraryEntry)
+// hold libMu.RLock for the duration of their work, so this helper
+// must NOT acquire a second RLock (would deadlock against a pending
+// writer).
 func (a *App) commitMove(srcPaths []string, dstRel string) error {
 	if a.currentLibrary == "" {
 		return fmt.Errorf("no library open")
@@ -304,6 +322,8 @@ func (a *App) RenameLibraryEntry(srcRel, newName string) (string, error) {
 }
 
 func (a *App) ReadLibraryFile(relPath string) (string, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	fullPath, err := a.safePath(relPath)
 	if err != nil {
 		return "", err
@@ -316,6 +336,8 @@ func (a *App) ReadLibraryFile(relPath string) (string, error) {
 }
 
 func (a *App) WriteLibraryFile(relPath string, content string) error {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	fullPath, err := a.safePath(relPath)
 	if err != nil {
 		return err
@@ -327,6 +349,8 @@ func (a *App) WriteLibraryFile(relPath string, content string) error {
 }
 
 func (a *App) CreateLibraryFile(name string, content string) (string, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if a.currentLibrary == "" {
 		return "", fmt.Errorf("no library open")
 	}
@@ -383,6 +407,8 @@ func (a *App) OpenExternalFileDialog() (string, error) {
 }
 
 func (a *App) ReadExternalFile(absPath string) (ExternalFileResult, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if !filepath.IsAbs(absPath) {
 		return ExternalFileResult{}, fmt.Errorf("absolute path required")
 	}
@@ -441,6 +467,8 @@ func (a *App) ReadExternalFile(absPath string) (ExternalFileResult, error) {
 }
 
 func (a *App) AddExternalFileToLibrary(absSrc string, destRelDir string) (string, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if a.currentLibrary == "" {
 		return "", fmt.Errorf("no library open")
 	}
@@ -530,6 +558,8 @@ func (a *App) writeDictionary(words []string) error {
 }
 
 func (a *App) GetSpellAllowlist() []string {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	words := a.readDictionary()
 	if words == nil {
 		return []string{}
@@ -538,6 +568,8 @@ func (a *App) GetSpellAllowlist() []string {
 }
 
 func (a *App) AddSpellAllowlistWord(word string) (bool, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	word = strings.TrimSpace(word)
 	if word == "" {
 		return false, nil
@@ -557,6 +589,8 @@ func (a *App) AddSpellAllowlistWord(word string) (bool, error) {
 }
 
 func (a *App) RemoveSpellAllowlistWord(word string) (bool, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	word = strings.TrimSpace(word)
 	if word == "" {
 		return false, nil
@@ -651,6 +685,8 @@ func (a *App) writeHiddenRevisions(hashes []string) error {
 }
 
 func (a *App) GetHiddenRevisions() ([]string, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	a.hiddenMu.Lock()
 	defer a.hiddenMu.Unlock()
 	h, err := a.readHiddenRevisions()
@@ -668,6 +704,8 @@ func (a *App) HideRevision(hash string) error {
 	if hash == "" {
 		return fmt.Errorf("hash is empty")
 	}
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	a.hiddenMu.Lock()
 	defer a.hiddenMu.Unlock()
 	current, err := a.readHiddenRevisions()
@@ -688,6 +726,8 @@ func (a *App) UnhideRevision(hash string) error {
 	if hash == "" {
 		return fmt.Errorf("hash is empty")
 	}
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	a.hiddenMu.Lock()
 	defer a.hiddenMu.Unlock()
 	current, err := a.readHiddenRevisions()

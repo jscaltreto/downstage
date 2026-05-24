@@ -9,11 +9,25 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// CommandEmitter is what each menu item's Click callback invokes to
+// notify the frontend that a command fired. Extracted so tests can
+// drop in a capture-emitter and verify which IDs the click closures
+// reach without standing up a Wails runtime.
+type CommandEmitter func(id string)
+
 func BuildMenu(app *App, disabled map[string]bool) *menu.Menu {
-	return buildMenuForGOOS(app, disabled, goruntime.GOOS)
+	return buildMenuForGOOS(app, disabled, goruntime.GOOS, defaultEmitter(app))
 }
 
-func buildMenuForGOOS(app *App, disabled map[string]bool, goos string) *menu.Menu {
+// defaultEmitter is the production emitter — fires a Wails event
+// that the frontend's dispatcher-registry listens on.
+func defaultEmitter(app *App) CommandEmitter {
+	return func(id string) {
+		runtime.EventsEmit(app.ctx, eventCommandExecute, id)
+	}
+}
+
+func buildMenuForGOOS(app *App, disabled map[string]bool, goos string, emit CommandEmitter) *menu.Menu {
 	root := menu.NewMenu()
 
 	if goos == "darwin" {
@@ -49,7 +63,7 @@ func buildMenuForGOOS(app *App, disabled map[string]bool, goos string) *menu.Men
 			submenu.Append(menu.EditMenu())
 		}
 
-		appendGroupItems(app, submenu, g.items, disabled)
+		appendGroupItems(submenu, g.items, disabled, emit)
 		root.AddSubmenu(g.name).Merge(submenu)
 	}
 
@@ -60,7 +74,7 @@ func buildMenuForGOOS(app *App, disabled map[string]bool, goos string) *menu.Men
 	return root
 }
 
-func appendGroupItems(app *App, parent *menu.Menu, items []Command, disabled map[string]bool) {
+func appendGroupItems(parent *menu.Menu, items []Command, disabled map[string]bool, emit CommandEmitter) {
 	type entry struct {
 		kind       string
 		cmdIdx     int
@@ -85,18 +99,18 @@ func appendGroupItems(app *App, parent *menu.Menu, items []Command, disabled map
 
 	for _, e := range entries {
 		if e.kind == "leaf" {
-			addLeaf(app, parent, items[e.cmdIdx], disabled)
+			addLeaf(parent, items[e.cmdIdx], disabled, emit)
 			continue
 		}
 		nested := menu.NewMenu()
 		for _, cmd := range buckets[e.submenuKey] {
-			addLeaf(app, nested, cmd, disabled)
+			addLeaf(nested, cmd, disabled, emit)
 		}
 		parent.AddSubmenu(e.submenuKey).Merge(nested)
 	}
 }
 
-func addLeaf(app *App, parent *menu.Menu, cmd Command, disabled map[string]bool) {
+func addLeaf(parent *menu.Menu, cmd Command, disabled map[string]bool, emit CommandEmitter) {
 	if cmd.BeforeSeparator {
 		parent.AddSeparator()
 	}
@@ -108,14 +122,11 @@ func addLeaf(app *App, parent *menu.Menu, cmd Command, disabled map[string]bool)
 		}
 		accel = parsed
 	}
-	item := parent.AddText(cmd.Label, accel, emitCommand(app, cmd.ID))
+	id := cmd.ID
+	item := parent.AddText(cmd.Label, accel, func(_ *menu.CallbackData) {
+		emit(id)
+	})
 	if disabled[cmd.ID] {
 		item.Disabled = true
-	}
-}
-
-func emitCommand(app *App, id string) func(_ *menu.CallbackData) {
-	return func(_ *menu.CallbackData) {
-		runtime.EventsEmit(app.ctx, eventCommandExecute, id)
 	}
 }

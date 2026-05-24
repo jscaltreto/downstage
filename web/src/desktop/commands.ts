@@ -20,6 +20,11 @@ export interface CommandContext {
   isInCompareTwo: Ref<boolean>;
   isViewingExternal: Ref<boolean>;
   flushSave: () => Promise<void>;
+  // Host-owned callback to suppress the autosave watcher's next tick
+  // when commands.ts assigns activeContent.value after a programmatic
+  // load. The host gates its autosave-watcher on a (file, content)
+  // sentinel; this is the wire to set it.
+  markProgrammaticLoad: (file: string, content: string) => void;
   editor: {
     applyFormat: (action: string) => void;
     undo: () => void;
@@ -52,7 +57,7 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
   const {
     env, store, workspace, toast, activeContent, editorContent,
     isV1Document, isViewingRevision, isInCompareTwo, isViewingExternal,
-    flushSave, editor, ui,
+    flushSave, markProgrammaticLoad, editor, ui,
   } = ctx;
 
   const hasActiveFile = () => !!workspace.state.activeFile;
@@ -83,7 +88,9 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     await flushSave();
     try {
       const path = await workspace.createFile("Untitled Play", newPlayTemplate());
-      activeContent.value = await workspace.selectFile(path);
+      const content = await workspace.selectFile(path);
+      markProgrammaticLoad(path, content);
+      activeContent.value = content;
       toast.addToast("Created new play", "success");
     } catch (error: unknown) {
       toast.addToast(`Failed to create file: ${errorMessage(error)}`, "error");
@@ -161,7 +168,9 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     const nextPath = files[nextIdx].path;
     void (async () => {
       await flushSave();
-      activeContent.value = await workspace.selectFile(nextPath);
+      const content = await workspace.selectFile(nextPath);
+      markProgrammaticLoad(nextPath, content);
+      activeContent.value = content;
     })();
   }
 

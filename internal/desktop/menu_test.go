@@ -52,7 +52,7 @@ func TestBuildMenu_FiltersLinuxOnlyAndNestsExportSubmenu(t *testing.T) {
 		return got
 	}
 
-	linuxMenu := buildMenuForGOOS(app, nil, "linux")
+	linuxMenu := buildMenuForGOOS(app, nil, "linux", defaultEmitter(app))
 	linuxEdit := labelsIn(linuxMenu, "Edit")
 	assert.True(t, linuxEdit["Undo"], "Linux Edit should include explicit Undo")
 	assert.True(t, linuxEdit["Cut"], "Linux Edit should include explicit Cut")
@@ -60,11 +60,11 @@ func TestBuildMenu_FiltersLinuxOnlyAndNestsExportSubmenu(t *testing.T) {
 	assert.True(t, linuxFile["Quit Downstage Write"], "Linux File should include Quit")
 	assert.True(t, linuxFile["PDF…"], "Export > PDF… must be walked via sub-submenu")
 
-	darwinMenu := buildMenuForGOOS(app, nil, "darwin")
+	darwinMenu := buildMenuForGOOS(app, nil, "darwin", defaultEmitter(app))
 	darwinFile := labelsIn(darwinMenu, "File")
 	assert.False(t, darwinFile["Quit Downstage Write"], "macOS AppMenu role provides Quit; catalog entry must be filtered")
 
-	windowsMenu := buildMenuForGOOS(app, nil, "windows")
+	windowsMenu := buildMenuForGOOS(app, nil, "windows", defaultEmitter(app))
 	windowsFile := labelsIn(windowsMenu, "File")
 	assert.True(t, windowsFile["Quit Downstage Write"], "Windows File should include Quit")
 }
@@ -149,5 +149,74 @@ func collectLabels(m *menu.Menu, out map[string]bool) {
 		if item.SubMenu != nil {
 			collectLabels(item.SubMenu, out)
 		}
+	}
+}
+
+// T13: prove every menu item built from the catalog has a Click
+// callback that emits its declared command ID — covers the previously
+// untested wire between menu construction and the frontend dispatcher.
+//
+// Invoking each Click via a capture-emitter sidesteps the Wails
+// runtime entirely (no ctx, no event bus needed).
+func TestBuildMenu_ClickCallbacksEmitCommandIDs(t *testing.T) {
+	app := NewApp()
+
+	for _, goos := range []string{"linux", "darwin", "windows"} {
+		t.Run(goos, func(t *testing.T) {
+			var emitted []string
+			emit := func(id string) { emitted = append(emitted, id) }
+			m := buildMenuForGOOS(app, nil, goos, emit)
+
+			// Walk the tree, invoke every leaf's Click. Collect a map
+			// from invoked label → emitted ID so we can prove each
+			// label resolves to the catalog ID it's supposed to.
+			invocations := map[string]string{}
+			var walk func(*menu.Menu)
+			walk = func(sub *menu.Menu) {
+				for _, item := range sub.Items {
+					if item.SubMenu != nil {
+						walk(item.SubMenu)
+					}
+					if item.Type != menu.TextType || item.Click == nil {
+						continue
+					}
+					emitted = nil
+					item.Click(nil)
+					// Native role items (EditMenu, AppMenu, WindowMenu)
+					// have Click callbacks Wails provides; ours are the
+					// catalog-derived ones that emit exactly one ID per
+					// click. Skip items that emitted nothing — they're
+					// native-role passthroughs we don't own.
+					if len(emitted) == 1 {
+						invocations[item.Label] = emitted[0]
+					}
+				}
+			}
+			walk(m)
+
+			// Cross-check: every catalog command that's allowed on this
+			// GOOS and has a MenuPath should appear in invocations with
+			// its declared ID. Roles like macOS's AppMenu Quit are
+			// platform-substituted, so we look up by label.
+			catalog := map[string]string{}
+			for _, cmd := range Commands() {
+				if len(cmd.MenuPath) == 0 || !cmd.PlatformAllows(goos) {
+					continue
+				}
+				catalog[cmd.Label] = cmd.ID
+			}
+
+			for label, expectedID := range catalog {
+				gotID, ok := invocations[label]
+				if !ok {
+					t.Errorf("%s: menu item %q has no testable Click callback", goos, label)
+					continue
+				}
+				if gotID != expectedID {
+					t.Errorf("%s: menu item %q clicked → emitted %q, want %q",
+						goos, label, gotID, expectedID)
+				}
+			}
+		})
 	}
 }

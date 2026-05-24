@@ -41,13 +41,17 @@ const EVT_BEFORE_CLOSE = "downstage:before-close";
 const EVT_FLUSH_COMPLETE = "downstage:flush-complete";
 const EVT_COMMAND_EXECUTE = "command:execute";
 
-EventsOn(EVT_COMMAND_EXECUTE, (id: unknown) => {
+// EventsOn returns its unsubscribe function (see wailsjs/runtime/
+// runtime.d.ts). We capture both so HMR can dispose of the listeners
+// before a fresh module evaluation re-registers them; otherwise dev
+// reloads stack subscribers and every menu click dispatches N times.
+const cancelCommandEvent = EventsOn(EVT_COMMAND_EXECUTE, (id: unknown) => {
   if (typeof id === "string") {
     void dispatchCommand(id);
   }
 });
 
-EventsOn(EVT_BEFORE_CLOSE, async () => {
+const cancelBeforeCloseEvent = EventsOn(EVT_BEFORE_CLOSE, async () => {
   try {
     await invokeRegisteredFlushSave();
     await env.flushPreferences();
@@ -57,6 +61,15 @@ EventsOn(EVT_BEFORE_CLOSE, async () => {
     EventsEmit(EVT_FLUSH_COMPLETE);
   }
 });
+
+// Vite injects import.meta.hot only in dev; the guard makes this a
+// no-op in production builds.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    cancelCommandEvent();
+    cancelBeforeCloseEvent();
+  });
+}
 
 function normalizeLibraryNode(node: unknown): LibraryNode {
   const current = node as {

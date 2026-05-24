@@ -137,14 +137,20 @@ export class Workspace {
   }
 
   async selectFile(path: string): Promise<string> {
-    this.state.externalFile = null;
-    this.state.activeFile = path;
-    this.clearRevisionView();
-    this.cancelDirtyReconcile();
     this.state.isLoadingFile = true;
     try {
+      // Throwing operations come first: a failure leaves activeFile,
+      // externalFile, viewing-revision state, and the dirty-reconcile
+      // timer untouched, so the UI still represents the old selection
+      // and the user can recover. loadRevisions/refreshGitStatus run
+      // AFTER the commit because they swallow errors internally and
+      // can degrade gracefully.
       const content = await this.env.readLibraryFile(path);
       await this.env.setActiveLibraryFile(path);
+      this.state.externalFile = null;
+      this.state.activeFile = path;
+      this.clearRevisionView();
+      this.cancelDirtyReconcile();
       await this.loadRevisions();
       await this.refreshGitStatus();
       return content;

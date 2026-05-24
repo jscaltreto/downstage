@@ -289,11 +289,10 @@ onMounted(async () => {
   if (workspace.state.libraryPath && workspace.libraryFiles.value.length > 0) {
     const lastFile = await props.env.getLastActiveFile();
     const exists = workspace.libraryFiles.value.some(f => f.path === lastFile);
-    if (lastFile && exists) {
-      activeContent.value = await workspace.selectFile(lastFile);
-    } else {
-      activeContent.value = await workspace.selectFile(workspace.libraryFiles.value[0].path);
-    }
+    const path = lastFile && exists ? lastFile : workspace.libraryFiles.value[0].path;
+    const content = await workspace.selectFile(path);
+    markProgrammaticLoad(path, content);
+    activeContent.value = content;
   }
 
   if (workspace.state.lastDrawerTab) {
@@ -327,6 +326,7 @@ onMounted(async () => {
     isInCompareTwo: inCompareTwo,
     isViewingExternal,
     flushSave,
+    markProgrammaticLoad,
     editor: {
       applyFormat: (action: string) => editorRef.value?.applyFormat(action),
       undo: () => editorRef.value?.undo(),
@@ -440,14 +440,19 @@ async function handleChangeLibraryLocation() {
   if (!path) return;
   activeContent.value = "";
   if (workspace.libraryFiles.value.length > 0) {
-    activeContent.value = await workspace.selectFile(workspace.libraryFiles.value[0].path);
+    const firstPath = workspace.libraryFiles.value[0].path;
+    const content = await workspace.selectFile(firstPath);
+    markProgrammaticLoad(firstPath, content);
+    activeContent.value = content;
   }
   toastManager.value?.addToast(`Opened library: ${path.split(/[\\/]/).pop()}`, "success");
 }
 
 async function selectLibraryFile(path: string) {
   await flushSave();
-  activeContent.value = await workspace.selectFile(path);
+  const content = await workspace.selectFile(path);
+  markProgrammaticLoad(path, content);
+  activeContent.value = content;
 }
 
 async function handleViewRevision(hash: string) {
@@ -478,6 +483,12 @@ async function handleRestoreRevision() {
   if (!hash) return;
   try {
     const restored = await workspace.restoreRevision(hash, activeContent.value);
+    // restoreRevision wrote `restored` to disk; the autosave watcher
+    // would re-write the same bytes a second later if we didn't mark
+    // this as a programmatic load.
+    if (workspace.state.activeFile) {
+      markProgrammaticLoad(workspace.state.activeFile, restored);
+    }
     activeContent.value = restored;
     toastManager.value?.addToast("Version restored", "success");
   } catch (error: unknown) {
@@ -493,8 +504,28 @@ async function removeSpellAllowlistWord(word: string) {
   return workspace.removeAllowlistWord(word);
 }
 
+// Programmatic-load sentinel for the autosave watcher. Set right
+// before any host-driven `activeContent.value = …` assignment so the
+// watcher knows the next tick is a load, not a user edit. The sentinel
+// is scoped to (file, content): an external-file load (activeFile=null)
+// can't poison a later library-file save with the same bytes, and the
+// scoped match clears itself on first consumption so a subsequent
+// matching keystroke isn't swallowed.
+const lastLoaded = ref<{ file: string; content: string } | null>(null);
+function markProgrammaticLoad(file: string, content: string) {
+  lastLoaded.value = { file, content };
+}
+
 watch(activeContent, (newContent) => {
   if (!workspace.state.activeFile) return;
+  if (
+    lastLoaded.value &&
+    lastLoaded.value.file === workspace.state.activeFile &&
+    lastLoaded.value.content === newContent
+  ) {
+    lastLoaded.value = null;
+    return;
+  }
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
     saveTimer = null;

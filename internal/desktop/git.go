@@ -47,6 +47,8 @@ func snapshotAuthor(r *git.Repository) *object.Signature {
 }
 
 func (a *App) SnapshotFile(relPath string, message string) error {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if a.currentLibrary == "" {
 		return fmt.Errorf("no library open")
 	}
@@ -88,6 +90,8 @@ func (a *App) SnapshotFile(relPath string, message string) error {
 const defaultRevisionLimit = 100
 
 func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if a.currentLibrary == "" {
 		return []Revision{}, nil
 	}
@@ -255,6 +259,8 @@ type FileGitStatus struct {
 }
 
 func (a *App) GetFileGitStatus(relPath string) (FileGitStatus, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if a.currentLibrary == "" {
 		return FileGitStatus{}, fmt.Errorf("no library open")
 	}
@@ -329,6 +335,8 @@ func lastCommitTimeForPath(r *git.Repository, relPath string) (string, bool) {
 }
 
 func (a *App) ReadFileAtRevision(relPath string, hash string) (string, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if a.currentLibrary == "" {
 		return "", fmt.Errorf("no library open")
 	}

@@ -1118,4 +1118,76 @@ describe("Workspace", () => {
     ws.toggleFolderExpansion("a");
     expect(ws.state.expandedFolders.has("a")).toBe(false);
   });
+
+  // M7: selectFile must not commit destructive in-memory state until
+  // the throwing operations (readLibraryFile, setActiveLibraryFile)
+  // both succeed. A failure mid-flight leaves the UI showing the
+  // previous selection with its revision view + dirty timer intact.
+  describe("selectFile failure paths", () => {
+    it("preserves previous state when readLibraryFile throws", async () => {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [
+          { path: "first.ds", name: "first.ds", updatedAt: "" },
+          { path: "second.ds", name: "second.ds", updatedAt: "" },
+        ],
+        _contents: { "first.ds": "old contents", "first.ds@rev1": "older" },
+        _revisions: [{ hash: "rev1", path: "first.ds", message: "m", author: "a", timestamp: "" }],
+      });
+      const ws = new Workspace(env);
+
+      // Set up the pre-state: viewing a revision of first.ds + dirty
+      // timer scheduled (proxied via the unforgivable internal field).
+      await ws.selectFile("first.ds");
+      await ws.viewRevision("rev1");
+      const beforeViewing = ws.state.viewingRevisionHash;
+      expect(beforeViewing).toBe("rev1");
+
+      // Force readLibraryFile to throw on the SECOND file only.
+      const originalRead = env.readLibraryFile;
+      env.readLibraryFile = async (p: string) => {
+        if (p === "second.ds") throw new Error("simulated read failure");
+        return originalRead(p);
+      };
+
+      await expect(ws.selectFile("second.ds")).rejects.toThrow(/simulated/);
+
+      // State must be untouched: still viewing rev1 of first.ds.
+      expect(ws.state.activeFile).toBe("first.ds");
+      expect(ws.state.viewingRevisionHash).toBe("rev1");
+      expect(ws.state.isLoadingFile).toBe(false);
+    });
+
+    it("preserves previous state when setActiveLibraryFile throws", async () => {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [
+          { path: "first.ds", name: "first.ds", updatedAt: "" },
+          { path: "second.ds", name: "second.ds", updatedAt: "" },
+        ],
+        _contents: {
+          "first.ds": "old",
+          "first.ds@rev1": "older",
+          "second.ds": "new",
+        },
+        _revisions: [{ hash: "rev1", path: "first.ds", message: "m", author: "a", timestamp: "" }],
+      });
+      const ws = new Workspace(env);
+      await ws.selectFile("first.ds");
+      await ws.viewRevision("rev1");
+
+      // Read succeeds; config-write step fails (e.g., disk full mid-
+      // session). The persisted last-active wouldn't have moved, so the
+      // in-memory state mustn't move either — keep them in sync.
+      env.setActiveLibraryFile = async (p: string) => {
+        throw new Error(`simulated persist failure for ${p}`);
+      };
+
+      await expect(ws.selectFile("second.ds")).rejects.toThrow(/persist failure/);
+
+      expect(ws.state.activeFile).toBe("first.ds");
+      expect(ws.state.viewingRevisionHash).toBe("rev1");
+      expect(ws.state.isLoadingFile).toBe(false);
+    });
+  });
 });

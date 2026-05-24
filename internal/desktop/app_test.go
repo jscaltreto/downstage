@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -200,18 +200,23 @@ func TestReadLibraryFile_DoesNotWriteConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(a.currentLibrary, "play.ds"), []byte("x"), 0644))
 
 	require.NoError(t, a.writeConfig(Config{LastLibraryPath: "/x", LastActiveLibraryFile: "prev.ds"}))
-	statBefore, err := os.Stat(a.configPath)
+	// Byte-equality check replaces the previous mtime+sleep pattern.
+	// Mtime is fs-resolution-dependent (some filesystems round to the
+	// second); byte equality catches any write regardless of mtime
+	// granularity and doesn't waste a 10ms sleep per run.
+	bytesBefore, err := os.ReadFile(a.configPath)
 	require.NoError(t, err)
-
-	time.Sleep(10 * time.Millisecond)
 
 	_, err = a.ReadLibraryFile("play.ds")
 	require.NoError(t, err)
 
-	statAfter, err := os.Stat(a.configPath)
+	bytesAfter, err := os.ReadFile(a.configPath)
 	require.NoError(t, err)
-	assert.Equal(t, statBefore.ModTime(), statAfter.ModTime())
+	assert.Equal(t, bytesBefore, bytesAfter,
+		"ReadLibraryFile must not rewrite the config file")
 
+	// Belt-and-suspenders: even if the bytes happened to round-trip
+	// identical, prove the active-file pointer wasn't quietly updated.
 	cfg, err := a.readConfig()
 	require.NoError(t, err)
 	assert.Equal(t, "prev.ds", cfg.LastActiveLibraryFile)
@@ -1198,4 +1203,56 @@ func TestCreateLibraryFile_StatErrorAborts(t *testing.T) {
 	_, err := a.CreateLibraryFile("collision-test", "content")
 	require.Error(t, err,
 		"CreateLibraryFile must surface a non-ENOENT stat error instead of looping")
+}
+
+// H3: drive concurrent readers against an in-package writer that
+// mutates currentLibrary under libMu. Sidesteps ChangeLibraryLocation's
+// runtime.OpenDirectoryDialog dependency. Run via `go test -race`.
+func TestCurrentLibrary_RaceFree(t *testing.T) {
+	a := testApp(t)
+	libA := a.currentLibrary
+	libB := t.TempDir()
+
+	const readers = 8
+	const swaps = 200
+	const iters = 200
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	// Reader goroutines hammer GetCurrentLibrary.
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iters; j++ {
+				_ = a.GetCurrentLibrary()
+				select {
+				case <-stop:
+					return
+				default:
+				}
+			}
+		}()
+	}
+
+	// Writer goroutine flips currentLibrary back and forth under
+	// libMu. Same lock the writers in ChangeLibraryLocation /
+	// initApp take.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for j := 0; j < swaps; j++ {
+			a.libMu.Lock()
+			if j%2 == 0 {
+				a.currentLibrary = libB
+			} else {
+				a.currentLibrary = libA
+			}
+			a.libMu.Unlock()
+		}
+	}()
+
+	wg.Wait()
+	close(stop)
 }
