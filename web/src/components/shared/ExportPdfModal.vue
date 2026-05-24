@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import BaseModal from './BaseModal.vue';
+import ButtonRadioGroup from './ButtonRadioGroup.vue';
+import type { ButtonRadioOption } from './button-radio-group';
 import type { ExportPdfOptions, PdfExportStyle, PdfLayout, PdfPageSize } from '../../core/types';
 
-const props = defineProps<{
-  open: boolean;
-  initialOptions: ExportPdfOptions;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    initialOptions: ExportPdfOptions;
+    // Hide the Page size row. The desktop host exposes page size in
+    // Settings instead of the dialog, so it's persistent rather than
+    // per-export. Web passes page size through the dialog as before.
+    hidePageSize?: boolean;
+  }>(),
+  { hidePageSize: false },
+);
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -129,17 +138,26 @@ function changeGutterUnit(next: 'in' | 'mm') {
   gutterUnit.value = next;
 }
 
-function selectPageSize(value: PdfPageSize) {
-  pageSize.value = value;
-}
-
-function selectStyle(value: PdfExportStyle) {
-  style.value = value;
-}
-
-function selectLayout(value: PdfLayout) {
-  layout.value = value;
-}
+// Option tables for the button-radio groups below. The `dataAttr` keys
+// mirror the pre-refactor data-* attributes so Playwright selectors
+// (e2e/pages/EditorPage.ts) keep working without churn.
+const pageSizeOptions: ButtonRadioOption<PdfPageSize>[] = [
+  { value: 'letter', label: 'Letter', dataAttr: { key: 'page-size', value: 'letter' } },
+  { value: 'a4', label: 'A4', dataAttr: { key: 'page-size', value: 'a4' } },
+];
+const styleOptions: ButtonRadioOption<PdfExportStyle>[] = [
+  { value: 'standard', label: 'Manuscript', dataAttr: { key: 'export-style', value: 'standard' } },
+  { value: 'condensed', label: 'Acting Edition', dataAttr: { key: 'export-style', value: 'condensed' } },
+];
+const layoutOptions: ButtonRadioOption<PdfLayout>[] = [
+  { value: 'single', label: 'Single page', dataAttr: { key: 'pdf-layout', value: 'single' } },
+  { value: '2up', label: '2-up', dataAttr: { key: 'pdf-layout', value: '2up' } },
+  { value: 'booklet', label: 'Booklet', dataAttr: { key: 'pdf-layout', value: 'booklet' } },
+];
+const gutterUnitOptions: ButtonRadioOption<'in' | 'mm'>[] = [
+  { value: 'in', label: 'in', dataAttr: { key: 'gutter-unit', value: 'in' } },
+  { value: 'mm', label: 'mm', dataAttr: { key: 'gutter-unit', value: 'mm' } },
+];
 
 function handleConfirm() {
   if (!canConfirm.value) return;
@@ -164,77 +182,26 @@ function handleConfirm() {
     @close="emit('close')"
   >
     <div class="flex flex-col py-2 w-[392px]">
-      <label class="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-2">
-        Page size
-      </label>
-      <div
-        role="radiogroup"
-        aria-label="Page size"
-        class="grid grid-cols-2 gap-2 mb-5 p-1 rounded-lg bg-black/5 dark:bg-white/5 border border-border"
-      >
-        <button
-          type="button"
-          role="radio"
-          :aria-checked="pageSize === 'letter'"
-          data-page-size="letter"
-          class="px-4 py-2 rounded-md text-sm font-bold transition-colors"
-          :class="pageSize === 'letter'
-            ? 'bg-brass-500 text-ember-850 shadow-sm'
-            : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
-          @click="selectPageSize('letter')"
-        >
-          Letter
-        </button>
-        <button
-          type="button"
-          role="radio"
-          :aria-checked="pageSize === 'a4'"
-          data-page-size="a4"
-          class="px-4 py-2 rounded-md text-sm font-bold transition-colors"
-          :class="pageSize === 'a4'
-            ? 'bg-brass-500 text-ember-850 shadow-sm'
-            : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
-          @click="selectPageSize('a4')"
-        >
-          A4
-        </button>
-      </div>
+      <template v-if="!hidePageSize">
+        <label class="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-2">
+          Page size
+        </label>
+        <ButtonRadioGroup
+          v-model="pageSize"
+          :options="pageSizeOptions"
+          aria-label="Page size"
+          class="mb-5"
+        />
+      </template>
 
       <label class="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-2">
         Format
       </label>
-      <div
-        role="radiogroup"
+      <ButtonRadioGroup
+        v-model="style"
+        :options="styleOptions"
         aria-label="Export format"
-        class="grid grid-cols-2 gap-2 p-1 rounded-lg bg-black/5 dark:bg-white/5 border border-border"
-      >
-        <button
-          type="button"
-          role="radio"
-          :aria-checked="style === 'standard'"
-          data-export-style="standard"
-          class="px-4 py-2 rounded-md text-sm font-bold transition-colors"
-          :class="style === 'standard'
-            ? 'bg-brass-500 text-ember-850 shadow-sm'
-            : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
-          @click="selectStyle('standard')"
-        >
-          Manuscript
-        </button>
-        <button
-          type="button"
-          role="radio"
-          :aria-checked="style === 'condensed'"
-          data-export-style="condensed"
-          class="px-4 py-2 rounded-md text-sm font-bold transition-colors"
-          :class="style === 'condensed'
-            ? 'bg-brass-500 text-ember-850 shadow-sm'
-            : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
-          @click="selectStyle('condensed')"
-        >
-          Acting Edition
-        </button>
-      </div>
+      />
 
       <div
         v-if="style === 'condensed'"
@@ -249,52 +216,15 @@ function handleConfirm() {
         <label class="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-2">
           Layout
         </label>
-        <div
-          role="radiogroup"
+        <ButtonRadioGroup
+          v-model="layout"
+          :options="layoutOptions"
           aria-label="PDF layout"
+          :columns="3"
+          size="sm"
           data-testid="layout-group"
-          class="grid grid-cols-3 gap-2 mb-5 p-1 rounded-lg bg-black/5 dark:bg-white/5 border border-border"
-        >
-          <button
-            type="button"
-            role="radio"
-            :aria-checked="layout === 'single'"
-            data-pdf-layout="single"
-            class="px-3 py-2 rounded-md text-xs font-bold transition-colors"
-            :class="layout === 'single'
-              ? 'bg-brass-500 text-ember-850 shadow-sm'
-              : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
-            @click="selectLayout('single')"
-          >
-            Single page
-          </button>
-          <button
-            type="button"
-            role="radio"
-            :aria-checked="layout === '2up'"
-            data-pdf-layout="2up"
-            class="px-3 py-2 rounded-md text-xs font-bold transition-colors"
-            :class="layout === '2up'
-              ? 'bg-brass-500 text-ember-850 shadow-sm'
-              : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
-            @click="selectLayout('2up')"
-          >
-            2-up
-          </button>
-          <button
-            type="button"
-            role="radio"
-            :aria-checked="layout === 'booklet'"
-            data-pdf-layout="booklet"
-            class="px-3 py-2 rounded-md text-xs font-bold transition-colors"
-            :class="layout === 'booklet'
-              ? 'bg-brass-500 text-ember-850 shadow-sm'
-              : 'text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/10'"
-            @click="selectLayout('booklet')"
-          >
-            Booklet
-          </button>
-        </div>
+          class="mb-5"
+        />
 
         <div v-if="layout === 'booklet'" data-testid="gutter-row" class="mb-5">
           <label class="text-xs font-bold uppercase tracking-[0.15em] text-text-muted mb-2 block">
@@ -312,15 +242,15 @@ function handleConfirm() {
               class="flex-1 px-3 py-2 rounded-md text-sm font-bold bg-black/5 dark:bg-white/5 border text-text-main focus:outline-none focus:ring-2 focus:ring-brass-500/40"
               :class="gutterError ? 'border-red-500/60' : 'border-border'"
             />
-            <select
-              :value="gutterUnit"
-              @change="changeGutterUnit(($event.target as HTMLSelectElement).value as 'in' | 'mm')"
+            <ButtonRadioGroup
+              :model-value="gutterUnit"
+              :options="gutterUnitOptions"
+              aria-label="Gutter unit"
+              columns="inline"
+              size="xs"
               data-testid="gutter-unit"
-              class="px-3 py-2 rounded-md text-sm font-bold bg-black/5 dark:bg-white/5 border border-border text-text-main focus:outline-none focus:ring-2 focus:ring-brass-500/40"
-            >
-              <option value="in">in</option>
-              <option value="mm">mm</option>
-            </select>
+              @update:model-value="changeGutterUnit"
+            />
           </div>
           <p
             v-if="gutterError"

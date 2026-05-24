@@ -311,6 +311,67 @@ npm run compile
 Then open the `editors/vscode` folder in VS Code and press `F5` to launch an
 Extension Development Host.
 
+### Desktop App (alpha)
+
+> **Alpha / pre-release.** The desktop app is under active development. No
+> pre-built binaries are published yet, the on-disk config format may still
+> change, and some workflows (drafts, cross-device sync, auto-update) are
+> unimplemented. Build from source and expect rough edges.
+
+[`cmd/downstage-write/`](cmd/downstage-write/) is a native desktop build —
+the same Vue editor wrapped in a [Wails](https://wails.io/) shell with a
+project-folder workflow: open a directory, edit `.ds` files in place,
+snapshot revisions with git, and restore older versions from a native
+menu + command palette.
+
+#### Shared prerequisites (all platforms)
+
+- Go 1.23+
+- Node 20+
+- Wails v2 CLI: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- Frontend deps: `npm --prefix web install` (one-time)
+
+Run `wails doctor` after installing the CLI — it lists anything else your
+system is missing.
+
+#### Linux / macOS
+
+Linux additionally needs webkit2gtk 4.1
+(`sudo apt install libwebkit2gtk-4.1-dev` on Debian/Ubuntu; equivalents
+via `dnf`/`pacman` on other distros). macOS has no extra system packages.
+
+```bash
+make desktop-dev    # live-reloading dev build
+make desktop-build  # release build → cmd/downstage-write/build/bin/
+```
+
+`make desktop-dev` (via `wails dev`) serves the real desktop entry
+(`desktop.html` → `AppDesktop.vue`) with HMR; it's independent of the
+browser-app dev flow at `make web-dev`, which keeps serving the Vue
+web editor at `/editor/`.
+
+#### Windows
+
+Windows uses WebView2, which ships with Windows 10 20H1+ and Windows 11.
+On older Windows, install the Evergreen runtime from Microsoft. No other
+system packages are needed.
+
+Since GNU make isn't part of Windows, use the bundled PowerShell wrapper
+(from the repo root):
+
+```powershell
+.\scripts\build-desktop.ps1           # release build
+.\scripts\build-desktop.ps1 -Mode dev # hot-reload dev mode
+```
+
+The binary lands at `cmd\downstage-write\build\bin\downstage-write.exe`.
+
+---
+
+See [`internal/desktop/AGENTS.md`](internal/desktop/AGENTS.md) for the
+backend architecture and [`web/src/desktop/AGENTS.md`](web/src/desktop/AGENTS.md)
+for the frontend layer.
+
 ### Web Editor
 
 [**Start writing**](https://www.getdownstage.com/editor/) in the Web Editor, a

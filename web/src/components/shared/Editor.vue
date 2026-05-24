@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch, inject, nextTick, toRef } from 'vue';
 import {
     Bold, Italic, Underline, MessageSquare, ChevronRight,
     GalleryVerticalEnd, GalleryVertical, FilePlus2, Eye, EyeOff, HelpCircle, X, Music,
-    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Trash2, Search, ListTree, BarChart3
+    Sun, Moon, ScrollText, BookOpenText, AlertTriangle, AlertCircle, Info, RefreshCw, SpellCheck, Search, ListTree, BarChart3
 } from 'lucide-vue-next';
 import { Engine, type SearchMode, type SearchSummary } from '../../core/engine';
 import type { SearchMatch, SearchOptions } from '../../core/search';
@@ -11,10 +11,12 @@ import { issuesStatus, summarizeIssues } from '../../core/issues';
 import type { FilterSeverity } from '../../core/issues';
 import type { Store } from '../../core/store';
 import type { DocumentSymbol, EditorDiagnostic, EditorEnv, ManuscriptStats } from '../../core/types';
+import { useDocumentLifecycle } from '../../core/useDocumentLifecycle';
 import PreviewFrame from './PreviewFrame.vue';
 import ToolbarButton from './ToolbarButton.vue';
 import BaseModal from './BaseModal.vue';
-import WorkbenchDrawer, { type WorkbenchTab } from './WorkbenchDrawer.vue';
+import SpellcheckPanel from './SpellcheckPanel.vue';
+import WorkbenchDrawer, { type WorkbenchTab, type DrawerDock } from './WorkbenchDrawer.vue';
 import IssuesTab from './IssuesTab.vue';
 import FindReplaceTab from './FindReplaceTab.vue';
 import OutlineTab from './OutlineTab.vue';
@@ -22,19 +24,93 @@ import StatsTab from './StatsTab.vue';
 import HelpTab from './HelpTab.vue';
 import { shortcuts as sc } from '../../core/platform';
 
-const props = defineProps<{
-  env: EditorEnv;
-  content: string;
-  style: string;
-  getSpellAllowlist: () => string[];
-  addSpellAllowlistWord: (word: string) => Promise<boolean>;
-  removeSpellAllowlistWord: (word: string) => Promise<boolean>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    env: EditorEnv;
+    content: string;
+    style: string;
+    // Host-provided identity for the active document. Web hosts pass the
+    // active draft ID; desktop hosts pass the active file's relative path
+    // (plus the revision hash while viewing an older snapshot). When this
+    // changes, the editor resets transient state (search, diagnostics,
+    // stats, outline, V1-modal suppression). `null` means no document is
+    // active.
+    documentKey: string | null;
+    // Optional read-only mode — the desktop host sets this while the user
+    // is viewing a historical revision so keystrokes don't mutate the
+    // preview.
+    readOnly?: boolean;
+    // Host-owned editor preferences. v-modelled so toolbar toggles emit
+    // back up; the host (Store on web, Workspace on desktop) persists via
+    // env. Editor.vue is deliberately storage-ignorant — it never touches
+    // localStorage or Wails bindings for these.
+    previewHidden?: boolean;
+    spellcheckDisabled?: boolean;
+    // Host-owned drawer state. Lifted from Editor.vue so commands
+    // (palette / menu) can open specific tabs directly. Editor reacts
+    // through the v-model; toolbar clicks emit back up.
+    drawerOpen?: boolean;
+    drawerTab?: WorkbenchTab;
+    // Host-owned search trigger. The nonce changes when a host action
+    // wants the editor to open its search drawer in `mode`. Editor watches
+    // nonce, not mode, so unrelated mode reads don't retrigger.
+    searchRequest?: { mode: SearchMode; nonce: number };
+    // When true, the toolbar SpellCheck button emits `open-spellcheck-settings`
+    // instead of opening the built-in modal. Desktop sets this so the
+    // Settings > Spellcheck tab is the single pref surface; web leaves it
+    // false and keeps the modal.
+    externalSpellcheck?: boolean;
+    // Where the workbench drawer docks. 'bottom' keeps the historical
+    // layout (drawer below editor); 'right' puts it as a vertical column
+    // between editor and preview. Desktop host owns the pref; web host
+    // leaves this at the default.
+    drawerDock?: DrawerDock;
+    drawerRightWidth?: number;
+    // When true, the underlying CodeMirror instance binds app-level
+    // accelerators (Cmd-F, Cmd-B/I/U, Cmd-\, Cmd-Shift-/) to internal
+    // handlers. The web host opts in because it has no native menu to
+    // catch those keys. The desktop host leaves this false because its
+    // Wails-registered native menu fires the same actions at the OS
+    // level — binding here too would either double-fire or be dead code.
+    bindEngineAccelerators?: boolean;
+    getSpellAllowlist: () => string[];
+    addSpellAllowlistWord: (word: string) => Promise<boolean>;
+    removeSpellAllowlistWord: (word: string) => Promise<boolean>;
+  }>(),
+  {
+    readOnly: false,
+    previewHidden: false,
+    spellcheckDisabled: false,
+    drawerOpen: false,
+    drawerTab: 'issues',
+    searchRequest: () => ({ mode: 'find' as SearchMode, nonce: 0 }),
+    externalSpellcheck: false,
+    drawerDock: 'bottom',
+    drawerRightWidth: 360,
+    bindEngineAccelerators: false,
+  },
+);
 
 const emit = defineEmits<{
   (e: 'update:content', value: string): void;
   (e: 'update:style', value: string): void;
+  (e: 'update:previewHidden', value: boolean): void;
+  (e: 'update:spellcheckDisabled', value: boolean): void;
+  (e: 'update:drawerOpen', value: boolean): void;
+  (e: 'update:drawerTab', value: WorkbenchTab): void;
+  (e: 'update:searchRequest', value: { mode: SearchMode; nonce: number }): void;
+  // 1-based (line, col) of the selection head. Desktop host binds for
+  // the status bar; web ignores.
+  (e: 'update:cursor', value: { line: number; col: number }): void;
+  // Mirrors manuscriptStats.totalWords as it refreshes on the existing
+  // 500ms stats debounce. Emits 0 before the first stats result.
+  (e: 'update:wordCount', value: number): void;
+  // Drawer dock/width are v-model emits so the host can persist pref
+  // changes. Default 'bottom' dock means the web host ignores these.
+  (e: 'update:drawerDock', value: DrawerDock): void;
+  (e: 'update:drawerRightWidth', value: number): void;
   (e: 'migration-state-change', value: boolean): void;
+  (e: 'open-spellcheck-settings'): void;
 }>();
 
 const store = inject<Store>('store')!;
@@ -43,10 +119,29 @@ const previewFrameComponent = ref<InstanceType<typeof PreviewFrame> | null>(null
 const renderedHtml = ref("");
 let engine: Engine | null = null;
 
-const previewVisible = ref(localStorage.getItem("downstage-editor-preview-hidden") !== "true");
-const spellcheckEnabled = ref(localStorage.getItem("downstage-editor-spellcheck-disabled") !== "true");
-const drawerOpen = ref(false);
-const drawerTab = ref<WorkbenchTab>('issues');
+// Preview/spellcheck are prop-driven so the host can persist them however
+// it wants (localStorage on web, Go config on desktop). Flip the prop
+// semantics to positive here because the rest of this component reads
+// "visible" / "enabled"; the negative names match the persisted keys and
+// keep zero-value JSON aligned with the default.
+const previewVisible = computed<boolean>({
+  get: () => !props.previewHidden,
+  set: (visible) => emit('update:previewHidden', !visible),
+});
+const spellcheckEnabled = computed<boolean>({
+  get: () => !props.spellcheckDisabled,
+  set: (enabled) => emit('update:spellcheckDisabled', !enabled),
+});
+// Host-owned drawer state surfaced as computed so the rest of this file
+// doesn't need to care that it's an emitted prop.
+const drawerOpen = computed<boolean>({
+  get: () => props.drawerOpen,
+  set: (v) => emit('update:drawerOpen', v),
+});
+const drawerTab = computed<WorkbenchTab>({
+  get: () => props.drawerTab,
+  set: (v) => emit('update:drawerTab', v),
+});
 const searchMatches = ref<SearchMatch[]>([]);
 const searchIndex = ref(-1);
 const searchError = ref<string | null>(null);
@@ -88,12 +183,15 @@ const editorHideClasses = computed(() => {
   return classes;
 });
 const showSpellcheckModal = ref(false);
-const dictionaryWord = ref("");
 const spellAllowlist = computed(() => props.getSpellAllowlist());
 const v1DocumentDetected = ref(false);
 const showV1Modal = ref(false);
-const v1DismissedForDraftId = ref<string | null>(null);
 const isUpgradingV1 = ref(false);
+
+const { isV1Suppressed, suppressV1 } = useDocumentLifecycle(
+  toRef(props, 'documentKey'),
+  () => resetTransientState(),
+);
 
 let lastRenderRequestId = 0;
 let renderTimer: number | null = null;
@@ -130,9 +228,11 @@ function scheduleStatsRefresh(content: string) {
             const result = await props.env.stats(content);
             if (requestId !== statsRequestId) return;
             manuscriptStats.value = result;
+            emit('update:wordCount', result.totalWords);
         } catch {
             if (requestId !== statsRequestId) return;
             manuscriptStats.value = null;
+            emit('update:wordCount', 0);
         } finally {
             if (requestId === statsRequestId) {
                 manuscriptStatsLoading.value = false;
@@ -162,14 +262,13 @@ async function scheduleRender(content: string, style: string) {
 
         if (hasV1Diagnostic) {
             renderedHtml.value = "";
-            if (v1DismissedForDraftId.value !== store.state.activeDraftId) {
+            if (!isV1Suppressed.value) {
                 showV1Modal.value = true;
             }
             return;
         }
 
         showV1Modal.value = false;
-        v1DismissedForDraftId.value = null;
 
         const html = await props.env.renderHTML(content, style);
         if (requestId === lastRenderRequestId) {
@@ -187,11 +286,10 @@ async function upgradeV1Document() {
         const result = await props.env.upgradeV1(currentContent);
         if (!result.changed) {
             showV1Modal.value = false;
-            v1DismissedForDraftId.value = store.state.activeDraftId;
+            suppressV1();
             return;
         }
 
-        v1DismissedForDraftId.value = null;
         showV1Modal.value = false;
         emit('update:content', result.source);
     } finally {
@@ -201,7 +299,7 @@ async function upgradeV1Document() {
 
 function dismissV1Modal() {
     showV1Modal.value = false;
-    v1DismissedForDraftId.value = store.state.activeDraftId;
+    suppressV1();
 }
 
 function openSearch(mode: SearchMode) {
@@ -232,8 +330,27 @@ function applySearchSummary(summary: SearchSummary, matches: SearchMatch[]) {
 onMounted(async () => {
   await nextTick();
 
-  const iframeEl = previewFrameComponent.value?.iframeEl;
-  if (editorContainer.value && iframeEl) {
+  // The iframe accessor is lazy on purpose. Desktop users may start
+  // with the preview hidden (pref), and we v-if the preview column
+  // (see below) so the iframe can be genuinely unmounted to work
+  // around a webkit2gtk compositing-layer bug. The engine lives as
+  // long as the editor; it just gets a fresh iframe reference
+  // whenever the preview is mounted.
+  if (editorContainer.value) {
+    // Web host opts into engine-level accelerator binding via the
+    // bindEngineAccelerators prop. The bag routes through the same
+    // internal Editor handlers the toolbar buttons use, so keyboard
+    // and click paths converge on identical behavior. Desktop leaves
+    // this undefined; its native menu owns the keys at the OS layer.
+    const accelerators = props.bindEngineAccelerators
+      ? {
+          onSearch: (mode: SearchMode) => openSearch(mode),
+          applyFormat: (action: string) => handleFormat(action),
+          togglePreview: () => { previewVisible.value = !previewVisible.value; },
+          toggleHelp: () => toggleHelp(),
+        }
+      : undefined;
+
     engine = new Engine(
       editorContainer.value,
       props.env,
@@ -246,18 +363,16 @@ onMounted(async () => {
           markTyping();
         }
       },
-      iframeEl,
+      () => previewFrameComponent.value?.iframeEl ?? null,
       () => props.getSpellAllowlist(),
       (word) => props.addSpellAllowlistWord(word),
       (next) => { diagnostics.value = next; },
-      openSearch,
       applySearchSummary,
-      (action) => {
-        if (action === 'toggle-preview') previewVisible.value = !previewVisible.value;
-        if (action === 'toggle-help') toggleHelp();
-      },
+      (pos) => emit('update:cursor', pos),
+      accelerators,
     );
     engine.init(props.content, store.state.isDark, spellcheckEnabled.value);
+    if (props.readOnly) engine.setReadOnly(true);
     scheduleRender(props.content, props.style);
     scheduleOutlineRefresh(props.content);
     scheduleStatsRefresh(props.content);
@@ -276,6 +391,19 @@ watch(() => store.state.isDark, (isDark) => {
   engine?.setTheme(isDark);
 });
 
+watch(() => props.readOnly, (readOnly) => {
+  engine?.setReadOnly(readOnly);
+});
+
+// Host-driven search opener. The host bumps `searchRequest.nonce` when a
+// menu command or palette entry wants the editor to open its find
+// drawer; watching the nonce (not mode) means unrelated re-renders
+// don't retrigger the opener.
+watch(() => props.searchRequest.nonce, (nonce, prev) => {
+  if (nonce === prev) return;
+  openSearch(props.searchRequest.mode);
+});
+
 watch(() => props.content, (newContent) => {
   if (engine && engine.getContent() !== newContent) {
     engine.setContent(newContent);
@@ -285,18 +413,23 @@ watch(() => props.content, (newContent) => {
   scheduleStatsRefresh(newContent);
 });
 
-watch(() => store.state.activeDraftId, () => {
+// Invoked by useDocumentLifecycle whenever `props.documentKey` changes.
+// Keeping this here (rather than inline in the composable call) avoids a
+// forward-reference problem with the refs above, and keeps all reset logic
+// in one readable block.
+function resetTransientState() {
   showV1Modal.value = false;
   diagnostics.value = [];
   manuscriptStats.value = null;
   manuscriptStatsLoading.value = true;
+  emit('update:wordCount', 0);
   engine?.refreshDiagnostics();
   engine?.clearSearch();
   searchMatches.value = [];
   searchIndex.value = -1;
   searchError.value = null;
   searchInitialQuery.value = '';
-});
+}
 
 watch(() => props.style, (newStyle) => {
     if (engine) {
@@ -304,15 +437,17 @@ watch(() => props.style, (newStyle) => {
     }
 });
 
+// previewVisible/spellcheckEnabled are computed over props now; their
+// persistence lives in the host's Store/Workspace. These watchers handle
+// the side effects only — refreshing the preview when it re-appears and
+// toggling CodeMirror spellcheck.
 watch(previewVisible, (visible) => {
-    localStorage.setItem("downstage-editor-preview-hidden", String(!visible));
     if (visible && engine) {
         scheduleRender(engine.getContent(), props.style);
     }
 });
 
 watch(spellcheckEnabled, (enabled) => {
-    localStorage.setItem("downstage-editor-spellcheck-disabled", String(!enabled));
     engine?.setSpellcheckEnabled(enabled);
 });
 
@@ -326,19 +461,20 @@ function toggleStyle() {
     emit('update:style', nextStyle);
 }
 
-async function addDictionaryWord() {
-    const added = await props.addSpellAllowlistWord(dictionaryWord.value);
+async function addDictionaryWordFromPanel(word: string): Promise<boolean> {
+    const added = await props.addSpellAllowlistWord(word);
     if (added) {
-        dictionaryWord.value = "";
         engine?.refreshDiagnostics();
     }
+    return added;
 }
 
-async function removeDictionaryWord(word: string) {
+async function removeDictionaryWordFromPanel(word: string): Promise<boolean> {
     const removed = await props.removeSpellAllowlistWord(word);
     if (removed) {
         engine?.refreshDiagnostics();
     }
+    return removed;
 }
 
 function jumpToDiagnostic(d: EditorDiagnostic) {
@@ -381,6 +517,16 @@ function closeDrawer() {
     engine?.focus();
 }
 
+function handleSpellcheckClick() {
+    // Desktop lifts spellcheck into Settings > Spellcheck; web keeps the
+    // inline modal. One prop flip decides which.
+    if (props.externalSpellcheck) {
+        emit('open-spellcheck-settings');
+    } else {
+        showSpellcheckModal.value = true;
+    }
+}
+
 function onSearch(opts: SearchOptions) {
     if (!engine) return;
     engine.setSearch(opts);
@@ -390,12 +536,36 @@ function onFindPrev() { engine?.findPrev(); }
 function onReplaceOne(replacement: string) { engine?.replaceCurrent(replacement); }
 function onReplaceAll(replacement: string) { engine?.replaceAll(replacement); }
 function onJumpMatch(index: number) { engine?.selectMatch(index); }
+
+// Narrow imperative surface for the host. Desktop Edit menu handlers
+// (Linux-only, where the native EditMenu role can't be used) invoke
+// undo/redo/cut/copy/paste/selectAll through this surface. applyFormat
+// is used by both desktop + web hosts. Keep this list tight — every
+// expose here is a bit of the shared editor becoming an app shell.
+defineExpose({
+  applyFormat: (action: string) => handleFormat(action),
+  undo: () => engine?.undo(),
+  redo: () => engine?.redo(),
+  cut: () => engine?.cut(),
+  copy: () => engine?.copy(),
+  paste: () => engine?.paste(),
+  selectAll: () => engine?.selectAll(),
+});
 </script>
 
 <template>
   <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-page-bg)]">
-    <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex items-center justify-between gap-2 shadow-sm z-10">
+    <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <!-- Leading host actions. Desktop puts the sidebar/project
+                 toggle here; web leaves it empty. Keeping it as a slot
+                 means the shared editor doesn't know about host-level
+                 concepts like projects. -->
+            <template v-if="$slots.leadingActions">
+              <slot name="leadingActions" />
+              <div class="w-px h-4 bg-black/10 dark:bg-white/10 mx-1"></div>
+            </template>
+
             <ToolbarButton @click="handleFormat('bold')" :title="sc.bold.tooltip"><template #icon><Bold class="w-4 h-4" /></template></ToolbarButton>
             <ToolbarButton @click="handleFormat('italic')" :title="sc.italic.tooltip"><template #icon><Italic class="w-4 h-4" /></template></ToolbarButton>
             <ToolbarButton @click="handleFormat('underline')" :title="sc.underline.tooltip"><template #icon><Underline class="w-4 h-4" /></template></ToolbarButton>
@@ -411,7 +581,7 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
 
             <div class="w-px h-4 bg-black/10 dark:bg-white/10 mx-1"></div>
 
-            <ToolbarButton @click="showSpellcheckModal = true" title="Spell Check">
+            <ToolbarButton @click="handleSpellcheckClick" title="Spell Check">
                 <template #icon>
                     <span class="relative flex h-4 w-4 items-center justify-center">
                         <SpellCheck class="h-4 w-4" :class="{ 'opacity-45': !spellcheckEnabled }" />
@@ -531,11 +701,16 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
             </div>
 
             <WorkbenchDrawer
+                v-if="drawerDock === 'bottom'"
                 :open="drawerOpen"
                 :active-tab="drawerTab"
                 :issues-badge="issuesSummary.total"
+                :dock="drawerDock"
+                :right-width="drawerRightWidth"
                 @close="closeDrawer"
                 @update:active-tab="drawerTab = $event"
+                @update:dock="emit('update:drawerDock', $event)"
+                @update:right-width="emit('update:drawerRightWidth', $event)"
             >
                 <template #issues>
                     <IssuesTab
@@ -577,7 +752,15 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
             </WorkbenchDrawer>
         </div>
 
-        <div v-show="previewVisible" class="flex-1 h-full bg-[var(--color-page-surface)] flex flex-col min-w-[300px]">
+        <!-- v-if (not v-show) so the iframe inside PreviewFrame is
+             actually unmounted when the preview is hidden. webkit2gtk
+             otherwise leaves the preview's compositing layer stranded
+             (ghost editor-toolbar paint in the editor body after the
+             preview has been visible at least once — reliably
+             reproducible as soon as the user hides the preview).
+             Engine accepts a lazy iframe getter, so remount-on-reopen
+             is transparent to the scroll-sync plugin. -->
+        <div v-if="previewVisible" class="flex-1 h-full bg-[var(--color-page-surface)] flex flex-col min-w-[300px]">
             <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex justify-between items-center shadow-sm">
                 <h2 class="text-[10px] uppercase tracking-[0.2em] font-bold text-accent">Live Preview</h2>
                 <button @click="previewVisible = false" class="text-text-muted hover:text-text-main transition-colors" title="Hide Preview">
@@ -620,6 +803,63 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
             </div>
         </div>
 
+        <!-- Right-docked drawer — rendered after the preview so the
+             row reads editor → preview → drawer. Drawer's left-edge
+             resize handle lives on its own left side (i.e. against
+             the preview column). Slot set mirrors the bottom-mode
+             invocation above; duplicating is the cleanest option in
+             Vue when the parent container has to change. -->
+        <WorkbenchDrawer
+            v-if="drawerDock === 'right'"
+            :open="drawerOpen"
+            :active-tab="drawerTab"
+            :issues-badge="issuesSummary.total"
+            :dock="drawerDock"
+            :right-width="drawerRightWidth"
+            @close="closeDrawer"
+            @update:active-tab="drawerTab = $event"
+            @update:dock="emit('update:drawerDock', $event)"
+            @update:right-width="emit('update:drawerRightWidth', $event)"
+        >
+            <template #issues>
+                <IssuesTab
+                    :diagnostics="diagnostics"
+                    :hidden-severities="hiddenSeverities"
+                    @jump="jumpToDiagnostic"
+                    @update:hidden-severities="hiddenSeverities = $event"
+                />
+            </template>
+            <template #find>
+                <FindReplaceTab
+                    :active="drawerOpen && drawerTab === 'find'"
+                    :matches="searchMatches"
+                    :current-index="searchIndex"
+                    :error="searchError"
+                    :initial-query="searchInitialQuery"
+                    :focus-replace="searchFocusReplace"
+                    :focus-nonce="searchFocusNonce"
+                    @search="onSearch"
+                    @next="onFindNext"
+                    @prev="onFindPrev"
+                    @replace="onReplaceOne"
+                    @replace-all="onReplaceAll"
+                    @jump="onJumpMatch"
+                />
+            </template>
+            <template #outline>
+                <OutlineTab
+                    :symbols="outlineSymbols"
+                    @jump="jumpToSymbol"
+                />
+            </template>
+            <template #stats>
+                <StatsTab :stats="manuscriptStats" :loading="manuscriptStatsLoading" />
+            </template>
+            <template #help>
+                <HelpTab :open-link="props.env.openURL" />
+            </template>
+        </WorkbenchDrawer>
+
     </div>
   </div>
 
@@ -630,78 +870,20 @@ function onJumpMatch(index: number) { engine?.selectMatch(index); }
     message="Control spell check and manage custom words for this script only."
     @close="showSpellcheckModal = false"
   >
-    <div class="flex flex-col gap-5 py-1">
-        <label class="flex items-center justify-between gap-4 rounded-lg border border-border bg-black/5 px-4 py-3 dark:bg-white/5">
-            <p class="text-sm font-bold text-text-main">Enable Spell Check</p>
-            <button
-                type="button"
-                role="switch"
-                :aria-checked="spellcheckEnabled"
-                class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors"
-                :class="spellcheckEnabled ? 'border-brass-500 bg-brass-500/80' : 'border-border bg-black/10 dark:bg-white/10'"
-                @click="spellcheckEnabled = !spellcheckEnabled"
-            >
-                <span
-                    class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
-                    :class="spellcheckEnabled ? 'translate-x-6' : 'translate-x-1'"
-                ></span>
-            </button>
-        </label>
-
-        <div class="space-y-1">
-            <p class="text-sm font-bold text-text-main">Script Dictionary</p>
-            <p class="text-xs leading-relaxed text-text-muted">
-                Add custom words for this draft. These entries do not affect any other script.
-            </p>
-        </div>
-
-        <form class="flex gap-2" @submit.prevent="addDictionaryWord">
-            <input
-                v-model="dictionaryWord"
-                type="text"
-                class="flex-1 rounded-lg border border-border bg-black/5 px-3 py-2 text-sm text-text-main outline-none transition-colors placeholder:text-text-muted focus:border-brass-500 dark:bg-white/5"
-                placeholder="Add a custom word"
-            />
-            <button
-                type="submit"
-                class="rounded-lg bg-brass-500 px-4 py-2 text-sm font-bold text-ember-950 transition-colors hover:bg-brass-400 disabled:opacity-50"
-                :disabled="dictionaryWord.trim().length === 0"
-            >
-                Add
-            </button>
-        </form>
-
-        <div v-if="spellAllowlist.length === 0" class="rounded-lg border border-dashed border-border bg-black/5 px-4 py-6 text-center text-sm text-text-muted dark:bg-white/5">
-            No custom words yet.
-        </div>
-
-        <div v-else class="flex flex-col gap-2">
-            <div
-                v-for="word in spellAllowlist"
-                :key="word"
-                class="flex items-center justify-between gap-3 rounded-lg border border-border bg-black/5 px-3 py-2 dark:bg-white/5"
-            >
-                <span class="font-mono text-sm text-text-main">{{ word }}</span>
-                <button
-                    type="button"
-                    class="rounded-md p-2 text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
-                    :title="`Remove ${word} from this script dictionary`"
-                    @click="removeDictionaryWord(word)"
-                >
-                    <Trash2 class="h-4 w-4" />
-                </button>
-            </div>
-        </div>
-
-        <div class="flex justify-end pt-2">
-            <button
-                type="button"
-                class="rounded-lg border border-border px-4 py-2 text-sm font-bold text-text-main transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                @click="showSpellcheckModal = false"
-            >
-                OK
-            </button>
-        </div>
+    <SpellcheckPanel
+      v-model:enabled="spellcheckEnabled"
+      :allowlist="spellAllowlist"
+      :add-word="addDictionaryWordFromPanel"
+      :remove-word="removeDictionaryWordFromPanel"
+    />
+    <div class="flex justify-end pt-2">
+      <button
+        type="button"
+        class="rounded-lg border border-border px-4 py-2 text-sm font-bold text-text-main transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+        @click="showSpellcheckModal = false"
+      >
+        OK
+      </button>
     </div>
   </BaseModal>
 

@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:desktop": "cross-env DESKTOP_BUILD=true vite build --outDir ../cmd/downstage-write/frontend",
     "dev": "vite",
+    "dev:desktop": "cross-env DESKTOP_BUILD=true vite",
     "preview:strict": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && vitest run",
@@ -18,6 +20,7 @@
     "@codemirror/lang-markdown": "^6.3.2",
     "@codemirror/language": "^6.10.8",
     "@codemirror/lint": "^6.9.6",
+    "@codemirror/merge": "^6.12.1",
     "@codemirror/search": "^6.6.0",
     "@codemirror/state": "^6.5.2",
     "@codemirror/theme-one-dark": "^6.1.3",
@@ -36,9 +39,14 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@vue/test-utils": "^2.4.10",
+    "cross-env": "^10.1.0",
     "happy-dom": "^20.8.9",
     "typescript": "^5.8.0",
     "vite": "^8.0.13",
     "vitest": "^4.1.6"
+  },
+  "//overrides": "ws pin overrides happy-dom@20.9.0's transitive ws@8.20.0 (GHSA-58qx-3vcg-4xpx, uninitialized memory disclosure). Drop the override when happy-dom releases a version that pins ws@^8.20.1 or newer. Tracked in issue #189.",
+  "overrides": {
+    "ws": "^8.20.1"
   }
 }

@@ -12,6 +12,8 @@ import ExportPdfModal from './components/shared/ExportPdfModal.vue';
 import ToastManager from './components/shared/ToastManager.vue';
 import Editor from './components/shared/Editor.vue';
 import WelcomeModal from './components/shared/WelcomeModal.vue';
+import type { WorkbenchTab } from './components/shared/workbench-tabs';
+import type { SearchMode } from './core/engine';
 
 const props = defineProps<{
   env: EditorEnv;
@@ -87,6 +89,10 @@ const exportGutter = ref<string>(readStoredGutter());
 const activeContent = ref("");
 const pageStyle = ref("standard");
 const isV1Document = ref(false);
+
+const drawerOpen = ref(false);
+const drawerTab = ref<WorkbenchTab>('issues');
+const searchRequest = ref<{ mode: SearchMode; nonce: number }>({ mode: 'find', nonce: 0 });
 
 // Placeholder content shown before the user has made their first edit. Not
 // persisted to the drafts list until that first change promotes it to a
@@ -484,11 +490,18 @@ watch(activeContent, (newContent) => {
     <main v-else class="flex-1 overflow-hidden flex flex-col">
       <Editor
         :env="env"
+        :document-key="store.state.activeDraftId"
         v-model:content="activeContent"
         v-model:style="pageStyle"
+        v-model:preview-hidden="store.state.previewHidden"
+        v-model:spellcheck-disabled="store.state.spellcheckDisabled"
+        v-model:drawer-open="drawerOpen"
+        v-model:drawer-tab="drawerTab"
+        v-model:search-request="searchRequest"
         :get-spell-allowlist="() => activeSavedDraft?.spellAllowlist || []"
         :add-spell-allowlist-word="addSpellAllowlistWord"
         :remove-spell-allowlist-word="removeSpellAllowlistWord"
+        :bind-engine-accelerators="true"
         @migration-state-change="isV1Document = $event"
       />
     </main>

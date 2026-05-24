@@ -63,6 +63,16 @@ make web-dev
 
 After Go changes, rebuild with `make wasm` and refresh the browser.
 
+The desktop app has a separate dev flow driven by `wails dev`
+(`make desktop-dev` from the repo root), which invokes
+`npm run dev:desktop` here. That script sets `DESKTOP_BUILD=true` so
+Vite's `base` and HTML input switch to the desktop entry
+(`desktop.html` → `AppDesktop.vue`). Only run it via `wails dev`:
+Wails generates the `./wailsjs/*` bindings before spawning the
+watcher, so the static imports in `desktop-app.ts` resolve. Running
+`npm run dev:desktop` standalone on a fresh checkout will fail
+because those bindings don't exist yet.
+
 ## End-to-End Tests
 
 The web editor has a Playwright-based E2E suite in `web/e2e/` that runs the

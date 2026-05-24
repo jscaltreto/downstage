@@ -1,6 +1,13 @@
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { EditorState, Compartment, Transaction } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  undo as undoCmd,
+  redo as redoCmd,
+  selectAll as selectAllCmd,
+} from "@codemirror/commands";
 import { completionKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { forEachDiagnostic, setDiagnosticsEffect, type Diagnostic } from "@codemirror/lint";
@@ -34,9 +41,11 @@ export interface SearchSummary {
 
 const themeCompartment = new Compartment();
 const lintCompartment = new Compartment();
+const readOnlyCompartment = new Compartment();
 
-// Simple light theme for CodeMirror
-const lightTheme = EditorView.theme({
+// Simple light theme for CodeMirror. Exported so the desktop revision
+// diff view can mount its MergeView with the same look as the main editor.
+export const lightTheme = EditorView.theme({
   "&": {
     color: "#1a1a1a",
     backgroundColor: "#fffdf9"
@@ -72,13 +81,35 @@ export class Engine {
     private parent: HTMLElement,
     private env: EditorEnv,
     private onDocChange: (content: string, info: { userInput: boolean }) => void,
-    private iframe: HTMLIFrameElement,
+    // Lazy accessor so the preview iframe can be mounted/unmounted
+    // under v-if without invalidating the engine. The scroll-sync
+    // plugin pulls a fresh reference on every sync; null means the
+    // preview isn't mounted right now and sync is a no-op.
+    private getIframe: () => HTMLIFrameElement | null,
     private getUserSpellAllowlist: () => string[],
     private addUserSpellAllowlistWord: (word: string) => Promise<boolean>,
     private onDiagnosticsChange: (diagnostics: EditorDiagnostic[]) => void = () => {},
-    private onOpenSearch: (mode: SearchMode) => void = () => {},
     private onSearchChange: (summary: SearchSummary, matches: SearchMatch[]) => void = () => {},
-    private onAction: (action: string) => void = () => {},
+    // Cursor (selection head) position, 1-based line/col. Fires on
+    // selection change and on doc change. Desktop host uses it for the
+    // status bar; web ignores. Defaults to a no-op so existing
+    // constructor sites keep working.
+    private onCursorChange: (pos: { line: number; col: number }) => void = () => {},
+    // Optional host-level accelerators. The desktop app leaves this
+    // undefined because its native menu registers the same keys via
+    // Wails — letting CodeMirror also bind them would create two
+    // sources of truth. The web app has no native menu, so AppWeb
+    // passes handlers here and the engine binds them on a CodeMirror
+    // keymap above the framework defaults. Each handler returns void;
+    // the bound CM command always returns true (handled) so the
+    // browser's default for the key (native Find, bookmark dialog,
+    // etc.) doesn't fire.
+    private accelerators?: {
+      onSearch: (mode: SearchMode) => void;
+      applyFormat: (action: string) => void;
+      togglePreview: () => void;
+      toggleHelp: () => void;
+    },
   ) {}
 
   init(initialContent: string, isDark: boolean, spellcheckEnabled = false) {
@@ -104,48 +135,26 @@ export class Engine {
       },
     });
 
-    const editorKeymap = keymap.of([
-      {
-        key: "Mod-f",
-        preventDefault: true,
-        run: () => { this.onOpenSearch("find"); return true; },
-      },
-      {
-        key: "Mod-h",
-        preventDefault: true,
-        run: () => { this.onOpenSearch("replace"); return true; },
-      },
-      {
-        key: "Mod-Alt-f",
-        preventDefault: true,
-        run: () => { this.onOpenSearch("replace"); return true; },
-      },
-      {
-        key: "Mod-b",
-        preventDefault: true,
-        run: () => { this.applyFormat("bold"); return true; },
-      },
-      {
-        key: "Mod-i",
-        preventDefault: true,
-        run: () => { this.applyFormat("italic"); return true; },
-      },
-      {
-        key: "Mod-u",
-        preventDefault: true,
-        run: () => { this.applyFormat("underline"); return true; },
-      },
-      {
-        key: "Mod-\\",
-        preventDefault: true,
-        run: () => { this.onAction("toggle-preview"); return true; },
-      },
-      {
-        key: "Mod-Shift-/",
-        preventDefault: true,
-        run: () => { this.onAction("toggle-help"); return true; },
-      },
-    ]);
+    // App-level shortcuts. On desktop these are owned by the native
+    // menu and `this.accelerators` is undefined here — Wails registers
+    // each key. On web there's no native menu, so AppWeb passes
+    // handlers via the optional `accelerators` argument and the engine
+    // binds a CodeMirror keymap that routes through them. Without this,
+    // Cmd-F / Cmd-B / Cmd-\ / etc. fall through to the browser
+    // (native Find, bookmarks dialog, do-nothing) on the web app.
+    const acc = this.accelerators;
+    const editorAccelKeymap = acc
+      ? keymap.of([
+          { key: "Mod-f", preventDefault: true, run: () => { acc.onSearch("find"); return true; } },
+          { key: "Mod-h", preventDefault: true, run: () => { acc.onSearch("replace"); return true; } },
+          { key: "Mod-Alt-f", preventDefault: true, run: () => { acc.onSearch("replace"); return true; } },
+          { key: "Mod-b", preventDefault: true, run: () => { acc.applyFormat("bold"); return true; } },
+          { key: "Mod-i", preventDefault: true, run: () => { acc.applyFormat("italic"); return true; } },
+          { key: "Mod-u", preventDefault: true, run: () => { acc.applyFormat("underline"); return true; } },
+          { key: "Mod-\\", preventDefault: true, run: () => { acc.togglePreview(); return true; } },
+          { key: "Mod-Shift-/", preventDefault: true, run: () => { acc.toggleHelp(); return true; } },
+        ])
+      : keymap.of([]);
 
     this.view = new EditorView({
       state: EditorState.create({
@@ -153,15 +162,25 @@ export class Engine {
         extensions: [
           lineNumbers(),
           history(),
-          editorKeymap,
+          // Host accelerators MUST come before the framework keymaps so
+          // Mod-f (host: open search) wins over any CM default for the
+          // same key. Empty when accelerators isn't passed — desktop
+          // case.
+          editorAccelKeymap,
           keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
           themeCompartment.of(isDark ? oneDark : lightTheme),
           lintCompartment.of(this.createLintExtension()),
+          // Start editable; host toggles via setReadOnly when viewing an
+          // older revision.
+          readOnlyCompartment.of([
+            EditorState.readOnly.of(false),
+            EditorView.editable.of(true),
+          ]),
           customTheme,
           searchExtension(),
           createDownstageHighlighter(this.env),
           createDownstageCompletion(this.env),
-          createScrollSyncPlugin(this.iframe),
+          createScrollSyncPlugin(this.getIframe),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
@@ -170,6 +189,14 @@ export class Engine {
                 return typeof evt === "string" && (evt.startsWith("input") || evt.startsWith("delete"));
               });
               this.onDocChange(update.state.doc.toString(), { userInput });
+            }
+            if (update.selectionSet || update.docChanged) {
+              const head = update.state.selection.main.head;
+              const line = update.state.doc.lineAt(head);
+              this.onCursorChange({
+                line: line.number,
+                col: head - line.from + 1,
+              });
             }
             const lintChanged = update.transactions.some((tr) =>
               tr.effects.some((effect) => effect.is(setDiagnosticsEffect)),
@@ -249,6 +276,7 @@ export class Engine {
       case "bold": applyWrap("**", "**", "bold text"); break;
       case "italic": applyWrap("*", "*", "italic text"); break;
       case "underline": applyWrap("_", "_", "underlined text"); break;
+      case "strikethrough": applyWrap("~", "~", "struck text"); break;
       case "cue": applySnippet("\nCHARACTER\nDialogue here.\n", 11); break;
       case "direction": applySnippet("\n> Stage direction.\n", 3); break;
       case "act": applySnippet("\n## ACT I\n", 4); break;
@@ -258,10 +286,47 @@ export class Engine {
     }
   }
 
+  // Clipboard / history primitives invoked by the desktop host's
+  // Edit menu handlers. Undo, redo, and selectAll are straight
+  // delegations to @codemirror/commands; cut/copy/paste use the
+  // browser's native clipboard on the focused editor. execCommand is
+  // deprecated but works reliably inside webkit2gtk and the approach
+  // matches what CodeMirror's own default keymap emits under the hood.
+  undo() { if (this.view) undoCmd(this.view); }
+  redo() { if (this.view) redoCmd(this.view); }
+  selectAll() { if (this.view) selectAllCmd(this.view); }
+  cut() {
+    if (!this.view) return;
+    this.view.focus();
+    document.execCommand("cut");
+  }
+  copy() {
+    if (!this.view) return;
+    this.view.focus();
+    document.execCommand("copy");
+  }
+  paste() {
+    if (!this.view) return;
+    this.view.focus();
+    document.execCommand("paste");
+  }
+
   setTheme(isDark: boolean) {
     if (!this.view) return;
     this.view.dispatch({
       effects: themeCompartment.reconfigure(isDark ? oneDark : lightTheme),
+    });
+  }
+
+  // setReadOnly toggles the editor between editable and read-only. Used by
+  // the desktop host when showing a historical revision.
+  setReadOnly(readOnly: boolean) {
+    if (!this.view) return;
+    this.view.dispatch({
+      effects: readOnlyCompartment.reconfigure([
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
+      ]),
     });
   }
 

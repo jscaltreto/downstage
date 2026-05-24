@@ -1,0 +1,5 @@
+# Placeholder so `//go:embed all:frontend` in cmd/downstage-write/assets.go
+# has a non-empty directory to match before `make desktop-build` runs and
+# Wails populates this directory with the built web bundle. The bundle
+# itself is gitignored; this file is the .gitignore carve-out so the
+# directory is never empty on a fresh clone.

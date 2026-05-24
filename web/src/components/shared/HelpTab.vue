@@ -53,12 +53,18 @@ const tools: { icon: Component; name: string; desc: string }[] = [
       </button>
     </div>
 
-    <div class="flex-1 overflow-y-auto px-4 py-3">
+    <!-- `@container` opts this scroll region into Tailwind v4 container
+         queries so the Writing-tab card grid tracks the drawer's width
+         (not the viewport). In the right-docked drawer at its default
+         360px the cards stack in one column; they spread to 2/3 cols
+         as the drawer widens or when docked at the bottom of the
+         editor pane. -->
+    <div class="@container flex-1 overflow-y-auto px-4 py-3">
       <div v-if="activeSection === 'syntax'" class="space-y-3">
         <p class="text-xs text-text-muted">
           Downstage scripts are plain text. Write naturally. Structure does the work.
         </p>
-        <dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <dl class="grid gap-3 @md:grid-cols-2 @2xl:grid-cols-3">
           <div class="rounded-lg border border-border bg-black/5 p-3 dark:bg-white/5">
             <dt class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-main">Title Page</dt>
             <dd>
