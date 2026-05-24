@@ -93,6 +93,11 @@ desktop-dev:
 desktop-build:
 	@echo "Building desktop app (version $(VERSION))..."
 	cd cmd/downstage-write && wails build $(DESKTOP_TAGS) -ldflags "$(DESKTOP_LDFLAGS)"
+	@# Wails wipes cmd/downstage-write/frontend before rewriting it
+	@# from the web bundle; restore the .gitkeep we use as the embed
+	@# carve-out so `go vet ./cmd/downstage-write/...` keeps working
+	@# on a fresh clone (the directory's contents are gitignored).
+	@touch cmd/downstage-write/frontend/.gitkeep
 
 # Debug build: enables the WebKit Web Inspector so you can right-click
 # the running app and pick "Inspect Element". Wails -debug also opens
