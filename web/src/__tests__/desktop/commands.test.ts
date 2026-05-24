@@ -60,6 +60,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     isInCompareTwo,
     isViewingExternal,
     flushSave: async () => {},
+    markProgrammaticLoad: vi.fn(),
     editor: {
       applyFormat: vi.fn(),
       undo: vi.fn(),

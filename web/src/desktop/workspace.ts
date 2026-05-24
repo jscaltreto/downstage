@@ -137,14 +137,32 @@ export class Workspace {
   }
 
   async selectFile(path: string): Promise<string> {
-    this.state.externalFile = null;
-    this.state.activeFile = path;
-    this.clearRevisionView();
-    this.cancelDirtyReconcile();
     this.state.isLoadingFile = true;
     try {
-      const content = await this.env.readLibraryFile(path);
-      await this.env.setActiveLibraryFile(path);
+      // Throwing operations come first: a failure leaves activeFile,
+      // externalFile, viewing-revision state, and the dirty-reconcile
+      // timer untouched, so the UI still represents the old selection
+      // and the user can recover. loadRevisions/refreshGitStatus run
+      // AFTER the commit because they swallow errors internally and
+      // can degrade gracefully.
+      let content: string;
+      try {
+        content = await this.env.readLibraryFile(path);
+        await this.env.setActiveLibraryFile(path);
+      } catch (error) {
+        // File may have been deleted or made unreadable out-of-band.
+        // Refresh the tree so a stale entry stops appearing in the
+        // sidebar. Tree-refresh failures are intentionally swallowed —
+        // the original error is what the caller needs to see.
+        try {
+          this.state.libraryTree = await this.env.getLibraryTree();
+        } catch { /* ignore */ }
+        throw error;
+      }
+      this.state.externalFile = null;
+      this.state.activeFile = path;
+      this.clearRevisionView();
+      this.cancelDirtyReconcile();
       await this.loadRevisions();
       await this.refreshGitStatus();
       return content;

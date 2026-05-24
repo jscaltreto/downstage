@@ -288,6 +288,83 @@ describe("AppDesktop flush ordering", () => {
     expect(writeDone).toBeGreaterThanOrEqual(0);
     expect(readOther).toBeGreaterThan(writeDone);
   });
+
+  // M6: a programmatic file switch must NOT trigger the 1s autosave
+  // watcher to re-write the just-loaded bytes back to disk. Without the
+  // (file, content) sentinel, selecting "other.ds" would land its
+  // contents in activeContent, the watcher would fire, and 1s later we'd
+  // see a writeLibraryFile:other.ds with identical bytes — wasted I/O
+  // and a spurious dirty flicker. The fix: AppDesktop.markProgrammaticLoad
+  // suppresses the next tick when (file, content) matches.
+  it("programmatic file switch does NOT trigger autosave write to new file", async () => {
+    const { wrapper, env } = await mountApp({
+      files: [
+        { path: "play.ds", name: "play.ds", updatedAt: "" },
+        { path: "other.ds", name: "other.ds", updatedAt: "" },
+      ],
+    });
+    env._setContent("other.ds", "other-original-content");
+
+    // Click "other.ds" — a pure programmatic load, no prior user edit.
+    const otherRow = wrapper.find('[data-testid="library-tree-row"][data-path="other.ds"]');
+    otherRow.trigger("click");
+
+    // Let the autosave debounce (1s) fully fire, then any microtasks.
+    await vi.advanceTimersByTimeAsync(2500);
+    await flushPromises();
+
+    // The only writeLibraryFile in this scenario should be the initial
+    // flush of play.ds (if any). NO write to other.ds should appear —
+    // we just loaded it; writing it back would be a no-op disk hit.
+    const writesToOther = env._calls.filter((c) => c === "writeLibraryFile:other.ds");
+    expect(writesToOther).toEqual([]);
+  });
+
+  // Regression for the M7 follow-up: when workspace.selectFile rejects
+  // (e.g. the file was deleted out from under the app), the host has to
+  // surface a toast. Pre-fix the rejection became an unhandled promise
+  // and the UI just silently reverted to the previous file — confusing.
+  it("surfaces a toast when selectFile fails for a sidebar click", async () => {
+    stubDom();
+    const env = createEnv({
+      files: [
+        { path: "play.ds", name: "play.ds", updatedAt: "" },
+        { path: "dead.ds", name: "dead.ds", updatedAt: "" },
+      ],
+    });
+    env._setContent("play.ds", "old");
+    const originalRead = env.readLibraryFile;
+    env.readLibraryFile = async (p: string) => {
+      if (p === "dead.ds") throw new Error("ENOENT: no such file");
+      return originalRead(p);
+    };
+
+    const addToast = vi.fn();
+    const wrapper = mount(AppDesktop, {
+      props: { env },
+      global: {
+        stubs: {
+          ...globalStubs,
+          ToastManager: {
+            name: "ToastManager",
+            template: '<div />',
+            methods: { addToast },
+          },
+        },
+      },
+    });
+    await flushPromises();
+    addToast.mockClear();
+
+    const deadRow = wrapper.find('[data-testid="library-tree-row"][data-path="dead.ds"]');
+    deadRow.trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises();
+
+    const errorCalls = addToast.mock.calls.filter((args) => args[1] === "error");
+    expect(errorCalls.length, `toast calls: ${JSON.stringify(addToast.mock.calls)}`).toBeGreaterThan(0);
+    expect(errorCalls[0][0]).toMatch(/dead\.ds/);
+  });
 });
 
 describe("AppDesktop revision compare", () => {

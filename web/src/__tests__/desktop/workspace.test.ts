@@ -1118,4 +1118,111 @@ describe("Workspace", () => {
     ws.toggleFolderExpansion("a");
     expect(ws.state.expandedFolders.has("a")).toBe(false);
   });
+
+  // M7: selectFile must not commit destructive in-memory state until
+  // the throwing operations (readLibraryFile, setActiveLibraryFile)
+  // both succeed. A failure mid-flight leaves the UI showing the
+  // previous selection with its revision view + dirty timer intact.
+  describe("selectFile failure paths", () => {
+    it("preserves previous state when readLibraryFile throws", async () => {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [
+          { path: "first.ds", name: "first.ds", updatedAt: "" },
+          { path: "second.ds", name: "second.ds", updatedAt: "" },
+        ],
+        _contents: { "first.ds": "old contents", "first.ds@rev1": "older" },
+        _revisions: [{ hash: "rev1", path: "first.ds", message: "m", author: "a", timestamp: "" }],
+      });
+      const ws = new Workspace(env);
+
+      // Set up the pre-state: viewing a revision of first.ds + dirty
+      // timer scheduled (proxied via the unforgivable internal field).
+      await ws.selectFile("first.ds");
+      await ws.viewRevision("rev1");
+      const beforeViewing = ws.state.viewingRevisionHash;
+      expect(beforeViewing).toBe("rev1");
+
+      // Force readLibraryFile to throw on the SECOND file only.
+      const originalRead = env.readLibraryFile;
+      env.readLibraryFile = async (p: string) => {
+        if (p === "second.ds") throw new Error("simulated read failure");
+        return originalRead(p);
+      };
+
+      await expect(ws.selectFile("second.ds")).rejects.toThrow(/simulated/);
+
+      // State must be untouched: still viewing rev1 of first.ds.
+      expect(ws.state.activeFile).toBe("first.ds");
+      expect(ws.state.viewingRevisionHash).toBe("rev1");
+      expect(ws.state.isLoadingFile).toBe(false);
+    });
+
+    it("preserves previous state when setActiveLibraryFile throws", async () => {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [
+          { path: "first.ds", name: "first.ds", updatedAt: "" },
+          { path: "second.ds", name: "second.ds", updatedAt: "" },
+        ],
+        _contents: {
+          "first.ds": "old",
+          "first.ds@rev1": "older",
+          "second.ds": "new",
+        },
+        _revisions: [{ hash: "rev1", path: "first.ds", message: "m", author: "a", timestamp: "" }],
+      });
+      const ws = new Workspace(env);
+      await ws.selectFile("first.ds");
+      await ws.viewRevision("rev1");
+
+      // Read succeeds; config-write step fails (e.g., disk full mid-
+      // session). The persisted last-active wouldn't have moved, so the
+      // in-memory state mustn't move either — keep them in sync.
+      env.setActiveLibraryFile = async (p: string) => {
+        throw new Error(`simulated persist failure for ${p}`);
+      };
+
+      await expect(ws.selectFile("second.ds")).rejects.toThrow(/persist failure/);
+
+      expect(ws.state.activeFile).toBe("first.ds");
+      expect(ws.state.viewingRevisionHash).toBe("rev1");
+      expect(ws.state.isLoadingFile).toBe(false);
+    });
+
+    // Failed reads usually mean the file vanished out-of-band (deleted
+    // in another tool, network share dropped, etc.). Refresh the tree
+    // on failure so a stale row stops occupying space in the sidebar.
+    it("refreshes the library tree when a read fails", async () => {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [
+          { path: "alive.ds", name: "alive.ds", updatedAt: "" },
+          { path: "gone.ds", name: "gone.ds", updatedAt: "" },
+        ],
+        _contents: { "alive.ds": "ok" },
+      });
+      const ws = new Workspace(env);
+      await ws.init();
+      expect(ws.libraryFiles.value.map((f) => f.path)).toContain("gone.ds");
+      await ws.selectFile("alive.ds");
+
+      // Simulate gone.ds being deleted from disk: read throws AND the
+      // file is removed from the filesystem stub so the post-failure
+      // refresh observes the new reality.
+      const originalRead = env.readLibraryFile;
+      env.readLibraryFile = async (p: string) => {
+        if (p === "gone.ds") throw new Error("ENOENT");
+        return originalRead(p);
+      };
+      env._files = env._files.filter((f) => f.path !== "gone.ds");
+
+      await expect(ws.selectFile("gone.ds")).rejects.toThrow(/ENOENT/);
+
+      // The tree refresh inside the catch must have run — gone.ds
+      // should no longer be in the sidebar list.
+      expect(ws.libraryFiles.value.map((f) => f.path)).not.toContain("gone.ds");
+      expect(ws.libraryFiles.value.map((f) => f.path)).toContain("alive.ds");
+    });
+  });
 });

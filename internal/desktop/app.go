@@ -65,10 +65,20 @@ type legacyConfig struct {
 
 // App is the Wails application backend.
 type App struct {
-	ctx            context.Context
+	ctx context.Context
+
+	// libMu guards currentLibrary. Wails dispatches each bound method on
+	// its own goroutine; without the lock a concurrent ChangeLibraryLocation
+	// races against every reader. Writers (initApp, ChangeLibraryLocation)
+	// hold Lock only around the field mutation and the immediately
+	// following git-init — never while a user-facing dialog is open.
+	// Readers hold RLock for the duration of the method to keep
+	// currentLibrary consistent across the method's I/O.
+	libMu          sync.RWMutex
 	currentLibrary string
-	configPath     string
-	configMu       sync.Mutex
+
+	configPath string
+	configMu   sync.Mutex
 
 	menuMu      sync.Mutex
 	currentMenu *menu.Menu
@@ -107,13 +117,21 @@ func (a *App) initApp() {
 
 	if config.LastLibraryPath != "" {
 		if _, err := os.Stat(config.LastLibraryPath); err == nil {
+			// Startup runs before any RPC can fire, so contention is
+			// theoretical; lock for uniformity. ensureGitRepo takes
+			// its own RLock, so swap fields under Lock and release
+			// before calling it.
+			a.libMu.Lock()
 			a.currentLibrary = config.LastLibraryPath
+			a.libMu.Unlock()
 			_ = a.ensureGitRepo()
 		}
 	}
 }
 
 func (a *App) ensureGitRepo() error {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if a.currentLibrary == "" {
 		return nil
 	}
@@ -271,6 +289,11 @@ func (a *App) SaveWindowBoundsIfNormal() error {
 	return a.SaveWindowBounds(w, h)
 }
 
+// safePath validates relPath against the current library root. CALLER
+// MUST HOLD a.libMu (read or write); we do NOT lock here because every
+// caller is a bound App method that already holds RLock for the
+// duration of its body, and Go's sync.RWMutex doesn't safely recurse
+// when a writer is pending.
 func (a *App) safePath(relPath string) (string, error) {
 	if a.currentLibrary == "" {
 		return "", fmt.Errorf("no library open")
@@ -320,6 +343,8 @@ func pathInsideRoot(p, root string) bool {
 }
 
 func (a *App) GetCurrentLibrary() string {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	return a.currentLibrary
 }
 
@@ -333,6 +358,8 @@ func (a *App) BrowserOpenURL(url string) {
 }
 
 func (a *App) RevealLibraryInExplorer() error {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
 	if a.currentLibrary == "" {
 		return fmt.Errorf("no library open")
 	}

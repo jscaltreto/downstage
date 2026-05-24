@@ -1,8 +1,17 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import CommandPalette from "../../desktop/CommandPalette.vue";
 import type { CommandMeta, DesktopCapabilities, LibraryFile } from "../../desktop/types";
+
+// CommandPalette.vue imports dispatchCommand directly from
+// dispatcher-registry (not via env), so the spy has to live at the
+// module level. Mock it once for the whole file; tests that need to
+// assert dispatch behavior reach in via `mockDispatchCommand`.
+vi.mock("../../desktop/dispatcher-registry", () => ({
+  dispatchCommand: vi.fn(),
+}));
+import { dispatchCommand as mockDispatchCommand } from "../../desktop/dispatcher-registry";
 
 // Minimal env stub — only the palette-facing methods are exercised.
 function makeEnv(commands: CommandMeta[]): DesktopCapabilities {
@@ -20,6 +29,10 @@ const baseCommands: CommandMeta[] = [
 ];
 
 describe("CommandPalette", () => {
+  beforeEach(() => {
+    vi.mocked(mockDispatchCommand).mockClear();
+  });
+
   it("excludes paletteHidden commands and renders the rest", async () => {
     const wrapper = mount(CommandPalette, {
       props: {
@@ -55,7 +68,7 @@ describe("CommandPalette", () => {
     expect(labels[0]).toContain("Save Version");
   });
 
-  it("greys out disabled commands and refuses to execute them on click", async () => {
+  it("greys out disabled commands and refuses to execute them on click or Enter", async () => {
     const wrapper = mount(CommandPalette, {
       props: {
         open: true,
@@ -68,11 +81,37 @@ describe("CommandPalette", () => {
     await flushPromises();
     const items = wrapper.findAll("li");
     const saveItem = items.find((li) => li.text().includes("Save Version"))!;
+
+    // (a) User-visible disabled signal.
     expect(saveItem.classes().some((c) => c.includes("cursor-not-allowed"))).toBe(true);
-    // Click should not emit close (palette wouldn't close if the run
-    // was a no-op), and dispatcher-registry isn't touched. We can't
-    // spy on the registry easily from here; assert the cursor class
-    // serves as the user-visible disabled signal.
+
+    // (b) Click on the disabled row must NOT dispatch and must NOT
+    // close the palette.
+    await saveItem.trigger("click");
+    await flushPromises();
+    expect(mockDispatchCommand).not.toHaveBeenCalled();
+    expect(wrapper.emitted("close")).toBeFalsy();
+
+    // (c) Drive Enter against the disabled row specifically. The
+    // palette opens with the first row selected; ArrowDown to reach
+    // "Save Version" (third visible row in baseCommands order). Then
+    // press Enter on the input.
+    const input = wrapper.find("input");
+    await input.trigger("keydown", { key: "ArrowDown" });
+    await input.trigger("keydown", { key: "ArrowDown" });
+    // Cross-check selection landed on the disabled row before
+    // pressing Enter — otherwise the Enter assertion proves nothing.
+    // The palette flags the selected row with bg-brass-500/15.
+    const selected = wrapper.findAll("li").find((li) =>
+      li.classes().some((c) => c.includes("bg-brass-500/15")),
+    );
+    expect(selected, "no row appears visually selected").toBeTruthy();
+    expect(selected!.text()).toContain("Save Version");
+
+    await input.trigger("keydown", { key: "Enter" });
+    await flushPromises();
+    expect(mockDispatchCommand).not.toHaveBeenCalled();
+    expect(wrapper.emitted("close")).toBeFalsy();
   });
 
   it("emits close on Escape", async () => {
