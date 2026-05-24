@@ -5,7 +5,7 @@ go 1.25.0
 replace github.com/wailsapp/wails/v2 => github.com/jscaltreto/wails/v2 v2.12.1-0.20260419194552-8207d3ff2212
 
 require (
-	github.com/go-git/go-git/v5 v5.19.0
+	github.com/go-git/go-git/v5 v5.19.1
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/phpdave11/gofpdi v1.0.13
 	github.com/spf13/cobra v1.10.2
