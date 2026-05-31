@@ -9,9 +9,23 @@ export interface LibraryFile {
 export interface LibraryNode {
   path: string;
   name: string;
-  kind: 'folder' | 'file';
+  kind: 'folder' | 'file' | 'deleted-file';
   children?: LibraryNode[];
   updatedAt?: string;
+}
+
+export type DirtyKind = 'untracked' | 'modified' | 'deleted';
+
+export interface DirtyPath {
+  path: string;
+  kind: DirtyKind;
+}
+
+export interface LibraryDirty {
+  plays: DirtyPath[];
+  sidecars: DirtyPath[];
+  other: DirtyPath[];
+  count: number;
 }
 
 export interface Revision {
@@ -56,6 +70,11 @@ export interface LibraryEnv {
   hideRevision(hash: string): Promise<void>;
   unhideRevision(hash: string): Promise<void>;
   getFileGitStatus(path: string): Promise<FileGitStatus>;
+  getLibraryDirty(): Promise<LibraryDirty>;
+  commitPaths(paths: string[], message: string): Promise<void>;
+  discardPaths(paths: string[]): Promise<void>;
+  deleteLibraryFile(path: string): Promise<void>;
+  restoreLibraryFile(path: string): Promise<void>;
   getCurrentLibrary(): Promise<string>;
   getLastActiveFile(): Promise<string>;
   setActiveLibraryFile(rel: string): Promise<void>;

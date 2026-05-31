@@ -79,7 +79,11 @@ function normalizeLibraryNode(node: unknown): LibraryNode {
     children?: unknown;
     updatedAt?: unknown;
   } | null;
-  const kind: "folder" | "file" = current?.kind === "folder" ? "folder" : "file";
+  const rawKind = current?.kind;
+  let kind: "folder" | "file" | "deleted-file";
+  if (rawKind === "folder") kind = "folder";
+  else if (rawKind === "deleted-file") kind = "deleted-file";
+  else kind = "file";
   return {
     path: String(current?.path ?? ""),
     name: String(current?.name ?? ""),
@@ -280,6 +284,44 @@ class WailsBridge implements DesktopCapabilities {
       untracked: !!raw?.untracked,
       missing: !!raw?.missing,
     };
+  }
+
+  async getLibraryDirty() {
+    const raw = await App.GetLibraryDirty();
+    type Kind = "untracked" | "modified" | "deleted";
+    const normalizePath = (entry: unknown): { path: string; kind: Kind } => {
+      const e = entry as { path?: unknown; kind?: unknown } | null;
+      const rawKind = e?.kind;
+      const kind: Kind =
+        rawKind === "untracked" || rawKind === "modified" || rawKind === "deleted"
+          ? rawKind
+          : "modified";
+      return { path: String(e?.path ?? ""), kind };
+    };
+    const normList = (arr: unknown): { path: string; kind: Kind }[] =>
+      Array.isArray(arr) ? arr.map(normalizePath) : [];
+    return {
+      plays: normList(raw?.plays),
+      sidecars: normList(raw?.sidecars),
+      other: normList(raw?.other),
+      count: typeof raw?.count === "number" ? raw.count : 0,
+    };
+  }
+
+  async commitPaths(paths: string[], message: string): Promise<void> {
+    await App.CommitPaths(paths, message);
+  }
+
+  async discardPaths(paths: string[]): Promise<void> {
+    await App.DiscardPaths(paths);
+  }
+
+  async deleteLibraryFile(path: string): Promise<void> {
+    await App.DeleteLibraryFile(path);
+  }
+
+  async restoreLibraryFile(path: string): Promise<void> {
+    await App.RestoreLibraryFile(path);
   }
 
   async getCurrentLibrary(): Promise<string> {

@@ -22,6 +22,7 @@ import Settings from './desktop/Settings.vue';
 import LibraryTree from './desktop/LibraryTree.vue';
 import PromptModal from './desktop/PromptModal.vue';
 import StatusBar from './desktop/StatusBar.vue';
+import ReviewChangesModal from './desktop/ReviewChangesModal.vue';
 import ExportPdfModal from './components/shared/ExportPdfModal.vue';
 import RevisionDiffView from './desktop/RevisionDiffView.vue';
 import VersionsPanel from './desktop/VersionsPanel.vue';
@@ -146,6 +147,95 @@ async function handleExportConfirmed(opts: ExportPdfOptions) {
 const newFolderOpen = ref(false);
 const newFolderParent = ref('');
 const newFolderError = ref<string | null>(null);
+
+const reviewChangesOpen = ref(false);
+const reviewBusy = ref(false);
+
+function openReviewChanges() {
+  if (!workspace.state.libraryPath) return;
+  void workspace.refreshLibraryDirty();
+  reviewChangesOpen.value = true;
+}
+
+async function onReviewCommit(paths: string[], message: string) {
+  reviewBusy.value = true;
+  try {
+    await workspace.commitDirtyPaths(paths, message);
+    toastManager.value?.addToast(`Committed ${paths.length} change${paths.length === 1 ? '' : 's'}`, 'success');
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Commit failed: ${errorMessage(error)}`, 'error');
+  } finally {
+    reviewBusy.value = false;
+  }
+}
+
+async function onReviewDiscard(paths: string[]) {
+  reviewBusy.value = true;
+  try {
+    await workspace.discardDirtyPaths(paths);
+    toastManager.value?.addToast(`Discarded ${paths.length} change${paths.length === 1 ? '' : 's'}`, 'success');
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Discard failed: ${errorMessage(error)}`, 'error');
+  } finally {
+    reviewBusy.value = false;
+  }
+}
+
+async function requestDeleteFromTree(path: string) {
+  const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+  if (!confirm(`Delete ${name}? Git history is preserved — the file can be restored from the Deleted section.`)) return;
+  await performDelete(path);
+}
+
+function requestDeleteActiveFile() {
+  const path = workspace.state.activeFile;
+  if (!path) return;
+  void requestDeleteFromTree(path);
+}
+
+async function performDelete(path: string) {
+  try {
+    await flushSave();
+    await workspace.deleteFile(path);
+    if (workspace.state.activeFile === null) {
+      // Was the active file. Open the next live one (or leave editor empty).
+      const remaining = workspace.libraryFiles.value;
+      if (remaining.length > 0) {
+        await selectLibraryFile(remaining[0].path);
+      } else {
+        activeContent.value = '';
+      }
+    }
+    toastManager.value?.addToast(`Deleted ${path}`, 'success');
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Delete failed: ${errorMessage(error)}`, 'error');
+  }
+}
+
+async function requestRestoreFromTree(path: string) {
+  try {
+    await workspace.restoreFile(path);
+    const content = await workspace.selectFile(path);
+    markProgrammaticLoad(path, content);
+    activeContent.value = content;
+    toastManager.value?.addToast(`Restored ${path}`, 'success');
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Restore failed: ${errorMessage(error)}`, 'error');
+  }
+}
+
+async function requestPermanentDeleteFromTree(path: string) {
+  if (!confirm(`Permanently remove ${path}. Git history is preserved but the file will no longer appear in your library.`)) return;
+  reviewBusy.value = true;
+  try {
+    await workspace.commitDirtyPaths([path], `Delete ${path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path}`);
+    toastManager.value?.addToast(`Permanently deleted ${path}`, 'success');
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Permanent delete failed: ${errorMessage(error)}`, 'error');
+  } finally {
+    reviewBusy.value = false;
+  }
+}
 
 function openNewFolderPrompt(parentPath = '') {
   if (!workspace.state.libraryPath) {
@@ -345,6 +435,8 @@ onMounted(async () => {
       openNewFolderPrompt,
       openExportDialog,
       openSaveVersionPrompt,
+      openReviewChanges,
+      requestDeleteActiveFile,
     },
   };
   for (const [id, entry] of createCommandHandlers(ctx)) {
@@ -359,15 +451,40 @@ onMounted(async () => {
     void workspace.state.revisionViewMode;
     void workspace.state.compareSecondHash;
     void workspace.state.externalFile;
+    void workspace.state.libraryDirty?.count;
     void isV1Document.value;
     dispatcher?.scheduleRefresh();
   });
+
+  // Library-wide dirty surface: poll on a long interval while focused,
+  // and refresh immediately on every focus event so users tabbing back
+  // from a terminal see the latest state without waiting for the tick.
+  if (typeof window !== 'undefined') {
+    void workspace.refreshLibraryDirty();
+    workspace.startLibraryDirtyPolling();
+    window.addEventListener('focus', onWindowFocus);
+    window.addEventListener('blur', onWindowBlur);
+  }
 });
+
+function onWindowFocus() {
+  void workspace.refreshLibraryDirty();
+  workspace.startLibraryDirtyPolling();
+}
+
+function onWindowBlur() {
+  workspace.stopLibraryDirtyPolling();
+}
 
 onUnmounted(() => {
   registerFlushSave(null);
   registerDispatcher(null);
   window.removeEventListener('resize', scheduleBoundsSave);
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('focus', onWindowFocus);
+    window.removeEventListener('blur', onWindowBlur);
+  }
+  workspace.stopLibraryDirtyPolling();
   if (boundsSaveTimer !== null) {
     clearTimeout(boundsSaveTimer);
     boundsSaveTimer = null;
@@ -606,6 +723,9 @@ watch(activeContent, (newContent) => {
           @error="(message) => toastManager?.addToast(message, 'error')"
           @info="(message) => toastManager?.addToast(message, 'info')"
           @request-new-folder="openNewFolderPrompt"
+          @request-delete-file="requestDeleteFromTree"
+          @request-restore-file="requestRestoreFromTree"
+          @request-permanent-delete="requestPermanentDeleteFromTree"
         />
 
         <VersionsPanel
@@ -841,7 +961,18 @@ watch(activeContent, (newContent) => {
       :git-status="workspace.state.gitStatus"
       :has-library="!!workspace.state.libraryPath"
       :has-active-file="!!workspace.state.activeFile"
+      :library-dirty-count="workspace.state.libraryDirty?.count ?? 0"
       @reveal-library="handleRevealLibrary"
+      @review-library-changes="openReviewChanges"
+    />
+    <ReviewChangesModal
+      :open="reviewChangesOpen"
+      :dirty="workspace.state.libraryDirty"
+      :busy="reviewBusy"
+      @close="reviewChangesOpen = false"
+      @commit="onReviewCommit"
+      @discard="onReviewDiscard"
+      @refresh="() => workspace.refreshLibraryDirty()"
     />
     <ToastManager ref="toastManager" />
     <CommandPalette

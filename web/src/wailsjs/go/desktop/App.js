@@ -22,6 +22,10 @@ export function CodeActions(arg1, arg2, arg3, arg4) {
   return window['go']['desktop']['App']['CodeActions'](arg1, arg2, arg3, arg4);
 }
 
+export function CommitPaths(arg1, arg2) {
+  return window['go']['desktop']['App']['CommitPaths'](arg1, arg2);
+}
+
 export function Completion(arg1, arg2, arg3) {
   return window['go']['desktop']['App']['Completion'](arg1, arg2, arg3);
 }
@@ -34,8 +38,16 @@ export function CreateLibraryFolder(arg1) {
   return window['go']['desktop']['App']['CreateLibraryFolder'](arg1);
 }
 
+export function DeleteLibraryFile(arg1) {
+  return window['go']['desktop']['App']['DeleteLibraryFile'](arg1);
+}
+
 export function Diagnostics(arg1) {
   return window['go']['desktop']['App']['Diagnostics'](arg1);
+}
+
+export function DiscardPaths(arg1) {
+  return window['go']['desktop']['App']['DiscardPaths'](arg1);
 }
 
 export function DocumentSymbols(arg1) {
@@ -60,6 +72,10 @@ export function GetHiddenRevisions() {
 
 export function GetLastActiveFile() {
   return window['go']['desktop']['App']['GetLastActiveFile']();
+}
+
+export function GetLibraryDirty() {
+  return window['go']['desktop']['App']['GetLibraryDirty']();
 }
 
 export function GetLibraryTree() {
@@ -128,6 +144,10 @@ export function RenderHTML(arg1, arg2) {
 
 export function RenderPDF(arg1, arg2) {
   return window['go']['desktop']['App']['RenderPDF'](arg1, arg2);
+}
+
+export function RestoreLibraryFile(arg1) {
+  return window['go']['desktop']['App']['RestoreLibraryFile'](arg1);
 }
 
 export function RevealLibraryInExplorer() {

@@ -164,6 +164,20 @@ function createEnv(initial?: Partial<StubEnv>): StubEnv {
     getSpellAllowlist: () => record("getSpellAllowlist", async () => []),
     addSpellAllowlistWord: () => record("addSpellAllowlistWord", async () => true),
     removeSpellAllowlistWord: () => record("removeSpellAllowlistWord", async () => true),
+    getLibraryDirty: () => record("getLibraryDirty", async () => ({
+      plays: [],
+      sidecars: [],
+      other: [],
+      count: 0,
+    })),
+    commitPaths: (paths: string[], msg: string) =>
+      record(`commitPaths:${paths.join(",")}:${msg}`, async () => {}),
+    discardPaths: (paths: string[]) =>
+      record(`discardPaths:${paths.join(",")}`, async () => {}),
+    deleteLibraryFile: (p: string) =>
+      record(`deleteLibraryFile:${p}`, async () => {}),
+    restoreLibraryFile: (p: string) =>
+      record(`restoreLibraryFile:${p}`, async () => {}),
   });
 
   return state;
@@ -1223,6 +1237,127 @@ describe("Workspace", () => {
       // should no longer be in the sidebar list.
       expect(ws.libraryFiles.value.map((f) => f.path)).not.toContain("gone.ds");
       expect(ws.libraryFiles.value.map((f) => f.path)).toContain("alive.ds");
+    });
+  });
+
+  // --- A2: library-wide dirty surface (deleteFile / restoreFile /
+  // commitDirtyPaths / discardDirtyPaths / refreshLibraryDirty) ---
+
+  describe("library dirty surface", () => {
+    it("refreshLibraryDirty calls the env method and stores the result", async () => {
+      stubLocalStorage();
+      const env = createEnv({ _openReturn: "/p/x" });
+      env.getLibraryDirty = async () => ({
+        plays: [{ path: "act.ds", kind: "modified" }],
+        sidecars: [],
+        other: [],
+        count: 1,
+      });
+      const ws = new Workspace(env);
+      await ws.init();
+      await ws.refreshLibraryDirty();
+
+      expect(ws.state.libraryDirty?.count).toBe(1);
+      expect(ws.state.libraryDirty?.plays[0].path).toBe("act.ds");
+    });
+
+    it("deletedFiles computed exposes only deleted-kind plays", async () => {
+      stubLocalStorage();
+      const env = createEnv({ _openReturn: "/p/x" });
+      env.getLibraryDirty = async () => ({
+        plays: [
+          { path: "alive.ds", kind: "modified" },
+          { path: "gone1.ds", kind: "deleted" },
+          { path: "gone2.ds", kind: "deleted" },
+        ],
+        sidecars: [],
+        other: [],
+        count: 3,
+      });
+      const ws = new Workspace(env);
+      await ws.init();
+      await ws.refreshLibraryDirty();
+
+      const paths = ws.deletedFiles.value.map((p) => p.path);
+      expect(paths).toEqual(["gone1.ds", "gone2.ds"]);
+    });
+
+    it("deleteFile clears activeFile when the deleted path was active", async () => {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [
+          { path: "doomed.ds", name: "doomed.ds", updatedAt: "" },
+          { path: "other.ds", name: "other.ds", updatedAt: "" },
+        ],
+        _contents: { "doomed.ds": "x", "other.ds": "y" },
+      });
+      const ws = new Workspace(env);
+      await ws.init();
+      await ws.selectFile("doomed.ds");
+      expect(ws.state.activeFile).toBe("doomed.ds");
+
+      // Stub env.deleteLibraryFile to also drop the file from the
+      // fake filesystem so the post-delete tree refresh is realistic.
+      const originalDelete = env.deleteLibraryFile;
+      env.deleteLibraryFile = async (p: string) => {
+        env._files = env._files.filter((f) => f.path !== p);
+        return originalDelete(p);
+      };
+
+      await ws.deleteFile("doomed.ds");
+
+      expect(ws.state.activeFile).toBeNull();
+      expect(ws.libraryFiles.value.map((f) => f.path)).not.toContain("doomed.ds");
+    });
+
+    it("deleteFile leaves activeFile alone when a different path is deleted", async () => {
+      stubLocalStorage();
+      const env = createEnv({
+        _files: [
+          { path: "stay.ds", name: "stay.ds", updatedAt: "" },
+          { path: "other.ds", name: "other.ds", updatedAt: "" },
+        ],
+        _contents: { "stay.ds": "a", "other.ds": "b" },
+      });
+      const ws = new Workspace(env);
+      await ws.init();
+      await ws.selectFile("stay.ds");
+
+      const originalDelete = env.deleteLibraryFile;
+      env.deleteLibraryFile = async (p: string) => {
+        env._files = env._files.filter((f) => f.path !== p);
+        return originalDelete(p);
+      };
+
+      await ws.deleteFile("other.ds");
+
+      expect(ws.state.activeFile).toBe("stay.ds");
+    });
+
+    it("commitDirtyPaths forwards to env and refreshes dirty state", async () => {
+      stubLocalStorage();
+      const env = createEnv({ _openReturn: "/p/x" });
+      const seen: { paths: string[]; msg: string }[] = [];
+      env.commitPaths = async (paths: string[], msg: string) => {
+        seen.push({ paths, msg });
+      };
+      const ws = new Workspace(env);
+      await ws.init();
+      await ws.commitDirtyPaths(["a.ds", "b.ds"], "cleanup");
+
+      expect(seen).toEqual([{ paths: ["a.ds", "b.ds"], msg: "cleanup" }]);
+    });
+
+    it("discardDirtyPaths forwards to env and refreshes tree + dirty", async () => {
+      stubLocalStorage();
+      const env = createEnv({ _openReturn: "/p/x" });
+      const seen: string[][] = [];
+      env.discardPaths = async (paths: string[]) => { seen.push(paths); };
+      const ws = new Workspace(env);
+      await ws.init();
+      await ws.discardDirtyPaths(["bad.ds"]);
+
+      expect(seen).toEqual([["bad.ds"]]);
     });
   });
 });

@@ -43,6 +43,11 @@ export interface CommandContext {
     openNewFolderPrompt: (parentPath?: string) => void;
     openExportDialog: () => void;
     openSaveVersionPrompt: () => void;
+    openReviewChanges: () => void;
+    // Confirm-and-delete the active library file. Implemented in the host
+    // so the confirm-prompt UX (BaseModal vs native confirm) stays in one
+    // place; commands.ts just opens it.
+    requestDeleteActiveFile: () => void;
   };
 }
 
@@ -233,6 +238,15 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     ["insert.scene", { handler: () => editor.applyFormat("scene"), isEnabled: hasActiveFileEditable }],
     ["insert.song", { handler: () => editor.applyFormat("song"), isEnabled: hasActiveFileEditable }],
     ["insert.pageBreak", { handler: () => editor.applyFormat("page-break"), isEnabled: hasActiveFileEditable }],
+
+    ["library.delete", {
+      handler: () => ui.requestDeleteActiveFile(),
+      isEnabled: hasActiveFileEditable,
+    }],
+    ["library.reviewChanges", {
+      handler: () => ui.openReviewChanges(),
+      isEnabled: () => (workspace.state.libraryDirty?.count ?? 0) > 0,
+    }],
 
     ["help.toggle", { handler: () => toggleDrawerTab("help"), isEnabled: hasActiveFile }],
     ["help.github", { handler: () => env.openURL("https://github.com/jscaltreto/downstage") }],
