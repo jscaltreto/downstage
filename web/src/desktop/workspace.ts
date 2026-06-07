@@ -1,5 +1,5 @@
 import { computed, reactive, type ComputedRef } from "vue";
-import type { DesktopCapabilities, FileGitStatus, LibraryFile, LibraryNode, Revision } from "./types";
+import type { DesktopCapabilities, DirtyPath, FileGitStatus, LibraryDirty, LibraryFile, LibraryNode, Revision } from "./types";
 
 export type DrawerDock = 'bottom' | 'right';
 
@@ -28,7 +28,16 @@ export interface WorkspaceState {
   hiddenRevisionHashes: Set<string>;
   showHidden: boolean;
   externalFile: { absPath: string; content: string } | null;
+  // Library-wide dirty state (sibling files / out-of-band edits / deleted
+  // tracked files). Distinct from gitStatus, which is per-active-file.
+  libraryDirty: LibraryDirty | null;
 }
+
+// How often to re-poll worktree status while the window is focused. 30s
+// trades off responsiveness for cost; window-focus also triggers an
+// immediate refresh, so unfocused-then-refocused is instant. fsnotify
+// would obsolete this; deferred.
+export const LIBRARY_DIRTY_POLL_MS = 30_000;
 
 const dirtyReconcileMs = 2000;
 
@@ -54,11 +63,13 @@ export class Workspace {
   public state: WorkspaceState;
   public libraryFiles: ComputedRef<LibraryFile[]>;
   public visibleRevisions!: ComputedRef<Revision[]>;
+  public deletedFiles!: ComputedRef<DirtyPath[]>;
 
   private hydrated = false;
   private dirtyReconcileTimer: ReturnType<typeof setTimeout> | null = null;
   private sidebarPersistTimer: ReturnType<typeof setTimeout> | null = null;
   private drawerWidthPersistTimer: ReturnType<typeof setTimeout> | null = null;
+  private libraryDirtyPollTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private env: DesktopCapabilities) {
     this.state = reactive<WorkspaceState>({
@@ -86,9 +97,15 @@ export class Workspace {
       hiddenRevisionHashes: new Set<string>(),
       showHidden: false,
       externalFile: null,
+      libraryDirty: null,
     });
 
     this.libraryFiles = computed(() => flattenLibraryTree(this.state.libraryTree));
+    this.deletedFiles = computed(() => {
+      const d = this.state.libraryDirty;
+      if (!d) return [];
+      return d.plays.filter((p) => p.kind === "deleted");
+    });
     this.visibleRevisions = computed(() => {
       if (this.state.showHidden) return this.state.revisions;
       if (this.state.hiddenRevisionHashes.size === 0) {
@@ -263,6 +280,81 @@ export class Workspace {
     const path = await this.env.createLibraryFile(name, content);
     this.state.libraryTree = await this.env.getLibraryTree();
     return path;
+  }
+
+  // --- library-wide dirty surface (sibling/out-of-band reconciliation) ---
+
+  async refreshLibraryDirty(): Promise<void> {
+    if (!this.state.libraryPath) {
+      this.state.libraryDirty = null;
+      return;
+    }
+    try {
+      this.state.libraryDirty = await this.env.getLibraryDirty();
+    } catch {
+      this.state.libraryDirty = null;
+    }
+    // The live tree must stay in sync with the dirty surface. Without
+    // this, an out-of-band `rm` shows up in the Deleted section *and*
+    // still appears as a live file in the tree until something else
+    // refreshes it.
+    try {
+      this.state.libraryTree = await this.env.getLibraryTree();
+    } catch {
+      // leave the previous tree in place if the walk fails
+    }
+  }
+
+  startLibraryDirtyPolling(): void {
+    if (this.libraryDirtyPollTimer !== null) return;
+    this.libraryDirtyPollTimer = setInterval(() => {
+      void this.refreshLibraryDirty();
+    }, LIBRARY_DIRTY_POLL_MS);
+  }
+
+  stopLibraryDirtyPolling(): void {
+    if (this.libraryDirtyPollTimer === null) return;
+    clearInterval(this.libraryDirtyPollTimer);
+    this.libraryDirtyPollTimer = null;
+  }
+
+  // Deleting the active file leaves the editor pointing at nothing.
+  // Caller (AppDesktop) is responsible for the flushSave-before-delete
+  // dance and for opening a replacement file via selectLibraryFile after
+  // this call returns. We retarget activeFile to null here so the editor
+  // stops trying to read the dead path during the gap.
+  async deleteFile(path: string): Promise<void> {
+    const wasActive = this.state.activeFile === path;
+    await this.env.deleteLibraryFile(path);
+    if (wasActive) {
+      this.state.activeFile = null;
+      this.state.gitStatus = null;
+      this.state.revisions = [];
+      this.clearRevisionView();
+      this.cancelDirtyReconcile();
+    }
+    this.state.libraryTree = await this.env.getLibraryTree();
+    await this.refreshLibraryDirty();
+  }
+
+  async restoreFile(path: string): Promise<void> {
+    await this.env.restoreLibraryFile(path);
+    this.state.libraryTree = await this.env.getLibraryTree();
+    await this.refreshLibraryDirty();
+  }
+
+  async commitDirtyPaths(paths: string[], message: string): Promise<void> {
+    await this.env.commitPaths(paths, message);
+    // refreshLibraryDirty refreshes the tree too — that picks up the
+    // case where commitPaths includes a deletion (permanent-delete from
+    // the Deleted section).
+    await this.refreshLibraryDirty();
+  }
+
+  async discardDirtyPaths(paths: string[]): Promise<void> {
+    await this.env.discardPaths(paths);
+    this.state.libraryTree = await this.env.getLibraryTree();
+    await this.refreshLibraryDirty();
   }
 
   async snapshotFile(message: string) {
@@ -528,6 +620,12 @@ function clampDrawerRightWidth(px: number): number {
   return Math.max(minDrawerRightWidth, Math.min(maxDrawerRightWidth, Math.round(px)));
 }
 
+// flattenLibraryTree returns only live library files. Deleted-tracked
+// files are NEVER included — they belong to a separate UI surface
+// (LibraryTree's "Deleted" section) and including them here would let
+// the palette file-pick, navigate.nextFile cycling, and other consumers
+// try to open dead paths. Anyone adding a navigation feature: if the
+// list of openable files matters, this function is the source of truth.
 export function flattenLibraryTree(nodes: readonly LibraryNode[]): LibraryFile[] {
   const out: LibraryFile[] = [];
   const walk = (ns: readonly LibraryNode[]) => {
@@ -536,6 +634,7 @@ export function flattenLibraryTree(nodes: readonly LibraryNode[]): LibraryFile[]
         if (n.children) walk(n.children);
         continue;
       }
+      if (n.kind === "deleted-file") continue;
       out.push({
         path: n.path,
         name: n.name,

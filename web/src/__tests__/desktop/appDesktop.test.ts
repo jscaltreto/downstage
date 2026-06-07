@@ -166,6 +166,14 @@ function createEnv(init: { files?: LibraryFile[]; openReturn?: string; revisions
     getSpellAllowlist: async () => { record("getSpellAllowlist"); return []; },
     addSpellAllowlistWord: async () => { record("addSpellAllowlistWord"); return true; },
     removeSpellAllowlistWord: async () => { record("removeSpellAllowlistWord"); return true; },
+    getLibraryDirty: async () => {
+      record("getLibraryDirty");
+      return { plays: [], sidecars: [], other: [], count: 0 };
+    },
+    commitPaths: async (paths, msg) => { record(`commitPaths:${paths.join(",")}:${msg}`); },
+    discardPaths: async (paths) => { record(`discardPaths:${paths.join(",")}`); },
+    deleteLibraryFile: async (p) => { record(`deleteLibraryFile:${p}`); },
+    restoreLibraryFile: async (p) => { record(`restoreLibraryFile:${p}`); },
   };
   return env;
 }

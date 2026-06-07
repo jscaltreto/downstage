@@ -15,13 +15,19 @@ export function ChangeLibraryLocation():Promise<string>;
 
 export function CodeActions(arg1:string,arg2:number,arg3:number,arg4:Array<string>):Promise<desktop.codeActionsResultJSON>;
 
+export function CommitPaths(arg1:Array<string>,arg2:string):Promise<void>;
+
 export function Completion(arg1:string,arg2:number,arg3:number):Promise<protocol.CompletionList>;
 
 export function CreateLibraryFile(arg1:string,arg2:string):Promise<string>;
 
 export function CreateLibraryFolder(arg1:string):Promise<void>;
 
+export function DeleteLibraryFile(arg1:string):Promise<void>;
+
 export function Diagnostics(arg1:string):Promise<Array<desktop.diagnosticJSON>>;
+
+export function DiscardPaths(arg1:Array<string>):Promise<void>;
 
 export function DocumentSymbols(arg1:string):Promise<desktop.documentSymbolsResultJSON>;
 
@@ -34,6 +40,8 @@ export function GetFileGitStatus(arg1:string):Promise<desktop.FileGitStatus>;
 export function GetHiddenRevisions():Promise<Array<string>>;
 
 export function GetLastActiveFile():Promise<string>;
+
+export function GetLibraryDirty():Promise<desktop.LibraryDirty>;
 
 export function GetLibraryTree():Promise<Array<desktop.LibraryNode>>;
 
@@ -68,6 +76,8 @@ export function RenameLibraryEntry(arg1:string,arg2:string):Promise<string>;
 export function RenderHTML(arg1:string,arg2:string):Promise<string>;
 
 export function RenderPDF(arg1:string,arg2:desktop.PdfExportOptions):Promise<string>;
+
+export function RestoreLibraryFile(arg1:string):Promise<void>;
 
 export function RevealLibraryInExplorer():Promise<void>;
 

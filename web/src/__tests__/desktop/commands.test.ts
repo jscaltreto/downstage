@@ -79,6 +79,8 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
       openSettings: vi.fn(),
       openExportDialog: vi.fn(),
       openSaveVersionPrompt: vi.fn(),
+      openReviewChanges: vi.fn(),
+      requestDeleteActiveFile: vi.fn(),
     },
     ...overrides,
   };

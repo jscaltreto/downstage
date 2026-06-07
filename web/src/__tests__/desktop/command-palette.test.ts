@@ -146,8 +146,11 @@ describe("CommandPalette", () => {
     });
     await flushPromises();
     const labels = wrapper.findAll("li").map((li) => li.text());
-    expect(labels.some((l) => l.includes("act-one.ds"))).toBe(true);
-    expect(labels.some((l) => l.includes("act-two.ds"))).toBe(true);
+    // Display strips the .ds extension — writers see "act-one", not
+    // "act-one.ds", and the rename input enforces the same contract.
+    expect(labels.some((l) => l.includes("act-one"))).toBe(true);
+    expect(labels.some((l) => l.includes("act-two"))).toBe(true);
+    expect(labels.some((l) => l.includes(".ds"))).toBe(false);
     // No catalog labels should appear in file mode.
     expect(labels.some((l) => l.includes("New Play"))).toBe(false);
   });

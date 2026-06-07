@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { FolderOpen } from 'lucide-vue-next';
+import { FolderOpen, GitMerge } from 'lucide-vue-next';
 import type { FileGitStatus } from './types';
 
 // StatusBar is the desktop app's single bottom chrome strip. It carries:
@@ -22,10 +22,15 @@ const props = defineProps<{
   gitStatus: FileGitStatus | null;
   hasLibrary: boolean;
   hasActiveFile: boolean;
+  // Library-wide uncommitted-change count. Distinct from per-file
+  // gitStatus.dirty (which only covers the active file). When > 0, a
+  // sidebar-adjacent affordance prompts the user to open Review Changes.
+  libraryDirtyCount: number;
 }>();
 
 defineEmits<{
   (e: 'revealLibrary'): void;
+  (e: 'reviewLibraryChanges'): void;
 }>();
 
 // formatRelativeTime renders a compact human-readable duration for the
@@ -110,6 +115,17 @@ const libraryButtonTitle = computed(() => {
     >
       {{ wordCount.toLocaleString() }} words
     </span>
+
+    <button
+      v-if="libraryDirtyCount > 0"
+      type="button"
+      class="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-amber-700 dark:text-amber-300 hover:bg-amber-500/15 focus:outline-none focus:bg-amber-500/15 transition-colors"
+      :title="`Library has ${libraryDirtyCount} uncommitted change${libraryDirtyCount === 1 ? '' : 's'} — click to review`"
+      @click="$emit('reviewLibraryChanges')"
+    >
+      <GitMerge class="w-3 h-3 shrink-0" />
+      <span class="font-bold">{{ libraryDirtyCount }} uncommitted</span>
+    </button>
 
     <span v-if="gitStatus && hasActiveFile" class="inline-flex items-center gap-1.5">
       <span

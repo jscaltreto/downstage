@@ -301,6 +301,89 @@ func (a *App) commitMove(srcPaths []string, dstRel string) error {
 	return nil
 }
 
+// DeleteLibraryFile removes a single .ds file from disk WITHOUT committing
+// the deletion. For tracked files this leaves the worktree in a
+// status=Deleted state — the UI surfaces it in the Deleted section so the
+// user can Restore (from HEAD) or Permanently delete (commit). Untracked
+// files are gone for good, since there's no HEAD blob to restore from.
+//
+// Sibling changes are intentionally NOT picked up — the snapshot /
+// review-changes flows are the explicit paths for those.
+func (a *App) DeleteLibraryFile(relPath string) error {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
+	if a.currentLibrary == "" {
+		return fmt.Errorf("no library open")
+	}
+	clean := filepath.ToSlash(filepath.Clean(relPath))
+	if !strings.HasSuffix(clean, ".ds") {
+		return fmt.Errorf("only .ds files can be deleted via this API")
+	}
+	fullPath, err := a.safePath(clean)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return fmt.Errorf("stat: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("path is a directory; use MoveLibraryEntry for folders")
+	}
+	if err := os.Remove(fullPath); err != nil {
+		return fmt.Errorf("remove: %w", err)
+	}
+	return nil
+}
+
+// RestoreLibraryFile reads the path's HEAD blob and writes it back to disk,
+// re-staging the file so the worktree returns to clean. Precondition: the
+// path must currently be in Deleted state in the worktree. Restore over a
+// Modified file is rejected — the user should use DiscardPaths instead so
+// they can opt into losing local changes explicitly.
+func (a *App) RestoreLibraryFile(relPath string) error {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
+	if a.currentLibrary == "" {
+		return fmt.Errorf("no library open")
+	}
+	clean := filepath.ToSlash(filepath.Clean(relPath))
+	if _, err := a.safePath(clean); err != nil {
+		return err
+	}
+
+	r, err := git.PlainOpen(a.currentLibrary)
+	if errors.Is(err, git.ErrRepositoryNotExists) {
+		return fmt.Errorf("library is not a git repository")
+	}
+	if err != nil {
+		return err
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return err
+	}
+	status, err := w.Status()
+	if err != nil {
+		return err
+	}
+	entry, ok := status[clean]
+	if !ok {
+		return fmt.Errorf("file %q is not in a restorable state", clean)
+	}
+	if classifyDirty(entry) != DirtyDeleted {
+		return fmt.Errorf("file %q is not deleted (use DiscardPaths to revert modifications)", clean)
+	}
+
+	if err := restoreFromHEAD(r, a.currentLibrary, clean); err != nil {
+		return err
+	}
+	if _, err := w.Add(clean); err != nil {
+		return fmt.Errorf("re-stage: %w", err)
+	}
+	return nil
+}
+
 func (a *App) RenameLibraryEntry(srcRel, newName string) (string, error) {
 	if newName == "" {
 		return "", fmt.Errorf("new name is empty")

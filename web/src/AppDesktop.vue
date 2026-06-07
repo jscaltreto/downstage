@@ -21,7 +21,10 @@ import CommandPalette from './desktop/CommandPalette.vue';
 import Settings from './desktop/Settings.vue';
 import LibraryTree from './desktop/LibraryTree.vue';
 import PromptModal from './desktop/PromptModal.vue';
+import ConfirmModal from './desktop/ConfirmModal.vue';
 import StatusBar from './desktop/StatusBar.vue';
+import ReviewChangesModal from './desktop/ReviewChangesModal.vue';
+import { displayFileName } from './desktop/naming';
 import ExportPdfModal from './components/shared/ExportPdfModal.vue';
 import RevisionDiffView from './desktop/RevisionDiffView.vue';
 import VersionsPanel from './desktop/VersionsPanel.vue';
@@ -147,6 +150,146 @@ const newFolderOpen = ref(false);
 const newFolderParent = ref('');
 const newFolderError = ref<string | null>(null);
 
+const reviewChangesOpen = ref(false);
+const reviewBusy = ref(false);
+
+interface ConfirmConfig {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  destructive: boolean;
+  onConfirm: () => void | Promise<void>;
+}
+const confirmOpen = ref(false);
+const confirmConfig = ref<ConfirmConfig | null>(null);
+
+function askConfirm(config: ConfirmConfig) {
+  confirmConfig.value = config;
+  confirmOpen.value = true;
+}
+
+async function onConfirmAccepted() {
+  const cfg = confirmConfig.value;
+  confirmOpen.value = false;
+  confirmConfig.value = null;
+  if (cfg) await cfg.onConfirm();
+}
+
+function onConfirmClosed() {
+  confirmOpen.value = false;
+  confirmConfig.value = null;
+}
+
+function openReviewChanges() {
+  if (!workspace.state.libraryPath) return;
+  void workspace.refreshLibraryDirty();
+  reviewChangesOpen.value = true;
+}
+
+async function onReviewCommit(paths: string[], message: string) {
+  reviewBusy.value = true;
+  try {
+    await workspace.commitDirtyPaths(paths, message);
+    toastManager.value?.addToast(`Committed ${paths.length} change${paths.length === 1 ? '' : 's'}`, 'success');
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Commit failed: ${errorMessage(error)}`, 'error');
+  } finally {
+    reviewBusy.value = false;
+  }
+}
+
+async function onReviewDiscard(paths: string[]) {
+  reviewBusy.value = true;
+  try {
+    await workspace.discardDirtyPaths(paths);
+    toastManager.value?.addToast(`Discarded ${paths.length} change${paths.length === 1 ? '' : 's'}`, 'success');
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Discard failed: ${errorMessage(error)}`, 'error');
+  } finally {
+    reviewBusy.value = false;
+  }
+}
+
+function requestDeleteFromTree(path: string) {
+  const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+  askConfirm({
+    title: `Delete ${displayFileName(name)}?`,
+    message: `The file will move to the Deleted section. You can restore it from there, or permanently delete it later.`,
+    confirmLabel: 'Delete',
+    destructive: true,
+    onConfirm: () => performDelete(path),
+  });
+}
+
+function requestDeleteActiveFile() {
+  const path = workspace.state.activeFile;
+  if (!path) return;
+  requestDeleteFromTree(path);
+}
+
+async function performDelete(path: string) {
+  try {
+    await flushSave();
+    await workspace.deleteFile(path);
+    if (workspace.state.activeFile === null) {
+      // Was the active file. Open the next live one (or leave editor empty).
+      const remaining = workspace.libraryFiles.value;
+      if (remaining.length > 0) {
+        await selectLibraryFile(remaining[0].path);
+      } else {
+        activeContent.value = '';
+      }
+    }
+    // A tracked file lands in the Deleted section (worktree-status=Deleted).
+    // An untracked file is gone for good — no HEAD blob to restore. Tailor
+    // the toast so the restore promise only appears when restore is real.
+    const wasTracked = (workspace.state.libraryDirty?.plays ?? [])
+      .some((p) => p.path === path && p.kind === 'deleted');
+    const display = displayFileName(path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path);
+    toastManager.value?.addToast(
+      wasTracked
+        ? `Deleted ${display} — restore from the Deleted section`
+        : `Deleted ${display}`,
+      'success',
+    );
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Delete failed: ${errorMessage(error)}`, 'error');
+  }
+}
+
+async function requestRestoreFromTree(path: string) {
+  try {
+    await workspace.restoreFile(path);
+    const content = await workspace.selectFile(path);
+    markProgrammaticLoad(path, content);
+    activeContent.value = content;
+    toastManager.value?.addToast(`Restored ${path}`, 'success');
+  } catch (error: unknown) {
+    toastManager.value?.addToast(`Restore failed: ${errorMessage(error)}`, 'error');
+  }
+}
+
+function requestPermanentDeleteFromTree(path: string) {
+  const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+  askConfirm({
+    title: 'Permanently delete?',
+    message: `Permanently remove ${path}.\n\nGit history is preserved but the file will no longer appear in your library.`,
+    confirmLabel: 'Permanently delete',
+    destructive: true,
+    onConfirm: async () => {
+      reviewBusy.value = true;
+      try {
+        await workspace.commitDirtyPaths([path], `Delete ${name}`);
+        toastManager.value?.addToast(`Permanently deleted ${path}`, 'success');
+      } catch (error: unknown) {
+        toastManager.value?.addToast(`Permanent delete failed: ${errorMessage(error)}`, 'error');
+      } finally {
+        reviewBusy.value = false;
+      }
+    },
+  });
+}
+
 function openNewFolderPrompt(parentPath = '') {
   if (!workspace.state.libraryPath) {
     toastManager.value?.addToast(
@@ -184,7 +327,7 @@ const saveVersionError = ref<string | null>(null);
 function openSaveVersionPrompt() {
   if (!workspace.state.activeFile) return;
   const filename = workspace.state.activeFile.split(/[\\/]/).pop() || 'file';
-  saveVersionInitial.value = `Snapshot ${filename}`;
+  saveVersionInitial.value = `Snapshot ${displayFileName(filename)}`;
   saveVersionError.value = null;
   saveVersionOpen.value = true;
 }
@@ -215,9 +358,12 @@ let dispatcher: CommandDispatcher | null = null;
 const libraryNameBase = computed(
   () => workspace.state.libraryPath?.split(/[\\/]/).pop() ?? '',
 );
-const activeFileBase = computed(
-  () => workspace.state.activeFile?.split(/[\\/]/).pop() ?? '',
-);
+const activeFileBase = computed(() => {
+  const path = workspace.state.activeFile;
+  if (!path) return '';
+  const base = path.split(/[\\/]/).pop() ?? '';
+  return displayFileName(base);
+});
 
 const isViewingRevision = computed(
   () => workspace.state.viewingRevisionHash !== null,
@@ -345,6 +491,8 @@ onMounted(async () => {
       openNewFolderPrompt,
       openExportDialog,
       openSaveVersionPrompt,
+      openReviewChanges,
+      requestDeleteActiveFile,
     },
   };
   for (const [id, entry] of createCommandHandlers(ctx)) {
@@ -359,15 +507,40 @@ onMounted(async () => {
     void workspace.state.revisionViewMode;
     void workspace.state.compareSecondHash;
     void workspace.state.externalFile;
+    void workspace.state.libraryDirty?.count;
     void isV1Document.value;
     dispatcher?.scheduleRefresh();
   });
+
+  // Library-wide dirty surface: poll on a long interval while focused,
+  // and refresh immediately on every focus event so users tabbing back
+  // from a terminal see the latest state without waiting for the tick.
+  if (typeof window !== 'undefined') {
+    void workspace.refreshLibraryDirty();
+    workspace.startLibraryDirtyPolling();
+    window.addEventListener('focus', onWindowFocus);
+    window.addEventListener('blur', onWindowBlur);
+  }
 });
+
+function onWindowFocus() {
+  void workspace.refreshLibraryDirty();
+  workspace.startLibraryDirtyPolling();
+}
+
+function onWindowBlur() {
+  workspace.stopLibraryDirtyPolling();
+}
 
 onUnmounted(() => {
   registerFlushSave(null);
   registerDispatcher(null);
   window.removeEventListener('resize', scheduleBoundsSave);
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('focus', onWindowFocus);
+    window.removeEventListener('blur', onWindowBlur);
+  }
+  workspace.stopLibraryDirtyPolling();
   if (boundsSaveTimer !== null) {
     clearTimeout(boundsSaveTimer);
     boundsSaveTimer = null;
@@ -606,6 +779,9 @@ watch(activeContent, (newContent) => {
           @error="(message) => toastManager?.addToast(message, 'error')"
           @info="(message) => toastManager?.addToast(message, 'info')"
           @request-new-folder="openNewFolderPrompt"
+          @request-delete-file="requestDeleteFromTree"
+          @request-restore-file="requestRestoreFromTree"
+          @request-permanent-delete="requestPermanentDeleteFromTree"
         />
 
         <VersionsPanel
@@ -779,7 +955,7 @@ watch(activeContent, (newContent) => {
                 type="button"
                 @click="workspace.toggleSidebar()"
                 class="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-muted transition-colors"
-                :title="workspace.state.sidebarCollapsed ? 'Open Projects' : 'Close Projects'"
+                :title="workspace.state.sidebarCollapsed ? 'Open Library' : 'Close Library'"
               >
                 <FolderOpen class="w-4 h-4" />
               </button>
@@ -841,7 +1017,18 @@ watch(activeContent, (newContent) => {
       :git-status="workspace.state.gitStatus"
       :has-library="!!workspace.state.libraryPath"
       :has-active-file="!!workspace.state.activeFile"
+      :library-dirty-count="workspace.state.libraryDirty?.count ?? 0"
       @reveal-library="handleRevealLibrary"
+      @review-library-changes="openReviewChanges"
+    />
+    <ReviewChangesModal
+      :open="reviewChangesOpen"
+      :dirty="workspace.state.libraryDirty"
+      :busy="reviewBusy"
+      @close="reviewChangesOpen = false"
+      @commit="onReviewCommit"
+      @discard="onReviewDiscard"
+      @refresh="() => workspace.refreshLibraryDirty()"
     />
     <ToastManager ref="toastManager" />
     <CommandPalette
@@ -889,6 +1076,16 @@ watch(activeContent, (newContent) => {
       hide-page-size
       @close="exportDialogOpen = false"
       @confirm="handleExportConfirmed"
+    />
+    <ConfirmModal
+      v-if="confirmConfig"
+      :open="confirmOpen"
+      :title="confirmConfig.title"
+      :message="confirmConfig.message"
+      :confirm-label="confirmConfig.confirmLabel"
+      :destructive="confirmConfig.destructive"
+      @close="onConfirmClosed"
+      @confirm="onConfirmAccepted"
     />
   </div>
 </template>

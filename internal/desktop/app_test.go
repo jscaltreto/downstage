@@ -594,6 +594,32 @@ func TestGetRevisions_NoLibraryReturnsEmptySlice(t *testing.T) {
 	require.Len(t, revisions, 0)
 }
 
+// CommitPaths can produce a commit that touches a sibling file (e.g.
+// "Delete other.ds") while leaving the active file untouched. Such a
+// commit must NOT appear in the active file's revisions list — otherwise
+// the user sees a bogus "Delete other.ds" row that, when restored,
+// rewrites the active file to itself and appears to do nothing.
+func TestGetRevisions_IgnoresSiblingOnlyCommits(t *testing.T) {
+	a := testApp(t)
+
+	require.NoError(t, a.WriteLibraryFile("play.ds", "play content"))
+	require.NoError(t, a.SnapshotFile("play.ds", "initial play"))
+
+	require.NoError(t, a.WriteLibraryFile("other.ds", "other content"))
+	require.NoError(t, a.SnapshotFile("other.ds", "initial other"))
+
+	// Simulate a finalize-permanent-delete: remove the sibling and commit
+	// just that path. DeleteLibraryFile no longer commits (it's a soft
+	// delete now); the permanent path is CommitPaths after os.Remove.
+	require.NoError(t, a.DeleteLibraryFile("other.ds"))
+	require.NoError(t, a.CommitPaths([]string{"other.ds"}, "Delete other.ds"))
+
+	revisions, err := a.GetRevisions("play.ds", 0)
+	require.NoError(t, err)
+	require.Len(t, revisions, 1, "delete of sibling file must not appear in play.ds history")
+	assert.Equal(t, "initial play", revisions[0].Message)
+}
+
 func TestReadLibraryFile_BlocksTraversal(t *testing.T) {
 	a := testApp(t)
 

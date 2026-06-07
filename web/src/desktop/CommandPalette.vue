@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import type { CommandMeta, DesktopCapabilities, LibraryFile } from './types';
 import { dispatchCommand } from './dispatcher-registry';
+import { displayFileName, displayFilePath } from './naming';
 
 // Command palette overlay. Consumes the Go-declared catalog (labels,
 // accelerators, categories) through env.getCommands so there's no
@@ -60,8 +61,8 @@ const rows = computed<Row[]>(() => {
   if (props.mode === 'file') {
     return props.libraryFiles.map<Row>((f) => ({
       key: `file:${f.path}`,
-      label: f.name,
-      secondary: f.path !== f.name ? f.path : 'File',
+      label: displayFileName(f.name),
+      secondary: f.path !== f.name ? displayFilePath(f.path) : 'File',
       disabled: false,
       run: () => emit('select-file', f.path),
     }));

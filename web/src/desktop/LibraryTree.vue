@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import { FolderPlus, Edit3 } from 'lucide-vue-next';
+import { FolderPlus, Edit3, Trash2, Undo2 } from 'lucide-vue-next';
 import type { Workspace } from './workspace';
-import type { LibraryNode } from './types';
+import type { DirtyPath, LibraryNode } from './types';
 import LibraryTreeNode from './LibraryTreeNode.vue';
+import { displayFileName, displayFilePath, normalizeFileRename } from './naming';
 
 const props = defineProps<{
   workspace: Workspace;
@@ -14,6 +15,9 @@ const emit = defineEmits<{
   (e: 'error', message: string): void;
   (e: 'info', message: string): void;
   (e: 'request-new-folder', parentPath: string): void;
+  (e: 'request-delete-file', path: string): void;
+  (e: 'request-restore-file', path: string): void;
+  (e: 'request-permanent-delete', path: string): void;
 }>();
 
 const renamingPath = ref<string | null>(null);
@@ -26,8 +30,46 @@ const contextMenu = ref<{
   y: number;
 } | null>(null);
 
+const deletedMenu = ref<{ path: string; name: string; x: number; y: number } | null>(null);
+
 const draggedPath = ref<string | null>(null);
 const dropTarget = ref<string | null>(null);
+
+const deletedFiles = computed(() => props.workspace.deletedFiles.value);
+
+function fileName(path: string): string {
+  return path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+}
+
+function openDeletedMenu(event: MouseEvent, dp: DirtyPath) {
+  event.preventDefault();
+  deletedMenu.value = { path: dp.path, name: fileName(dp.path), x: event.clientX, y: event.clientY };
+}
+
+function closeDeletedMenu() {
+  deletedMenu.value = null;
+}
+
+function contextDeleteFile() {
+  if (!contextMenu.value) return;
+  const path = contextMenu.value.node.path;
+  closeContextMenu();
+  emit('request-delete-file', path);
+}
+
+function menuRestore() {
+  if (!deletedMenu.value) return;
+  const path = deletedMenu.value.path;
+  closeDeletedMenu();
+  emit('request-restore-file', path);
+}
+
+function menuPermanentDelete() {
+  if (!deletedMenu.value) return;
+  const path = deletedMenu.value.path;
+  closeDeletedMenu();
+  emit('request-permanent-delete', path);
+}
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -49,7 +91,9 @@ function toggleExpand(path: string) {
 
 async function startRename(node: LibraryNode) {
   renamingPath.value = node.path;
-  renameValue.value = node.name;
+  // Show only the base name in the rename input; the .ds extension is
+  // re-applied in commitRename. Folders keep their full name.
+  renameValue.value = node.kind === 'file' ? displayFileName(node.name) : node.name;
   contextMenu.value = null;
   await nextTick();
   renameInput.value?.focus();
@@ -57,9 +101,11 @@ async function startRename(node: LibraryNode) {
 }
 
 async function commitRename(node: LibraryNode) {
-  const newName = renameValue.value.trim();
+  const raw = renameValue.value.trim();
   renamingPath.value = null;
-  if (!newName || newName === node.name) return;
+  if (!raw) return;
+  const newName = node.kind === 'file' ? normalizeFileRename(raw) : raw;
+  if (newName === node.name) return;
   try {
     const newPath = await props.workspace.renameEntry(node.path, newName);
     if (node.kind === 'file') emit('select-file', newPath);
@@ -141,7 +187,7 @@ async function onDrop(event: DragEvent, targetPath: string) {
 </script>
 
 <template>
-  <div class="flex-1 overflow-y-auto p-2 custom-scrollbar border-b border-border" @click="closeContextMenu">
+  <div class="flex-1 overflow-y-auto p-2 custom-scrollbar border-b border-border" @click="() => { closeContextMenu(); closeDeletedMenu(); }">
     <div
       class="flex items-center justify-between px-2 pb-2 rounded transition-colors"
       :class="dropTarget === '' ? 'bg-brass-500/10 ring-1 ring-brass-500/30' : ''"
@@ -221,6 +267,61 @@ async function onDrop(event: DragEvent, targetPath: string) {
         @click="() => { const n = contextMenu!.node; closeContextMenu(); startRename(n); }"
       >
         <Edit3 class="w-3.5 h-3.5" /> Rename
+      </button>
+      <button
+        v-if="contextMenu.node.kind === 'file'"
+        type="button"
+        class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-500/10 text-red-600 dark:text-red-400 inline-flex items-center gap-2"
+        @click="contextDeleteFile"
+      >
+        <Trash2 class="w-3.5 h-3.5" /> Delete…
+      </button>
+    </div>
+
+    <div
+      v-if="deletedFiles.length > 0"
+      class="mt-4 pt-2 border-t border-border"
+    >
+      <div class="flex items-center px-2 pb-2">
+        <span class="text-[10px] uppercase tracking-[0.2em] text-text-muted font-bold">
+          Deleted ({{ deletedFiles.length }})
+        </span>
+      </div>
+      <div class="space-y-0.5">
+        <button
+          v-for="dp in deletedFiles"
+          :key="dp.path"
+          type="button"
+          class="w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 text-text-muted line-through italic opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5"
+          :title="`Deleted: ${dp.path} — right-click to restore`"
+          @contextmenu.prevent="openDeletedMenu($event, dp)"
+        >
+          <Undo2 class="w-3 h-3 shrink-0 opacity-60" />
+          <span class="truncate">{{ displayFilePath(dp.path) }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div
+      v-if="deletedMenu"
+      class="fixed z-50 min-w-[200px] rounded-md border border-border bg-[var(--color-page-surface)] shadow-lg py-1"
+      :style="{ left: deletedMenu.x + 'px', top: deletedMenu.y + 'px' }"
+      @click.stop
+    >
+      <button
+        type="button"
+        class="w-full text-left px-3 py-1.5 text-xs hover:bg-brass-500/10 text-text-main inline-flex items-center gap-2"
+        @click="menuRestore"
+      >
+        <Undo2 class="w-3.5 h-3.5" /> Restore from last version
+      </button>
+      <div class="my-1 border-t border-border" />
+      <button
+        type="button"
+        class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-500/10 text-red-600 dark:text-red-400 inline-flex items-center gap-2"
+        @click="menuPermanentDelete"
+      >
+        <Trash2 class="w-3.5 h-3.5" /> Permanently delete
       </button>
     </div>
   </div>

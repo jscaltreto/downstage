@@ -6,11 +6,14 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/format/index"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/storer"
 )
@@ -124,7 +127,6 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 	tracked := filepath.ToSlash(filepath.Clean(relPath))
 	revisions := make([]Revision, 0, limit)
 
-	firstCommit := true
 	errStop := errors.New("stop")
 
 	err = iter.ForEach(func(c *object.Commit) error {
@@ -153,12 +155,16 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 			}
 		}
 
+		// A commit shows up in this file's history only when the commit
+		// actually touched it: either the root commit introduces it, or the
+		// blob differs from the parent. CommitPaths can produce commits that
+		// touch sibling files only — those must not appear in this file's
+		// revisions list (and they're not restorable, which is what trips up
+		// "Restore this version" if they sneak in).
 		includeCommit := false
 		switch {
 		case renameSource != "":
 			includeCommit = false
-		case firstCommit && !blob.IsZero():
-			includeCommit = true
 		case parent == nil && !blob.IsZero():
 			includeCommit = true
 		case blob != parentBlob:
@@ -186,7 +192,6 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 			}
 		}
 
-		firstCommit = false
 		return nil
 	})
 	if err != nil && !errors.Is(err, errStop) {
@@ -332,6 +337,257 @@ func lastCommitTimeForPath(r *git.Repository, relPath string) (string, bool) {
 		return "", false
 	}
 	return c.Author.When.UTC().Format(time.RFC3339), true
+}
+
+type DirtyKind string
+
+const (
+	DirtyUntracked DirtyKind = "untracked"
+	DirtyModified  DirtyKind = "modified"
+	DirtyDeleted   DirtyKind = "deleted"
+)
+
+type DirtyPath struct {
+	Path string    `json:"path"`
+	Kind DirtyKind `json:"kind"`
+}
+
+type LibraryDirty struct {
+	Plays    []DirtyPath `json:"plays"`
+	Sidecars []DirtyPath `json:"sidecars"`
+	Other    []DirtyPath `json:"other"`
+	Count    int         `json:"count"`
+}
+
+const downstageSidecarPrefix = ".downstage/"
+
+func (a *App) GetLibraryDirty() (LibraryDirty, error) {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
+	empty := LibraryDirty{Plays: []DirtyPath{}, Sidecars: []DirtyPath{}, Other: []DirtyPath{}}
+	if a.currentLibrary == "" {
+		return empty, nil
+	}
+
+	r, err := git.PlainOpen(a.currentLibrary)
+	if errors.Is(err, git.ErrRepositoryNotExists) {
+		return empty, nil
+	}
+	if err != nil {
+		return empty, err
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return empty, err
+	}
+	status, err := w.Status()
+	if err != nil {
+		return empty, err
+	}
+
+	out := empty
+	for path, entry := range status {
+		if entry.Staging == git.Unmodified && entry.Worktree == git.Unmodified {
+			continue
+		}
+		kind := classifyDirty(entry)
+		dp := DirtyPath{Path: path, Kind: kind}
+		switch {
+		case strings.HasPrefix(path, downstageSidecarPrefix):
+			out.Sidecars = append(out.Sidecars, dp)
+		case strings.HasSuffix(path, ".ds"):
+			out.Plays = append(out.Plays, dp)
+		default:
+			out.Other = append(out.Other, dp)
+		}
+	}
+	sortDirty(out.Plays)
+	sortDirty(out.Sidecars)
+	sortDirty(out.Other)
+	out.Count = len(out.Plays) + len(out.Sidecars) + len(out.Other)
+	return out, nil
+}
+
+func classifyDirty(entry *git.FileStatus) DirtyKind {
+	// Worktree state takes priority — it's what the user sees.
+	switch entry.Worktree {
+	case git.Untracked:
+		return DirtyUntracked
+	case git.Deleted:
+		return DirtyDeleted
+	}
+	switch entry.Staging {
+	case git.Untracked:
+		return DirtyUntracked
+	case git.Deleted:
+		return DirtyDeleted
+	}
+	return DirtyModified
+}
+
+func sortDirty(s []DirtyPath) {
+	sort.SliceStable(s, func(i, j int) bool { return s[i].Path < s[j].Path })
+}
+
+// CommitPaths stages exactly the paths provided (Add for paths that exist on
+// disk, Remove for paths that have been deleted) and commits once with the
+// given message. Returns ErrNothingToSnapshot if no path produced a change.
+func (a *App) CommitPaths(paths []string, message string) error {
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
+	return a.commitPathsLocked(paths, message)
+}
+
+// commitPathsLocked is the lock-free body of CommitPaths. CALLER MUST HOLD
+// a.libMu (read or write). Use this from inside other locked methods to
+// avoid re-acquiring the lock (Go's sync.RWMutex doesn't recurse safely).
+func (a *App) commitPathsLocked(paths []string, message string) error {
+	if len(paths) == 0 {
+		return fmt.Errorf("no paths provided")
+	}
+	if strings.TrimSpace(message) == "" {
+		return fmt.Errorf("commit message is empty")
+	}
+	if a.currentLibrary == "" {
+		return fmt.Errorf("no library open")
+	}
+
+	r, err := git.PlainOpen(a.currentLibrary)
+	if errors.Is(err, git.ErrRepositoryNotExists) {
+		r, err = git.PlainInit(a.currentLibrary, false)
+	}
+	if err != nil {
+		return err
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return err
+	}
+
+	for _, p := range paths {
+		clean := filepath.ToSlash(filepath.Clean(p))
+		if _, err := a.safePath(clean); err != nil {
+			return fmt.Errorf("path %q: %w", p, err)
+		}
+		fullPath := filepath.Join(a.currentLibrary, clean)
+		if _, statErr := os.Stat(fullPath); statErr == nil {
+			if _, err := w.Add(clean); err != nil {
+				return fmt.Errorf("add %q: %w", clean, err)
+			}
+		} else if errors.Is(statErr, fs.ErrNotExist) {
+			// File missing on disk: stage the deletion. If the path was
+			// untracked (never in the index), Remove errors with
+			// ErrEntryNotFound — that just means there's nothing to commit
+			// for this path, which is fine for the batch.
+			if _, err := w.Remove(clean); err != nil && !errors.Is(err, index.ErrEntryNotFound) {
+				return fmt.Errorf("remove %q: %w", clean, err)
+			}
+		} else {
+			return fmt.Errorf("stat %q: %w", clean, statErr)
+		}
+	}
+
+	status, err := w.Status()
+	if err != nil {
+		return err
+	}
+	if status.IsClean() {
+		return ErrNothingToSnapshot
+	}
+
+	_, err = w.Commit(message, &git.CommitOptions{Author: snapshotAuthor(r)})
+	return err
+}
+
+// DiscardPaths reverts each path to its HEAD state without committing.
+// Per-kind dispatch: untracked files are removed from disk, modified and
+// deleted files are restored from HEAD.
+func (a *App) DiscardPaths(paths []string) error {
+	if len(paths) == 0 {
+		return fmt.Errorf("no paths provided")
+	}
+	a.libMu.RLock()
+	defer a.libMu.RUnlock()
+	if a.currentLibrary == "" {
+		return fmt.Errorf("no library open")
+	}
+
+	r, err := git.PlainOpen(a.currentLibrary)
+	if errors.Is(err, git.ErrRepositoryNotExists) {
+		return fmt.Errorf("library is not a git repository")
+	}
+	if err != nil {
+		return err
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return err
+	}
+	status, err := w.Status()
+	if err != nil {
+		return err
+	}
+
+	for _, p := range paths {
+		clean := filepath.ToSlash(filepath.Clean(p))
+		if _, err := a.safePath(clean); err != nil {
+			return fmt.Errorf("path %q: %w", p, err)
+		}
+		entry, ok := status[clean]
+		if !ok {
+			continue
+		}
+		kind := classifyDirty(entry)
+		switch kind {
+		case DirtyUntracked:
+			fullPath := filepath.Join(a.currentLibrary, clean)
+			if err := os.Remove(fullPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return fmt.Errorf("remove untracked %q: %w", clean, err)
+			}
+		case DirtyModified, DirtyDeleted:
+			if err := restoreFromHEAD(r, a.currentLibrary, clean); err != nil {
+				return fmt.Errorf("restore %q: %w", clean, err)
+			}
+			if _, err := w.Add(clean); err != nil {
+				return fmt.Errorf("re-stage %q: %w", clean, err)
+			}
+		}
+	}
+	return nil
+}
+
+// restoreFromHEAD reads the blob for relPath from HEAD's tree and writes it
+// to disk at root/relPath. Caller is responsible for re-staging via w.Add.
+// Returns an error if relPath does not exist in HEAD.
+func restoreFromHEAD(r *git.Repository, root, relPath string) error {
+	head, err := r.Head()
+	if err != nil {
+		return fmt.Errorf("read HEAD: %w", err)
+	}
+	commit, err := r.CommitObject(head.Hash())
+	if err != nil {
+		return fmt.Errorf("load HEAD commit: %w", err)
+	}
+	tree, err := commit.Tree()
+	if err != nil {
+		return fmt.Errorf("HEAD tree: %w", err)
+	}
+	file, err := tree.File(relPath)
+	if err != nil {
+		return fmt.Errorf("file not in HEAD: %w", err)
+	}
+	contents, err := file.Contents()
+	if err != nil {
+		return fmt.Errorf("read blob: %w", err)
+	}
+	fullPath := filepath.Join(root, relPath)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
+	if err := os.WriteFile(fullPath, []byte(contents), 0644); err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+	return nil
 }
 
 func (a *App) ReadFileAtRevision(relPath string, hash string) (string, error) {

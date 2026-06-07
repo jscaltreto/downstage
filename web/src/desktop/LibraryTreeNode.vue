@@ -4,10 +4,12 @@ export default { name: 'LibraryTreeNode' };
 </script>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import {
   ChevronDown, ChevronRight, FileText, Folder, FolderOpen,
 } from 'lucide-vue-next';
 import type { LibraryNode } from './types';
+import { displayFileName } from './naming';
 
 // Recursive tree-row renderer for LibraryTree.vue. Presentational —
 // all state (rename target, drop target, expanded set) lives in the
@@ -53,6 +55,10 @@ function onRowClick(e: MouseEvent) {
   if (props.node.kind === 'folder') emit('toggleExpand', props.node.path);
   else emit('selectFile', props.node);
 }
+
+const displayName = computed(() =>
+  props.node.kind === 'file' ? displayFileName(props.node.name) : props.node.name,
+);
 </script>
 
 <template>
@@ -111,7 +117,7 @@ function onRowClick(e: MouseEvent) {
         @blur="emit('commitRename', node)"
         @click.stop
       />
-      <span v-else class="truncate">{{ node.name }}</span>
+      <span v-else class="truncate">{{ displayName }}</span>
     </div>
 
     <div

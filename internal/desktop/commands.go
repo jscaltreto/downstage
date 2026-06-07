@@ -76,7 +76,11 @@ const (
 	CmdInsertSong      = "insert.song"
 	CmdInsertPageBreak = "insert.pageBreak"
 
-	CmdLibraryNewFolder = "library.newFolder"
+	CmdLibraryNewFolder     = "library.newFolder"
+	CmdLibraryDelete        = "library.delete"
+	CmdLibraryRestore       = "library.restoreFile"
+	CmdLibraryReviewChanges = "library.reviewChanges"
+	CmdLibraryCommitChanges = "library.commitChanges"
 
 	CmdHelpToggle = "help.toggle"
 	CmdHelpGitHub = "help.github"
@@ -137,6 +141,10 @@ func Commands() []Command {
 		{ID: CmdFormatStrikethrough, Label: "Strikethrough", Category: CategoryFormat, Accelerator: "cmdorctrl+shift+x", MenuPath: []string{"Format"}},
 
 		{ID: CmdLibraryNewFolder, Label: "New Folder", Category: CategoryFile},
+		{ID: CmdLibraryDelete, Label: "Delete File…", Category: CategoryFile, PaletteHidden: true},
+		{ID: CmdLibraryRestore, Label: "Restore Deleted File", Category: CategoryFile, PaletteHidden: true},
+		{ID: CmdLibraryReviewChanges, Label: "Review Library Changes…", Category: CategoryFile},
+		{ID: CmdLibraryCommitChanges, Label: "Commit Library Changes", Category: CategoryFile, PaletteHidden: true},
 
 		{ID: CmdHelpToggle, Label: "View Help", Category: CategoryHelp, Accelerator: "cmdorctrl+shift+/", MenuPath: []string{"Help"}},
 		{ID: CmdHelpGitHub, Label: "GitHub", Category: CategoryHelp, MenuPath: []string{"Help"}, BeforeSeparator: true},

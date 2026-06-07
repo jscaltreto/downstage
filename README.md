@@ -320,7 +320,7 @@ Extension Development Host.
 
 [`cmd/downstage-write/`](cmd/downstage-write/) is a native desktop build —
 the same Vue editor wrapped in a [Wails](https://wails.io/) shell with a
-project-folder workflow: open a directory, edit `.ds` files in place,
+single-library workflow: open a directory of `.ds` files, edit in place,
 snapshot revisions with git, and restore older versions from a native
 menu + command palette.
 
