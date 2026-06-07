@@ -4,6 +4,7 @@ import { FolderPlus, Edit3, Trash2, Undo2 } from 'lucide-vue-next';
 import type { Workspace } from './workspace';
 import type { DirtyPath, LibraryNode } from './types';
 import LibraryTreeNode from './LibraryTreeNode.vue';
+import { displayFileName, displayFilePath, normalizeFileRename } from './naming';
 
 const props = defineProps<{
   workspace: Workspace;
@@ -90,7 +91,9 @@ function toggleExpand(path: string) {
 
 async function startRename(node: LibraryNode) {
   renamingPath.value = node.path;
-  renameValue.value = node.name;
+  // Show only the base name in the rename input; the .ds extension is
+  // re-applied in commitRename. Folders keep their full name.
+  renameValue.value = node.kind === 'file' ? displayFileName(node.name) : node.name;
   contextMenu.value = null;
   await nextTick();
   renameInput.value?.focus();
@@ -98,9 +101,11 @@ async function startRename(node: LibraryNode) {
 }
 
 async function commitRename(node: LibraryNode) {
-  const newName = renameValue.value.trim();
+  const raw = renameValue.value.trim();
   renamingPath.value = null;
-  if (!newName || newName === node.name) return;
+  if (!raw) return;
+  const newName = node.kind === 'file' ? normalizeFileRename(raw) : raw;
+  if (newName === node.name) return;
   try {
     const newPath = await props.workspace.renameEntry(node.path, newName);
     if (node.kind === 'file') emit('select-file', newPath);
@@ -292,7 +297,7 @@ async function onDrop(event: DragEvent, targetPath: string) {
           @contextmenu.prevent="openDeletedMenu($event, dp)"
         >
           <Undo2 class="w-3 h-3 shrink-0 opacity-60" />
-          <span class="truncate">{{ dp.path }}</span>
+          <span class="truncate">{{ displayFilePath(dp.path) }}</span>
         </button>
       </div>
     </div>

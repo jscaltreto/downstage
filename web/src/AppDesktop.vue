@@ -24,6 +24,7 @@ import PromptModal from './desktop/PromptModal.vue';
 import ConfirmModal from './desktop/ConfirmModal.vue';
 import StatusBar from './desktop/StatusBar.vue';
 import ReviewChangesModal from './desktop/ReviewChangesModal.vue';
+import { displayFileName } from './desktop/naming';
 import ExportPdfModal from './components/shared/ExportPdfModal.vue';
 import RevisionDiffView from './desktop/RevisionDiffView.vue';
 import VersionsPanel from './desktop/VersionsPanel.vue';
@@ -212,7 +213,7 @@ async function onReviewDiscard(paths: string[]) {
 function requestDeleteFromTree(path: string) {
   const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
   askConfirm({
-    title: `Delete ${name}?`,
+    title: `Delete ${displayFileName(name)}?`,
     message: `Git history is preserved — the file can be restored from the Deleted section.`,
     confirmLabel: 'Delete',
     destructive: true,
@@ -315,7 +316,7 @@ const saveVersionError = ref<string | null>(null);
 function openSaveVersionPrompt() {
   if (!workspace.state.activeFile) return;
   const filename = workspace.state.activeFile.split(/[\\/]/).pop() || 'file';
-  saveVersionInitial.value = `Snapshot ${filename}`;
+  saveVersionInitial.value = `Snapshot ${displayFileName(filename)}`;
   saveVersionError.value = null;
   saveVersionOpen.value = true;
 }
@@ -346,9 +347,12 @@ let dispatcher: CommandDispatcher | null = null;
 const libraryNameBase = computed(
   () => workspace.state.libraryPath?.split(/[\\/]/).pop() ?? '',
 );
-const activeFileBase = computed(
-  () => workspace.state.activeFile?.split(/[\\/]/).pop() ?? '',
-);
+const activeFileBase = computed(() => {
+  const path = workspace.state.activeFile;
+  if (!path) return '';
+  const base = path.split(/[\\/]/).pop() ?? '';
+  return displayFileName(base);
+});
 
 const isViewingRevision = computed(
   () => workspace.state.viewingRevisionHash !== null,
