@@ -29,7 +29,10 @@ defineProps<{
       </p>
       <p>
         The autosave that runs as you type does <em>not</em> create a version.
-        Versions are only made when you ask for one.
+        Versions are only made when you ask for one. To snapshot changes
+        across several files at once (for example after editing scripts
+        outside the app), use <strong class="text-text-main">Review Library
+        Changes</strong> from the status bar — see the Library section.
       </p>
     </section>
 
