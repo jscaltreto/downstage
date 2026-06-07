@@ -608,7 +608,11 @@ func TestGetRevisions_IgnoresSiblingOnlyCommits(t *testing.T) {
 	require.NoError(t, a.WriteLibraryFile("other.ds", "other content"))
 	require.NoError(t, a.SnapshotFile("other.ds", "initial other"))
 
+	// Simulate a finalize-permanent-delete: remove the sibling and commit
+	// just that path. DeleteLibraryFile no longer commits (it's a soft
+	// delete now); the permanent path is CommitPaths after os.Remove.
 	require.NoError(t, a.DeleteLibraryFile("other.ds"))
+	require.NoError(t, a.CommitPaths([]string{"other.ds"}, "Delete other.ds"))
 
 	revisions, err := a.GetRevisions("play.ds", 0)
 	require.NoError(t, err)

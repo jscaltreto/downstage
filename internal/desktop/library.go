@@ -301,8 +301,13 @@ func (a *App) commitMove(srcPaths []string, dstRel string) error {
 	return nil
 }
 
-// DeleteLibraryFile removes a single .ds file from disk and commits the
-// deletion. Sibling changes are intentionally NOT picked up — the snapshot/
+// DeleteLibraryFile removes a single .ds file from disk WITHOUT committing
+// the deletion. For tracked files this leaves the worktree in a
+// status=Deleted state — the UI surfaces it in the Deleted section so the
+// user can Restore (from HEAD) or Permanently delete (commit). Untracked
+// files are gone for good, since there's no HEAD blob to restore from.
+//
+// Sibling changes are intentionally NOT picked up — the snapshot /
 // review-changes flows are the explicit paths for those.
 func (a *App) DeleteLibraryFile(relPath string) error {
 	a.libMu.RLock()
@@ -327,16 +332,6 @@ func (a *App) DeleteLibraryFile(relPath string) error {
 	}
 	if err := os.Remove(fullPath); err != nil {
 		return fmt.Errorf("remove: %w", err)
-	}
-	name := filepath.Base(clean)
-	msg := fmt.Sprintf("Delete %s", name)
-	if err := a.commitPathsLocked([]string{clean}, msg); err != nil {
-		if errors.Is(err, ErrNothingToSnapshot) {
-			// File was never tracked — disk removal is the whole job.
-			return nil
-		}
-		slog.Warn("delete: commit failed (file removed from disk)", "path", clean, "err", err)
-		return fmt.Errorf("commit deletion: %w", err)
 	}
 	return nil
 }

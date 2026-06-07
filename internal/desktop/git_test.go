@@ -285,28 +285,37 @@ func TestDiscardPaths_RestoresModifiedAndDeleted_RemovesUntracked(t *testing.T) 
 
 // --- DeleteLibraryFile / RestoreLibraryFile ---
 
-func TestDeleteLibraryFile_RemovesAndCommits(t *testing.T) {
+// DeleteLibraryFile is a SOFT delete for tracked files — it removes the
+// file from disk but does NOT commit, so the deletion sits as worktree
+// status=Deleted and the Deleted section in the sidebar can offer a
+// Restore. Permanent deletion is a separate user action (CommitPaths via
+// the Deleted section's right-click "Permanently delete").
+func TestDeleteLibraryFile_TrackedFileSoftDelete(t *testing.T) {
 	isolateGitIdentity(t)
 	a := testApp(t)
 	require.NoError(t, a.WriteLibraryFile("doomed.ds", "bye"))
 	require.NoError(t, a.SnapshotFile("doomed.ds", "seed"))
 
+	r, err := git.PlainOpen(a.currentLibrary)
+	require.NoError(t, err)
+	headBefore, err := r.Head()
+	require.NoError(t, err)
+
 	require.NoError(t, a.DeleteLibraryFile("doomed.ds"))
 
-	_, err := os.Stat(filepath.Join(a.currentLibrary, "doomed.ds"))
+	_, err = os.Stat(filepath.Join(a.currentLibrary, "doomed.ds"))
 	assert.True(t, os.IsNotExist(err), "file removed from disk")
 
 	dirty, err := a.GetLibraryDirty()
 	require.NoError(t, err)
-	assert.Equal(t, 0, dirty.Count, "deletion was committed; no dirty state remains")
+	require.Equal(t, 1, dirty.Count, "deletion should show as a single dirty path")
+	require.Len(t, dirty.Plays, 1)
+	assert.Equal(t, "doomed.ds", dirty.Plays[0].Path)
+	assert.Equal(t, DirtyDeleted, dirty.Plays[0].Kind)
 
-	r, err := git.PlainOpen(a.currentLibrary)
+	headAfter, err := r.Head()
 	require.NoError(t, err)
-	ref, err := r.Head()
-	require.NoError(t, err)
-	c, err := r.CommitObject(ref.Hash())
-	require.NoError(t, err)
-	assert.Contains(t, c.Message, "Delete doomed.ds")
+	assert.Equal(t, headBefore.Hash(), headAfter.Hash(), "soft delete must not create a new commit")
 }
 
 func TestDeleteLibraryFile_UntrackedFileRemovedWithoutCommit(t *testing.T) {
@@ -330,6 +339,12 @@ func TestDeleteLibraryFile_UntrackedFileRemovedWithoutCommit(t *testing.T) {
 	c, err := r.CommitObject(ref.Hash())
 	require.NoError(t, err)
 	assert.Equal(t, "seed", c.Message, "untracked deletion should not create a commit")
+
+	// Untracked file leaves nothing behind in the dirty surface — there's
+	// no HEAD blob to restore from, so it's just gone.
+	dirty, err := a.GetLibraryDirty()
+	require.NoError(t, err)
+	assert.Equal(t, 0, dirty.Count, "untracked deletion leaves no dirty state")
 }
 
 func TestDeleteLibraryFile_RejectsDirectoryAndNonDs(t *testing.T) {

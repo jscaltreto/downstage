@@ -214,7 +214,7 @@ function requestDeleteFromTree(path: string) {
   const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
   askConfirm({
     title: `Delete ${displayFileName(name)}?`,
-    message: `Git history is preserved — the file can be restored from the Deleted section.`,
+    message: `The file will move to the Deleted section. You can restore it from there, or permanently delete it later.`,
     confirmLabel: 'Delete',
     destructive: true,
     onConfirm: () => performDelete(path),
@@ -240,7 +240,18 @@ async function performDelete(path: string) {
         activeContent.value = '';
       }
     }
-    toastManager.value?.addToast(`Deleted ${path}`, 'success');
+    // A tracked file lands in the Deleted section (worktree-status=Deleted).
+    // An untracked file is gone for good — no HEAD blob to restore. Tailor
+    // the toast so the restore promise only appears when restore is real.
+    const wasTracked = (workspace.state.libraryDirty?.plays ?? [])
+      .some((p) => p.path === path && p.kind === 'deleted');
+    const display = displayFileName(path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path);
+    toastManager.value?.addToast(
+      wasTracked
+        ? `Deleted ${display} — restore from the Deleted section`
+        : `Deleted ${display}`,
+      'success',
+    );
   } catch (error: unknown) {
     toastManager.value?.addToast(`Delete failed: ${errorMessage(error)}`, 'error');
   }
