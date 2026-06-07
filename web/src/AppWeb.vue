@@ -13,7 +13,24 @@ import ToastManager from './components/shared/ToastManager.vue';
 import Editor from './components/shared/Editor.vue';
 import WelcomeModal from './components/shared/WelcomeModal.vue';
 import type { WorkbenchTab } from './components/shared/workbench-tabs';
+import type { ShortcutEntry } from './components/shared/help-sections';
+import { shortcuts } from './core/platform';
+import { helpLinks } from './core/help-links';
 import type { SearchMode } from './core/engine';
+
+// Web-side shortcut list for the Help drawer. These are the keys the
+// CodeMirror engine binds (`engine.ts`) — desktop has many more via its
+// native menu, but in the browser these are the ones the user can
+// actually press.
+const webHelpShortcuts: ShortcutEntry[] = [
+  { id: 'format.bold',         label: shortcuts.bold.label,        keys: shortcuts.bold.keys,        group: 'format' },
+  { id: 'format.italic',       label: shortcuts.italic.label,      keys: shortcuts.italic.keys,      group: 'format' },
+  { id: 'format.underline',    label: shortcuts.underline.label,   keys: shortcuts.underline.keys,   group: 'format' },
+  { id: 'edit.find',           label: shortcuts.find.label,        keys: shortcuts.find.keys,        group: 'edit' },
+  { id: 'edit.findReplace',    label: shortcuts.findReplace.label, keys: shortcuts.findReplace.keys, group: 'edit' },
+  { id: 'view.togglePreview',  label: shortcuts.preview.label,     keys: shortcuts.preview.keys,     group: 'view' },
+  { id: 'help.toggle',         label: shortcuts.help.label,        keys: shortcuts.help.keys,        group: 'help' },
+];
 
 const props = defineProps<{
   env: EditorEnv;
@@ -461,7 +478,7 @@ watch(activeContent, (newContent) => {
         </h1>
         <button
           class="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-text-muted hover:bg-black/10 dark:hover:bg-white/10 hover:text-text-main transition-colors font-medium"
-          @click="env.openURL('https://www.getdownstage.com/syntax/')"
+          @click="env.openURL(helpLinks.syntax)"
         >
           <ExternalLink class="w-3 h-3" /> <span class="hidden md:inline">Syntax Guide</span>
         </button>
@@ -502,6 +519,8 @@ watch(activeContent, (newContent) => {
         :add-spell-allowlist-word="addSpellAllowlistWord"
         :remove-spell-allowlist-word="removeSpellAllowlistWord"
         :bind-engine-accelerators="true"
+        :help-host="'web'"
+        :help-shortcuts="webHelpShortcuts"
         @migration-state-change="isV1Document = $event"
       />
     </main>

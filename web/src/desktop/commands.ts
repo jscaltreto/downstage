@@ -4,6 +4,7 @@ import type { Workspace } from "./workspace";
 import type { DesktopCapabilities } from "./types";
 import type { HandlerEntry } from "./command-dispatcher";
 import type { WorkbenchTab } from "../components/shared/workbench-tabs";
+import { helpLinks } from "../core/help-links";
 import type { SearchMode } from "../core/engine";
 
 export interface CommandContext {
@@ -249,8 +250,8 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
     }],
 
     ["help.toggle", { handler: () => toggleDrawerTab("help"), isEnabled: hasActiveFile }],
-    ["help.github", { handler: () => env.openURL("https://github.com/jscaltreto/downstage") }],
-    ["help.docs", { handler: () => env.openURL("https://getdownstage.com/docs") }],
+    ["help.github", { handler: () => env.openURL(helpLinks.github) }],
+    ["help.docs", { handler: () => env.openURL(helpLinks.docs) }],
     ["help.about", { handler: () => env.showAboutDialog() }],
   ];
 }
