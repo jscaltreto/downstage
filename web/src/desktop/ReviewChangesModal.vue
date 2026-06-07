@@ -128,10 +128,10 @@ function fileName(path: string): string {
 </script>
 
 <template>
-  <BaseModal :open="open" title="Review Library Changes" @close="emit('close')">
-    <div class="flex flex-col gap-4 min-w-[480px] max-w-[640px]">
-      <div class="flex items-center justify-between">
-        <p class="text-xs text-text-muted">
+  <BaseModal :open="open" title="Review Library Changes" size="lg" @close="emit('close')">
+    <div class="flex flex-col gap-4">
+      <div class="flex items-start justify-between gap-3">
+        <p class="text-xs text-text-muted flex-1 min-w-0">
           <span v-if="totalCount === 0">Library is clean — no uncommitted changes.</span>
           <span v-else>
             {{ totalCount }} uncommitted change{{ totalCount === 1 ? '' : 's' }} across your library.
@@ -140,7 +140,7 @@ function fileName(path: string): string {
         </p>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs text-text-main hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs text-text-main hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 shrink-0"
           :disabled="busy"
           @click="emit('refresh')"
         >
