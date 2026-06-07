@@ -21,6 +21,13 @@ const promptModalStub = {
   template: '<div v-if="open" data-testid="prompt-stub"></div>',
 };
 
+const confirmModalStub = {
+  name: "ConfirmModal",
+  props: ["open", "title", "message", "confirmLabel", "destructive"],
+  emits: ["close", "confirm"],
+  template: '<div v-if="open" data-testid="confirm-stub"></div>',
+};
+
 function makeDirty(): LibraryDirty {
   return {
     plays: [
@@ -47,6 +54,7 @@ function mountModal(props: Partial<{ open: boolean; dirty: LibraryDirty | null; 
       stubs: {
         BaseModal: baseModalStub,
         PromptModal: promptModalStub,
+        ConfirmModal: confirmModalStub,
       },
     },
   });
@@ -116,23 +124,33 @@ describe("ReviewChangesModal", () => {
     ]);
   });
 
-  it("discard buttons require confirmation before emitting", async () => {
+  it("discard buttons open a styled confirm modal and emit only on confirm", async () => {
     const wrapper = mountModal();
     await flushPromises();
-    // happy-dom doesn't ship window.confirm; install a fake so spyOn works.
-    const originalConfirm = (window as unknown as { confirm?: unknown }).confirm;
-    const fake = vi.fn().mockReturnValue(false);
-    (window as unknown as { confirm: (msg?: string) => boolean }).confirm = fake;
 
+    // Section "Discard all" should open the confirm modal — but not emit yet.
     const sectionDiscard = wrapper.findAll("button").find((b) => b.text().trim().startsWith("Discard all"));
     await sectionDiscard!.trigger("click");
+    await flushPromises();
     expect(wrapper.emitted("discard")).toBeFalsy();
 
-    fake.mockReturnValue(true);
-    await sectionDiscard!.trigger("click");
-    expect(wrapper.emitted("discard")![0]).toEqual([["act-one.ds", "act-two.ds"]]);
+    const confirmStub = wrapper.findComponent(confirmModalStub as any);
+    expect(confirmStub.props("open")).toBe(true);
+    // `destructive` is bound as a bare attribute, which the stub receives
+    // as "". Just confirm the prop was passed at all.
+    expect(confirmStub.props()).toHaveProperty("destructive");
 
-    (window as unknown as { confirm?: unknown }).confirm = originalConfirm;
+    // Closing the modal cancels — no emit.
+    confirmStub.vm.$emit("close");
+    await flushPromises();
+    expect(wrapper.emitted("discard")).toBeFalsy();
+
+    // Re-open and confirm — the paths flow through.
+    await sectionDiscard!.trigger("click");
+    await flushPromises();
+    confirmStub.vm.$emit("confirm");
+    await flushPromises();
+    expect(wrapper.emitted("discard")![0]).toEqual([["act-one.ds", "act-two.ds"]]);
   });
 
   it("commit-all is disabled when the library is clean", async () => {

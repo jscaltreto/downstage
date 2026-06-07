@@ -21,6 +21,7 @@ import CommandPalette from './desktop/CommandPalette.vue';
 import Settings from './desktop/Settings.vue';
 import LibraryTree from './desktop/LibraryTree.vue';
 import PromptModal from './desktop/PromptModal.vue';
+import ConfirmModal from './desktop/ConfirmModal.vue';
 import StatusBar from './desktop/StatusBar.vue';
 import ReviewChangesModal from './desktop/ReviewChangesModal.vue';
 import ExportPdfModal from './components/shared/ExportPdfModal.vue';
@@ -151,6 +152,33 @@ const newFolderError = ref<string | null>(null);
 const reviewChangesOpen = ref(false);
 const reviewBusy = ref(false);
 
+interface ConfirmConfig {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  destructive: boolean;
+  onConfirm: () => void | Promise<void>;
+}
+const confirmOpen = ref(false);
+const confirmConfig = ref<ConfirmConfig | null>(null);
+
+function askConfirm(config: ConfirmConfig) {
+  confirmConfig.value = config;
+  confirmOpen.value = true;
+}
+
+async function onConfirmAccepted() {
+  const cfg = confirmConfig.value;
+  confirmOpen.value = false;
+  confirmConfig.value = null;
+  if (cfg) await cfg.onConfirm();
+}
+
+function onConfirmClosed() {
+  confirmOpen.value = false;
+  confirmConfig.value = null;
+}
+
 function openReviewChanges() {
   if (!workspace.state.libraryPath) return;
   void workspace.refreshLibraryDirty();
@@ -181,16 +209,21 @@ async function onReviewDiscard(paths: string[]) {
   }
 }
 
-async function requestDeleteFromTree(path: string) {
+function requestDeleteFromTree(path: string) {
   const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
-  if (!confirm(`Delete ${name}? Git history is preserved — the file can be restored from the Deleted section.`)) return;
-  await performDelete(path);
+  askConfirm({
+    title: `Delete ${name}?`,
+    message: `Git history is preserved — the file can be restored from the Deleted section.`,
+    confirmLabel: 'Delete',
+    destructive: true,
+    onConfirm: () => performDelete(path),
+  });
 }
 
 function requestDeleteActiveFile() {
   const path = workspace.state.activeFile;
   if (!path) return;
-  void requestDeleteFromTree(path);
+  requestDeleteFromTree(path);
 }
 
 async function performDelete(path: string) {
@@ -224,17 +257,25 @@ async function requestRestoreFromTree(path: string) {
   }
 }
 
-async function requestPermanentDeleteFromTree(path: string) {
-  if (!confirm(`Permanently remove ${path}. Git history is preserved but the file will no longer appear in your library.`)) return;
-  reviewBusy.value = true;
-  try {
-    await workspace.commitDirtyPaths([path], `Delete ${path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path}`);
-    toastManager.value?.addToast(`Permanently deleted ${path}`, 'success');
-  } catch (error: unknown) {
-    toastManager.value?.addToast(`Permanent delete failed: ${errorMessage(error)}`, 'error');
-  } finally {
-    reviewBusy.value = false;
-  }
+function requestPermanentDeleteFromTree(path: string) {
+  const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+  askConfirm({
+    title: 'Permanently delete?',
+    message: `Permanently remove ${path}.\n\nGit history is preserved but the file will no longer appear in your library.`,
+    confirmLabel: 'Permanently delete',
+    destructive: true,
+    onConfirm: async () => {
+      reviewBusy.value = true;
+      try {
+        await workspace.commitDirtyPaths([path], `Delete ${name}`);
+        toastManager.value?.addToast(`Permanently deleted ${path}`, 'success');
+      } catch (error: unknown) {
+        toastManager.value?.addToast(`Permanent delete failed: ${errorMessage(error)}`, 'error');
+      } finally {
+        reviewBusy.value = false;
+      }
+    },
+  });
 }
 
 function openNewFolderPrompt(parentPath = '') {
@@ -1020,6 +1061,16 @@ watch(activeContent, (newContent) => {
       hide-page-size
       @close="exportDialogOpen = false"
       @confirm="handleExportConfirmed"
+    />
+    <ConfirmModal
+      v-if="confirmConfig"
+      :open="confirmOpen"
+      :title="confirmConfig.title"
+      :message="confirmConfig.message"
+      :confirm-label="confirmConfig.confirmLabel"
+      :destructive="confirmConfig.destructive"
+      @close="onConfirmClosed"
+      @confirm="onConfirmAccepted"
     />
   </div>
 </template>

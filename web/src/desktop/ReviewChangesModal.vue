@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { Check, GitCommit, RefreshCw, Trash2 } from 'lucide-vue-next';
 import BaseModal from '../components/shared/BaseModal.vue';
 import PromptModal from './PromptModal.vue';
+import ConfirmModal from './ConfirmModal.vue';
 import type { DirtyPath, LibraryDirty } from './types';
 
 // Surfaces library-wide uncommitted changes — sibling-file edits, untracked
@@ -27,6 +28,11 @@ const emit = defineEmits<{
 const promptOpen = ref(false);
 const pendingCommitPaths = ref<string[]>([]);
 const promptInitial = ref('');
+
+const discardConfirmOpen = ref(false);
+const pendingDiscardPaths = ref<string[]>([]);
+const discardConfirmTitle = ref('');
+const discardConfirmMessage = ref('');
 
 const sections = computed(() => {
   const d = props.dirty;
@@ -90,14 +96,30 @@ function commitAll() {
 }
 
 function discardRow(dp: DirtyPath) {
-  if (!confirm(`Discard changes to ${dp.path}? This cannot be undone.`)) return;
-  emit('discard', [dp.path]);
+  pendingDiscardPaths.value = [dp.path];
+  discardConfirmTitle.value = 'Discard change?';
+  discardConfirmMessage.value = `Discard changes to ${dp.path}? This cannot be undone.`;
+  discardConfirmOpen.value = true;
 }
 
 function discardSection(items: DirtyPath[]) {
   if (items.length === 0) return;
-  if (!confirm(`Discard ${items.length} change${items.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
-  emit('discard', items.map((i) => i.path));
+  pendingDiscardPaths.value = items.map((i) => i.path);
+  discardConfirmTitle.value = 'Discard changes?';
+  discardConfirmMessage.value = `Discard ${items.length} change${items.length === 1 ? '' : 's'}? This cannot be undone.`;
+  discardConfirmOpen.value = true;
+}
+
+function confirmDiscard() {
+  const paths = pendingDiscardPaths.value;
+  discardConfirmOpen.value = false;
+  pendingDiscardPaths.value = [];
+  if (paths.length > 0) emit('discard', paths);
+}
+
+function cancelDiscard() {
+  discardConfirmOpen.value = false;
+  pendingDiscardPaths.value = [];
 }
 
 function fileName(path: string): string {
@@ -221,5 +243,15 @@ function fileName(path: string): string {
     submit-label="Commit"
     @close="promptOpen = false; pendingCommitPaths = []"
     @submit="submitCommit"
+  />
+
+  <ConfirmModal
+    :open="discardConfirmOpen"
+    :title="discardConfirmTitle"
+    :message="discardConfirmMessage"
+    confirm-label="Discard"
+    destructive
+    @close="cancelDiscard"
+    @confirm="confirmDiscard"
   />
 </template>
