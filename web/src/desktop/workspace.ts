@@ -294,6 +294,15 @@ export class Workspace {
     } catch {
       this.state.libraryDirty = null;
     }
+    // The live tree must stay in sync with the dirty surface. Without
+    // this, an out-of-band `rm` shows up in the Deleted section *and*
+    // still appears as a live file in the tree until something else
+    // refreshes it.
+    try {
+      this.state.libraryTree = await this.env.getLibraryTree();
+    } catch {
+      // leave the previous tree in place if the walk fails
+    }
   }
 
   startLibraryDirtyPolling(): void {
@@ -336,6 +345,9 @@ export class Workspace {
 
   async commitDirtyPaths(paths: string[], message: string): Promise<void> {
     await this.env.commitPaths(paths, message);
+    // refreshLibraryDirty refreshes the tree too — that picks up the
+    // case where commitPaths includes a deletion (permanent-delete from
+    // the Deleted section).
     await this.refreshLibraryDirty();
   }
 
