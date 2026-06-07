@@ -955,7 +955,7 @@ watch(activeContent, (newContent) => {
                 type="button"
                 @click="workspace.toggleSidebar()"
                 class="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-muted transition-colors"
-                :title="workspace.state.sidebarCollapsed ? 'Open Projects' : 'Close Projects'"
+                :title="workspace.state.sidebarCollapsed ? 'Open Library' : 'Close Library'"
               >
                 <FolderOpen class="w-4 h-4" />
               </button>

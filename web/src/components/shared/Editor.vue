@@ -557,10 +557,10 @@ defineExpose({
   <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-page-bg)]">
     <div class="px-4 py-2 border-b border-border bg-[var(--color-toolbar-bg)] flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <!-- Leading host actions. Desktop puts the sidebar/project
+            <!-- Leading host actions. Desktop puts the sidebar/library
                  toggle here; web leaves it empty. Keeping it as a slot
                  means the shared editor doesn't know about host-level
-                 concepts like projects. -->
+                 concepts like libraries. -->
             <template v-if="$slots.leadingActions">
               <slot name="leadingActions" />
               <div class="w-px h-4 bg-black/10 dark:bg-white/10 mx-1"></div>
