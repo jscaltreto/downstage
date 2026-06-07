@@ -127,7 +127,6 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 	tracked := filepath.ToSlash(filepath.Clean(relPath))
 	revisions := make([]Revision, 0, limit)
 
-	firstCommit := true
 	errStop := errors.New("stop")
 
 	err = iter.ForEach(func(c *object.Commit) error {
@@ -156,12 +155,16 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 			}
 		}
 
+		// A commit shows up in this file's history only when the commit
+		// actually touched it: either the root commit introduces it, or the
+		// blob differs from the parent. CommitPaths can produce commits that
+		// touch sibling files only — those must not appear in this file's
+		// revisions list (and they're not restorable, which is what trips up
+		// "Restore this version" if they sneak in).
 		includeCommit := false
 		switch {
 		case renameSource != "":
 			includeCommit = false
-		case firstCommit && !blob.IsZero():
-			includeCommit = true
 		case parent == nil && !blob.IsZero():
 			includeCommit = true
 		case blob != parentBlob:
@@ -189,7 +192,6 @@ func (a *App) GetRevisions(relPath string, limit int) ([]Revision, error) {
 			}
 		}
 
-		firstCommit = false
 		return nil
 	})
 	if err != nil && !errors.Is(err, errStop) {
