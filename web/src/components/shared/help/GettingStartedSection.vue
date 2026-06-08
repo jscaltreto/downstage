@@ -41,9 +41,10 @@ defineProps<{
         stays on your machine, in files you can read and back up yourself.
       </p>
       <p v-else>
-        The browser editor keeps drafts in your browser's local storage. That's
-        fine for a quick page, but anything that clears site data (incognito
-        windows, browser cleanups) will wipe them. For real work, install
+        The browser editor keeps drafts in your browser's local storage. Good
+        for trying things out or jotting a scene, but anything that clears
+        site data (incognito windows, browser cleanups) will wipe them. For
+        a script you plan to keep, install
         <strong class="text-text-main">Downstage Write</strong>, the desktop app.
         Same editor, but your scripts live in a folder on your disk, with saved
         versions kept alongside them.
