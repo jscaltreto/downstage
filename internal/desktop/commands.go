@@ -146,7 +146,7 @@ func Commands() []Command {
 		{ID: CmdLibraryReviewChanges, Label: "Review Library Changes…", Category: CategoryFile},
 		{ID: CmdLibraryCommitChanges, Label: "Commit Library Changes", Category: CategoryFile, PaletteHidden: true},
 
-		{ID: CmdHelpToggle, Label: "View Help", Category: CategoryHelp, Accelerator: "cmdorctrl+shift+/", MenuPath: []string{"Help"}},
+		{ID: CmdHelpToggle, Label: "View Help", Category: CategoryHelp, Accelerator: "cmdorctrl+?", MenuPath: []string{"Help"}},
 		{ID: CmdHelpGitHub, Label: "GitHub", Category: CategoryHelp, MenuPath: []string{"Help"}, BeforeSeparator: true},
 		{ID: CmdHelpDocs, Label: "Documentation", Category: CategoryHelp, MenuPath: []string{"Help"}},
 		{ID: CmdHelpAbout, Label: "About Downstage Write…", Category: CategoryHelp, MenuPath: []string{"Help"}, BeforeSeparator: true},

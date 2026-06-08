@@ -249,7 +249,7 @@ export function createCommandHandlers(ctx: CommandContext): Array<[string, Handl
       isEnabled: () => (workspace.state.libraryDirty?.count ?? 0) > 0,
     }],
 
-    ["help.toggle", { handler: () => toggleDrawerTab("help"), isEnabled: hasActiveFile }],
+    ["help.toggle", { handler: () => toggleDrawerTab("help") }],
     ["help.github", { handler: () => env.openURL(helpLinks.github) }],
     ["help.docs", { handler: () => env.openURL(helpLinks.docs) }],
     ["help.about", { handler: () => env.showAboutDialog() }],
