@@ -14,6 +14,9 @@ import { CommandDispatcher } from './desktop/command-dispatcher';
 import { createCommandHandlers, type CommandContext } from './desktop/commands';
 import { registerDispatcher } from './desktop/dispatcher-registry';
 import type { WorkbenchTab } from './components/shared/workbench-tabs';
+import type { ShortcutEntry } from './components/shared/help-sections';
+import { formatAccelerator } from './core/accelerators';
+import { isMac } from './core/platform';
 import type { SearchMode } from './core/engine';
 import ToastManager from './components/shared/ToastManager.vue';
 import Editor from './components/shared/Editor.vue';
@@ -47,8 +50,35 @@ const isV1Document = ref(false);
 const cursor = ref<{ line: number; col: number }>({ line: 1, col: 1 });
 const wordCount = ref(0);
 
+// Help drawer's Shortcuts section consumes the command catalog the
+// native menu was built from. Loaded once on mount; renders a loading
+// state until then. The bridge call is async, can fail in dev
+// (Wails runtime not present), and the help pane is non-critical so
+// errors only console-log.
+const helpShortcuts = ref<ShortcutEntry[]>([]);
+const helpShortcutsLoading = ref(true);
+
 function errorMessage(error: unknown): string {
   return String((error as { message?: unknown } | null)?.message ?? error);
+}
+
+async function loadHelpShortcuts(): Promise<void> {
+  try {
+    const cmds = await props.env.getCommands();
+    helpShortcuts.value = cmds
+      .filter((c) => !c.paletteHidden && !!c.accelerator)
+      .map<ShortcutEntry>((c) => ({
+        id: c.id,
+        label: c.label,
+        keys: formatAccelerator(c.accelerator ?? '', { isMac }),
+        group: c.category,
+      }));
+  } catch (err) {
+    console.error('Failed to load command catalog for help drawer:', err);
+    helpShortcuts.value = [];
+  } finally {
+    helpShortcutsLoading.value = false;
+  }
 }
 
 let sidebarDragStartX = 0;
@@ -431,6 +461,8 @@ const editorDocumentKey = computed(() => {
 onMounted(async () => {
   await store.init();
   await workspace.init();
+
+  void loadHelpShortcuts();
 
   if (workspace.state.libraryPath && workspace.libraryFiles.value.length > 0) {
     const lastFile = await props.env.getLastActiveFile();
@@ -942,6 +974,9 @@ watch(activeContent, (newContent) => {
               :remove-spell-allowlist-word="removeSpellAllowlistWord"
               :drawer-dock="workspace.state.drawerDock"
               :drawer-right-width="workspace.state.drawerRightWidth"
+              :help-host="'desktop'"
+              :help-shortcuts="helpShortcuts"
+              :help-shortcuts-loading="helpShortcutsLoading"
               @migration-state-change="isV1Document = $event"
               @open-spellcheck-settings="() => dispatcher?.dispatch('file.settings.spellcheck')"
               @update:cursor="cursor = $event"

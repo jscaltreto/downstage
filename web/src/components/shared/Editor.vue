@@ -22,6 +22,7 @@ import FindReplaceTab from './FindReplaceTab.vue';
 import OutlineTab from './OutlineTab.vue';
 import StatsTab from './StatsTab.vue';
 import HelpTab from './HelpTab.vue';
+import type { HelpHost, ShortcutEntry } from './help-sections';
 import { shortcuts as sc } from '../../core/platform';
 
 const props = withDefaults(
@@ -73,6 +74,13 @@ const props = withDefaults(
     // Wails-registered native menu fires the same actions at the OS
     // level — binding here too would either double-fire or be dead code.
     bindEngineAccelerators?: boolean;
+    // Host hint for the help drawer. Desktop = full sectioned help with
+    // the native-menu shortcut catalog; web = same sections, web-flavored
+    // prose, smaller shortcut list. Defaults to 'web' so existing test
+    // mounts and the web host keep working without passing it explicitly.
+    helpHost?: HelpHost;
+    helpShortcuts?: ShortcutEntry[];
+    helpShortcutsLoading?: boolean;
     getSpellAllowlist: () => string[];
     addSpellAllowlistWord: (word: string) => Promise<boolean>;
     removeSpellAllowlistWord: (word: string) => Promise<boolean>;
@@ -88,6 +96,9 @@ const props = withDefaults(
     drawerDock: 'bottom',
     drawerRightWidth: 360,
     bindEngineAccelerators: false,
+    helpHost: 'web',
+    helpShortcuts: () => [],
+    helpShortcutsLoading: false,
   },
 );
 
@@ -747,7 +758,12 @@ defineExpose({
                     <StatsTab :stats="manuscriptStats" :loading="manuscriptStatsLoading" />
                 </template>
                 <template #help>
-                    <HelpTab :open-link="props.env.openURL" />
+                    <HelpTab
+                        :open-link="props.env.openURL"
+                        :host="props.helpHost"
+                        :shortcuts="props.helpShortcuts"
+                        :shortcuts-loading="props.helpShortcutsLoading"
+                    />
                 </template>
             </WorkbenchDrawer>
         </div>

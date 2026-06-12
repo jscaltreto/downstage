@@ -29,8 +29,10 @@ test.describe("workbench", () => {
 
     const drawer = editor.drawer;
     await expect(drawer).toContainText("Workbench Smoke");
-    await expect(drawer).toContainText("ACT I");
-    await expect(drawer).toContainText("SCENE 1");
+    // Outline renders symbol display names in title case ("Act I", "Scene 1")
+    // regardless of the source heading's case in the .ds file.
+    await expect(drawer).toContainText(/Act I/i);
+    await expect(drawer).toContainText(/Scene 1/i);
   });
 
   test("Stats tab shows manuscript counts", async ({ page }) => {
@@ -98,7 +100,7 @@ test.describe("workbench", () => {
     await expect(editor.editor).toContainText("apple apple apple");
   });
 
-  test("Help tab renders the Writing/Tools/Shortcuts sections", async ({ page }) => {
+  test("Help tab renders the sectioned help nav", async ({ page }) => {
     const editor = new EditorPage(page);
     await editor.gotoReady();
     await editor.welcomeStartButton.click();
@@ -106,11 +108,16 @@ test.describe("workbench", () => {
     await editor.openDrawer("help");
 
     const drawer = editor.drawer;
-    await expect(drawer.getByRole("button", { name: "Writing" })).toBeVisible();
-    await expect(drawer.getByRole("button", { name: "Tools" })).toBeVisible();
-    await expect(drawer.getByRole("button", { name: "Shortcuts" })).toBeVisible();
+    // Section nav is a tablist; the inner buttons carry role="tab".
+    // Web host filters out desktop-only sections (Versions, Library,
+    // Settings). The four cross-host sections must render.
+    const nav = drawer.getByRole("tablist", { name: "Help sections" });
+    await expect(nav.getByRole("tab", { name: "Getting Started" })).toBeVisible();
+    await expect(nav.getByRole("tab", { name: "Writing" })).toBeVisible();
+    await expect(nav.getByRole("tab", { name: "Export" })).toBeVisible();
+    await expect(nav.getByRole("tab", { name: "Shortcuts" })).toBeVisible();
 
-    await drawer.getByRole("button", { name: "Shortcuts" }).click();
+    await nav.getByRole("tab", { name: "Shortcuts" }).click();
     await expect(drawer).toContainText(/Bold|Italic|Find/);
   });
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import BaseModal from './BaseModal.vue';
 import { AlertTriangle, BookOpen, Download, HelpCircle } from 'lucide-vue-next';
+import { helpLinks } from '../../core/help-links';
 
 defineProps<{
   open: boolean;
@@ -63,7 +64,7 @@ const emit = defineEmits<{
               button in the toolbar for syntax, shortcuts, and editor features — or view the
               <a
                 class="font-bold text-brass-500 underline decoration-brass-500/40 underline-offset-2 hover:text-brass-400"
-                href="https://www.getdownstage.com/syntax/"
+                :href="helpLinks.syntax"
                 target="_blank"
                 rel="noreferrer"
               >

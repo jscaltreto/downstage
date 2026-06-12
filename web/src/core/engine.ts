@@ -152,7 +152,7 @@ export class Engine {
           { key: "Mod-i", preventDefault: true, run: () => { acc.applyFormat("italic"); return true; } },
           { key: "Mod-u", preventDefault: true, run: () => { acc.applyFormat("underline"); return true; } },
           { key: "Mod-\\", preventDefault: true, run: () => { acc.togglePreview(); return true; } },
-          { key: "Mod-Shift-/", preventDefault: true, run: () => { acc.toggleHelp(); return true; } },
+          { key: "Mod-?", preventDefault: true, run: () => { acc.toggleHelp(); return true; } },
         ])
       : keymap.of([]);
 
