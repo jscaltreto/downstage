@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.9.0](https://github.com/jscaltreto/downstage/compare/v0.8.0...v0.9.0) (2026-06-12)
+
+
+### Features
+
+* **desktop:** Downstage Write — Wails-based desktop app (alpha) ([#188](https://github.com/jscaltreto/downstage/issues/188)) ([fb1f943](https://github.com/jscaltreto/downstage/commit/fb1f943a2350ebc47920b709ad216937bbb74454))
+* **desktop:** sidebar delete/restore + library-wide change reconciliation (Track A2) ([#216](https://github.com/jscaltreto/downstage/issues/216)) ([ac57e30](https://github.com/jscaltreto/downstage/commit/ac57e30225ac9747cec76b68f6420c36edbfc0ac))
+* **revisions:** add revision-pages workflow (`downstage revisions`) ([#187](https://github.com/jscaltreto/downstage/issues/187)) ([ffa6955](https://github.com/jscaltreto/downstage/commit/ffa6955352294380fd53b172fb74ba72f0ee885c))
+* **web:** structured Help drawer (Track B of [#189](https://github.com/jscaltreto/downstage/issues/189)) ([#218](https://github.com/jscaltreto/downstage/issues/218)) ([b0d9487](https://github.com/jscaltreto/downstage/commit/b0d9487aef669243a68c848ecfe4a9c7292f5272))
+
+
+### Bug Fixes
+
+* **deps:** bump liquidjs to 10.27.0 to clear three security advisories ([#186](https://github.com/jscaltreto/downstage/issues/186)) ([d3ced40](https://github.com/jscaltreto/downstage/commit/d3ced403adbff2d112c7ba7f128b6e7d523187c0))
+* **pdf:** avoid O(N²) form-XObject duplication in imposed PDFs ([#181](https://github.com/jscaltreto/downstage/issues/181)) ([7f7973a](https://github.com/jscaltreto/downstage/commit/7f7973ac461a7c34fc9bb7dd0b67e74789c67779))
+
+
+### Dependencies
+
+* **deps:** bump @playwright/test from 1.59.1 to 1.60.0 in /web ([#200](https://github.com/jscaltreto/downstage/issues/200)) ([93536da](https://github.com/jscaltreto/downstage/commit/93536da297bf6d5153914f2c0ee857e3d019d3b6))
+* **deps:** bump @tailwindcss/postcss from 4.2.2 to 4.3.0 in /web ([#198](https://github.com/jscaltreto/downstage/issues/198)) ([ce08ae6](https://github.com/jscaltreto/downstage/commit/ce08ae63b3daf8e7c26cc989fa56dd07a9c40fab))
+* **deps:** bump @types/node from 25.6.0 to 25.9.0 in /editors/vscode ([#195](https://github.com/jscaltreto/downstage/issues/195)) ([f450721](https://github.com/jscaltreto/downstage/commit/f450721f958d514dccaa1c8e75b13531bc160314))
+* **deps:** bump @types/vscode in /editors/vscode ([#178](https://github.com/jscaltreto/downstage/issues/178)) ([3363d75](https://github.com/jscaltreto/downstage/commit/3363d75d49704078a2df74e92202d66810b58a88))
+* **deps:** bump @vscode/vsce from 3.7.1 to 3.9.1 in /editors/vscode ([#163](https://github.com/jscaltreto/downstage/issues/163)) ([19e157b](https://github.com/jscaltreto/downstage/commit/19e157bf775010483939942c15b2ba481b1f6149))
+* **deps:** bump actions/cache from 4 to 5 ([#215](https://github.com/jscaltreto/downstage/issues/215)) ([65ae1fc](https://github.com/jscaltreto/downstage/commit/65ae1fcf4a1258fbd5cf42e4b9c5b12a1455f8cd))
+* **deps:** bump actions/dependency-review-action from 4.9.0 to 5.0.0 ([#202](https://github.com/jscaltreto/downstage/issues/202)) ([3c2f641](https://github.com/jscaltreto/downstage/commit/3c2f64102a2d111fc334a6620395e3071a8ca0b7))
+* **deps:** bump actions/setup-go from 6.3.0 to 6.4.0 ([#162](https://github.com/jscaltreto/downstage/issues/162)) ([a0ff936](https://github.com/jscaltreto/downstage/commit/a0ff936d467e18c5d391417607066f5e8f8b7952))
+* **deps:** bump actions/upload-artifact from 4 to 7 ([#174](https://github.com/jscaltreto/downstage/issues/174)) ([3b893e9](https://github.com/jscaltreto/downstage/commit/3b893e9e06a5318421db39c3f88fd356ee4ca015))
+* **deps:** bump fast-uri from 3.1.0 to 3.1.2 in /editors/vscode ([#180](https://github.com/jscaltreto/downstage/issues/180)) ([afd730b](https://github.com/jscaltreto/downstage/commit/afd730b8d738ee7c2704d6b5372fedcb56db24c5))
+* **deps:** bump github/codeql-action from 3.28.18 to 4.35.5 ([#201](https://github.com/jscaltreto/downstage/issues/201)) ([9502757](https://github.com/jscaltreto/downstage/commit/9502757983b1cb4a0bc60f4eba2b3d5da387a5a4))
+* **deps:** bump github/codeql-action from 4.35.5 to 4.36.0 ([#214](https://github.com/jscaltreto/downstage/issues/214)) ([f94d251](https://github.com/jscaltreto/downstage/commit/f94d251012f81e826576aa96b88341004dc8e608))
+* **deps:** bump googleapis/release-please-action from 4.4.0 to 5.0.0 ([#175](https://github.com/jscaltreto/downstage/issues/175)) ([ae847ea](https://github.com/jscaltreto/downstage/commit/ae847ea16ece20d9fad99c1d8c4adbd79991d177))
+* **deps:** bump goreleaser/goreleaser-action from 7.0.0 to 7.2.2 ([#203](https://github.com/jscaltreto/downstage/issues/203)) ([33c838e](https://github.com/jscaltreto/downstage/commit/33c838ea27db9ec44d882e0f32a003801487d771))
+* **deps:** bump postcss from 8.5.8 to 8.5.14 ([#184](https://github.com/jscaltreto/downstage/issues/184)) ([83ac2f8](https://github.com/jscaltreto/downstage/commit/83ac2f85d22dc720ffefc32f2c5a7bb36d4af4af))
+* **deps:** bump qs from 6.15.0 to 6.15.2 in /editors/vscode ([#193](https://github.com/jscaltreto/downstage/issues/193)) ([e59d904](https://github.com/jscaltreto/downstage/commit/e59d904b757464b844f596fffd935d61bb7773da))
+* **deps:** bump sigstore/cosign-installer in the actions-patch group ([#213](https://github.com/jscaltreto/downstage/issues/213)) ([f91efe4](https://github.com/jscaltreto/downstage/commit/f91efe4db784a3a604e9cb0e9cffc1221a751c6d))
+* **deps:** bump tailwindcss from 4.2.2 to 4.3.0 in /web ([#197](https://github.com/jscaltreto/downstage/issues/197)) ([1a58ed6](https://github.com/jscaltreto/downstage/commit/1a58ed6fefea1bcd6cd222dc5b67978ad6eab45a))
+* **deps:** bump the vscode-patch group ([#209](https://github.com/jscaltreto/downstage/issues/209)) ([ed5018c](https://github.com/jscaltreto/downstage/commit/ed5018c441eae0ad559dab348db96b3a6c87bc2c))
+* **deps:** bump the web-patch group across 1 directory with 10 updates ([#196](https://github.com/jscaltreto/downstage/issues/196)) ([513e70e](https://github.com/jscaltreto/downstage/commit/513e70e03bf75a5f07d47f4c6f722a846b4b6fde))
+* **deps:** bump the web-patch group in /web with 2 updates ([#210](https://github.com/jscaltreto/downstage/issues/210)) ([d4840c3](https://github.com/jscaltreto/downstage/commit/d4840c3aa49f58ddb736dfcae9360a7ba3da1e43))
+* **deps:** bump tmp from 0.2.5 to 0.2.7 in /editors/vscode ([#208](https://github.com/jscaltreto/downstage/issues/208)) ([c516c3c](https://github.com/jscaltreto/downstage/commit/c516c3ce5583da7eb93e2a4139d3a0ce94244ee1))
+* **deps:** bump uuid and @azure/msal-node in /editors/vscode ([#179](https://github.com/jscaltreto/downstage/issues/179)) ([0da7665](https://github.com/jscaltreto/downstage/commit/0da76650d30587d1e81f26372a375a11afb70ad5))
+* **deps:** bump vitest from 4.1.4 to 4.1.6 in /editors/vscode ([#177](https://github.com/jscaltreto/downstage/issues/177)) ([7235da6](https://github.com/jscaltreto/downstage/commit/7235da66671e1f48ccdf76e461f3781dedfa92fc))
+* **deps:** bump vue in /web in the web-patch group ([#217](https://github.com/jscaltreto/downstage/issues/217)) ([93d2ce0](https://github.com/jscaltreto/downstage/commit/93d2ce03bdb7ea76d21b6e9888d32b89a322135d))
+
 ## [0.8.0](https://github.com/jscaltreto/downstage/compare/v0.7.0...v0.8.0) (2026-04-20)
 
 
