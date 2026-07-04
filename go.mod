@@ -1,6 +1,6 @@
 module github.com/jscaltreto/downstage
 
-go 1.25.0
+go 1.26
 
 replace github.com/wailsapp/wails/v2 => github.com/jscaltreto/wails/v2 v2.12.1-0.20260419194552-8207d3ff2212
 
@@ -11,7 +11,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/wailsapp/wails/v2 v2.12.0
-	go.lsp.dev/jsonrpc2 v0.10.0
+	go.lsp.dev/jsonrpc2 v1.0.1
 	go.lsp.dev/protocol v0.12.0
 )
 
@@ -27,6 +27,7 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
+	github.com/go-json-experiment/json v0.0.0-20260601182631-00ed12fed2a6 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
