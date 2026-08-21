@@ -1056,3 +1056,42 @@ func TestRender_TitlePageSubtitleInlineOnlyField(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, buf.Len() > 0, "PDF output should not be empty when subtitle uses inline-only content")
 }
+
+func TestWrapStyledRuns_KeepsPunctuationWithStyledWord(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	runs := []dialogueTextRun{
+		{text: "the generation ship ", style: "I"},
+		{text: "Nemus Dianae", style: "BI"},
+		{text: ". This is a large atrium.", style: "I"},
+	}
+	width := r.pdf.GetStringWidth("the generation ship Nemus Dianae")
+
+	lines := wrapStyledRuns(r.pdf, r.cfg.FontFamily, r.cfg.FontSize, runs, width)
+	require.Greater(t, len(lines), 1, "expected content to wrap across multiple lines")
+
+	for _, line := range lines {
+		text := dialogueRunsPlainText(line)
+		assert.NotEqual(t, ".", strings.TrimSpace(text), "punctuation must not dangle on its own line")
+		assert.False(t, strings.HasPrefix(text, "."), "punctuation must stay with the word it follows")
+	}
+}
+
+func TestPrepareDialogueLineMatchesRenderedWrapping(t *testing.T) {
+	r := NewRenderer(render.DefaultConfig()).(*pdfRenderer)
+	require.NoError(t, r.BeginDocument(&ast.Document{}, &bytes.Buffer{}))
+
+	text := "The Guild of Archivists persists in their restoration of records damaged in the Breach, though exposure to cosmic radiation has resulted in continued degradation."
+	line := r.prepareDialogueLine(bufferedDialogueLine{runs: []dialogueTextRun{{text: text}}})
+
+	width := r.dialogueContentWidth(false)
+	rendered := r.wrapRuns(line.runs, width)
+
+	// Pagination counts prepared lines; rendering emits wrapped lines. A
+	// mismatch overflows the page and inserts a blank one after (MORE).
+	require.Equal(t, len(rendered), len(line.wrappedText))
+	for i, run := range rendered {
+		assert.Equal(t, line.wrappedText[i], dialogueRunsPlainText(run))
+	}
+}

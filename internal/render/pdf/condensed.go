@@ -483,7 +483,7 @@ func (r *condensedRenderer) EndDialogue(_ *ast.Dialogue) error {
 
 func (r *condensedRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 	if !r.inDualDialogue {
-		r.beginCapturedDialogueLine()
+		r.beginCapturedInline("")
 		return nil
 	}
 	r.captureDialogueLine = false
@@ -512,7 +512,7 @@ func (r *condensedRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 
 func (r *condensedRenderer) EndDialogueLine(line *ast.DialogueLine) error {
 	if !r.inDualDialogue {
-		runs := r.endCapturedDialogueLine()
+		runs := r.endCapturedInline()
 		if r.activeDialogue == nil {
 			return nil
 		}

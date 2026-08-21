@@ -367,7 +367,7 @@ func (r *pdfRenderer) BeginDialogueLine(line *ast.DialogueLine) error {
 		return nil
 	}
 
-	r.beginCapturedDialogueLine()
+	r.beginCapturedInline("")
 	return nil
 }
 
@@ -376,7 +376,7 @@ func (r *pdfRenderer) EndDialogueLine(line *ast.DialogueLine) error {
 		r.pdf.Ln(r.lineHeight)
 		return nil
 	}
-	runs := r.endCapturedDialogueLine()
+	runs := r.endCapturedInline()
 	if r.activeDialogue == nil {
 		return nil
 	}
@@ -405,10 +405,15 @@ func (r *pdfRenderer) BeginStageDirection(sd *ast.StageDirection) error {
 	r.pdf.SetX(r.marginL)
 	r.recordBlockBegin(sd)
 	r.markChangeBegin(sd)
+	// Buffer the inline content so this renderer wraps it: fpdf breaks
+	// lines per Write call, which lets punctuation following inline markup
+	// dangle onto a line of its own.
+	r.beginCapturedInline("I")
 	return nil
 }
 
 func (r *pdfRenderer) EndStageDirection(sd *ast.StageDirection) error {
+	r.writeWrappedRuns(r.endCapturedInline(), r.marginL, r.bodyW)
 	r.pdf.Ln(r.lineHeight)
 	r.setStyle("")
 	r.prevWasStageDirection = true
@@ -440,10 +445,13 @@ func (r *pdfRenderer) BeginCallout(c *ast.Callout) error {
 	r.pdf.SetX(r.marginL + calloutIndent)
 	r.recordBlockBegin(c)
 	r.markChangeBegin(c)
+	r.beginCapturedInline("B")
 	return nil
 }
 
 func (r *pdfRenderer) EndCallout(c *ast.Callout) error {
+	calloutIndent := halfInchPt * pointsToMM
+	r.writeWrappedRuns(r.endCapturedInline(), r.marginL+calloutIndent, r.bodyW-calloutIndent)
 	r.pdf.Ln(r.lineHeight)
 	r.setStyle("")
 	r.pdf.SetLeftMargin(r.marginL)
@@ -507,7 +515,7 @@ func (r *pdfRenderer) EndVerseBlock(vb *ast.VerseBlock) error {
 }
 
 func (r *pdfRenderer) BeginVerseLine(_ *ast.VerseLine) error {
-	verseX := r.marginL + r.bodyW*0.15 + 10
+	verseX := r.marginL + r.dialogueLeftMargin() + verseIndent
 	r.pdf.SetX(verseX)
 	return nil
 }
