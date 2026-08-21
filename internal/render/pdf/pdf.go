@@ -8,7 +8,20 @@ import (
 	"github.com/jscaltreto/downstage/internal/render"
 )
 
-const manuscriptLineHeight = 5.0 // mm
+const (
+	manuscriptLineHeight = 5.0 // mm
+
+	// dialogueSideMarginRatio is the fraction of the body width inset from
+	// each margin for spoken dialogue. Verse lines (song lyrics) keep that
+	// left inset so the column still lines up with dialogue, but use the
+	// looser right inset below: lyrics run longer than spoken lines and
+	// wrapped badly in the narrower column.
+	dialogueSideMarginRatio = 0.15
+	verseRightMarginRatio   = 0.05
+
+	// verseIndent is the extra left indent applied to verse lines, in mm.
+	verseIndent = 10.0
+)
 
 var _ render.NodeRenderer = (*pdfRenderer)(nil)
 var _ dialoguePaginationStrategy = (*pdfRenderer)(nil)

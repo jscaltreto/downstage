@@ -58,6 +58,7 @@ type pdfBase struct {
 
 	// Buffered dialogue inline capture for custom pagination.
 	captureDialogueLine bool
+	captureBaseStyle    string
 	captureStyle        string
 	captureStyleStack   []string
 	captureDirDepth     int
@@ -519,22 +520,71 @@ func (b *pdfBase) EndInlineDirection(_ *ast.InlineDirectionNode) error {
 	return nil
 }
 
-func (b *pdfBase) beginCapturedDialogueLine() {
+// beginCapturedInline diverts inline rendering into a styled run buffer
+// instead of writing straight to the page, so the caller can wrap the content
+// itself. baseStyle is the font style the block is rendered in; inline markers
+// merge onto it.
+func (b *pdfBase) beginCapturedInline(baseStyle string) {
 	b.captureDialogueLine = true
-	b.captureStyle = ""
+	b.captureBaseStyle = baseStyle
+	b.captureStyle = baseStyle
 	b.captureStyleStack = b.captureStyleStack[:0]
 	b.captureDirDepth = 0
 	b.capturedRuns = b.capturedRuns[:0]
 }
 
-func (b *pdfBase) endCapturedDialogueLine() []dialogueTextRun {
+func (b *pdfBase) endCapturedInline() []dialogueTextRun {
 	runs := append([]dialogueTextRun(nil), b.capturedRuns...)
 	b.captureDialogueLine = false
+	b.captureBaseStyle = ""
 	b.captureStyle = ""
 	b.captureStyleStack = b.captureStyleStack[:0]
 	b.captureDirDepth = 0
 	b.capturedRuns = b.capturedRuns[:0]
 	return runs
+}
+
+// wrapRuns wraps styled runs to width and restores the tracked font style,
+// which the measuring pass clobbers.
+func (b *pdfBase) wrapRuns(runs []dialogueTextRun, width float64) [][]dialogueTextRun {
+	lines := wrapStyledRuns(b.pdf, b.cfg.FontFamily, b.cfg.FontSize, runs, width)
+	b.pdf.SetFont(b.cfg.FontFamily, b.fontStyle, b.cfg.FontSize)
+	return lines
+}
+
+// wrapRunsPlainText wraps runs exactly as writeWrappedRuns will render them
+// and returns each resulting line as plain text, so pagination counts the
+// lines rendering actually produces.
+func (b *pdfBase) wrapRunsPlainText(runs []dialogueTextRun, width float64) []string {
+	lines := b.wrapRuns(runs, width)
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, dialogueRunsPlainText(line))
+	}
+	return out
+}
+
+// writeWrappedRuns renders styled runs as wrapped lines, each starting at x.
+// No line break is emitted after the final line; the caller owns that.
+//
+// The right margin is dropped for the duration: these lines are already
+// wrapped to width, and fpdf's own line breaking reserves a cell margin that
+// would re-wrap the last word of a line that fits by our measurement.
+func (b *pdfBase) writeWrappedRuns(runs []dialogueTextRun, x, width float64) {
+	lines := b.wrapRuns(runs, width)
+	_, _, rMargin, _ := b.pdf.GetMargins()
+	b.pdf.SetRightMargin(0)
+	defer b.pdf.SetRightMargin(rMargin)
+	for i, line := range lines {
+		if i > 0 {
+			b.pdf.Ln(b.lineHeight)
+		}
+		b.pdf.SetX(x)
+		for _, run := range line {
+			b.setStyle(run.style)
+			b.pdf.Write(b.lineHeight, run.text)
+		}
+	}
 }
 
 func (b *pdfBase) appendCapturedText(text string) {
@@ -597,7 +647,7 @@ func (b *pdfBase) pushCaptureStyle(add string) {
 
 func (b *pdfBase) popCaptureStyle() {
 	if len(b.captureStyleStack) == 0 {
-		b.captureStyle = ""
+		b.captureStyle = b.captureBaseStyle
 		return
 	}
 	prev := b.captureStyleStack[len(b.captureStyleStack)-1]
@@ -714,10 +764,10 @@ func flattenInlineRuns(inlines []ast.Inline, baseStyle string) []dialogueTextRun
 
 // wrapStyledRuns greedy-wraps a sequence of styled runs into lines that fit
 // within maxWidth. Word boundaries are whitespace; explicit '\n' characters
-// force a hard break. A single token longer than maxWidth overflows onto
+// force a hard break. A single word longer than maxWidth overflows onto
 // its own line rather than being broken.
 func wrapStyledRuns(pdf stringWidthMeasurer, family string, size float64, runs []dialogueTextRun, maxWidth float64) [][]dialogueTextRun {
-	tokens := tokenizeStyledRuns(runs)
+	groups := groupStyledTokens(tokenizeStyledRuns(runs))
 
 	var lines [][]dialogueTextRun
 	var current []dialogueTextRun
@@ -737,31 +787,40 @@ func wrapStyledRuns(pdf stringWidthMeasurer, family string, size float64, runs [
 		current = append(current, tok)
 	}
 
-	for _, tok := range tokens {
-		if tok.text == "\n" {
+	appendGroup := func(group styledWordGroup) {
+		for _, tok := range group.tokens {
+			appendToken(tok)
+		}
+	}
+
+	for _, group := range groups {
+		if group.newline {
 			flush()
 			continue
 		}
-		pdf.SetFont(family, tok.style, size)
-		w := pdf.GetStringWidth(tok.text)
+		w := 0.0
+		for _, tok := range group.tokens {
+			pdf.SetFont(family, tok.style, size)
+			w += pdf.GetStringWidth(tok.text)
+		}
 
 		if len(current) == 0 {
-			if strings.TrimSpace(tok.text) == "" {
+			if group.space {
 				continue
 			}
-			appendToken(tok)
+			appendGroup(group)
 			currentWidth = w
 			continue
 		}
 
-		if currentWidth+w > maxWidth && strings.TrimSpace(tok.text) != "" {
+		if currentWidth+w > maxWidth && !group.space {
 			flush()
-			appendToken(tok)
+			appendGroup(group)
 			currentWidth = w
 			continue
 		}
 
-		appendToken(tok)
+		appendGroup(group)
 		currentWidth += w
 	}
 
@@ -769,6 +828,39 @@ func wrapStyledRuns(pdf stringWidthMeasurer, family string, size float64, runs [
 		flush()
 	}
 	return lines
+}
+
+// styledWordGroup is the smallest unit wrapping may not split: either one
+// stretch of whitespace, one hard newline, or one word. A word can span
+// several styled tokens, because inline markup breaks a word into runs
+// without any whitespace between them ("**Nemus Dianae**." ends with a bold
+// token and a plain "." that must stay on the same line).
+type styledWordGroup struct {
+	tokens  []dialogueTextRun
+	space   bool
+	newline bool
+}
+
+func groupStyledTokens(tokens []dialogueTextRun) []styledWordGroup {
+	var groups []styledWordGroup
+	inWord := false
+	for _, tok := range tokens {
+		switch {
+		case tok.text == "\n":
+			groups = append(groups, styledWordGroup{tokens: []dialogueTextRun{tok}, newline: true})
+			inWord = false
+		case strings.TrimSpace(tok.text) == "":
+			groups = append(groups, styledWordGroup{tokens: []dialogueTextRun{tok}, space: true})
+			inWord = false
+		case inWord:
+			last := &groups[len(groups)-1]
+			last.tokens = append(last.tokens, tok)
+		default:
+			groups = append(groups, styledWordGroup{tokens: []dialogueTextRun{tok}})
+			inWord = true
+		}
+	}
+	return groups
 }
 
 type stringWidthMeasurer interface {

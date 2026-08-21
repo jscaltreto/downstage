@@ -42,8 +42,7 @@ func (r *pdfRenderer) prepareDialogueLine(line bufferedDialogueLine) bufferedDia
 		line.wrappedText = nil
 		return line
 	}
-	width := r.dialogueContentWidth(line.isVerse)
-	line.wrappedText = r.pdf.SplitText(line.plainText, width)
+	line.wrappedText = r.wrapRunsPlainText(line.runs, r.dialogueContentWidth(line.isVerse))
 	return line
 }
 
@@ -94,21 +93,21 @@ func (r *pdfRenderer) showContinuationFooter() bool {
 
 func (r *pdfRenderer) renderDialogueSegment(character, parenthetical string, parentheticalInlines []ast.Inline, continuation, firstSegment bool, lines []bufferedDialogueLine, showMore bool, _ bool) {
 	r.renderDialogueHeader(character, parenthetical, parentheticalInlines, continuation, firstSegment)
-	dialogueMargin := r.bodyW * 0.15
-	dialogueX := r.marginL + dialogueMargin
-	r.pdf.SetLeftMargin(dialogueX)
-	r.pdf.SetRightMargin(r.marginR + dialogueMargin)
+	// Use the widest inset any line in this segment may need so fpdf's own
+	// wrapping never fires before the pre-wrapped lines expect it.
+	r.pdf.SetLeftMargin(r.marginL + r.dialogueLeftMargin())
+	r.pdf.SetRightMargin(r.marginR + r.dialogueRightMargin(dialogueLinesHaveVerse(lines)))
 	for _, line := range lines {
 		if len(line.runs) == 0 {
 			r.pdf.Ln(r.lineHeight)
 			continue
 		}
 
-		r.setDialogueLineX(line.isVerse)
-		for _, run := range line.runs {
-			r.setStyle(run.style)
-			r.pdf.Write(r.lineHeight, run.text)
-		}
+		// Wrap here rather than letting fpdf do it: fpdf breaks lines
+		// per Write call, so punctuation that follows inline markup can
+		// dangle onto a line of its own. This also keeps rendering in
+		// step with the wrapping pagination counted on.
+		r.writeWrappedRuns(line.runs, r.dialogueLineX(line.isVerse), r.dialogueContentWidth(line.isVerse))
 		r.setStyle("")
 		r.pdf.Ln(r.lineHeight)
 	}
@@ -147,11 +146,24 @@ func (r *pdfRenderer) dialogueHeaderHeight(firstSegment, hasParenthetical bool) 
 	return height
 }
 
-func (r *pdfRenderer) dialogueContentWidth(isVerse bool) float64 {
-	dialogueMargin := r.bodyW * 0.15
-	width := r.bodyW - (dialogueMargin * 2)
+func (r *pdfRenderer) dialogueLeftMargin() float64 {
+	return r.bodyW * dialogueSideMarginRatio
+}
+
+// dialogueRightMargin returns the inset from the right body margin. Verse
+// lines get a looser inset than spoken dialogue so lyrics, which are both
+// indented and typically longer, are not wrapped every other line.
+func (r *pdfRenderer) dialogueRightMargin(isVerse bool) float64 {
 	if isVerse {
-		width -= 10
+		return r.bodyW * verseRightMarginRatio
+	}
+	return r.bodyW * dialogueSideMarginRatio
+}
+
+func (r *pdfRenderer) dialogueContentWidth(isVerse bool) float64 {
+	width := r.bodyW - r.dialogueLeftMargin() - r.dialogueRightMargin(isVerse)
+	if isVerse {
+		width -= verseIndent
 	}
 	if width < 10 {
 		return 10
@@ -159,14 +171,21 @@ func (r *pdfRenderer) dialogueContentWidth(isVerse bool) float64 {
 	return width
 }
 
-func (r *pdfRenderer) setDialogueLineX(isVerse bool) {
-	dialogueMargin := r.bodyW * 0.15
-	dialogueX := r.marginL + dialogueMargin
+func (r *pdfRenderer) dialogueLineX(isVerse bool) float64 {
+	x := r.marginL + r.dialogueLeftMargin()
 	if isVerse {
-		r.pdf.SetX(dialogueX + 10)
-		return
+		x += verseIndent
 	}
-	r.pdf.SetX(dialogueX)
+	return x
+}
+
+func dialogueLinesHaveVerse(lines []bufferedDialogueLine) bool {
+	for _, line := range lines {
+		if line.isVerse {
+			return true
+		}
+	}
+	return false
 }
 
 func fitCompleteDialogueLines(lines []bufferedDialogueLine, maxWrappedLines int) (count int, used int) {

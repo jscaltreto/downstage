@@ -222,12 +222,12 @@ func (r *condensedRenderer) measureTextWidth(style, text string) float64 {
 }
 
 func (r *condensedRenderer) captureInlineRuns(inlines []ast.Inline, baseStyle string) ([]dialogueTextRun, error) {
-	r.beginCapturedDialogueLine()
+	r.beginCapturedInline("")
 	r.captureStyle = baseStyle
 	if err := r.renderInlineContent(inlines); err != nil {
 		return nil, err
 	}
-	return r.endCapturedDialogueLine(), nil
+	return r.endCapturedInline(), nil
 }
 
 func (r *condensedRenderer) renderWrappedStyledRuns(startX float64, runs []dialogueTextRun, maxWidth float64) float64 {
