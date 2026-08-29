@@ -1275,3 +1275,75 @@ Author: Jane Doe
 	}
 	assert.True(t, hasItalic, "expected italic inline in subtitle value")
 }
+
+func TestDialogueWithCueAnnotation(t *testing.T) {
+	input := `# Play
+
+HAMLET (V.O.)
+To be or not to be.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	assert.Equal(t, "HAMLET", dlg.Character)
+	assert.Equal(t, "V.O.", dlg.Annotation)
+	assert.Equal(t, "HAMLET (V.O.)", dlg.CueName())
+	// The name range must cover the name alone so renames and character
+	// lookups do not swallow the annotation.
+	assert.Equal(t, 0, dlg.NameRange().Start.Column)
+	assert.Equal(t, len("HAMLET"), dlg.NameRange().End.Column)
+	assert.Len(t, dlg.Lines, 1)
+}
+
+func TestDialogueWithForcedCueAnnotation(t *testing.T) {
+	input := `# Play
+
+@Gideon (V.O.)
+Systems nominal.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	assert.Equal(t, "Gideon", dlg.Character)
+	assert.Equal(t, "V.O.", dlg.Annotation)
+	assert.True(t, dlg.Forced)
+}
+
+func TestDialogueWithCueAnnotationAndParenthetical(t *testing.T) {
+	input := `# Play
+
+HAMLET (O.S.)
+(aside)
+To be or not to be.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	require.NotNil(t, dlg)
+	assert.Equal(t, "HAMLET", dlg.Character)
+	assert.Equal(t, "O.S.", dlg.Annotation)
+	assert.Equal(t, "(aside)", dlg.Parenthetical)
+	assert.Len(t, dlg.Lines, 1)
+}
+
+func TestLowercaseCueAnnotationIsNotACue(t *testing.T) {
+	input := `# Play
+
+HAMLET (crying)
+To be or not to be.`
+
+	doc, errs := Parse([]byte(input))
+	require.Empty(t, errs)
+
+	var dlg *ast.Dialogue
+	findDialogue(doc.Body, &dlg)
+	assert.Nil(t, dlg, "a lowercase annotation must not turn the line into a cue")
+}

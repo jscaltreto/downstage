@@ -205,7 +205,7 @@
       "patterns": [
         {
           "name": "meta.character-cue.downstage",
-          "match": "^(@)?([A-Z][A-Z0-9' .\\-/]*?)(\\s*)(\\^)?\\s*$",
+          "match": "^(@)?([A-Z][A-Z0-9' .\\-/]*?)(\\s*\\([A-Z0-9', .\\-/]+\\))?(\\s*)(\\^)?\\s*$",
           "captures": {
             "1": {
               "name": "punctuation.definition.character.forced.downstage"
@@ -213,7 +213,10 @@
             "2": {
               "name": "entity.name.function.character.downstage"
             },
-            "4": {
+            "3": {
+              "name": "meta.character-annotation.downstage"
+            },
+            "5": {
               "name": "keyword.operator.dual-dialogue.downstage"
             }
           }

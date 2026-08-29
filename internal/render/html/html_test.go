@@ -1305,3 +1305,20 @@ func extractBlock(t *testing.T, out, prefix, suffix string) string {
 	t.Fatalf("unterminated block for prefix %q", prefix)
 	return ""
 }
+
+func TestRenderDialogueWithCueAnnotation(t *testing.T) {
+	doc := &ast.Document{
+		Body: []ast.Node{
+			&ast.Dialogue{
+				Character:  "HAMLET",
+				Annotation: "V.O.",
+				Lines: []ast.DialogueLine{
+					{Content: []ast.Inline{&ast.TextNode{Value: "To be or not to be."}}},
+				},
+			},
+		},
+	}
+	out := renderHTML(t, doc)
+
+	assert.Contains(t, out, "<p class=\"downstage-character\">HAMLET (V.O.)</p>")
+}

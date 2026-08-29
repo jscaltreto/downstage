@@ -1041,6 +1041,16 @@ func (p *parser) parseDialogue() *ast.Dialogue {
 		dlg.Forced = true
 	}
 
+	// Split a cue annotation written on the character line: ALICE (V.O.).
+	// Character keeps the bare name so it still resolves against the
+	// dramatis personae.
+	if name, annotation := lexer.SplitCharacterAnnotation(dlg.Character); annotation != "" {
+		nameRange := dlg.NameRange()
+		dlg.Character = name
+		dlg.Annotation = annotation
+		dlg.SetNameRange(sliceInlineRange(name, nameRange, 0, len(name)))
+	}
+
 	// Check for parenthetical right after character name: (text)
 	if p.at(token.Text) {
 		lit := strings.TrimSpace(p.peek().Literal)

@@ -227,7 +227,7 @@ func (r *pdfRenderer) BeginDialogue(d *ast.Dialogue) error {
 		return r.beginDualDialogueSide(d)
 	}
 	r.activeDialogue = &bufferedDialogue{
-		character:            d.Character,
+		character:            d.CueName(),
 		parenthetical:        d.Parenthetical,
 		parentheticalInlines: dialogueParentheticalInlines(d),
 		lines:                make([]bufferedDialogueLine, 0, len(d.Lines)),
@@ -262,7 +262,7 @@ func (r *pdfRenderer) beginDualDialogueSide(d *ast.Dialogue) error {
 
 	// Character name — centered in column, bold
 	r.setStyle("B")
-	name := strings.ToUpper(d.Character)
+	name := strings.ToUpper(d.CueName())
 	nameW := r.pdf.GetStringWidth(name)
 	r.pdf.SetX(leftM + (colW-nameW)/2)
 	r.pdf.Write(r.lineHeight, name)

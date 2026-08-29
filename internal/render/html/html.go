@@ -409,7 +409,7 @@ func (r *htmlRenderer) EndDualDialogue(_ *ast.DualDialogue) error {
 func (r *htmlRenderer) BeginDialogue(d *ast.Dialogue) error {
 	r.beginBlock()
 	fmt.Fprintf(&r.buf, "<div class=\"downstage-dialogue\"%s>\n", r.sourceAttr(d.NodeRange()))
-	fmt.Fprintf(&r.buf, "<p class=\"downstage-character\">%s</p>\n", html.EscapeString(strings.ToUpper(d.Character)))
+	fmt.Fprintf(&r.buf, "<p class=\"downstage-character\">%s</p>\n", html.EscapeString(strings.ToUpper(d.CueName())))
 	if d.Parenthetical != "" {
 		r.buf.WriteString("<p class=\"downstage-parenthetical\">")
 		r.buf.WriteString("(")

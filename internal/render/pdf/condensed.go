@@ -352,7 +352,7 @@ func (r *condensedRenderer) BeginDialogue(d *ast.Dialogue) error {
 		return r.beginDualDialogueSide(d)
 	}
 	r.activeDialogue = &bufferedDialogue{
-		character:            d.Character,
+		character:            d.CueName(),
 		parenthetical:        d.Parenthetical,
 		parentheticalInlines: dialogueParentheticalInlines(d),
 		lines:                make([]bufferedDialogueLine, 0, len(d.Lines)),
@@ -386,7 +386,7 @@ func (r *condensedRenderer) beginDualDialogueSide(d *ast.Dialogue) error {
 	// Character name — bold, inline
 	r.pdf.SetX(leftM)
 	r.setStyle("B")
-	r.pdf.Write(r.lineHeight, strings.ToUpper(d.Character)+".")
+	r.pdf.Write(r.lineHeight, strings.ToUpper(d.CueName())+".")
 	r.setStyle("")
 	r.pdf.Write(r.lineHeight, "  ")
 
@@ -425,7 +425,7 @@ func (r *condensedRenderer) estimateDialogueHeight(d *ast.Dialogue, width float6
 	}
 
 	height := r.condensedSmallGap()
-	firstLineWidth := width - r.pdf.GetStringWidth(strings.ToUpper(d.Character)+".  ")
+	firstLineWidth := width - r.pdf.GetStringWidth(strings.ToUpper(d.CueName())+".  ")
 	if d.Parenthetical != "" {
 		firstLineWidth -= r.pdf.GetStringWidth(parentheticalPlainText(d.Parenthetical, dialogueParentheticalInlines(d)) + " ")
 	}
