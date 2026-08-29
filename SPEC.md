@@ -302,6 +302,13 @@ HAMLET
 To be, or not to be, that is the question.
 ```
 
+With a cue annotation:
+
+```
+HAMLET (V.O.)
+To be, or not to be, that is the question.
+```
+
 Multi-line dialogue:
 
 ```
@@ -313,6 +320,31 @@ Every last one.
 A single blank line within dialogue creates a paragraph break — additional vertical space between lines of the same speech. In standard layout this renders as a full blank line; in condensed layout the gap is smaller.
 
 Dialogue ends when a blank line is followed by another structural element (another character name, heading, song, etc.) or when a double blank line is encountered.
+
+### Cue Annotations
+
+A cue may carry a parenthesized annotation on the character line itself, for
+delivery modifiers such as `V.O.` (voice over) or `O.S.` (offstage):
+
+```
+HAMLET (V.O.)
+To be, or not to be, that is the question.
+```
+
+Rules:
+
+- The annotation must satisfy the same rules as a character name (see Section
+  7, Character Name Rules): ALL CAPS, at least one letter, and only uppercase
+  letters, digits, spaces, periods, commas, hyphens, apostrophes, and slashes.
+  `HAMLET (crying)` is not a cue; it stays dialogue text.
+- The annotation is not part of the character name. `HAMLET (V.O.)` resolves to
+  the character `HAMLET` for dramatis personae matching, renames, and statistics.
+- Any text may be annotated this way, including forced cues (`@Gideon (V.O.)`)
+  and dual dialogue cues (`HAMLET (V.O.) ^`).
+- The cue renders with its annotation: `HAMLET (V.O.)`. A continued block reads
+  `HAMLET (V.O.) (CONT'D)`.
+- A cue annotation is independent of a character parenthetical on the following
+  line (see Section 8); both may appear on the same block.
 
 ### Dual Dialogue
 

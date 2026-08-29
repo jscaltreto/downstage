@@ -793,3 +793,22 @@ func TestBuildDiagnostics_MisnumberedScenesWarnOnBackwardOrderWithinAct(t *testi
 		t.Fatalf("unexpected backward-order replacement: %q", replacements[1])
 	}
 }
+
+func TestBuildDiagnostics_AnnotatedCueResolvesToCharacter(t *testing.T) {
+	source := `# Play
+
+## Dramatis Personae
+
+HAMLET - Prince of Denmark
+
+## ACT I
+
+HAMLET (V.O.)
+To be or not to be.
+`
+	doc, errs := parser.Parse([]byte(source))
+	require.Empty(t, errs)
+
+	diags := filterDiagnostics(buildDiagnostics(doc, nil), diagnosticCodeUnknownCharacter)
+	assert.Empty(t, diags, "an annotated cue must resolve to its bare character name")
+}

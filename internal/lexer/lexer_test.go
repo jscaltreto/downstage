@@ -370,13 +370,18 @@ func TestIsCharacterName(t *testing.T) {
 		{"MRS. O'BRIEN", true},
 		{"LADY CAPULET", true},
 		{"A", true},
-		{"john", false},    // lowercase
-		{"John", false},    // mixed case
-		{"SONG", true},     // lexer handles SONG before char check
-		{"SONG END", true}, // same
-		{"123", false},     // digits
-		{"ALL-GOOD", true}, // hyphen ok
-		{"", false},        // empty
+		{"john", false},           // lowercase
+		{"John", false},           // mixed case
+		{"SONG", true},            // lexer handles SONG before char check
+		{"SONG END", true},        // same
+		{"123", false},            // digits
+		{"ALL-GOOD", true},        // hyphen ok
+		{"", false},               // empty
+		{"ALICE (V.O.)", true},    // cue annotation
+		{"ALICE (CONT'D)", true},  // cue annotation with apostrophe
+		{"ALICE (crying)", false}, // lowercase annotation stays dialogue
+		{"ALICE ()", false},       // empty annotation
+		{"(V.O.)", false},         // annotation with no name
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {

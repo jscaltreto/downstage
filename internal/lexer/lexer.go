@@ -263,10 +263,49 @@ func (l *lexer) emit(typ token.Type, literal, sourceLine string, line, colStart,
 // IsCharacterName reports whether s looks like an ALL CAPS character name.
 func IsCharacterName(s string) bool { return isCharacterName(s) }
 
-// isCharacterName returns true if s looks like an ALL CAPS character name.
+// SplitCharacterAnnotation splits a cue line into its character name and an
+// optional trailing annotation such as `ALICE (V.O.)`. The annotation is
+// returned without its parentheses. A cue with no annotation, or one whose
+// parenthesized text is not itself name-shaped (`ALICE (crying)`), is
+// returned unchanged with an empty annotation.
+func SplitCharacterAnnotation(s string) (name, annotation string) {
+	return splitCharacterAnnotation(s)
+}
+
+func splitCharacterAnnotation(s string) (name, annotation string) {
+	trimmed := strings.TrimSpace(s)
+	if !strings.HasSuffix(trimmed, ")") {
+		return s, ""
+	}
+	open := strings.LastIndex(trimmed, "(")
+	if open <= 0 {
+		return s, ""
+	}
+	inner := strings.TrimSpace(trimmed[open+1 : len(trimmed)-1])
+	if !isPlainCharacterName(inner) {
+		return s, ""
+	}
+	before := strings.TrimSpace(trimmed[:open])
+	if before == "" {
+		return s, ""
+	}
+	return before, inner
+}
+
+// isCharacterName returns true if s looks like an ALL CAPS character name,
+// optionally followed by an annotation such as `(V.O.)`.
+func isCharacterName(s string) bool {
+	name, annotation := splitCharacterAnnotation(s)
+	if annotation != "" {
+		return isPlainCharacterName(name)
+	}
+	return isPlainCharacterName(s)
+}
+
+// isPlainCharacterName returns true if s looks like an ALL CAPS character name.
 // Must be 1+ characters, contain at least one letter, and consist only of
 // uppercase letters, digits, spaces, periods, commas, hyphens, and apostrophes.
-func isCharacterName(s string) bool {
+func isPlainCharacterName(s string) bool {
 	if len(s) < 1 {
 		return false
 	}

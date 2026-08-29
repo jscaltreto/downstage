@@ -306,7 +306,13 @@ var _ Node = (*Dialogue)(nil)
 
 // Dialogue represents character dialogue.
 type Dialogue struct {
-	Character            string
+	Character string
+	// Annotation is a cue modifier written on the character line itself,
+	// such as the `V.O.` in `ALICE (V.O.)`. It is stored without its
+	// parentheses and kept out of Character so character lookups, renames,
+	// and dramatis matching still see the bare name. Renderers append it
+	// to the displayed cue; see CueName.
+	Annotation           string `json:",omitempty"`
 	Parenthetical        string
 	parentheticalInlines []Inline
 	Lines                []DialogueLine
@@ -323,6 +329,15 @@ type Dialogue struct {
 
 func (d *Dialogue) NodeRange() token.Range { return d.Range }
 func (d *Dialogue) nodeType() string       { return "Dialogue" }
+
+// CueName returns the cue as it should be displayed: the character name plus
+// any annotation, e.g. `ALICE (V.O.)`.
+func (d *Dialogue) CueName() string {
+	if d.Annotation == "" {
+		return d.Character
+	}
+	return d.Character + " (" + d.Annotation + ")"
+}
 func (d *Dialogue) NameRange() token.Range {
 	if isZeroRange(d.nameRange) {
 		r := d.Range
