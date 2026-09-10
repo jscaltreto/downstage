@@ -182,7 +182,7 @@
     "lint": "tsc --noEmit -p ./"
   },
   "devDependencies": {
-    "vitest": "^4.1.8",
+    "vitest": "^4.1.11",
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.1",
     "@types/node": "^25.9.3",
