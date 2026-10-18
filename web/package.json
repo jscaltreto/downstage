@@ -28,7 +28,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/vite": "^4.2.2",
     "@vitejs/plugin-vue": "^6.0.8",
-    "autoprefixer": "^10.5.5",
+    "autoprefixer": "^10.6.0",
     "codemirror": "^6.0.1",
     "lucide-vue-next": "^1.0.0",
     "postcss": "^8.5.28",
